@@ -61,10 +61,10 @@ export class GcClient {
     signal?: AbortSignal,
     params?: { limit?: number },
   ): Promise<GcBeadList> {
-    // td-7t24i6 (Charlie's corrected diagnosis): gc supervisor defaults
+    // td-7t24i6 (the operator's corrected diagnosis): gc supervisor defaults
     // /beads to limit=50, which is far below the city's working set
     // (~2139 total, ~183 eng-only). The client-side spam filter then
-    // operates on a 50-item window and Charlie sees an undercount.
+    // operates on a 50-item window and the operator sees an undercount.
     // Pass an explicit large limit to cover the working set; the spam
     // filter shrinks back down on the client side.
     const search = new URLSearchParams();

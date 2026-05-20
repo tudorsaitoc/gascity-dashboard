@@ -34,8 +34,8 @@ export function mailRouter(gc: GcClient): Router {
       //
       // Pull a wide window and filter server-side: inbox = to===alias,
       // sent = from===alias. Filtering here keeps each box's results
-      // independent under as-identity switching, which is what Charlie
-      // actually wants from the UI.
+      // independent under as-identity switching, which is what the
+      // operator actually wants from the UI.
       const { items: rawItems } = await gc.listMail(undefined, { limit: FETCH_LIMIT });
       const filtered = filterByBox(rawItems, box, alias);
       // Newest first — td-liky3d default sort, applied at the source so

@@ -102,9 +102,9 @@ The peek modal carries a banner: *"Content is agent-generated and may contain mi
 - `routes/mail.ts` — read paths; takes a `viewing-as` query param.
 - `routes/mail-send.ts` — write path; **the send function's signature has no as-identity parameter**. Server is structurally unable to send-as-other.
 
-Frontend renders a visible "Viewing as <agent>" banner with colour; the compose-from field is greyed when viewing-as ≠ Charlie so the constraint is visible *before* the user tries.
+Frontend renders a visible "Viewing as <agent>" banner with colour; the compose-from field is greyed when viewing-as ≠ the operator so the constraint is visible *before* the user tries.
 
-**Audit log** (`audit.ts`): every fetch records `actor=charlie, viewing_as=<alias>`. Every send records `actor=charlie, viewing_as_context=<alias>` so the trail is intact regardless of UI state.
+**Audit log** (`audit.ts`): every fetch records `actor=stephanie, viewing_as=<alias>`. Every send records `actor=stephanie, viewing_as_context=<alias>` so the trail is intact regardless of UI state.
 
 No client-side caching of mail under as-identity (`Cache-Control: no-store`, no `localStorage` retention).
 
