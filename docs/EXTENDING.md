@@ -76,6 +76,32 @@ npm --workspace frontend run dev    # vite, HMR on :5174
 npm --workspace shared run build    # types only (build:shared also at root)
 ```
 
+## Running the Peek-modal regression locally
+
+`scripts/snap-peek.mjs --test` is the regression guard for the Peek modal — it
+catches transparency regressions (the modal must render opaque against the
+scrim, per `Modal.tsx`) and CSRF / Vite-changeOrigin regressions (the POST to
+`/api/sessions/<id>/peek` must return 200, not 403).
+
+```bash
+# Backend + frontend must both be up:
+#   Terminal 1: npm run dev:backend
+#   Terminal 2: npm run dev:frontend
+node scripts/snap-peek.mjs --test
+```
+
+Exit codes:
+
+- `0` and `peek regression: PASSED` — modal opaque, peek POST 200, all good.
+- `0` and `peek regression: SKIPPED` — no frontend reachable, or no active
+  sessions to peek. Not a failure, but you didn't actually verify anything.
+- `1` and `peek regression: FAILED` — real regression. Check the per-theme
+  `FAIL — ...` lines for which assertion blew (transparency, no peek POST,
+  non-200 response, modal didn't open).
+
+Without `--test`, the script behaves as a snap-only harness, same as the other
+`scripts/snap*.mjs` files: writes PNGs to `/tmp/cp-snaps/` and exits 0.
+
 ## Why we don't import from `clients/app/`
 
 `tools/admin-dashboard/` is a separate workspace with no runtime or build dependency on the Thriva product app. Visual primitives are **copied** (in `frontend/src/components/`), not imported. Wrong-direction coupling — tooling depending on product code — is exactly what we don't want; the admin tool needs to survive product-app refactors.

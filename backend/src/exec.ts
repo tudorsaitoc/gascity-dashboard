@@ -237,7 +237,7 @@ export async function execMailSend(
 }
 
 // Hardcoded enum of `git log` invocations. Each view's args live entirely
-// in this file — Charlie cannot pass arbitrary git arguments to the
+// in this file — the operator cannot pass arbitrary git arguments to the
 // server. The caller can only pick a view *name* (validated upstream).
 // td-7t24i6 scope expansion: git log views previously capped at -n 50 in
 // recent-main / recent-all, same undercount risk. Recent-main bumped to

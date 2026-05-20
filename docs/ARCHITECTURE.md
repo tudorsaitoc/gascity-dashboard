@@ -51,15 +51,15 @@ Why we still go through the backend for peek (rather than calling gc direct from
 Three load-bearing reasons (per `security_researcher` td-wisp-eb0pn + `senior_developer` td-wisp-uvmru):
 
 1. **Adoption-as-symmetry is a smell.** The Services card on the gc dashboard is correctly empty for this city.
-2. **`[[services]]` is underexercised.** Admin dashboard is too Charlie-critical to be the first adopter of an untested lifecycle primitive.
-3. **Inverted dependency.** gc-managed services restart with the gc-supervisor — but the dashboard is *exactly what Charlie wants open when gc is misbehaving*. Dashboard must outlive supervisor outages.
+2. **`[[services]]` is underexercised.** Admin dashboard is too operator-critical to be the first adopter of an untested lifecycle primitive.
+3. **Inverted dependency.** gc-managed services restart with the gc-supervisor — but the dashboard is *exactly what the operator wants open when gc is misbehaving*. Dashboard must outlive supervisor outages.
 
 systemd is boring, well-understood, and `journalctl`-debuggable. `ExecStartPre` includes a port-in-use check (`senior_developer` gotcha #5). Revisit `[[services]]` in v1+ when it has battle-tested adopters elsewhere.
 
 ## Process model
 
 ```
-   Charlie (browser)
+   operator (browser)
         │
         │  HTTP/loopback :8081
         ▼
@@ -86,9 +86,9 @@ systemd is boring, well-understood, and `journalctl`-debuggable. `ExecStartPre` 
 
 Five views ship in three milestones. Each milestone has an acceptance gate:
 
-- **Phase A (this commit)** — skeleton + Agents view + Beads view. *Gate*: Charlie can identify any session's state + peek tmux content without a shell; can see filtered beads + claim/close from the browser.
-- **Phase B** — Mail with identity-switching (view-as-X, sends-as-Charlie via separate router). *Gate*: Charlie can read any agent's thread cross-agent; verify every send logs `actor=charlie`.
-- **Phase C** — Activity (commits + builds) + Health (process + dolt-noms 24 h trend) + SSE wiring. *Gate*: Charlie can spot the refinery's last merge + memory pressure trend without terminal.
+- **Phase A (this commit)** — skeleton + Agents view + Beads view. *Gate*: the operator can identify any session's state + peek tmux content without a shell; can see filtered beads + claim/close from the browser.
+- **Phase B** — Mail with identity-switching (view-as-X, sends-as-operator via separate router). *Gate*: the operator can read any agent's thread cross-agent; verify every send logs `actor=stephanie`.
+- **Phase C** — Activity (commits + builds) + Health (process + dolt-noms 24 h trend) + SSE wiring. *Gate*: the operator can spot the refinery's last merge + memory pressure trend without terminal.
 
 Internal tool — the "anti-scope-reduction reflex" doesn't apply here. The five views are loosely coupled; phasing is logical build order, not feature cuts.
 
@@ -102,4 +102,4 @@ Remove the `tools/admin-dashboard/` subtree + the systemd unit. No persistent st
 - **Per-event-class notification opt-out** is not this project.
 - **TanStack Table** — premature dep at our scale; the in-house `<Table>` covers sortable columns + filter chips + click-row in <200 LOC.
 - **xterm.js** for peek — overkill (no need for terminal emulation, just a snapshot view). `ansi_up` (~3 KB) is sufficient.
-- **Light theme / system-pref auto** — Charlie can request in v1 if dark-default bites.
+- **Light theme / system-pref auto** — the operator can request in v1 if dark-default bites.

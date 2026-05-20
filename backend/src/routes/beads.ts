@@ -42,8 +42,8 @@ export function beadsRouter(gc: GcClient): Router {
         total: filtered.length,
         // upstream_total: the store's total bead count (per gc's `total`
         // field). Diff between upstream_total and items.length tells the UI
-        // how much was truncated by our fetch limit so Charlie can see when
-        // the window isn't covering everything.
+        // how much was truncated by our fetch limit so the operator can see
+        // when the window isn't covering everything.
         upstream_total: typeof total === 'number' ? total : undefined,
         upstream_fetched: items.length,
         fetch_limit: BEADS_FETCH_LIMIT,

@@ -4,7 +4,7 @@ import { execGitLog, ExecError } from '../exec.js';
 import { recordAudit } from '../audit.js';
 
 // Hardcoded enum of `git log` invocations. Anything outside this set is
-// rejected at the validator — the user (Charlie) cannot pass arbitrary
+// rejected at the validator — the operator cannot pass arbitrary
 // git args to the server.
 const VIEWS: ReadonlySet<GitView> = new Set([
   'recent-main',

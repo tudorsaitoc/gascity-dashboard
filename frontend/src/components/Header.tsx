@@ -20,7 +20,7 @@ export function Header() {
 
   return (
     <header className="border-b border-rule">
-      <div className="max-w-[1280px] mx-auto px-8 py-5 flex items-baseline gap-8">
+      <div className="max-w-[1280px] mx-auto px-4 sm:px-6 lg:px-8 py-5 flex items-baseline gap-x-6 lg:gap-x-8 gap-y-2 flex-wrap">
         <div className="flex items-baseline gap-3 min-w-0">
           <span className="text-title font-semibold tracking-tight text-fg">
             gas city
@@ -37,7 +37,7 @@ export function Header() {
         </div>
 
         <nav className="flex-1">
-          <ul className="flex items-baseline gap-7">
+          <ul className="flex items-baseline gap-x-5 lg:gap-x-7 gap-y-1 flex-wrap">
             {ROUTES.map((r) => (
               <li key={r.to}>
                 <NavLink

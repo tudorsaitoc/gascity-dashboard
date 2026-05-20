@@ -29,6 +29,8 @@ npm run dev:frontend
 
 Then open `http://127.0.0.1:5174`. The dashboard expects a Gas City `gc supervisor` reachable on `http://127.0.0.1:8372` by default.
 
+**Supported device surface.** Per [`PRODUCT.md`](PRODUCT.md), this dashboard targets a MacBook (typically via SSH port forward) and the host console. The layout stays stable from roughly 720px wide upward. Phone-size viewports are explicitly out of scope: there is no hamburger nav, no mobile drawer, no touch affordances. If the operator finds herself reaching for the phone, the answer is to open the laptop.
+
 ## Production build
 
 ```bash

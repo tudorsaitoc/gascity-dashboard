@@ -44,8 +44,8 @@ async function sendHandler(req: Request, res: Response): Promise<void> {
     void recordAudit({
       type: 'dashboard.send_mail',
       endpoint: 'POST /api/mail-send',
-      // viewing_as deliberately NOT recorded here — sender is always Charlie.
-      // The signature has no slot for it. Record only what was sent.
+      // viewing_as deliberately NOT recorded here — sender is always the
+      // operator. The signature has no slot for it. Record only what was sent.
       parsed_args: { to, subject_len: String(subject.length), body_len: String(text.length) },
       exit_code: result.exitCode,
       duration_ms: result.durationMs,
