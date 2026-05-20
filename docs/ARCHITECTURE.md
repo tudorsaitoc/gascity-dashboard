@@ -94,7 +94,7 @@ Internal tool — the "anti-scope-reduction reflex" doesn't apply here. The five
 
 ## Reversibility
 
-Remove the `tools/admin-dashboard/` subtree + the systemd unit. No persistent state to clean up. The audit log entries written to `.gc/events.jsonl` are read-only signal and won't break gc itself.
+Stop the systemd unit and drop the repo. No persistent state to clean up. The audit log entries written to `.gc/events.jsonl` are read-only signal and won't break gc itself.
 
 ## What's deferred
 

@@ -1,13 +1,52 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { AnsiUp } from 'ansi_up';
 import type { GcSession, TranscriptResult, TranscriptTurn } from 'gas-city-dashboard-shared';
+import { effectiveContextPct } from 'gas-city-dashboard-shared';
 import { api, ApiClientError } from '../api/client';
 import { Button } from '../components/Button';
+import { FilterChips } from '../components/FilterChips';
+import { GroupedTable } from '../components/GroupedTable';
+import { ListSearchBar } from '../components/ListSearchBar';
 import { Modal } from '../components/Modal';
 import { PageHeader } from '../components/PageHeader';
 import { StatusBadge, type StatusTone } from '../components/StatusBadge';
-import { Table, type TableColumn } from '../components/Table';
+import { type TableColumn } from '../components/Table';
 import { useGcEventRefresh } from '../hooks/useGcEvents';
+import { useListFilters, type FilterChip } from '../hooks/useListFilters';
+import { sessionProject } from '../hooks/projectOf';
+
+// Session state chips collapse the gc supervisor's many states into
+// three buckets the operator actually filters by. Unknown states fall
+// outside all three chips, so they only show when no chip is active.
+const SESSION_CHIPS: ReadonlyArray<FilterChip<GcSession>> = [
+  {
+    id: 'running',
+    label: 'running',
+    match: (s) => s.state === 'active' || s.state === 'running' || s.running === true,
+  },
+  {
+    id: 'idle',
+    label: 'idle',
+    match: (s) => s.state === 'asleep' || s.state === 'idle' || s.state === 'creating',
+  },
+  {
+    id: 'stopped',
+    label: 'stopped',
+    match: (s) =>
+      s.state === 'failed' || s.state === 'closed' || s.state === 'errored' || s.state === 'stuck',
+  },
+];
+
+const SESSION_SEARCH_FIELDS = (s: GcSession): ReadonlyArray<string | undefined> => [
+  s.id,
+  s.alias,
+  s.title,
+  s.template,
+  s.pool,
+  s.rig,
+  s.provider,
+  s.model,
+];
 
 const PROMPT_INJECTION_NOTICE =
   'Content is agent-generated and may contain misleading instructions.';
@@ -72,6 +111,14 @@ export function AgentsPage() {
 
   const synopsis = useMemo(() => buildSynopsis(rows), [rows]);
 
+  const filters = useListFilters<GcSession>({
+    viewKey: 'agents',
+    rows,
+    projectOf: sessionProject,
+    searchOf: SESSION_SEARCH_FIELDS,
+    chips: SESSION_CHIPS,
+  });
+
   const columns = useMemo<ReadonlyArray<TableColumn<GcSession>>>(() => [
     {
       key: 'alias',
@@ -120,24 +167,37 @@ export function AgentsPage() {
       key: 'context',
       label: 'Context',
       sortable: true,
-      sortValue: (r) => r.context_pct ?? -1,
+      // Sort by the value we DISPLAY, not the raw gc value — otherwise
+      // mayor (raw 89%, effective 18%) would sort above a true-90%
+      // session that looks calmer.
+      sortValue: (r) => effectiveContextPct(r) ?? -1,
       align: 'right',
-      render: (r) =>
-        typeof r.context_pct === 'number' ? (
+      render: (r) => {
+        const pct = effectiveContextPct(r);
+        if (typeof pct !== 'number') {
+          return <span className="text-fg-faint">·</span>;
+        }
+        // Tooltip exposes the raw gc value when scaling kicked in so
+        // the operator can audit the dashboard against gc directly.
+        const title =
+          typeof r.context_pct === 'number' && r.context_pct !== pct
+            ? `gc reports ${r.context_pct}% against ${r.context_window ?? '?'}-token window; scaled to model's true window`
+            : undefined;
+        return (
           <span
+            title={title}
             className={`tnum ${
-              r.context_pct >= 95
+              pct >= 95
                 ? 'text-accent font-medium'
-                : r.context_pct >= 80
+                : pct >= 80
                   ? 'text-warn font-medium'
                   : 'text-fg-muted'
             }`}
           >
-            {r.context_pct}%
+            {pct}%
           </span>
-        ) : (
-          <span className="text-fg-faint">·</span>
-        ),
+        );
+      },
       className: 'w-24',
     },
     {
@@ -185,11 +245,34 @@ export function AgentsPage() {
         }
       />
 
-      <Table
+      <div className="mb-6 space-y-3">
+        <ListSearchBar
+          value={filters.search}
+          onChange={filters.setSearch}
+          placeholder="Search agents by alias, rig, pool, template"
+          matchCount={filters.totalMatches}
+          totalCount={rows.length}
+          ariaLabel="Search agents"
+        />
+        <FilterChips
+          chips={SESSION_CHIPS}
+          activeIds={filters.activeChipIds}
+          onToggle={filters.toggleChip}
+          legend="State"
+        />
+      </div>
+
+      <GroupedTable
+        groups={filters.groups}
         columns={columns}
-        rows={rows}
         rowKey={(r) => r.id}
-        empty="No sessions running."
+        onToggleProject={filters.toggleProject}
+        emptyMessage={
+          filters.search.length > 0 || filters.activeChipIds.size > 0
+            ? 'No sessions match the current search or filter.'
+            : 'No sessions running.'
+        }
+        perProjectEmpty="No sessions in this project."
         initialSort={{ key: 'last_active', dir: 'desc' }}
       />
 

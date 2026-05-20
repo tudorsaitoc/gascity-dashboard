@@ -6,6 +6,8 @@ import react from '@vitejs/plugin-react';
 // needs to know about cross-origin — everything is same-origin both in
 // dev and prod, which keeps the Host-allowlist + Origin check + CSP
 // simple.
+const BACKEND_TARGET = 'http://127.0.0.1:8081';
+
 export default defineConfig({
   plugins: [react()],
   server: {
@@ -14,13 +16,25 @@ export default defineConfig({
     host: '127.0.0.1',
     proxy: {
       '/api': {
-        target: 'http://127.0.0.1:8081',
-        // Rewrite Origin to the backend's host:port so write requests
-        // pass the backend's originCheck allow-list. Without this,
-        // POST/PATCH/DELETE come from http://127.0.0.1:5174 (Vite's
-        // origin) and fail with 403 against the backend's allow-list
-        // of {127.0.0.1, localhost} × :8081.
+        target: BACKEND_TARGET,
+        // changeOrigin rewrites the *Host* header to match the backend's
+        // host:port so the Host-allowlist (127.0.0.1, localhost) passes.
         changeOrigin: true,
+        // changeOrigin does NOT rewrite the *Origin* request header — that
+        // still arrives as http://127.0.0.1:5174 (Vite's own origin) and
+        // would 403 against the backend's originCheck allow-list of
+        // {http://127.0.0.1:8081, http://localhost:8081}. Rewrite it
+        // explicitly so dev write requests (POST/PATCH/DELETE) clear the
+        // allow-list. In prod the frontend is served by express.static,
+        // so the browser sends Origin: http://127.0.0.1:8081 natively and
+        // this code path doesn't apply (gascity-dashboard-oi7).
+        configure(proxy) {
+          proxy.on('proxyReq', (proxyReq) => {
+            if (proxyReq.hasHeader('origin')) {
+              proxyReq.setHeader('Origin', BACKEND_TARGET);
+            }
+          });
+        },
       },
     },
   },

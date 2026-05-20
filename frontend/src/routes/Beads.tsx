@@ -2,11 +2,31 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import type { GcBead } from 'gas-city-dashboard-shared';
 import { api, ApiClientError } from '../api/client';
 import { Button } from '../components/Button';
+import { FilterChips } from '../components/FilterChips';
+import { GroupedTable } from '../components/GroupedTable';
+import { ListSearchBar } from '../components/ListSearchBar';
 import { Modal } from '../components/Modal';
 import { PageHeader } from '../components/PageHeader';
 import { StatusBadge, type StatusTone } from '../components/StatusBadge';
-import { Table, type TableColumn } from '../components/Table';
+import { type TableColumn } from '../components/Table';
 import { useGcEventRefresh } from '../hooks/useGcEvents';
+import { useListFilters, type FilterChip } from '../hooks/useListFilters';
+import { beadProject } from '../hooks/projectOf';
+
+const BEAD_CHIPS: ReadonlyArray<FilterChip<GcBead>> = [
+  { id: 'open', label: 'open', match: (b) => b.status === 'open' },
+  { id: 'in_progress', label: 'in progress', match: (b) => b.status === 'in_progress' },
+  { id: 'blocked', label: 'blocked', match: (b) => b.status === 'blocked' },
+  { id: 'closed', label: 'closed', match: (b) => b.status === 'closed' },
+];
+
+const BEAD_SEARCH_FIELDS = (b: GcBead): ReadonlyArray<string | undefined> => [
+  b.id,
+  b.title,
+  b.assignee,
+  b.owner,
+  ...(b.labels ?? []),
+];
 
 export function BeadsPage() {
   const [rows, setRows] = useState<GcBead[]>([]);
@@ -45,6 +65,14 @@ export function BeadsPage() {
     if (labelFilter === null) return rows;
     return rows.filter((r) => Array.isArray(r.labels) && r.labels.includes(labelFilter));
   }, [rows, labelFilter]);
+
+  const filters = useListFilters<GcBead>({
+    viewKey: 'beads',
+    rows: filteredRows,
+    projectOf: beadProject,
+    searchOf: BEAD_SEARCH_FIELDS,
+    chips: BEAD_CHIPS,
+  });
 
   useEffect(() => {
     void refresh();
@@ -261,15 +289,36 @@ export function BeadsPage() {
         {actionResult && <p className="italic">{actionResult}</p>}
       </div>
 
-      <Table
+      <div className="mb-6 space-y-3">
+        <ListSearchBar
+          value={filters.search}
+          onChange={filters.setSearch}
+          placeholder="Search beads by id, title, label, assignee"
+          matchCount={filters.totalMatches}
+          totalCount={filteredRows.length}
+          ariaLabel="Search beads"
+        />
+        <FilterChips
+          chips={BEAD_CHIPS}
+          activeIds={filters.activeChipIds}
+          onToggle={filters.toggleChip}
+          legend="Status"
+        />
+      </div>
+
+      <GroupedTable
+        groups={filters.groups}
         columns={columns}
-        rows={filteredRows}
         rowKey={(r) => r.id}
-        empty={
-          labelFilter !== null
-            ? `No beads match label "${labelFilter}".`
-            : 'Nothing on the queue right now.'
+        onToggleProject={filters.toggleProject}
+        emptyMessage={
+          filters.search.length > 0 || filters.activeChipIds.size > 0
+            ? 'No beads match the current search or filter.'
+            : labelFilter !== null
+              ? `No beads match label "${labelFilter}".`
+              : 'Nothing on the queue right now.'
         }
+        perProjectEmpty="No beads in this project."
         initialSort={{ key: 'updated', dir: 'desc' }}
       />
 

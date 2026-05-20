@@ -101,9 +101,3 @@ Exit codes:
 
 Without `--test`, the script behaves as a snap-only harness, same as the other
 `scripts/snap*.mjs` files: writes PNGs to `/tmp/cp-snaps/` and exits 0.
-
-## Why we don't import from `clients/app/`
-
-`tools/admin-dashboard/` is a separate workspace with no runtime or build dependency on the Thriva product app. Visual primitives are **copied** (in `frontend/src/components/`), not imported. Wrong-direction coupling — tooling depending on product code — is exactly what we don't want; the admin tool needs to survive product-app refactors.
-
-If you copy a primitive in, simplify it to the admin aesthetic (tighter padding, sharper corners, dark-mode classes). Don't bring in `ChildContext`, `useNotifications`, mode toggles, or anything product-specific.
