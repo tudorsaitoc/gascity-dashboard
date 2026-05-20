@@ -13,6 +13,7 @@ import { type TableColumn } from '../components/Table';
 import { useViewingAs, OPERATOR_ALIAS } from '../contexts/ViewingAsContext';
 import { useListFilters, type FilterChip } from '../hooks/useListFilters';
 import { mailProject } from '../hooks/projectOf';
+import { formatRelative } from '../hooks/time';
 
 // Mail chips operate on read-state. "Sent" box has no unread concept;
 // the chips still render but their match predicates are box-aware.
@@ -127,7 +128,7 @@ export function MailPage() {
       sortable: true,
       sortValue: (r) => r.created_at,
       render: (r) => (
-        <span className="tnum text-fg-muted">{formatRelative(r.created_at)}</span>
+        <span className="tnum text-fg-muted">{formatRelative(r.created_at, Date.now())}</span>
       ),
       className: 'w-24',
       align: 'right',
@@ -489,16 +490,6 @@ function Field({ label, children }: { label: string; children: React.ReactNode }
 
 function capitalize(s: string): string {
   return s.charAt(0).toUpperCase() + s.slice(1);
-}
-
-function formatRelative(iso: string): string {
-  const ms = Date.parse(iso);
-  if (!Number.isFinite(ms)) return '·';
-  const diffSec = Math.max(0, Math.round((Date.now() - ms) / 1_000));
-  if (diffSec < 60) return `${diffSec}s`;
-  if (diffSec < 3600) return `${Math.round(diffSec / 60)}m`;
-  if (diffSec < 86_400) return `${Math.round(diffSec / 3600)}h`;
-  return `${Math.round(diffSec / 86_400)}d`;
 }
 
 function formatAbsolute(iso: string): string {

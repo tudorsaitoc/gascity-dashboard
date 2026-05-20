@@ -10,6 +10,7 @@ import { SessionPeekContent, formatPeekChars } from '../components/SessionPeek';
 import { StatusBadge, type StatusTone } from '../components/StatusBadge';
 import { useViewingAs } from '../contexts/ViewingAsContext';
 import { useGcEventRefresh } from '../hooks/useGcEvents';
+import { formatRelative } from '../hooks/time';
 
 // Read-only drilldown for a single agent. Route: /agents/:slug where
 // slug resolves against session_name, alias, then id (see sessionSlug).
@@ -726,14 +727,3 @@ function stateTone(state: string): StatusTone {
   }
 }
 
-function formatRelative(iso: string | undefined, now: number): string {
-  if (!iso) return '·';
-  const ms = Date.parse(iso);
-  if (!Number.isFinite(ms)) return '·';
-  const diffSec = Math.max(0, Math.round((now - ms) / 1_000));
-  if (diffSec < 5) return 'now';
-  if (diffSec < 60) return `${diffSec}s`;
-  if (diffSec < 3600) return `${Math.round(diffSec / 60)}m`;
-  if (diffSec < 86_400) return `${Math.round(diffSec / 3600)}h`;
-  return `${Math.round(diffSec / 86_400)}d`;
-}

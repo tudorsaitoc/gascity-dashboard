@@ -6,6 +6,7 @@ import { PageHeader } from '../components/PageHeader';
 import { StatusBadge, type StatusTone } from '../components/StatusBadge';
 import { Table, type TableColumn } from '../components/Table';
 import { useCachedData } from '../hooks/useCachedData';
+import { formatRelative } from '../hooks/time';
 
 const VIEW_OPTIONS: ReadonlyArray<{ value: GitView; label: string }> = [
   { value: 'recent-main', label: 'Recent · main' },
@@ -74,7 +75,7 @@ export function ActivityPage() {
       label: 'When',
       sortable: true,
       sortValue: (r) => r.date,
-      render: (r) => <span className="tnum text-fg-muted">{formatRelative(r.date)}</span>,
+      render: (r) => <span className="tnum text-fg-muted">{formatRelative(r.date, Date.now())}</span>,
       className: 'w-20',
       align: 'right',
     },
@@ -86,7 +87,7 @@ export function ActivityPage() {
       label: 'When',
       sortable: true,
       sortValue: (r) => r.at,
-      render: (r) => <span className="tnum text-fg-muted">{formatRelative(r.at)}</span>,
+      render: (r) => <span className="tnum text-fg-muted">{formatRelative(r.at, Date.now())}</span>,
       className: 'w-24',
     },
     {
@@ -200,23 +201,14 @@ function buildSynopsis(commits: ReadonlyArray<GitCommit>, deploys: ReadonlyArray
   const parts: string[] = [];
   const latestCommit = commits[0];
   if (latestCommit) {
-    parts.push(`${commits.length} commits in view, latest ${formatRelative(latestCommit.date)}`);
+    parts.push(`${commits.length} commits in view, latest ${formatRelative(latestCommit.date, Date.now())}`);
   } else {
     parts.push('No commits in view');
   }
   const latestDeploy = deploys[0];
   if (latestDeploy) {
-    parts.push(`last deploy ${formatRelative(latestDeploy.at)} (${latestDeploy.status})`);
+    parts.push(`last deploy ${formatRelative(latestDeploy.at, Date.now())} (${latestDeploy.status})`);
   }
   return parts.join('; ') + '.';
 }
 
-function formatRelative(iso: string): string {
-  const ms = Date.parse(iso);
-  if (!Number.isFinite(ms)) return '·';
-  const diffSec = Math.max(0, Math.round((Date.now() - ms) / 1_000));
-  if (diffSec < 60) return `${diffSec}s`;
-  if (diffSec < 3600) return `${Math.round(diffSec / 60)}m`;
-  if (diffSec < 86_400) return `${Math.round(diffSec / 3600)}h`;
-  return `${Math.round(diffSec / 86_400)}d`;
-}

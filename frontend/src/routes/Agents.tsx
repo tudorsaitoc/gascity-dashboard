@@ -16,6 +16,7 @@ import { type TableColumn } from '../components/Table';
 import { useCachedData } from '../hooks/useCachedData';
 import { useGcEventRefresh } from '../hooks/useGcEvents';
 import { useListFilters, type FilterChip, type SortMode } from '../hooks/useListFilters';
+import { formatRelative } from '../hooks/time';
 import {
   ORCHESTRATION_PROJECT,
   isPerRigDispatcher,
@@ -437,14 +438,3 @@ export function buildSynopsis(rows: ReadonlyArray<GcSession>): string {
   return parts.join(', ') + '.';
 }
 
-function formatRelative(iso: string | undefined, now: number): string {
-  if (!iso) return '·';
-  const ms = Date.parse(iso);
-  if (!Number.isFinite(ms)) return '·';
-  const diffSec = Math.max(0, Math.round((now - ms) / 1_000));
-  if (diffSec < 5) return 'now';
-  if (diffSec < 60) return `${diffSec}s`;
-  if (diffSec < 3600) return `${Math.round(diffSec / 60)}m`;
-  if (diffSec < 86_400) return `${Math.round(diffSec / 3600)}h`;
-  return `${Math.round(diffSec / 86_400)}d`;
-}
