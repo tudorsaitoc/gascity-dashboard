@@ -16,9 +16,14 @@ import { useListFilters, type FilterChip } from '../hooks/useListFilters';
 import { sessionProject } from '../hooks/projectOf';
 
 // Session state chips collapse the gc supervisor's many states into
-// three buckets the operator actually filters by. Unknown states fall
-// outside all three chips, so they only show when no chip is active.
-const SESSION_CHIPS: ReadonlyArray<FilterChip<GcSession>> = [
+// buckets the operator actually filters by. Every named GcSessionState
+// must map to at least one chip — otherwise sessions in that state
+// vanish silently when any chip is active (see gascity-dashboard-9yb).
+// Detached gets its own chip because it is semantically distinct: the
+// session may still be running, just disconnected from tmux, so
+// bucketing it under idle or stopped would misrepresent its state.
+// Exported so tests can assert full state coverage.
+export const SESSION_CHIPS: ReadonlyArray<FilterChip<GcSession>> = [
   {
     id: 'running',
     label: 'running',
@@ -28,6 +33,11 @@ const SESSION_CHIPS: ReadonlyArray<FilterChip<GcSession>> = [
     id: 'idle',
     label: 'idle',
     match: (s) => s.state === 'asleep' || s.state === 'idle' || s.state === 'creating',
+  },
+  {
+    id: 'detached',
+    label: 'detached',
+    match: (s) => s.state === 'detached',
   },
   {
     id: 'stopped',
