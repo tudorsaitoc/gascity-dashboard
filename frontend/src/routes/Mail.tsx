@@ -2,11 +2,34 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import type { GcMailItem, GcSession } from 'gas-city-dashboard-shared';
 import { api, ApiClientError } from '../api/client';
 import { Button } from '../components/Button';
+import { FilterChips } from '../components/FilterChips';
+import { GroupedTable } from '../components/GroupedTable';
+import { ListSearchBar } from '../components/ListSearchBar';
 import { Modal } from '../components/Modal';
 import { PageHeader } from '../components/PageHeader';
 import { StatusBadge } from '../components/StatusBadge';
-import { Table, type TableColumn } from '../components/Table';
+import { type TableColumn } from '../components/Table';
 import { useViewingAs, OPERATOR_ALIAS } from '../contexts/ViewingAsContext';
+import { useListFilters, type FilterChip } from '../hooks/useListFilters';
+import { mailProject } from '../hooks/projectOf';
+
+// Mail chips operate on read-state. "Sent" box has no unread concept;
+// the chips still render but their match predicates are box-aware.
+const MAIL_CHIPS: ReadonlyArray<FilterChip<GcMailItem>> = [
+  { id: 'unread', label: 'unread', match: (m) => !m.read },
+  { id: 'read', label: 'read', match: (m) => m.read },
+];
+
+const MAIL_SEARCH_FIELDS = (m: GcMailItem): ReadonlyArray<string | undefined> => [
+  m.from,
+  m.to,
+  m.subject,
+  m.rig,
+  // First body line only — out-of-scope per bead description to search
+  // full bodies; matching the preview keeps parity with what the table
+  // already renders.
+  m.body.split('\n')[0],
+];
 
 const PROMPT_INJECTION_NOTICE =
   'Content is agent-generated and may contain misleading instructions.';
@@ -127,6 +150,19 @@ export function MailPage() {
     return `${items.length} in ${noun}.`;
   }, [box, items, viewingAs.alias]);
 
+  // Mail view key includes box so collapsed-project state is independent
+  // between inbox and sent (different mental models).
+  const filters = useListFilters<GcMailItem>({
+    viewKey: `mail:${box}`,
+    rows: items,
+    projectOf: mailProject,
+    searchOf: MAIL_SEARCH_FIELDS,
+    chips: MAIL_CHIPS,
+  });
+
+  // Sent box has no unread concept; suppress those chips there.
+  const visibleChips = box === 'sent' ? [] : MAIL_CHIPS;
+
   return (
     <section>
       <PageHeader
@@ -170,12 +206,37 @@ export function MailPage() {
         <BoxTabs box={box} onChange={setBox} />
       </div>
 
-      <Table
+      <div className="mb-6 space-y-3">
+        <ListSearchBar
+          value={filters.search}
+          onChange={filters.setSearch}
+          placeholder="Search mail by sender, subject, rig"
+          matchCount={filters.totalMatches}
+          totalCount={items.length}
+          ariaLabel="Search mail"
+        />
+        {visibleChips.length > 0 && (
+          <FilterChips
+            chips={visibleChips}
+            activeIds={filters.activeChipIds}
+            onToggle={filters.toggleChip}
+            legend="Read state"
+          />
+        )}
+      </div>
+
+      <GroupedTable
+        groups={filters.groups}
         columns={columns}
-        rows={items}
         rowKey={(r) => r.id}
+        onToggleProject={filters.toggleProject}
         onRowClick={(r) => void openThread(r)}
-        empty={`${box === 'inbox' ? 'Inbox' : 'Sent'} empty for ${viewingAs.alias}.`}
+        emptyMessage={
+          filters.search.length > 0 || filters.activeChipIds.size > 0
+            ? 'No messages match the current search or filter.'
+            : `${box === 'inbox' ? 'Inbox' : 'Sent'} empty for ${viewingAs.alias}.`
+        }
+        perProjectEmpty="No messages in this project."
         initialSort={{ key: 'created_at', dir: 'desc' }}
       />
 
