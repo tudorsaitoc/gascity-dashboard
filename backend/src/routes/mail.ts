@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import type { GcMailItem } from 'gas-city-dashboard-shared';
-import type { GcClient } from '../gc-client.js';
+import { GcClient } from '../gc-client.js';
 import { recordAudit } from '../audit.js';
 
 // READ-only mail router. The architect (security_researcher td-wisp-eb0pn)
@@ -55,6 +55,13 @@ export function mailRouter(gc: GcClient): Router {
         duration_ms: 0,
       });
     } catch (err) {
+      if (GcClient.isTimeoutError(err)) {
+        res.status(504).json({
+          error: 'gc supervisor did not respond in time',
+          kind: 'upstream-timeout',
+        });
+        return;
+      }
       res
         .status(502)
         .json({ error: 'failed to list mail', kind: 'upstream', details: { message: (err as Error).message } });
@@ -98,6 +105,13 @@ export function mailRouter(gc: GcClient): Router {
         duration_ms: 0,
       });
     } catch (err) {
+      if (GcClient.isTimeoutError(err)) {
+        res.status(504).json({
+          error: 'gc supervisor did not respond in time',
+          kind: 'upstream-timeout',
+        });
+        return;
+      }
       res
         .status(502)
         .json({ error: 'failed to load thread', kind: 'upstream', details: { message: (err as Error).message } });

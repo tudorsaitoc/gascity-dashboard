@@ -6,6 +6,8 @@ import express from 'express';
 import { GcClient } from '../src/gc-client.js';
 import { sessionsRouter } from '../src/routes/sessions.js';
 import { beadsRouter } from '../src/routes/beads.js';
+import { mailRouter } from '../src/routes/mail.js';
+import { healthRouter } from '../src/routes/health.js';
 
 // End-to-end test that the timeout-aware GcClient + the routes' 504
 // translation produce the right wire response when the upstream supervisor
@@ -62,6 +64,8 @@ function buildApp(fakeUrl: string): { app: express.Express } {
   app.use(express.json());
   app.use('/api/sessions', sessionsRouter(gc));
   app.use('/api/beads', beadsRouter(gc));
+  app.use('/api/mail', mailRouter(gc));
+  app.use('/api/system', healthRouter(gc, { supervisorTimeoutMs: 100 }));
   return { app };
 }
 
@@ -136,6 +140,97 @@ describe('routes: upstream timeout -> HTTP 504', () => {
       assert.equal(res.status, 502);
       const body = (await res.json()) as { kind?: string };
       assert.equal(body.kind, 'upstream');
+    } finally {
+      await close();
+    }
+  });
+
+  test('GET /api/mail returns 504 with upstream-timeout kind when supervisor hangs', async () => {
+    fake.setHandler(() => {
+      /* never respond */
+    });
+    const { app } = buildApp(fake.baseUrl);
+    const { url, close } = await startApp(app);
+    try {
+      const start = Date.now();
+      const res = await fetch(`${url}/api/mail?alias=stephanie&box=inbox`);
+      const elapsed = Date.now() - start;
+      assert.equal(res.status, 504);
+      assert.ok(elapsed < 1000, `expected fast 504, got ${elapsed}ms`);
+      const body = (await res.json()) as { kind?: string };
+      assert.equal(body.kind, 'upstream-timeout');
+    } finally {
+      await close();
+    }
+  });
+
+  test('GET /api/mail/threads/:id returns 504 with upstream-timeout kind when supervisor hangs', async () => {
+    fake.setHandler(() => {
+      /* never respond */
+    });
+    const { app } = buildApp(fake.baseUrl);
+    const { url, close } = await startApp(app);
+    try {
+      const start = Date.now();
+      const res = await fetch(`${url}/api/mail/threads/abc?alias=stephanie`);
+      const elapsed = Date.now() - start;
+      assert.equal(res.status, 504);
+      assert.ok(elapsed < 1000, `expected fast 504, got ${elapsed}ms`);
+      const body = (await res.json()) as { kind?: string };
+      assert.equal(body.kind, 'upstream-timeout');
+    } finally {
+      await close();
+    }
+  });
+
+  test('GET /api/mail returns 502 for non-timeout upstream errors', async () => {
+    fake.setHandler((_req, res) => {
+      res.statusCode = 500;
+      res.end('boom');
+    });
+    const { app } = buildApp(fake.baseUrl);
+    const { url, close } = await startApp(app);
+    try {
+      const res = await fetch(`${url}/api/mail`);
+      assert.equal(res.status, 502);
+      const body = (await res.json()) as { kind?: string };
+      assert.equal(body.kind, 'upstream');
+    } finally {
+      await close();
+    }
+  });
+
+  test('GET /api/system/system returns 504 with upstream-timeout kind when supervisor /health hangs', async () => {
+    fake.setHandler(() => {
+      /* never respond */
+    });
+    const { app } = buildApp(fake.baseUrl);
+    const { url, close } = await startApp(app);
+    try {
+      const start = Date.now();
+      const res = await fetch(`${url}/api/system/system`);
+      const elapsed = Date.now() - start;
+      assert.equal(res.status, 504);
+      assert.ok(elapsed < 1000, `expected fast 504, got ${elapsed}ms`);
+      const body = (await res.json()) as { kind?: string };
+      assert.equal(body.kind, 'upstream-timeout');
+    } finally {
+      await close();
+    }
+  });
+
+  test('GET /api/system/system returns 200 with supervisor=null when supervisor returns non-OK', async () => {
+    fake.setHandler((_req, res) => {
+      res.statusCode = 500;
+      res.end('broken');
+    });
+    const { app } = buildApp(fake.baseUrl);
+    const { url, close } = await startApp(app);
+    try {
+      const res = await fetch(`${url}/api/system/system`);
+      assert.equal(res.status, 200);
+      const body = (await res.json()) as { supervisor: unknown };
+      assert.equal(body.supervisor, null);
     } finally {
       await close();
     }
