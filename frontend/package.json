@@ -9,6 +9,7 @@
     "preview": "vite preview",
     "typecheck": "tsc --noEmit",
     "typecheck:test": "tsc --noEmit -p tsconfig.test.json",
+    "pretest": "npm --workspace gas-city-dashboard-shared run build",
     "test": "vitest run",
     "test:watch": "vitest"
   },
