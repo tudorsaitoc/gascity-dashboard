@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { AnsiUp } from 'ansi_up';
 import type { GcSession, TranscriptResult, TranscriptTurn } from 'gas-city-dashboard-shared';
+import { effectiveContextPct } from 'gas-city-dashboard-shared';
 import { api, ApiClientError } from '../api/client';
 import { Button } from '../components/Button';
 import { Modal } from '../components/Modal';
@@ -120,24 +121,37 @@ export function AgentsPage() {
       key: 'context',
       label: 'Context',
       sortable: true,
-      sortValue: (r) => r.context_pct ?? -1,
+      // Sort by the value we DISPLAY, not the raw gc value — otherwise
+      // mayor (raw 89%, effective 18%) would sort above a true-90%
+      // session that looks calmer.
+      sortValue: (r) => effectiveContextPct(r) ?? -1,
       align: 'right',
-      render: (r) =>
-        typeof r.context_pct === 'number' ? (
+      render: (r) => {
+        const pct = effectiveContextPct(r);
+        if (typeof pct !== 'number') {
+          return <span className="text-fg-faint">·</span>;
+        }
+        // Tooltip exposes the raw gc value when scaling kicked in so
+        // the operator can audit the dashboard against gc directly.
+        const title =
+          typeof r.context_pct === 'number' && r.context_pct !== pct
+            ? `gc reports ${r.context_pct}% against ${r.context_window ?? '?'}-token window; scaled to model's true window`
+            : undefined;
+        return (
           <span
+            title={title}
             className={`tnum ${
-              r.context_pct >= 95
+              pct >= 95
                 ? 'text-accent font-medium'
-                : r.context_pct >= 80
+                : pct >= 80
                   ? 'text-warn font-medium'
                   : 'text-fg-muted'
             }`}
           >
-            {r.context_pct}%
+            {pct}%
           </span>
-        ) : (
-          <span className="text-fg-faint">·</span>
-        ),
+        );
+      },
       className: 'w-24',
     },
     {
