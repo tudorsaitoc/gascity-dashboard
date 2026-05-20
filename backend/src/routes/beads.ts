@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import type { GcBead } from 'gas-city-dashboard-shared';
-import type { GcClient } from '../gc-client.js';
+import { GcClient } from '../gc-client.js';
 import { execBeadAction, ExecError } from '../exec.js';
 import { recordAudit } from '../audit.js';
 
@@ -49,6 +49,13 @@ export function beadsRouter(gc: GcClient): Router {
         fetch_limit: BEADS_FETCH_LIMIT,
       });
     } catch (err) {
+      if (GcClient.isTimeoutError(err)) {
+        res.status(504).json({
+          error: 'gc supervisor did not respond in time',
+          kind: 'upstream-timeout',
+        });
+        return;
+      }
       res
         .status(502)
         .json({ error: 'failed to list beads', kind: 'upstream', details: { message: (err as Error).message } });

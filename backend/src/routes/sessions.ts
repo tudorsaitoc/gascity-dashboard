@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import type { TranscriptResult, TranscriptTurn } from 'gas-city-dashboard-shared';
-import type { GcClient } from '../gc-client.js';
+import { GcClient } from '../gc-client.js';
 import { sanitiseTerminalOutput } from '../exec.js';
 import { recordAudit } from '../audit.js';
 
@@ -16,6 +16,13 @@ export function sessionsRouter(gc: GcClient): Router {
       const { items } = await gc.listSessions();
       res.json({ items });
     } catch (err) {
+      if (GcClient.isTimeoutError(err)) {
+        res.status(504).json({
+          error: 'gc supervisor did not respond in time',
+          kind: 'upstream-timeout',
+        });
+        return;
+      }
       res
         .status(502)
         .json({ error: 'failed to list sessions', kind: 'upstream', details: { message: (err as Error).message } });
@@ -47,6 +54,13 @@ export function sessionsRouter(gc: GcClient): Router {
       });
       res.json(result);
     } catch (err) {
+      if (GcClient.isTimeoutError(err)) {
+        res.status(504).json({
+          error: 'gc supervisor did not respond in time',
+          kind: 'upstream-timeout',
+        });
+        return;
+      }
       res
         .status(502)
         .json({ error: 'failed to fetch transcript', kind: 'upstream', details: { message: (err as Error).message } });
