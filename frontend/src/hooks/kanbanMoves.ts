@@ -42,8 +42,11 @@ export const RECENT_MOVES_CAP = 12;
 /** Entries older than this fall off the feed. */
 export const RECENT_MOVES_TTL_MS = 2 * 60 * 1_000;
 
-/** A freshly-moved card carries a ring-highlight for this long. */
-export const RING_HIGHLIGHT_MS = 1_800;
+/**
+ * A freshly-moved card carries a ring-highlight for this long. Kept in sync
+ * with the `ring-flash` keyframe duration in `styles/index.css` (1.5s).
+ */
+export const RING_HIGHLIGHT_MS = 1_500;
 
 interface CardLocation {
   column: KanbanColumn;

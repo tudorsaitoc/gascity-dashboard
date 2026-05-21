@@ -7,7 +7,7 @@ import { Button } from '../components/Button';
 import { PageHeader } from '../components/PageHeader';
 import { StatusBadge } from '../components/StatusBadge';
 import { useGcEventRefresh } from '../hooks/useGcEvents';
-import { useKanbanMoves, type Move } from '../hooks/kanbanMoves';
+import { useKanbanMoves, RECENT_MOVES_CAP, type Move } from '../hooks/kanbanMoves';
 import { formatRelative } from '../hooks/time';
 
 // Read-only Kanban view (gascity-dashboard-dh6). Ported from
@@ -301,7 +301,7 @@ function RecentMoves({
           Recent moves
         </h2>
         <p className="text-label normal-case tracking-normal text-fg-faint italic leading-snug">
-          Column transitions observed since you opened this view. Capped to {moves.length}, last two minutes.
+          Column transitions observed since you opened this view. Up to {RECENT_MOVES_CAP} shown, last two minutes.
         </p>
       </header>
       <ul className="divide-y divide-rule">

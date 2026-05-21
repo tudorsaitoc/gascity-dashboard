@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
-import type { GcBead, GcMailItem, GcSession, TranscriptResult } from 'gas-city-dashboard-shared';
+import type { GcBead, GcMailItem, GcSession, GcSessionState, TranscriptResult } from 'gas-city-dashboard-shared';
 import { effectiveContextPct } from 'gas-city-dashboard-shared';
 import { api, ApiClientError } from '../api/client';
 import { BeadDetailModal } from '../components/BeadDetailModal';
@@ -704,7 +704,7 @@ function Directives({
   );
 }
 
-function stateTone(state: string): StatusTone {
+function stateTone(state: GcSessionState): StatusTone {
   switch (state) {
     case 'active':
     case 'running':

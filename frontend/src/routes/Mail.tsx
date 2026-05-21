@@ -52,6 +52,7 @@ export function MailPage() {
     }, 15_000);
     return () => clearInterval(tick);
   }, []);
+
   const { data: mailData, loading, error: mailError, refresh } = useCachedData(
     `mail:${box}:${viewingAs.alias}`,
     () => api.listMail(box, viewingAs.alias),

@@ -10,18 +10,24 @@ import { recordAudit } from '../audit.js';
 // Operators can override via GC_HEALTH_TIMEOUT_MS (mirrors the
 // GC_CLIENT_TIMEOUT_MS knob on GcClient — same shape, narrower scope).
 const SUPERVISOR_HEALTH_TIMEOUT_MS = 2_500;
+// Upper bound: any GC_HEALTH_TIMEOUT_MS above this is a typo, not a tuning
+// choice. A 30s ceiling keeps a fat-fingered value from holding the health
+// route open for hours and effectively breaking the dashboard.
+const MAX_HEALTH_TIMEOUT_MS = 30_000;
 
 /**
  * Resolves the supervisor health timeout from the GC_HEALTH_TIMEOUT_MS env
  * var, falling back to SUPERVISOR_HEALTH_TIMEOUT_MS. Invalid or non-positive
  * values fall back too — silent fallback matches the gc-client pattern and
- * keeps a typo from accidentally setting a 0ms timeout.
+ * keeps a typo from accidentally setting a 0ms timeout. Values above
+ * MAX_HEALTH_TIMEOUT_MS are clamped to that ceiling.
  */
 export function resolveHealthTimeoutMs(): number {
   const raw = process.env.GC_HEALTH_TIMEOUT_MS;
   if (typeof raw !== 'string') return SUPERVISOR_HEALTH_TIMEOUT_MS;
   const n = Number.parseInt(raw, 10);
-  return Number.isFinite(n) && n > 0 ? n : SUPERVISOR_HEALTH_TIMEOUT_MS;
+  if (!Number.isFinite(n) || n <= 0) return SUPERVISOR_HEALTH_TIMEOUT_MS;
+  return Math.min(n, MAX_HEALTH_TIMEOUT_MS);
 }
 
 export interface HealthRouterOptions {

@@ -284,4 +284,17 @@ describe('resolveHealthTimeoutMs', () => {
     process.env.GC_HEALTH_TIMEOUT_MS = '-1';
     assert.equal(resolveHealthTimeoutMs(), 2_500);
   });
+
+  test('clamps oversize values to MAX_HEALTH_TIMEOUT_MS (typo guard)', () => {
+    // A typo like '99999999999' would otherwise hold the health route open
+    // for hours. Cap at 30s.
+    process.env.GC_HEALTH_TIMEOUT_MS = '99999999999';
+    assert.equal(resolveHealthTimeoutMs(), 30_000);
+    // Exact ceiling passes through.
+    process.env.GC_HEALTH_TIMEOUT_MS = '30000';
+    assert.equal(resolveHealthTimeoutMs(), 30_000);
+    // Just under ceiling passes through unchanged.
+    process.env.GC_HEALTH_TIMEOUT_MS = '29999';
+    assert.equal(resolveHealthTimeoutMs(), 29_999);
+  });
 });
