@@ -21,6 +21,11 @@ const MAX_HEALTH_TIMEOUT_MS = 30_000;
  * values fall back too — silent fallback matches the gc-client pattern and
  * keeps a typo from accidentally setting a 0ms timeout. Values above
  * MAX_HEALTH_TIMEOUT_MS are clamped to that ceiling.
+ *
+ * Read once at startup: healthRouter() calls this when the router is
+ * constructed and captures the result in a closure. Mutating
+ * GC_HEALTH_TIMEOUT_MS at runtime has no effect — operators must restart
+ * the dashboard process for a new value to take effect.
  */
 export function resolveHealthTimeoutMs(): number {
   const raw = process.env.GC_HEALTH_TIMEOUT_MS;
@@ -31,10 +36,21 @@ export function resolveHealthTimeoutMs(): number {
 }
 
 export interface HealthRouterOptions {
-  /** Per-request timeout for the supervisor /health probe. Defaults to GC_HEALTH_TIMEOUT_MS env, then 2500ms. */
+  /**
+   * Per-request timeout for the supervisor /health probe. Defaults to
+   * GC_HEALTH_TIMEOUT_MS env, then 2500ms. Captured at router construction
+   * time, not re-read per request.
+   */
   supervisorTimeoutMs?: number;
 }
 
+/**
+ * Builds the /system health router. The supervisor timeout is resolved
+ * exactly once here (from opts.supervisorTimeoutMs, then GC_HEALTH_TIMEOUT_MS,
+ * then the 2500ms default) and captured in the route handler's closure.
+ * Runtime env changes do not propagate — restart the process to pick up a
+ * new GC_HEALTH_TIMEOUT_MS.
+ */
 export function healthRouter(gc: GcClient, opts: HealthRouterOptions = {}): Router {
   const router = Router();
   const supervisorTimeoutMs = opts.supervisorTimeoutMs ?? resolveHealthTimeoutMs();

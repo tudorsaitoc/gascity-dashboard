@@ -297,4 +297,51 @@ describe('resolveHealthTimeoutMs', () => {
     process.env.GC_HEALTH_TIMEOUT_MS = '29999';
     assert.equal(resolveHealthTimeoutMs(), 29_999);
   });
+
+  test('healthRouter() captures GC_HEALTH_TIMEOUT_MS at construction; runtime env mutation has no effect', async () => {
+    // Contract: the resolved timeout is read once when healthRouter() runs,
+    // not per request. Set env -> build router -> mutate env -> hit /system
+    // against a hanging supervisor. If the captured value wins, the route
+    // returns 504 fast. If the live env wins, it would wait the larger value.
+    process.env.GC_HEALTH_TIMEOUT_MS = '80';
+    const fake = await startFake();
+    fake.setHandler(() => {
+      /* never respond — force the supervisor probe to time out */
+    });
+    try {
+      const gc = new GcClient({
+        baseUrl: fake.baseUrl,
+        cityName: 'test',
+        defaultTimeoutMs: 100,
+      });
+      const app = express();
+      app.use(express.json());
+      // No opts.supervisorTimeoutMs — forces resolveHealthTimeoutMs() at
+      // construction time. This is the line under test.
+      app.use('/api/system', healthRouter(gc));
+      // After construction: mutate the env upward. A live-read implementation
+      // would now wait ~5s; a startup-capture implementation stays at 80ms.
+      process.env.GC_HEALTH_TIMEOUT_MS = '5000';
+      const { url, close } = await startApp(app);
+      try {
+        const start = Date.now();
+        const res = await fetch(`${url}/api/system/system`);
+        const elapsed = Date.now() - start;
+        assert.equal(res.status, 504);
+        const body = (await res.json()) as { kind?: string };
+        assert.equal(body.kind, 'upstream-timeout');
+        // Captured 80ms timeout, not the mutated 5000ms. Generous 2000ms
+        // ceiling absorbs GC + scheduler jitter while still failing loud if
+        // the implementation accidentally starts reading env per request.
+        assert.ok(
+          elapsed < 2_000,
+          `expected fast 504 from captured 80ms timeout, got ${elapsed}ms (impl may be reading env per request)`,
+        );
+      } finally {
+        await close();
+      }
+    } finally {
+      await fake.close();
+    }
+  });
 });
