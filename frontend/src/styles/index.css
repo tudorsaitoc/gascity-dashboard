@@ -101,6 +101,20 @@
     border-radius: 2px;
   }
 
+  /* Transient ring-highlight applied to Kanban cards that just moved
+     between columns. Subtle by design — a hairline of the warm-amber
+     muted neutral that fades out over ~1.5s. Greyscale-safe: the move
+     is also surfaced in the typographic 'Recent moves' feed below the
+     board, so this is emphasis only, never the sole signal. */
+  @keyframes ring-flash {
+    0%   { box-shadow: 0 0 0 1px oklch(var(--fg-muted) / 0.55); }
+    100% { box-shadow: 0 0 0 1px oklch(var(--fg-muted) / 0);    }
+  }
+  .ring-flash {
+    animation: ring-flash 1.5s cubic-bezier(0.25, 1, 0.5, 1) forwards;
+    border-radius: 2px;
+  }
+
   /* ansi_up renders terminal output as <span class="ansi-..."> inside
      the Peek modal. Kept as terminal-colored so the modal reads as
      terminal output, deliberately distinct from the dashboard's

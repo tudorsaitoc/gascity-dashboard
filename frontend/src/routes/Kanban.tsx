@@ -7,6 +7,8 @@ import { Button } from '../components/Button';
 import { PageHeader } from '../components/PageHeader';
 import { StatusBadge } from '../components/StatusBadge';
 import { useGcEventRefresh } from '../hooks/useGcEvents';
+import { useKanbanMoves, type Move } from '../hooks/kanbanMoves';
+import { formatRelative } from '../hooks/time';
 
 // Read-only Kanban view (gascity-dashboard-dh6). Ported from
 // Wldc4rd/citadel; visual register rebuilt to pass the Flat Page Rule.
@@ -91,6 +93,8 @@ export function KanbanPage() {
 
   useGcEventRefresh(['bead.', 'session.'], () => void refresh());
 
+  const { moves, recentMoveIds } = useKanbanMoves(data, { now });
+
   const staleness =
     fetchedAt === null
       ? 'down'
@@ -149,11 +153,14 @@ export function KanbanPage() {
               col={col}
               cards={data.columns[col]}
               now={now}
+              recentMoveIds={recentMoveIds}
               onSelect={setViewingBeadId}
             />
           ))}
         </div>
       )}
+
+      {data !== null && <RecentMoves moves={moves} now={now} />}
 
       <BeadDetailModal
         open={viewingBeadId !== null}
@@ -168,11 +175,13 @@ function Column({
   col,
   cards,
   now,
+  recentMoveIds,
   onSelect,
 }: {
   col: KanbanColumn;
   cards: ReadonlyArray<KanbanCard>;
   now: number;
+  recentMoveIds: ReadonlySet<string>;
   onSelect: (id: string) => void;
 }) {
   return (
@@ -198,7 +207,14 @@ function Column({
       ) : (
         <ul className="divide-y divide-rule">
           {cards.map((c) => (
-            <Card key={c.id} card={c} column={col} now={now} onSelect={onSelect} />
+            <Card
+              key={c.id}
+              card={c}
+              column={col}
+              now={now}
+              flashing={recentMoveIds.has(c.id)}
+              onSelect={onSelect}
+            />
           ))}
         </ul>
       )}
@@ -210,19 +226,25 @@ function Card({
   card,
   column,
   now,
+  flashing,
   onSelect,
 }: {
   card: KanbanCard;
   column: KanbanColumn;
   now: number;
+  flashing: boolean;
   onSelect: (id: string) => void;
 }) {
   // Two-line typographic row: title + id on the first line, meta on
   // the second. Hover surface is a subtle tint, not a border-box —
   // hierarchy is carried by space and weight, the way the page does
-  // it everywhere else. Click opens the bead detail modal.
+  // it everywhere else. Click opens the bead detail modal. When the
+  // card just moved between columns, `flashing` is true and a 1.5s
+  // ring-highlight fades out (see `.ring-flash` in styles/index.css).
   return (
-    <li className="py-2 hover:bg-surface-tint -mx-2 px-2 rounded-sm transition-colors duration-150 ease-out-quart">
+    <li
+      className={`py-2 hover:bg-surface-tint -mx-2 px-2 rounded-sm transition-colors duration-150 ease-out-quart${flashing ? ' ring-flash' : ''}`}
+    >
       <button
         type="button"
         onClick={() => onSelect(card.id)}
@@ -257,6 +279,57 @@ function Card({
         </div>
       </button>
     </li>
+  );
+}
+
+function RecentMoves({
+  moves,
+  now,
+}: {
+  moves: ReadonlyArray<Move>;
+  now: number;
+}) {
+  // Typographic activity feed below the board. Hairline divides, no
+  // container chrome (Flat Page Rule). Each row reads as a sentence:
+  // bead-id · from → to · 12s. Reads in greyscale because nothing
+  // here is signaled by color alone.
+  if (moves.length === 0) return null;
+  return (
+    <section className="mt-12 max-w-prose">
+      <header className="space-y-1 mb-3">
+        <h2 className="text-label uppercase tracking-wider text-fg">
+          Recent moves
+        </h2>
+        <p className="text-label normal-case tracking-normal text-fg-faint italic leading-snug">
+          Column transitions observed since you opened this view. Capped to {moves.length}, last two minutes.
+        </p>
+      </header>
+      <ul className="divide-y divide-rule">
+        {moves.map((m) => (
+          <li
+            key={m.moveId}
+            className="py-2 flex items-baseline gap-3 text-body"
+          >
+            <span className="text-fg-faint tnum truncate min-w-0 flex-1" title={m.title}>
+              {m.id}
+            </span>
+            <span className="text-label uppercase tracking-wider text-fg-muted whitespace-nowrap">
+              {COLUMN_LABELS[m.from]}
+              <span className="text-fg-faint mx-2" aria-hidden="true">
+                →
+              </span>
+              {COLUMN_LABELS[m.to]}
+            </span>
+            <span
+              className="text-label uppercase tracking-wider text-fg-faint tnum tabular-nums whitespace-nowrap w-12 text-right"
+              title={new Date(m.at).toLocaleString()}
+            >
+              {formatRelative(m.at, now)}
+            </span>
+          </li>
+        ))}
+      </ul>
+    </section>
   );
 }
 
