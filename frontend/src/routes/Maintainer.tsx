@@ -127,11 +127,7 @@ function TierSection({ section }: { section: TriageTierSection }) {
               <div className="text-title font-medium text-fg-muted">
                 {section.clusters.length > 0 ? 'Unclustered' : 'Awaiting cluster enrichment'}
               </div>
-              <div>
-                {section.unclustered.map((item) => (
-                  <TriageRow key={rowKey(item)} item={item} />
-                ))}
-              </div>
+              <RowList items={section.unclustered} />
             </div>
           )}
         </div>
@@ -158,24 +154,72 @@ function ClusterBlock({ cluster }: { cluster: TriageCluster }) {
           {totals.join(' · ')}
         </div>
       </div>
-      <div>
-        {cluster.items.map((item) => (
-          <TriageRow key={rowKey(item)} item={item} />
-        ))}
-      </div>
+      <RowList items={cluster.items} />
     </div>
   );
 }
 
-function TriageRow({ item }: { item: TriageItem }) {
-  if (item.kind === 'pr') return <PrRow item={item} />;
-  return <IssueRow item={item} />;
+// Lays out a list of items, nesting PRs under their parent issue when
+// the parent is also in the same list. PRs whose linked issue is NOT
+// in the list render at the top level alongside issues, distinguished
+// by a leading "PR" kind marker. The reverse-mapped issue.linked_numbers
+// (populated server-side in triage.ts) drives the "anchored" affordance
+// on issues.
+function RowList({ items }: { items: TriageItem[] }) {
+  const issueNumbersInList = new Set<number>();
+  for (const it of items) {
+    if (it.kind === 'issue') issueNumbersInList.add(it.number);
+  }
+
+  const nestedPrNumbers = new Set<number>();
+  const childrenOf = new Map<number, TriageItem[]>();
+  for (const it of items) {
+    if (it.kind !== 'pr') continue;
+    for (const linked of it.linked_numbers) {
+      if (issueNumbersInList.has(linked)) {
+        nestedPrNumbers.add(it.number);
+        const list = childrenOf.get(linked);
+        if (list) list.push(it);
+        else childrenOf.set(linked, [it]);
+      }
+    }
+  }
+
+  return (
+    <div>
+      {items.map((it) => {
+        if (it.kind === 'pr' && nestedPrNumbers.has(it.number)) return null;
+        const children = it.kind === 'issue' ? childrenOf.get(it.number) ?? [] : [];
+        return (
+          <div key={rowKey(it)}>
+            {it.kind === 'issue' ? (
+              <IssueRow item={it} hasInListChildren={children.length > 0} />
+            ) : (
+              <PrRow item={it} nested={false} />
+            )}
+            {children.map((child) => (
+              <PrRow key={rowKey(child)} item={child} nested={true} />
+            ))}
+          </div>
+        );
+      })}
+    </div>
+  );
 }
 
-function IssueRow({ item }: { item: TriageItem }) {
-  const isAnchored = item.linked_numbers.length > 0;
+function IssueRow({
+  item,
+  hasInListChildren,
+}: {
+  item: TriageItem;
+  hasInListChildren: boolean;
+}) {
+  // 'anchored' only lights up when the linked PR is NOT also in view —
+  // when it IS in view, the visual nesting already communicates the
+  // link and the label would be noise.
+  const showAnchored = item.linked_numbers.length > 0 && !hasInListChildren;
   return (
-    <div className="grid grid-cols-[1.25em_1fr_auto] items-baseline gap-x-3 py-1.5">
+    <div className="grid grid-cols-[1.75em_1fr_auto] items-baseline gap-x-3 py-1.5">
       <span aria-hidden className="text-accent text-[0.85em] leading-none translate-y-[1px]">
         {item.is_marked ? '●' : ''}
       </span>
@@ -186,7 +230,7 @@ function IssueRow({ item }: { item: TriageItem }) {
             also in: {item.weak_ties.map((t) => `${t.label} (${t.count})`).join(', ')}
           </span>
         )}
-        {isAnchored && (
+        {showAnchored && (
           <span className="ml-3 text-label uppercase tracking-wider text-fg-faint">
             anchored
           </span>
@@ -197,21 +241,53 @@ function IssueRow({ item }: { item: TriageItem }) {
   );
 }
 
-function PrRow({ item }: { item: TriageItem }) {
+function PrRow({ item, nested }: { item: TriageItem; nested: boolean }) {
+  // Three visual states:
+  //   - Standalone PR, marked    → maroon ● in leading col (rare)
+  //   - Standalone PR, unmarked  → "PR" label in leading col
+  //   - Nested PR                → '↳' continuation glyph + pl-10 indent
+  //     (urgency is the parent issue's, so no maroon mark even when
+  //     is_marked — the parent above already carries the One Mark)
+  const leading = nested ? (
+    <span className="text-fg-faint leading-none translate-y-[1px]" aria-label="fixes issue above">↳</span>
+  ) : item.is_marked ? (
+    <span className="text-accent text-[0.85em] leading-none translate-y-[1px]" aria-hidden>●</span>
+  ) : (
+    <span
+      className="text-label uppercase tracking-wider text-fg-muted leading-none translate-y-[1px]"
+      aria-label="pull request"
+    >
+      PR
+    </span>
+  );
+
   return (
-    <div className="grid grid-cols-[1.25em_1fr_auto] items-baseline gap-x-3 py-1 pl-6">
-      <span aria-hidden />
+    <div
+      className={`grid grid-cols-[1.75em_1fr_auto] items-baseline gap-x-3 py-1 ${nested ? 'pl-10' : ''}`}
+    >
+      {leading}
       <div className="min-w-0">
-        <span className="text-body text-fg-muted">
-          PR #{item.number}  <span className="text-fg">{item.title}</span>
+        <span className={nested ? 'text-body text-fg-muted' : 'text-body text-fg'}>
+          {item.title}
         </span>
+        {item.weak_ties.length > 0 && (
+          <span className="ml-3 text-body text-fg-faint">
+            also in: {item.weak_ties.map((t) => `${t.label} (${t.count})`).join(', ')}
+          </span>
+        )}
       </div>
-      <PrMeta item={item} />
+      <RowMeta item={item} extraStatus={item.status} />
     </div>
   );
 }
 
-function RowMeta({ item }: { item: TriageItem }) {
+function RowMeta({
+  item,
+  extraStatus,
+}: {
+  item: TriageItem;
+  extraStatus?: TriageItemStatus;
+}) {
   return (
     <div className="flex items-baseline gap-3 text-body text-fg-muted shrink-0 tnum">
       <a
@@ -226,23 +302,12 @@ function RowMeta({ item }: { item: TriageItem }) {
       <ContributorByline author={item.author} />
       <span aria-hidden>·</span>
       <span>{formatAge(item.updated_at)}</span>
-    </div>
-  );
-}
-
-function PrMeta({ item }: { item: TriageItem }) {
-  return (
-    <div className="flex items-baseline gap-3 text-body text-fg-muted shrink-0 tnum">
-      <PrStatus status={item.status} />
-      <span aria-hidden>·</span>
-      <a
-        href={item.html_url}
-        target="_blank"
-        rel="noopener noreferrer"
-        className="hover:text-fg focus-mark"
-      >
-        open ↗
-      </a>
+      {extraStatus && extraStatus !== 'open' && (
+        <>
+          <span aria-hidden>·</span>
+          <PrStatus status={extraStatus} />
+        </>
+      )}
     </div>
   );
 }

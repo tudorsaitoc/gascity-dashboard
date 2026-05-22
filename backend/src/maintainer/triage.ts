@@ -52,6 +52,7 @@ interface GhPr {
   author: GhAuthor | null;
   labels?: GhLabel[];
   url: string;
+  body?: string;
   additions?: number;
   deletions?: number;
   reviewDecision?: string;
@@ -93,12 +94,28 @@ export async function fetchTriage(repo: string): Promise<MaintainerTriage> {
   const issues = parseJsonArray<GhIssue>(issuesRaw.stdout, 'gh issue list');
   const prs = parseJsonArray<GhPr>(prsRaw.stdout, 'gh pr list');
 
-  const items: TriageItem[] = [
-    ...issues.map(mapIssue),
-    ...prs.map(mapPr),
-  ];
+  const issueItems = issues.map(mapIssue);
+  const prItems = prs.map(mapPr);
 
-  return composeEnvelope(repo, items);
+  // Reverse map: every issue gets the PR numbers that fix it (derived
+  // from each PR's already-populated linked_numbers, which mapPr filled
+  // in by parsing the PR body for closing verbs).
+  const prsByFixedIssue = new Map<number, number[]>();
+  for (const pr of prItems) {
+    for (const issueNum of pr.linked_numbers) {
+      const existing = prsByFixedIssue.get(issueNum);
+      if (existing) existing.push(pr.number);
+      else prsByFixedIssue.set(issueNum, [pr.number]);
+    }
+  }
+  for (const issue of issueItems) {
+    const linkedPrs = prsByFixedIssue.get(issue.number);
+    if (linkedPrs && linkedPrs.length > 0) {
+      issue.linked_numbers = linkedPrs;
+    }
+  }
+
+  return composeEnvelope(repo, [...issueItems, ...prItems]);
 }
 
 function parseJsonArray<T>(stdout: string, source: string): T[] {
@@ -137,6 +154,26 @@ function mapIssue(it: GhIssue): TriageItem {
   };
 }
 
+// Matches GitHub's set of issue-closing verbs in PR bodies. Word-boundary
+// anchored on both sides so "prefix" / "suffix" cases don't false-match.
+// "Fix(es)? #N" alone is treated as closing per GitHub's own parser; we
+// match the same lexicon. See GitHub Docs > "Linking a pull request to an
+// issue".
+const CLOSING_REF_RE =
+  /\b(?:close[sd]?|fix(?:e[sd])?|resolve[sd]?)\s+#(\d+)\b/gi;
+
+function extractLinkedIssueNumbers(body: string | undefined): number[] {
+  if (!body) return [];
+  const seen = new Set<number>();
+  for (const m of body.matchAll(CLOSING_REF_RE)) {
+    const raw = m[1];
+    if (raw === undefined) continue;
+    const n = Number.parseInt(raw, 10);
+    if (Number.isFinite(n) && n > 0) seen.add(n);
+  }
+  return Array.from(seen);
+}
+
 function mapPr(pr: GhPr): TriageItem {
   const adds = pr.additions ?? 0;
   const dels = pr.deletions ?? 0;
@@ -153,7 +190,7 @@ function mapPr(pr: GhPr): TriageItem {
     blast_files: [],
     lines_changed: adds + dels,
     weak_ties: [],
-    linked_numbers: [],
+    linked_numbers: extractLinkedIssueNumbers(pr.body),
     html_url: pr.url,
     is_marked: false,
   };

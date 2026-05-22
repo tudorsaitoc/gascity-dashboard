@@ -437,12 +437,14 @@ const GH_REPO_RE = /^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/;
 // blast-radius LLM extraction, 98h's embeddings) fetch bodies on demand
 // for the subset of items they need to classify, via separate gh calls.
 const GH_ISSUE_FIELDS = 'number,title,createdAt,updatedAt,author,labels,url';
-// Note: `closingIssuesReferences` is a newer gh field not present in the
-// 2.45 host build. PR -> issue linkage gets derived in a follow-up bead
-// by parsing PR bodies for "Fixes #N" / "Closes #N" or via a separate
-// gh api graphql call. For 361, every PR ships with linked_numbers=[].
+// `closingIssuesReferences` is not present in gh 2.45. PR -> issue
+// linkage gets derived by parsing PR bodies for "Fixes #N" / "Closes
+// #N" / "Resolves #N" in triage.ts; `body` is fetched here for that
+// purpose only. Issue bodies stay omitted: not used by ingest, and the
+// 262-issue payload only fits the 2MB MAX_BYTES_LARGE cap because we
+// don't carry them.
 const GH_PR_FIELDS =
-  'number,title,createdAt,updatedAt,author,labels,url,additions,deletions,reviewDecision,isDraft,state';
+  'number,title,createdAt,updatedAt,author,labels,url,body,additions,deletions,reviewDecision,isDraft,state';
 
 /**
  * `gh issue list --repo <repo> --state open --json <fields> --limit <n>`
