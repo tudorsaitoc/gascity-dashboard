@@ -89,6 +89,7 @@ function main(): void {
     maintainerRouter({
       repo: config.maintainerRepo,
       cachePath: config.maintainerCachePath,
+      slingTarget: config.maintainerSlingTarget,
     }),
   );
 

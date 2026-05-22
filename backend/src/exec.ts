@@ -24,7 +24,7 @@ const MAX_CONCURRENT = 4;
 // Param schemas — every privileged exec validates its args against these.
 // SESSION_ID_RE lives in routes/sessions.ts now that peek is HTTP, not exec.
 const BEAD_ID_RE = /^(td|th|jt)-[a-z0-9-]{3,32}$/;
-const AGENT_ALIAS_RE = /^[a-z][a-z0-9_./-]{1,63}$/i;
+export const AGENT_ALIAS_RE = /^[a-z][a-z0-9_./-]{1,63}$/i;
 
 function cleanEnv(): NodeJS.ProcessEnv {
   const home = process.env.HOME ?? '/tmp';
@@ -292,6 +292,38 @@ export async function execMailSend(
       ['mail', 'send', to, '--from', 'human', '-s', subject, '-m', body],
       10_000,
     );
+  } finally {
+    releaseSlot();
+  }
+}
+
+/**
+ * `gc sling <target> <text>` — auto-creates a bead from text and routes it
+ * to the named agent. Used by POST /api/maintainer/sling (gascity-dashboard-ib5)
+ * for the maintainer's "review this PR / draft from issue / triage this"
+ * inline actions.
+ *
+ * v1 ships text-only (no --formula); the templated text carries the URL +
+ * intent verb and the receiving agent figures out the rest. A
+ * formula-driven sibling (execGcSlingFormula) is the natural follow-up
+ * when bead 6fp lands the formula dropdown UI.
+ *
+ * 4KB text cap is comfortably above the longest possible templated body
+ * (~80 chars) and well under runExec's 100KB stdout cap.
+ */
+export async function execGcSling(
+  target: string,
+  beadText: string,
+): Promise<ExecResult> {
+  if (!AGENT_ALIAS_RE.test(target)) {
+    throw new ExecError('invalid sling target', 'validation');
+  }
+  if (beadText.length === 0 || beadText.length > 4 * 1024) {
+    throw new ExecError('sling text must be 1–4096 chars', 'validation');
+  }
+  await acquireSlot();
+  try {
+    return await runExec('gc', ['sling', target, beadText], 15_000);
   } finally {
     releaseSlot();
   }

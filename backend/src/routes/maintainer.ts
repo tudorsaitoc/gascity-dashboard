@@ -1,12 +1,23 @@
 import { Router } from 'express';
 import type { ContributorStat, MaintainerTriage } from 'gas-city-dashboard-shared';
 import { recordAudit } from '../audit.js';
-import { ExecError } from '../exec.js';
+import {
+  AGENT_ALIAS_RE,
+  ExecError,
+  execGcSling as defaultExecGcSling,
+} from '../exec.js';
+import type { ExecResult } from '../exec.js';
 import { fetchTriage } from '../maintainer/triage.js';
 import { readCache, writeCache } from '../maintainer/storage.js';
 import { addSseClient, notifyRefresh, removeSseClient } from '../maintainer/sse.js';
 
 const GH_LOGIN_RE = /^[A-Za-z0-9][A-Za-z0-9-]{0,38}$/;
+const GH_URL_RE = /^https:\/\/github\.com\/[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+\/(issues|pull)\/\d+$/;
+const MAX_URL_LEN = 2_048;
+const BEAD_ID_RE = /\b(td-wisp-[a-z0-9]{3,12})\b/;
+
+type SlingIntent = 'review' | 'draft' | 'triage';
+type SlingKind = 'pr' | 'issue';
 
 // /api/maintainer routes — read the cached triage envelope or refresh it
 // from `gh`. The refresh is on-demand for dev; the nightly worker (bead
@@ -15,9 +26,22 @@ const GH_LOGIN_RE = /^[A-Za-z0-9][A-Za-z0-9-]{0,38}$/;
 interface MaintainerRouterOptions {
   repo: string;
   cachePath: string;
+  /** Default `gc sling` target when the request omits one. From config. */
+  slingTarget: string;
+  /**
+   * Injected `gc sling` runner. Defaults to the real exec wrapper; tests
+   * pass a stub. This DI is the new pattern for write-exec routers
+   * (mailSendRouter is a candidate for the same retrofit later).
+   */
+  execGcSling?: (target: string, beadText: string) => Promise<ExecResult>;
 }
 
-export function maintainerRouter({ repo, cachePath }: MaintainerRouterOptions): Router {
+export function maintainerRouter({
+  repo,
+  cachePath,
+  slingTarget,
+  execGcSling = defaultExecGcSling,
+}: MaintainerRouterOptions): Router {
   const router = Router();
 
   router.get('/triage', async (_req, res) => {
@@ -97,6 +121,95 @@ export function maintainerRouter({ repo, cachePath }: MaintainerRouterOptions): 
     req.on('close', () => removeSseClient(res));
   });
 
+  router.post('/sling', async (req, res) => {
+    const body = req.body as {
+      kind?: unknown;
+      number?: unknown;
+      html_url?: unknown;
+      intent?: unknown;
+      target?: unknown;
+    };
+
+    if (!isSlingKind(body.kind)) {
+      res.status(400).json({ error: 'invalid kind (pr|issue)', kind: 'validation' });
+      return;
+    }
+    if (!isSlingIntent(body.intent)) {
+      res
+        .status(400)
+        .json({ error: 'invalid intent (review|draft|triage)', kind: 'validation' });
+      return;
+    }
+    if (typeof body.number !== 'number' || !Number.isInteger(body.number) || body.number < 1) {
+      res.status(400).json({ error: 'invalid number', kind: 'validation' });
+      return;
+    }
+    if (
+      typeof body.html_url !== 'string' ||
+      body.html_url.length > MAX_URL_LEN
+    ) {
+      res.status(400).json({ error: 'invalid html_url', kind: 'validation' });
+      return;
+    }
+    const urlMatch = GH_URL_RE.exec(body.html_url);
+    if (urlMatch === null) {
+      res.status(400).json({ error: 'invalid html_url', kind: 'validation' });
+      return;
+    }
+    // Cross-check: kind='pr' must point at /pull/, kind='issue' at /issues/.
+    // Closes the "review PR <issues/47>" semantic footgun.
+    const urlPath = urlMatch[1];
+    const expected = body.kind === 'pr' ? 'pull' : 'issues';
+    if (urlPath !== expected) {
+      res.status(400).json({ error: 'kind/html_url mismatch', kind: 'validation' });
+      return;
+    }
+    let target = slingTarget;
+    if (body.target !== undefined) {
+      if (typeof body.target !== 'string' || !AGENT_ALIAS_RE.test(body.target)) {
+        res.status(400).json({ error: 'invalid target alias', kind: 'validation' });
+        return;
+      }
+      target = body.target;
+    }
+
+    const beadText = composeBeadText(body.intent, body.html_url);
+    try {
+      const result = await execGcSling(target, beadText);
+      void recordAudit({
+        type: 'dashboard.sling',
+        endpoint: 'POST /api/maintainer/sling',
+        parsed_args: {
+          kind: body.kind,
+          number: String(body.number),
+          intent: body.intent,
+          target,
+          text_len: String(beadText.length),
+        },
+        exit_code: result.exitCode,
+        duration_ms: result.durationMs,
+      });
+      if (result.exitCode !== 0) {
+        res.status(502).json({
+          error: `gc sling failed (${result.exitCode})`,
+          kind: 'upstream',
+          details: { stderr: result.stderr.slice(0, 1024) },
+        });
+        return;
+      }
+      const idMatch = BEAD_ID_RE.exec(result.stdout);
+      res.json({ ok: true, bead_id: idMatch?.[1] });
+    } catch (err) {
+      if (err instanceof ExecError) {
+        const status =
+          err.kind === 'validation' ? 400 : err.kind === 'timeout' ? 504 : 502;
+        res.status(status).json({ error: err.message, kind: err.kind });
+        return;
+      }
+      res.status(500).json({ error: (err as Error).message, kind: 'internal' });
+    }
+  });
+
   router.get('/contributor/:login', async (req, res) => {
     const login = req.params.login;
     if (!GH_LOGIN_RE.test(login)) {
@@ -135,6 +248,32 @@ function findContributor(envelope: MaintainerTriage, login: string): Contributor
     }
   }
   return null;
+}
+
+// ── Sling dispatch (gascity-dashboard-ib5) ───────────────────────────
+//
+// Composes a per-intent bead text from the request body, dispatches via
+// `gc sling`, and audit-logs. The exec fn is DI'd through router options
+// so tests can stub. Audit row records only metadata + lengths — never
+// the rendered text body (events.jsonl noise control).
+
+function isSlingIntent(v: unknown): v is SlingIntent {
+  return v === 'review' || v === 'draft' || v === 'triage';
+}
+
+function isSlingKind(v: unknown): v is SlingKind {
+  return v === 'pr' || v === 'issue';
+}
+
+function composeBeadText(intent: SlingIntent, htmlUrl: string): string {
+  switch (intent) {
+    case 'review':
+      return `Please review PR ${htmlUrl}`;
+    case 'draft':
+      return `Please draft a PR addressing ${htmlUrl}`;
+    case 'triage':
+      return `Please triage ${htmlUrl}`;
+  }
 }
 
 function countItems(envelope: MaintainerTriage): number {

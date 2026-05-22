@@ -1,6 +1,8 @@
 // Single place for env-driven knobs. Anything new goes here so SECURITY.md
 // can audit the configurable surface.
 
+import { AGENT_ALIAS_RE } from './exec.js';
+
 export interface AdminConfig {
   /** Listener port. Default 8081, side-by-side with gc dashboard at 8080. */
   port: number;
@@ -52,6 +54,14 @@ export interface AdminConfig {
    * 0 disables the worker (manual refresh only).
    */
   maintainerRefreshIntervalMs: number;
+  /**
+   * Default agent alias for `gc sling` dispatch from the maintainer view.
+   * Env: MAINTAINER_SLING_TARGET. Default: 'mayor'.
+   * Bad env values fall back to the default with a console.warn — a
+   * typo in this single optional env should not dark the whole
+   * dashboard. The exec wrapper re-validates target at request time.
+   */
+  maintainerSlingTarget: string;
 }
 
 export function loadConfig(env: NodeJS.ProcessEnv = process.env): AdminConfig {
@@ -85,7 +95,19 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): AdminConfig {
       env.MAINTAINER_REFRESH_INTERVAL_MS,
       6 * 60 * 60 * 1_000,
     ),
+    maintainerSlingTarget: parseSlingTarget(env.MAINTAINER_SLING_TARGET, 'mayor'),
   };
+}
+
+function parseSlingTarget(raw: string | undefined, fallback: string): string {
+  if (raw === undefined || raw.length === 0) return fallback;
+  if (!AGENT_ALIAS_RE.test(raw)) {
+    console.error(
+      `[admin] MAINTAINER_SLING_TARGET=${JSON.stringify(raw)} is not a valid agent alias; falling back to '${fallback}'`,
+    );
+    return fallback;
+  }
+  return raw;
 }
 
 function parseIntervalMs(raw: string | undefined, fallback: number): number {

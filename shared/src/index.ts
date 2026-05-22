@@ -534,7 +534,12 @@ export interface MaintainerTriage {
 
 /** Audit row written to .gc/events.jsonl on every privileged action. */
 export interface AdminAuditEvent {
-  type: 'dashboard.exec' | 'dashboard.fetch' | 'dashboard.send_mail' | string;
+  type:
+    | 'dashboard.exec'
+    | 'dashboard.fetch'
+    | 'dashboard.send_mail'
+    | 'dashboard.sling'
+    | string;
   endpoint: string;
   actor: 'stephanie';
   /** Identity the parent was viewing AS at the time. NEVER affects sender. */
