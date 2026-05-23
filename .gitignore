@@ -1,15 +1,37 @@
+# Dependencies / build output
 node_modules
 dist
 *.log
-.env
-.env.local
-.DS_Store
-
-# Local dev-tooling for the redesign (Playwright snap harness).
 scripts/node_modules
 
-
-# Beads / Dolt files (added by bd init)
+# Beads / Dolt internal files (the .beads/ store itself is tracked via the
+# allow-list below; these are its local-only / generated bits)
 .dolt/
 *.db
-.beads-credential-key
+
+# Secrets / credentials — never commit. Most are dotfiles and covered by the
+# hidden-path deny-all below, but secrets aren't always dotfiles, so list the
+# common shapes explicitly too.
+.env*
+*.pem
+*.key
+*.p12
+*.pfx
+*.crt
+id_rsa*
+secrets.*
+credentials.*
+*.secret
+
+# OS cruft
+.DS_Store
+
+# Hidden-path deny-all: ignore every dotfile and dot-directory by default so
+# stray ones (.claude/ agent scratch, editor configs, accidental dotfile
+# secrets) can never be committed unless explicitly allow-listed below.
+.*
+
+# Allow-list: the only hidden paths the project intentionally tracks.
+!.gitignore
+!.beads/
+!.env.example
