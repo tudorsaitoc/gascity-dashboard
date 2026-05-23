@@ -10,11 +10,11 @@ import { SelectionActionBar } from './Maintainer';
 // it can be in (selection-only, error, success).
 
 // vitest.config.ts has globals: false, so RTL's auto-cleanup never
-// registers. Without this hook, every test would accumulate DOM nodes
-// from prior tests and queryByRole would find duplicates.
-afterEach(() => {
-  cleanup();
-});
+// registers. Each describe block below installs its own afterEach(cleanup)
+// so that DOM nodes from prior tests don't accumulate (queryByRole would
+// otherwise find duplicates). Co-located rather than module-scope so
+// ordering is not load-order-dependent if a future describe ever shares
+// mutable DOM state with another.
 
 // Text matcher that handles the success line, which intentionally
 // splits the count into its own <span class="tnum"> for tabular figures
@@ -45,6 +45,10 @@ function renderBar(props: Partial<React.ComponentProps<typeof SelectionActionBar
 }
 
 describe('SelectionActionBar — success state', () => {
+  afterEach(() => {
+    cleanup();
+  });
+
   it('renders the success line with count + target when success is set', () => {
     renderBar({ success: { count: 3, target: 'triage agent' } });
     // Copy from the bead: 'Slung N to <target>. View in Agents →'.
@@ -78,6 +82,10 @@ describe('SelectionActionBar — success state', () => {
 });
 
 describe('SelectionActionBar — error path regression', () => {
+  afterEach(() => {
+    cleanup();
+  });
+
   it('still renders the error message in the same region', () => {
     renderBar({ error: '2 of 3 failed: gc sling failed (1)' });
     const alert = screen.getByRole('alert');
@@ -103,6 +111,10 @@ describe('SelectionActionBar — error path regression', () => {
 });
 
 describe('SelectionActionBar — selection counter', () => {
+  afterEach(() => {
+    cleanup();
+  });
+
   it('shows the count of selected items', () => {
     renderBar({ count: 7 });
     expect(screen.getByText('7')).toBeTruthy();
