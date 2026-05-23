@@ -63,6 +63,15 @@ export interface AdminConfig {
    */
   maintainerSlingTarget: string;
   /**
+   * Default agent alias for `gc sling` dispatch when intent='triage'.
+   * Env: MAINTAINER_TRIAGE_TARGET. Default: 'chief-of-staff'.
+   * Triage dispatch routes to the chief-of-staff so they can dispatch
+   * the appropriate project-lead; the generic sling target stays at
+   * 'mayor' for review/draft intents. Bad env values fall back with
+   * the same warn pattern as maintainerSlingTarget.
+   */
+  maintainerTriageTarget: string;
+  /**
    * Per-process kill-switch for snapshot fixture mode. When true, bead-3's
    * cache wiring should pass useFixture=true into each SourceCache so the
    * dashboard stays renderable when supervisor / upstream services fail.
@@ -104,16 +113,25 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): AdminConfig {
       env.MAINTAINER_REFRESH_INTERVAL_MS,
       6 * 60 * 60 * 1_000,
     ),
-    maintainerSlingTarget: parseSlingTarget(env.MAINTAINER_SLING_TARGET, 'mayor'),
+    maintainerSlingTarget: parseSlingTarget(
+      'MAINTAINER_SLING_TARGET',
+      env.MAINTAINER_SLING_TARGET,
+      'mayor',
+    ),
+    maintainerTriageTarget: parseSlingTarget(
+      'MAINTAINER_TRIAGE_TARGET',
+      env.MAINTAINER_TRIAGE_TARGET,
+      'chief-of-staff',
+    ),
     useFixtures: env.SNAPSHOT_USE_FIXTURES === '1',
   };
 }
 
-function parseSlingTarget(raw: string | undefined, fallback: string): string {
+function parseSlingTarget(envName: string, raw: string | undefined, fallback: string): string {
   if (raw === undefined || raw.length === 0) return fallback;
   if (!AGENT_ALIAS_RE.test(raw)) {
     console.error(
-      `[admin] MAINTAINER_SLING_TARGET=${JSON.stringify(raw)} is not a valid agent alias; falling back to '${fallback}'`,
+      `[admin] ${envName}=${JSON.stringify(raw)} is not a valid agent alias; falling back to '${fallback}'`,
     );
     return fallback;
   }

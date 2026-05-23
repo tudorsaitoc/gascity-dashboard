@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import type {
   ContributorStat,
   ContributorTier,
@@ -14,6 +14,14 @@ import { setCached } from '../api/cache';
 import { Button } from '../components/Button';
 import { PageHeader } from '../components/PageHeader';
 import { useCachedData } from '../hooks/useCachedData';
+import { useViewingAs } from '../contexts/ViewingAsContext';
+import {
+  buildSlingRequests,
+  dispatchSlings,
+  flattenTriageItems,
+  selectionKey,
+  toggleSelectionItem,
+} from './maintainerSelection';
 
 // Triage route — read-only maintainer surface for gastownhall/gascity.
 // Shell + tokens from gascity-dashboard-hq2; live data from
@@ -78,10 +86,17 @@ export function MaintainerPage() {
     CACHE_KEY,
     () => api.maintainerTriage(),
   );
+  const { viewingAs } = useViewingAs();
 
   const [refreshing, setRefreshing] = useState(false);
   const [refreshError, setRefreshError] = useState<string | null>(null);
   const collapse = useCollapseState();
+  // Bulk-sling selection (gascity-dashboard-0nn). Lives only in component
+  // state; refresh / route change clears it. Bulk triage is a 'do it
+  // now' operation, not a saved view.
+  const [selection, setSelection] = useState<Set<string>>(() => new Set());
+  const [slinging, setSlinging] = useState(false);
+  const [slingError, setSlingError] = useState<string | null>(null);
   const [focusBreaking, setFocusBreaking] = useState<boolean>(() => {
     try {
       return localStorage.getItem(FOCUS_KEY) === '1';
@@ -136,6 +151,51 @@ export function MaintainerPage() {
     }
   }, [refresh]);
 
+  const toggleSelection = useCallback((item: { kind: 'pr' | 'issue'; number: number }) => {
+    setSelection((prev) => toggleSelectionItem(prev, item));
+  }, []);
+
+  const clearSelection = useCallback(() => {
+    setSelection(new Set());
+    setSlingError(null);
+  }, []);
+
+  // Flatten once per envelope so the bottom bar can look up html_urls
+  // for every selected key in O(N) without rewalking the tier tree on
+  // every render.
+  const allItems = useMemo(() => (data ? flattenTriageItems(data) : []), [data]);
+
+  const handleSendToTriage = useCallback(async () => {
+    setSlinging(true);
+    setSlingError(null);
+    try {
+      // target omitted: backend resolves intent='triage' to its
+      // maintainerTriageTarget (default 'chief-of-staff', env-overridable
+      // via MAINTAINER_TRIAGE_TARGET).
+      const requests = buildSlingRequests(selection, allItems);
+      const summary = await dispatchSlings(requests, (req) => api.maintainerSling(req));
+      if (summary.failed === 0) {
+        setSelection(new Set());
+      } else {
+        // Keep the failed subset selected so the operator can retry. The
+        // succeeded ones get dropped from the selection so the next
+        // 'Send to triage agent' click doesn't redispatch them.
+        const remaining = new Set<string>();
+        for (const o of summary.outcomes) {
+          if (!o.ok) remaining.add(selectionKey(o.request));
+        }
+        setSelection(remaining);
+        setSlingError(
+          `${summary.failed} of ${summary.outcomes.length} failed: ${summary.outcomes.find((o) => !o.ok)?.error ?? 'unknown error'}`,
+        );
+      }
+    } catch (err) {
+      setSlingError(err instanceof Error ? err.message : 'send failed');
+    } finally {
+      setSlinging(false);
+    }
+  }, [selection, allItems]);
+
   return (
     <section>
       <PageHeader
@@ -174,10 +234,21 @@ export function MaintainerPage() {
                   onToggle={() => collapse.toggle(`tier:${tier.tier}`)}
                   isCollapsed={collapse.isCollapsed}
                   toggleCluster={collapse.toggle}
+                  selection={selection}
+                  onToggleSelect={viewingAs.isOperator ? toggleSelection : null}
                 />
               ))}
           </div>
           <Footer computedAt={data.computed_at} />
+          {viewingAs.isOperator && selection.size > 0 && (
+            <SelectionActionBar
+              count={selection.size}
+              onSend={() => void handleSendToTriage()}
+              onClear={clearSelection}
+              sending={slinging}
+              error={slingError}
+            />
+          )}
         </>
       ) : loading ? (
         <p className="text-body text-fg-muted italic">Loading.</p>
@@ -190,18 +261,81 @@ export function MaintainerPage() {
   );
 }
 
+// Bottom-pinned action bar (gascity-dashboard-0nn). Renders only when
+// selection > 0. Editorial register, NOT a sticky toolbar with chrome:
+// single line of type with a hairline top rule, on the page's surface
+// color. No card, no rounded panel, no drop-shadow. Per the Flat Page
+// Rule, the separator is space + type + a single 1px rule, not a
+// container.
+function SelectionActionBar({
+  count,
+  onSend,
+  onClear,
+  sending,
+  error,
+}: {
+  count: number;
+  onSend: () => void;
+  onClear: () => void;
+  sending: boolean;
+  error: string | null;
+}) {
+  // Inner container mirrors Layout's main column (max-w-[1280px] + the
+  // same horizontal padding) so the action line sits under the page
+  // content, not above the gutters.
+  return (
+    <div
+      className="fixed inset-x-0 bottom-0 border-t border-rule bg-surface"
+      role="region"
+      aria-label="bulk triage actions"
+    >
+      <div className="max-w-[1280px] mx-auto px-4 sm:px-6 lg:px-8 py-3 flex items-baseline justify-between gap-6">
+        <div className="flex items-baseline gap-3 text-body text-fg-muted">
+          <span className="tnum text-fg">{count}</span>
+          <span>selected</span>
+          {error !== null && (
+            <>
+              <span aria-hidden>·</span>
+              <span className="text-accent" role="alert">
+                {error}
+              </span>
+            </>
+          )}
+        </div>
+        <div className="flex items-baseline gap-3">
+          <Button size="sm" onClick={onSend} disabled={sending}>
+            {sending ? 'Sending' : 'Send to triage agent'}
+          </Button>
+          <Button size="sm" tone="quiet" onClick={onClear} disabled={sending}>
+            Clear
+          </Button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// `onToggleSelect` is null when the viewer is impersonating (not the
+// operator) — selection checkboxes vanish and the row collapses back to
+// the no-checkbox grid. Mail's `canSend` pattern at routes/Mail.tsx:423.
+type ToggleSelect = ((item: { kind: 'pr' | 'issue'; number: number }) => void) | null;
+
 function TierSection({
   section,
   collapsed,
   onToggle,
   isCollapsed,
   toggleCluster,
+  selection,
+  onToggleSelect,
 }: {
   section: TriageTierSection;
   collapsed: boolean;
   onToggle: () => void;
   isCollapsed: (id: string) => boolean;
   toggleCluster: (id: string) => void;
+  selection: ReadonlySet<string>;
+  onToggleSelect: ToggleSelect;
 }) {
   const itemCount =
     section.clusters.reduce((n, c) => n + c.items.length, 0) +
@@ -242,6 +376,8 @@ function TierSection({
               cluster={cluster}
               collapsed={isCollapsed(`cluster:${cluster.cluster_id}`)}
               onToggle={() => toggleCluster(`cluster:${cluster.cluster_id}`)}
+              selection={selection}
+              onToggleSelect={onToggleSelect}
             />
           ))}
 
@@ -250,7 +386,11 @@ function TierSection({
               <div className="text-title font-medium text-fg-muted">
                 {section.clusters.length > 0 ? 'Unclustered' : 'Awaiting cluster enrichment'}
               </div>
-              <RowList items={section.unclustered} />
+              <RowList
+                items={section.unclustered}
+                selection={selection}
+                onToggleSelect={onToggleSelect}
+              />
             </div>
           )}
         </div>
@@ -275,10 +415,14 @@ function ClusterBlock({
   cluster,
   collapsed,
   onToggle,
+  selection,
+  onToggleSelect,
 }: {
   cluster: TriageCluster;
   collapsed: boolean;
   onToggle: () => void;
+  selection: ReadonlySet<string>;
+  onToggleSelect: ToggleSelect;
 }) {
   const issues = cluster.items.filter((i) => i.kind === 'issue').length;
   const prs = cluster.items.filter((i) => i.kind === 'pr').length;
@@ -321,7 +465,13 @@ function ClusterBlock({
           {totals.join(' · ')}
         </div>
       </button>
-      {!collapsed && <RowList items={cluster.items} />}
+      {!collapsed && (
+        <RowList
+          items={cluster.items}
+          selection={selection}
+          onToggleSelect={onToggleSelect}
+        />
+      )}
     </div>
   );
 }
@@ -334,8 +484,12 @@ function ClusterBlock({
 // on issues.
 function RowList({
   items,
+  selection,
+  onToggleSelect,
 }: {
   items: TriageItem[];
+  selection: ReadonlySet<string>;
+  onToggleSelect: ToggleSelect;
 }) {
   const issueNumbersInList = new Set<number>();
   for (const it of items) {
@@ -367,15 +521,24 @@ function RowList({
               <IssueRow
                 item={it}
                 hasInListChildren={children.length > 0}
+                selection={selection}
+                onToggleSelect={onToggleSelect}
               />
             ) : (
-              <PrRow item={it} nested={false} />
+              <PrRow
+                item={it}
+                nested={false}
+                selection={selection}
+                onToggleSelect={onToggleSelect}
+              />
             )}
             {children.map((child) => (
               <PrRow
                 key={rowKey(child)}
                 item={child}
                 nested={true}
+                selection={selection}
+                onToggleSelect={onToggleSelect}
               />
             ))}
           </div>
@@ -385,19 +548,62 @@ function RowList({
   );
 }
 
+// SelectCheckbox is a typographic affordance — small native checkbox in
+// the leading grid column. Rendered only when onToggleSelect is set
+// (i.e. the operator is not impersonating). The native control is
+// adequate here: a list of N items with a per-row toggle reads as a
+// checklist, not a control surface; visual restraint via grid spacing
+// + accent color from `accent-color` CSS is the right register.
+function SelectCheckbox({
+  item,
+  selection,
+  onToggleSelect,
+}: {
+  item: TriageItem;
+  selection: ReadonlySet<string>;
+  onToggleSelect: NonNullable<ToggleSelect>;
+}) {
+  const key = selectionKey({ kind: item.kind, number: item.number });
+  const checked = selection.has(key);
+  return (
+    <input
+      type="checkbox"
+      className="h-3.5 w-3.5 translate-y-[2px] cursor-pointer accent-accent focus-mark"
+      checked={checked}
+      onChange={() => onToggleSelect({ kind: item.kind, number: item.number })}
+      aria-label={`select ${item.kind} #${item.number} for bulk triage`}
+    />
+  );
+}
+
+// Grid template: when a selection checkbox is present, the leading
+// 1.25em column slots in ahead of the existing maroon-mark column.
+// One template per mode keeps the row structure readable.
+const ROW_GRID_NO_SELECT = 'grid grid-cols-[1.75em_2.25em_1fr_auto] items-baseline gap-x-3';
+const ROW_GRID_WITH_SELECT =
+  'grid grid-cols-[1.25em_1.75em_2.25em_1fr_auto] items-baseline gap-x-3';
+
 function IssueRow({
   item,
   hasInListChildren,
+  selection,
+  onToggleSelect,
 }: {
   item: TriageItem;
   hasInListChildren: boolean;
+  selection: ReadonlySet<string>;
+  onToggleSelect: ToggleSelect;
 }) {
   // 'anchored' only lights up when the linked PR is NOT also in view —
   // when it IS in view, the visual nesting already communicates the
   // link and the label would be noise.
   const showAnchored = item.linked_numbers.length > 0 && !hasInListChildren;
+  const gridClass = onToggleSelect ? ROW_GRID_WITH_SELECT : ROW_GRID_NO_SELECT;
   return (
-    <div className="grid grid-cols-[1.75em_2.25em_1fr_auto] items-baseline gap-x-3 py-1.5">
+    <div className={`${gridClass} py-1.5`}>
+      {onToggleSelect && (
+        <SelectCheckbox item={item} selection={selection} onToggleSelect={onToggleSelect} />
+      )}
       <span aria-hidden className="text-accent text-[0.85em] leading-none translate-y-[1px]">
         {item.is_marked ? '●' : ''}
       </span>
@@ -423,9 +629,13 @@ function IssueRow({
 function PrRow({
   item,
   nested,
+  selection,
+  onToggleSelect,
 }: {
   item: TriageItem;
   nested: boolean;
+  selection: ReadonlySet<string>;
+  onToggleSelect: ToggleSelect;
 }) {
   // Three visual states:
   //   - Standalone PR, marked    → maroon ● in leading col (rare)
@@ -446,10 +656,12 @@ function PrRow({
     </span>
   );
 
+  const gridClass = onToggleSelect ? ROW_GRID_WITH_SELECT : ROW_GRID_NO_SELECT;
   return (
-    <div
-      className={`grid grid-cols-[1.75em_2.25em_1fr_auto] items-baseline gap-x-3 py-1 ${nested ? 'pl-10' : ''}`}
-    >
+    <div className={`${gridClass} py-1 ${nested ? 'pl-10' : ''}`}>
+      {onToggleSelect && (
+        <SelectCheckbox item={item} selection={selection} onToggleSelect={onToggleSelect} />
+      )}
       {leading}
       <PriorityBadge labels={item.labels} />
       <div className="min-w-0">

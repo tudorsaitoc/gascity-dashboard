@@ -32,6 +32,13 @@ interface MaintainerRouterOptions {
   /** Default `gc sling` target when the request omits one. From config. */
   slingTarget: string;
   /**
+   * Override `gc sling` target when intent='triage' and the request
+   * omits an explicit target. Defaults to slingTarget when unset so a
+   * caller that doesn't pass this option keeps the original
+   * single-target behaviour. From config.maintainerTriageTarget.
+   */
+  triageTarget?: string;
+  /**
    * Injected `gc sling` runner. Defaults to the real exec wrapper; tests
    * pass a stub. This DI is the new pattern for write-exec routers
    * (mailSendRouter is a candidate for the same retrofit later).
@@ -43,6 +50,7 @@ export function maintainerRouter({
   repo,
   cachePath,
   slingTarget,
+  triageTarget,
   execGcSling = defaultExecGcSling,
 }: MaintainerRouterOptions): Router {
   const router = Router();
@@ -167,7 +175,12 @@ export function maintainerRouter({
       res.status(400).json({ error: 'kind/html_url mismatch', kind: 'validation' });
       return;
     }
-    let target = slingTarget;
+    // Intent-aware default target: 'triage' routes to chief-of-staff
+    // (config.maintainerTriageTarget) by default so the bulk-sling action
+    // bar can fan out without each request needing to know the operator's
+    // routing preference. review/draft keep the generic sling target.
+    let target =
+      body.intent === 'triage' && triageTarget !== undefined ? triageTarget : slingTarget;
     if (body.target !== undefined) {
       if (typeof body.target !== 'string' || !AGENT_ALIAS_RE.test(body.target)) {
         res.status(400).json({ error: 'invalid target alias', kind: 'validation' });

@@ -26,4 +26,32 @@ describe('loadConfig', () => {
     assert.equal(loadConfig({ SNAPSHOT_USE_FIXTURES: '0' }).useFixtures, false);
     assert.equal(loadConfig({ SNAPSHOT_USE_FIXTURES: '' }).useFixtures, false);
   });
+
+  test('maintainerTriageTarget defaults to chief-of-staff', () => {
+    // gascity-dashboard-0nn: triage intent routes to chief-of-staff so
+    // bulk-sling fans out without per-request target resolution.
+    const cfg = loadConfig({});
+    assert.equal(cfg.maintainerTriageTarget, 'chief-of-staff');
+  });
+
+  test('maintainerTriageTarget honours MAINTAINER_TRIAGE_TARGET when valid', () => {
+    const cfg = loadConfig({ MAINTAINER_TRIAGE_TARGET: 'project-lead' });
+    assert.equal(cfg.maintainerTriageTarget, 'project-lead');
+  });
+
+  test('maintainerTriageTarget silently falls back on invalid env (no startup crash)', () => {
+    // Same precedent as maintainerSlingTarget: a typo in one optional env
+    // should not dark the dashboard.
+    const cfg = loadConfig({ MAINTAINER_TRIAGE_TARGET: 'bad alias!!' });
+    assert.equal(cfg.maintainerTriageTarget, 'chief-of-staff');
+  });
+
+  test('maintainerSlingTarget and maintainerTriageTarget resolve independently', () => {
+    const cfg = loadConfig({
+      MAINTAINER_SLING_TARGET: 'mayor',
+      MAINTAINER_TRIAGE_TARGET: 'chief-of-staff',
+    });
+    assert.equal(cfg.maintainerSlingTarget, 'mayor');
+    assert.equal(cfg.maintainerTriageTarget, 'chief-of-staff');
+  });
 });

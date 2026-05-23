@@ -36,6 +36,7 @@ interface AppHandle {
 interface BuildOpts {
   sling?: SlingStub;
   slingTarget?: string;
+  triageTarget?: string;
 }
 
 async function buildApp(opts: BuildOpts = {}): Promise<AppHandle> {
@@ -64,6 +65,7 @@ async function buildApp(opts: BuildOpts = {}): Promise<AppHandle> {
       repo: 'gastownhall/gascity',
       cachePath: path.join(tmpDir, 'cache.json'),
       slingTarget: opts.slingTarget ?? 'mayor',
+      triageTarget: opts.triageTarget,
       execGcSling: sling,
     }),
   );
@@ -215,6 +217,64 @@ describe('POST /api/maintainer/sling', { concurrency: false }, () => {
     });
     assert.equal(res.status, 200);
     assert.equal(h.calls[0]!.target, 'project-lead');
+  });
+
+  test('intent=triage with no explicit target uses triageTarget over slingTarget', async () => {
+    // gascity-dashboard-0nn: bulk-sling action bar fans out a batch of
+    // intent='triage' requests. The route picks the triage target so the
+    // frontend doesn't have to know about chief-of-staff vs mayor.
+    h = await buildApp({ slingTarget: 'mayor', triageTarget: 'chief-of-staff' });
+    const res = await postJson(`${h.url}/api/maintainer/sling`, {
+      kind: 'pr',
+      number: 1,
+      html_url: 'https://github.com/gastownhall/gascity/pull/1',
+      intent: 'triage',
+    });
+    assert.equal(res.status, 200);
+    assert.equal(h.calls[0]!.target, 'chief-of-staff');
+  });
+
+  test('intent=review with triageTarget set still uses slingTarget', async () => {
+    // The triage override is intent-scoped; review/draft must stay on the
+    // generic sling target.
+    h = await buildApp({ slingTarget: 'mayor', triageTarget: 'chief-of-staff' });
+    const res = await postJson(`${h.url}/api/maintainer/sling`, {
+      kind: 'pr',
+      number: 1,
+      html_url: 'https://github.com/gastownhall/gascity/pull/1',
+      intent: 'review',
+    });
+    assert.equal(res.status, 200);
+    assert.equal(h.calls[0]!.target, 'mayor');
+  });
+
+  test('intent=triage with explicit target still wins over triageTarget', async () => {
+    // Explicit body.target always trumps any config default, including
+    // the intent-aware one.
+    h = await buildApp({ slingTarget: 'mayor', triageTarget: 'chief-of-staff' });
+    const res = await postJson(`${h.url}/api/maintainer/sling`, {
+      kind: 'pr',
+      number: 1,
+      html_url: 'https://github.com/gastownhall/gascity/pull/1',
+      intent: 'triage',
+      target: 'project-lead',
+    });
+    assert.equal(res.status, 200);
+    assert.equal(h.calls[0]!.target, 'project-lead');
+  });
+
+  test('intent=triage falls back to slingTarget when triageTarget option is unset', async () => {
+    // Backward-compat: a caller that doesn't pass triageTarget keeps the
+    // pre-0nn behaviour of single-target dispatch.
+    h = await buildApp({ slingTarget: 'mayor' });
+    const res = await postJson(`${h.url}/api/maintainer/sling`, {
+      kind: 'pr',
+      number: 1,
+      html_url: 'https://github.com/gastownhall/gascity/pull/1',
+      intent: 'triage',
+    });
+    assert.equal(res.status, 200);
+    assert.equal(h.calls[0]!.target, 'mayor');
   });
 
   test('invalid intent returns 400', async () => {

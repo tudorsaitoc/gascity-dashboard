@@ -175,4 +175,16 @@ export const api = {
   maintainerContributor(login: string): Promise<ContributorStat> {
     return request('GET', `/api/maintainer/contributor/${encodeURIComponent(login)}`);
   },
+  // gascity-dashboard-0nn: per-item sling dispatch. The bulk-sling
+  // action bar fans out one call per selected item via Promise.allSettled
+  // so a single 4xx/5xx doesn't block the rest of the batch.
+  maintainerSling(payload: {
+    kind: 'pr' | 'issue';
+    number: number;
+    html_url: string;
+    intent: 'review' | 'draft' | 'triage';
+    target?: string;
+  }): Promise<{ ok: true; bead_id?: string }> {
+    return request('POST', '/api/maintainer/sling', payload);
+  },
 };
