@@ -1,7 +1,11 @@
 import { Router } from 'express';
 import type { GcBead } from 'gas-city-dashboard-shared';
 import { GcClient } from '../gc-client.js';
-import { execBeadAction, ExecError } from '../exec.js';
+import {
+  execBeadAction as defaultExecBeadAction,
+  ExecError,
+} from '../exec.js';
+import type { ExecResult } from '../exec.js';
 import { recordAudit } from '../audit.js';
 
 // v0 hardcoded spam filter. Comments here are the load-bearing
@@ -29,7 +33,26 @@ import { BEAD_ID_RE } from '../lib/beadId.js';
 // the supervisor returns more.
 const BEADS_FETCH_LIMIT = 1000;
 
-export function beadsRouter(gc: GcClient): Router {
+interface BeadsRouterOptions {
+  /**
+   * Injected `gc bd <claim|close|nudge>` runner. Defaults to the real
+   * exec wrapper; tests pass a stub. Mirrors the DI pattern established
+   * by maintainerRouter.execGcSling (gascity-dashboard-ib5). This is the
+   * live "agent-nudge" path: POST /api/beads/:id/nudge → execBeadAction(id,
+   * 'nudge') → `gc bd nudge <id>`.
+   */
+  execBeadAction?: (
+    beadId: string,
+    action: 'claim' | 'close' | 'nudge',
+    reason?: string,
+  ) => Promise<ExecResult>;
+}
+
+export function beadsRouter(
+  gc: GcClient,
+  opts: BeadsRouterOptions = {},
+): Router {
+  const execBeadAction = opts.execBeadAction ?? defaultExecBeadAction;
   const router = Router();
 
   router.get('/', async (req, res) => {
@@ -103,16 +126,16 @@ export function beadsRouter(gc: GcClient): Router {
   });
 
   router.post('/:id/claim', async (req, res) => {
-    await runBeadAction(req.params.id, 'claim', undefined, res);
+    await runBeadAction(req.params.id, 'claim', undefined, res, execBeadAction);
   });
 
   router.post('/:id/close', async (req, res) => {
     const reason = typeof req.body?.reason === 'string' ? req.body.reason : undefined;
-    await runBeadAction(req.params.id, 'close', reason, res);
+    await runBeadAction(req.params.id, 'close', reason, res, execBeadAction);
   });
 
   router.post('/:id/nudge', async (req, res) => {
-    await runBeadAction(req.params.id, 'nudge', undefined, res);
+    await runBeadAction(req.params.id, 'nudge', undefined, res, execBeadAction);
   });
 
   return router;
@@ -123,6 +146,7 @@ async function runBeadAction(
   action: 'claim' | 'close' | 'nudge',
   reason: string | undefined,
   res: import('express').Response,
+  execBeadAction: NonNullable<BeadsRouterOptions['execBeadAction']>,
 ): Promise<void> {
   if (!BEAD_ID_RE.test(beadId)) {
     res.status(400).json({ error: 'invalid bead id', kind: 'validation' });

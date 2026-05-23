@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
+import { Link } from 'react-router-dom';
 import type {
   ContributorStat,
   ContributorTier,
@@ -21,7 +22,16 @@ import {
   flattenTriageItems,
   selectionKey,
   toggleSelectionItem,
+  useSlingSuccess,
+  type SlingSuccess,
 } from './maintainerSelection';
+
+// Display label for the default triage target. The actual alias the
+// backend dispatches to is resolved server-side from
+// MAINTAINER_TRIAGE_TARGET (default 'chief-of-staff'); the frontend
+// never sees it. 'triage agent' matches the existing button copy
+// ('Send to triage agent') so the success line reads in the same voice.
+const TRIAGE_TARGET_LABEL = 'triage agent';
 
 // Triage route — read-only maintainer surface for gastownhall/gascity.
 // Shell + tokens from gascity-dashboard-hq2; live data from
@@ -97,6 +107,11 @@ export function MaintainerPage() {
   const [selection, setSelection] = useState<Set<string>>(() => new Set());
   const [slinging, setSlinging] = useState(false);
   const [slingError, setSlingError] = useState<string | null>(null);
+  // Post-sling success acknowledgement (gascity-dashboard-5ly). Hook
+  // owns the auto-clear timer + unmount cleanup so this component just
+  // calls setSuccess on the happy path.
+  const { success: slingSuccess, setSuccess: setSlingSuccess, clearSuccess: clearSlingSuccess } =
+    useSlingSuccess();
   const [focusBreaking, setFocusBreaking] = useState<boolean>(() => {
     try {
       return localStorage.getItem(FOCUS_KEY) === '1';
@@ -158,7 +173,10 @@ export function MaintainerPage() {
   const clearSelection = useCallback(() => {
     setSelection(new Set());
     setSlingError(null);
-  }, []);
+    // Operator's 'Clear' is a deliberate action: drop the success line
+    // too so the bar exits cleanly instead of lingering on a stale ack.
+    clearSlingSuccess();
+  }, [clearSlingSuccess]);
 
   // Flatten once per envelope so the bottom bar can look up html_urls
   // for every selected key in O(N) without rewalking the tier tree on
@@ -168,6 +186,10 @@ export function MaintainerPage() {
   const handleSendToTriage = useCallback(async () => {
     setSlinging(true);
     setSlingError(null);
+    // New dispatch supersedes any prior success line. The TTL would also
+    // clear it eventually, but clearing now avoids 'Slung 3 to triage
+    // agent' lingering next to 'Sending' on the next batch.
+    clearSlingSuccess();
     try {
       // target omitted: backend resolves intent='triage' to its
       // maintainerTriageTarget (default 'chief-of-staff', env-overridable
@@ -176,6 +198,12 @@ export function MaintainerPage() {
       const summary = await dispatchSlings(requests, (req) => api.maintainerSling(req));
       if (summary.failed === 0) {
         setSelection(new Set());
+        if (summary.succeeded > 0) {
+          // Use the abstract TRIAGE_TARGET_LABEL because the actual
+          // resolved alias is server-side; matching the existing
+          // 'Send to triage agent' button keeps the One Voice Rule.
+          setSlingSuccess({ count: summary.succeeded, target: TRIAGE_TARGET_LABEL });
+        }
       } else {
         // Keep the failed subset selected so the operator can retry. The
         // succeeded ones get dropped from the selection so the next
@@ -188,13 +216,19 @@ export function MaintainerPage() {
         setSlingError(
           `${summary.failed} of ${summary.outcomes.length} failed: ${summary.outcomes.find((o) => !o.ok)?.error ?? 'unknown error'}`,
         );
+        // Partial success: surface what landed even though the line
+        // shares space with the error. The operator's next action will
+        // clear both via clearSlingSuccess + setSlingError(null).
+        if (summary.succeeded > 0) {
+          setSlingSuccess({ count: summary.succeeded, target: TRIAGE_TARGET_LABEL });
+        }
       }
     } catch (err) {
       setSlingError(err instanceof Error ? err.message : 'send failed');
     } finally {
       setSlinging(false);
     }
-  }, [selection, allItems]);
+  }, [selection, allItems, setSlingSuccess, clearSlingSuccess]);
 
   return (
     <section>
@@ -240,13 +274,14 @@ export function MaintainerPage() {
               ))}
           </div>
           <Footer computedAt={data.computed_at} />
-          {viewingAs.isOperator && selection.size > 0 && (
+          {viewingAs.isOperator && (selection.size > 0 || slingSuccess !== null) && (
             <SelectionActionBar
               count={selection.size}
               onSend={() => void handleSendToTriage()}
               onClear={clearSelection}
               sending={slinging}
               error={slingError}
+              success={slingSuccess}
             />
           )}
         </>
@@ -261,24 +296,32 @@ export function MaintainerPage() {
   );
 }
 
-// Bottom-pinned action bar (gascity-dashboard-0nn). Renders only when
-// selection > 0. Editorial register, NOT a sticky toolbar with chrome:
-// single line of type with a hairline top rule, on the page's surface
-// color. No card, no rounded panel, no drop-shadow. Per the Flat Page
-// Rule, the separator is space + type + a single 1px rule, not a
-// container.
-function SelectionActionBar({
+// Bottom-pinned action bar (gascity-dashboard-0nn). Renders when
+// selection > 0 OR a post-sling success line is currently visible
+// (gascity-dashboard-5ly). Editorial register, NOT a sticky toolbar
+// with chrome: single line of type with a hairline top rule, on the
+// page's surface color. No card, no rounded panel, no drop-shadow.
+// Per the Flat Page Rule, the separator is space + type + a single
+// 1px rule, not a container.
+//
+// Exported so vitest can render it in isolation without standing up
+// the full MaintainerPage (useCachedData / EventSource / context
+// providers). The success-state lifecycle is owned by useSlingSuccess
+// in maintainerSelection.ts and tested there.
+export function SelectionActionBar({
   count,
   onSend,
   onClear,
   sending,
   error,
+  success,
 }: {
   count: number;
   onSend: () => void;
   onClear: () => void;
   sending: boolean;
   error: string | null;
+  success: SlingSuccess | null;
 }) {
   // Inner container mirrors Layout's main column (max-w-[1280px] + the
   // same horizontal padding) so the action line sits under the page
@@ -291,19 +334,50 @@ function SelectionActionBar({
     >
       <div className="max-w-[1280px] mx-auto px-4 sm:px-6 lg:px-8 py-3 flex items-baseline justify-between gap-6">
         <div className="flex items-baseline gap-3 text-body text-fg-muted">
-          <span className="tnum text-fg">{count}</span>
-          <span>selected</span>
+          {/*
+            Suppress "0 selected" when only the success line is visible
+            (count == 0 happens right after a fully successful dispatch
+            when the selection set is cleared but the success banner is
+            still up). Reads as a quiet acknowledgement instead of a
+            confusing "0 selected · Slung N ...".
+          */}
+          {count > 0 && (
+            <>
+              <span className="tnum text-fg">{count}</span>
+              <span>selected</span>
+            </>
+          )}
           {error !== null && (
             <>
-              <span aria-hidden>·</span>
+              {count > 0 && <span aria-hidden>·</span>}
               <span className="text-accent" role="alert">
                 {error}
               </span>
             </>
           )}
+          {success !== null && (
+            <>
+              {(count > 0 || error !== null) && <span aria-hidden>·</span>}
+              {/*
+                Success copy stays in the neutral text-fg register, not
+                the maroon accent: the One Mark Rule reserves accent for
+                anomalies and destructive moments. A successful dispatch
+                is a quiet acknowledgement, not a celebration.
+              */}
+              <span className="text-fg" role="status">
+                Slung <span className="tnum">{success.count}</span> to {success.target}.{' '}
+                <Link
+                  to="/agents"
+                  className="text-fg hover:text-accent focus-mark underline-offset-2 hover:underline"
+                >
+                  View in Agents <span aria-hidden>→</span>
+                </Link>
+              </span>
+            </>
+          )}
         </div>
         <div className="flex items-baseline gap-3">
-          <Button size="sm" onClick={onSend} disabled={sending}>
+          <Button size="sm" onClick={onSend} disabled={sending || count === 0}>
             {sending ? 'Sending' : 'Send to triage agent'}
           </Button>
           <Button size="sm" tone="quiet" onClick={onClear} disabled={sending}>

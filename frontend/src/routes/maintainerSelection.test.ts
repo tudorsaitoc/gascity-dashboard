@@ -1,11 +1,14 @@
-import { describe, expect, it } from 'vitest';
+import { act, renderHook } from '@testing-library/react';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { TriageItem } from 'gas-city-dashboard-shared';
 import {
   buildSlingRequests,
   dispatchSlings,
   flattenTriageItems,
   selectionKey,
+  SLING_SUCCESS_TTL_MS,
   toggleSelectionItem,
+  useSlingSuccess,
   type SlingRequest,
 } from './maintainerSelection';
 
@@ -253,5 +256,182 @@ describe('dispatchSlings', () => {
     expect(summary.succeeded).toBe(0);
     expect(summary.failed).toBe(0);
     expect(called).toBe(0);
+  });
+
+  it('caps simultaneous sends at 8 even for a 20-item batch', async () => {
+    // Hygiene: backend exec semaphore serialises 'gc sling' to 4 at a time,
+    // but HTTP requests still queue at the backend before hitting the
+    // semaphore. Cap the fan-out at the source so a 20+ selection doesn't
+    // stampede the express handler. 8 leaves headroom over the backend
+    // MAX_CONCURRENT=4 while staying under typical browser conn limits.
+    const reqs: SlingRequest[] = Array.from({ length: 20 }, (_, i) => ({
+      kind: 'pr',
+      number: i + 1,
+      html_url: `https://github.com/o/r/pull/${i + 1}`,
+      intent: 'triage',
+    }));
+    let inFlight = 0;
+    let peak = 0;
+    const releases: Array<() => void> = [];
+    const send = async (_r: SlingRequest) => {
+      inFlight += 1;
+      if (inFlight > peak) peak = inFlight;
+      await new Promise<void>((r) => releases.push(r));
+      inFlight -= 1;
+      return { ok: true };
+    };
+    const promise = dispatchSlings(reqs, send);
+    // Drain microtasks until the first chunk has all started. We expect
+    // the implementation to schedule at most CAP sends before awaiting.
+    for (let i = 0; i < 5; i += 1) await Promise.resolve();
+    expect(peak).toBeLessThanOrEqual(8);
+    expect(peak).toBeGreaterThan(0);
+    // Now release every gated send in batches so the loop completes.
+    while (releases.length > 0) {
+      const pending = releases.splice(0, releases.length);
+      for (const r of pending) r();
+      // Yield so the next chunk can begin and register its sends.
+      for (let i = 0; i < 5; i += 1) await Promise.resolve();
+    }
+    const summary = await promise;
+    expect(summary.outcomes).toHaveLength(20);
+    expect(summary.succeeded).toBe(20);
+    expect(summary.failed).toBe(0);
+    // Order preserved: outcomes[i].request.number === i+1.
+    summary.outcomes.forEach((o, i) => {
+      expect(o.request.number).toBe(i + 1);
+    });
+  });
+
+  it('isolates failures across chunks: one rejecting send does not block others in a 20-item batch', async () => {
+    const reqs: SlingRequest[] = Array.from({ length: 20 }, (_, i) => ({
+      kind: 'pr',
+      number: i + 1,
+      html_url: `https://github.com/o/r/pull/${i + 1}`,
+      intent: 'triage',
+    }));
+    const send = async (r: SlingRequest) => {
+      if (r.number === 12) throw new Error('boom');
+      return { ok: true };
+    };
+    const summary = await dispatchSlings(reqs, send);
+    expect(summary.outcomes).toHaveLength(20);
+    expect(summary.succeeded).toBe(19);
+    expect(summary.failed).toBe(1);
+    const failed = summary.outcomes.find((o) => !o.ok);
+    expect(failed?.request.number).toBe(12);
+    expect(failed?.error).toBe('boom');
+  });
+});
+
+// gascity-dashboard-5ly: post-sling success acknowledgement. After a
+// successful dispatch (failed === 0), the action bar showed nothing —
+// silent on success. The hook holds {count, target} until the operator
+// takes their next action or SLING_SUCCESS_TTL_MS elapses, whichever
+// comes first.
+describe('useSlingSuccess', () => {
+  beforeEach(() => {
+    vi.useFakeTimers();
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  it('starts with success === null', () => {
+    const { result } = renderHook(() => useSlingSuccess());
+    expect(result.current.success).toBeNull();
+  });
+
+  it('exposes a positive TTL constant so the auto-clear is meaningful', () => {
+    expect(SLING_SUCCESS_TTL_MS).toBeGreaterThan(0);
+  });
+
+  it('setSuccess populates the line with count + target', () => {
+    const { result } = renderHook(() => useSlingSuccess());
+    act(() => {
+      result.current.setSuccess({ count: 3, target: 'triage agent' });
+    });
+    expect(result.current.success).toEqual({ count: 3, target: 'triage agent' });
+  });
+
+  it('auto-clears after SLING_SUCCESS_TTL_MS elapses', () => {
+    const { result } = renderHook(() => useSlingSuccess());
+    act(() => {
+      result.current.setSuccess({ count: 2, target: 'triage agent' });
+    });
+    expect(result.current.success).not.toBeNull();
+    act(() => {
+      vi.advanceTimersByTime(SLING_SUCCESS_TTL_MS);
+    });
+    expect(result.current.success).toBeNull();
+  });
+
+  it('does not clear before SLING_SUCCESS_TTL_MS elapses', () => {
+    const { result } = renderHook(() => useSlingSuccess());
+    act(() => {
+      result.current.setSuccess({ count: 1, target: 'triage agent' });
+    });
+    act(() => {
+      vi.advanceTimersByTime(SLING_SUCCESS_TTL_MS - 1);
+    });
+    expect(result.current.success).not.toBeNull();
+  });
+
+  it('back-to-back setSuccess calls do not stack timers (only the latest TTL fires)', () => {
+    const { result } = renderHook(() => useSlingSuccess());
+    act(() => {
+      result.current.setSuccess({ count: 1, target: 'triage agent' });
+    });
+    act(() => {
+      vi.advanceTimersByTime(SLING_SUCCESS_TTL_MS - 1000);
+    });
+    // Second sling lands just before the first would clear. The second
+    // line is what should be visible; the first timer must NOT fire and
+    // wipe it 1 second later.
+    act(() => {
+      result.current.setSuccess({ count: 2, target: 'triage agent' });
+    });
+    act(() => {
+      vi.advanceTimersByTime(1000);
+    });
+    // First timer's deadline has passed but the second timer reset it.
+    expect(result.current.success).toEqual({ count: 2, target: 'triage agent' });
+    act(() => {
+      vi.advanceTimersByTime(SLING_SUCCESS_TTL_MS - 1000);
+    });
+    expect(result.current.success).toBeNull();
+  });
+
+  it('clearSuccess wipes the line immediately and cancels any pending timer', () => {
+    const { result } = renderHook(() => useSlingSuccess());
+    act(() => {
+      result.current.setSuccess({ count: 1, target: 'triage agent' });
+    });
+    act(() => {
+      result.current.clearSuccess();
+    });
+    expect(result.current.success).toBeNull();
+    // Advancing past the original deadline must not re-null an already
+    // null state (the timer was cancelled, not just observed-as-no-op).
+    act(() => {
+      vi.advanceTimersByTime(SLING_SUCCESS_TTL_MS);
+    });
+    expect(result.current.success).toBeNull();
+  });
+
+  it('clears the timer on unmount so a stale setSuccess does not fire on an unmounted component', () => {
+    const { result, unmount } = renderHook(() => useSlingSuccess());
+    act(() => {
+      result.current.setSuccess({ count: 1, target: 'triage agent' });
+    });
+    unmount();
+    // If unmount cleanup is missing, advancing time would invoke the
+    // setState callback against the unmounted hook. vitest/RTL will
+    // surface that as an act() warning or a noisy error in the run; the
+    // assertion below is a smoke check that nothing throws.
+    expect(() => {
+      vi.advanceTimersByTime(SLING_SUCCESS_TTL_MS);
+    }).not.toThrow();
   });
 });

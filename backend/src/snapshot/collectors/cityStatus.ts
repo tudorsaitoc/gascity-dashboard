@@ -192,7 +192,41 @@ function isActive(state: string): boolean {
   return ACTIVE_STATES.has(state);
 }
 
-function quotedTomlValue(line: string, key: string): string | null {
-  const match = line.match(new RegExp(`^${key}\\s*=\\s*"(.*)"\\s*$`));
-  return match?.[1] ?? null;
+/**
+ * Extract a quoted TOML value for `key` from a single, already-trimmed line
+ * of the form `key = "value"`. Returns the captured string, or null when
+ * the line does not match.
+ *
+ * Exported only so the per-line parser is directly testable
+ * (gascity-dashboard-ddz). Treats `key` as a literal string — no regex
+ * metacharacter interpretation — so passing a key like `max.sessions`
+ * matches only that exact key, not e.g. `maxXsessions`.
+ *
+ * Preserves the previous greedy "(.*)" behavior by using lastIndexOf('"')
+ * for the closing quote, so values containing embedded escaped quotes are
+ * captured up to the last quote on the line. This function does not
+ * de-escape the value.
+ */
+export function quotedTomlValue(line: string, key: string): string | null {
+  if (!line.startsWith(key)) return null;
+
+  // Whitespace before '=' is allowed; anything else after the key means
+  // this is a different identifier that merely shares the prefix
+  // (e.g. 'nameX = ...' against key 'name').
+  const afterKey = line.slice(key.length).trimStart();
+  if (!afterKey.startsWith('=')) return null;
+
+  const valuePart = afterKey.slice(1).trimStart();
+  if (!valuePart.startsWith('"')) return null;
+
+  const closingQuote = valuePart.lastIndexOf('"');
+  // closingQuote === 0 → only the opening quote, no closing one.
+  // closingQuote === 1 → `""` empty value — pin contract: return null rather
+  // than '', so the exported API and parseCityToml's truthy check agree.
+  if (closingQuote <= 1) return null;
+
+  // The caller already trims the line, so trailing must be empty.
+  if (valuePart.slice(closingQuote + 1).trim() !== '') return null;
+
+  return valuePart.slice(1, closingQuote);
 }
