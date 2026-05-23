@@ -8,6 +8,7 @@ import type {
   GitHubSummary,
   ResourceSummary,
   SourceName,
+  SourceState,
   SourceStatus,
   TokenUsageSummary,
   WorkflowSummary,
@@ -219,13 +220,38 @@ async function readSources(
     return cache.get();
   };
 
+  // settle wraps pick() so a rejection from any single cache becomes a
+  // wire-shape SourceState envelope with status='error' instead of
+  // propagating. This is the snapshot route's failure-isolation
+  // guarantee, owned at the composition layer rather than SourceCache's
+  // internal try/catch. If a future collector wrapper escapes the
+  // cache's catch (sync throw before refreshUnshared's try, returned
+  // rejected promise, etc.), the dashboard still serves a partial
+  // envelope — never 500s the whole route. Regression-guarded by
+  // backend/test/snapshot-failure-isolation.test.ts (gascity-dashboard-9tv).
+  const settle = async <T>(
+    name: SourceName,
+    cache: SourceCache<T>,
+  ): Promise<SourceState<T>> => {
+    try {
+      return await pick(name, cache);
+    } catch (error) {
+      return {
+        ...cache.snapshot(),
+        status: 'error',
+        error: error instanceof Error ? error.message : String(error),
+        data: null,
+      };
+    }
+  };
+
   const [aimux, city, resources, workflows, github, tokens] = await Promise.all([
-    pick('aimux', caches.aimux),
-    pick('city', caches.city),
-    pick('resources', caches.resources),
-    pick('workflows', caches.workflows),
-    pick('github', caches.github),
-    pick('tokens', caches.tokens),
+    settle('aimux', caches.aimux),
+    settle('city', caches.city),
+    settle('resources', caches.resources),
+    settle('workflows', caches.workflows),
+    settle('github', caches.github),
+    settle('tokens', caches.tokens),
   ]);
 
   return { aimux, city, resources, workflows, github, tokens };
