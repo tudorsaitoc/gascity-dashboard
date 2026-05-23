@@ -17,10 +17,15 @@ import { addSseClient, notifyRefresh, removeSseClient } from '../maintainer/sse.
 const GH_LOGIN_RE = /^[A-Za-z0-9][A-Za-z0-9-]{0,38}$/;
 const GH_URL_RE = /^https:\/\/github\.com\/[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+\/(issues|pull)\/\d+$/;
 const MAX_URL_LEN = 2_048;
-// gc sling emits "created bead <id>" on success. The id alphabet matches
-// the supervisor's full id space (see lib/beadId.ts) — older fixtures used
-// td-wisp-* but modern dispatches return gascity-dashboard-*, agent-*, etc.
-const BEAD_ID_RE = /created bead ([A-Za-z0-9][A-Za-z0-9_.-]{0,63})/;
+// gascity-dashboard-wds: gc sling emits a multi-line envelope; only the
+// trailing "Slung <id> ..." line uniquely identifies the routed bead.
+// Earlier lines ("Created <id>", "Auto-convoy <id>", "Attached wisp <id>")
+// each carry an id but refer to the create/wisp/convoy steps, and
+// "Created" recurs 3+ times in multi-bead workflows. The wave-8nj regex
+// anchored on "created bead <id>", a shape gc sling no longer emits, so
+// the silent-omission bead-id failure was back. Anchoring on ^Slung with
+// the multiline flag picks the routing summary deterministically.
+const BEAD_ID_RE = /^Slung ([A-Za-z0-9][A-Za-z0-9_.-]{0,63})\b/m;
 
 type SlingIntent = 'review' | 'draft' | 'triage';
 type SlingKind = 'pr' | 'issue';

@@ -51,9 +51,19 @@ async function buildApp(opts: BuildOpts = {}): Promise<AppHandle> {
   setAuditLogPath(auditPath);
 
   const calls: StubCall[] = [];
+  // gascity-dashboard-wds: modern `gc sling` stdout is a multi-line
+  // envelope ending with "Slung <id> (with default formula ...) → <target>".
+  // The bead_id extractor anchors on that final line, so the default stub
+  // mirrors the real CLI shape.
   const defaultStub: SlingStub = async () => ({
     exitCode: 0,
-    stdout: 'created bead td-wisp-abc123\n',
+    stdout: [
+      'Created gc-255139 — "Please review PR https://example/pull/1"',
+      'Auto-convoy gc-255141',
+      'Attached wisp gc-255140 (formula "mol-focus-review") to gc-255139',
+      'Slung gc-255139 (with default formula "mol-focus-review") → oversight-rig.chief-of-staff',
+      '',
+    ].join('\n'),
     stderr: '',
     truncated: false,
     durationMs: 42,
@@ -137,7 +147,7 @@ describe('POST /api/maintainer/sling', { concurrency: false }, () => {
     });
     assert.equal(res.status, 200);
     assert.equal(res.body.ok, true);
-    assert.equal(res.body.bead_id, 'td-wisp-abc123');
+    assert.equal(res.body.bead_id, 'gc-255139');
 
     assert.equal(h.calls.length, 1);
     const call = h.calls[0]!;
@@ -565,11 +575,23 @@ describe('POST /api/maintainer/sling', { concurrency: false }, () => {
     assert.equal(h.calls[0]!.cityPath, undefined);
   });
 
-  test('extracts modern supervisor bead-id (gascity-dashboard-*) from stdout', async () => {
+  test('extracts modern supervisor bead-id (gc-NNN) from multi-line Slung stdout (gascity-dashboard-wds)', async () => {
+    // The wave-8nj regex anchored on "created bead <id>" — a stdout shape
+    // gc sling no longer emits. The modern envelope mentions the bead id
+    // in three places: the "Created", "Attached wisp", and "Slung" lines.
+    // We anchor on the trailing "Slung <id>" summary because it's the one
+    // line that always carries the routed bead id (and nothing else) at
+    // line start.
     h = await buildApp({
       sling: async () => ({
         exitCode: 0,
-        stdout: 'created bead gascity-dashboard-xyz9\n',
+        stdout: [
+          'Created gc-255139 — "Please review PR https://github.com/gastownhall/gascity/pull/1"',
+          'Auto-convoy gc-255141',
+          'Attached wisp gc-255140 (formula "mol-focus-review") to gc-255139',
+          'Slung gc-255139 (with default formula "mol-focus-review") → oversight-rig.chief-of-staff',
+          '',
+        ].join('\n'),
         stderr: '',
         truncated: false,
         durationMs: 10,
@@ -583,14 +605,45 @@ describe('POST /api/maintainer/sling', { concurrency: false }, () => {
     });
     assert.equal(res.status, 200);
     assert.equal(res.body.ok, true);
-    assert.equal(res.body.bead_id, 'gascity-dashboard-xyz9');
+    assert.equal(res.body.bead_id, 'gc-255139');
   });
 
-  test('stdout without bead-id still returns 200 with bead_id omitted', async () => {
+  test('stdout without Slung line returns 200 with bead_id omitted', async () => {
     h = await buildApp({
       sling: async () => ({
         exitCode: 0,
         stdout: 'dispatched\n',
+        stderr: '',
+        truncated: false,
+        durationMs: 10,
+      }),
+    });
+    const res = await postJson(`${h.url}/api/maintainer/sling`, {
+      kind: 'pr',
+      number: 1,
+      html_url: 'https://github.com/gastownhall/gascity/pull/1',
+      intent: 'review',
+    });
+    assert.equal(res.status, 200);
+    assert.equal(res.body.ok, true);
+    assert.equal(res.body.bead_id, undefined);
+  });
+
+  test('stdout with only Created/Attached lines (no Slung) returns bead_id omitted', async () => {
+    // gascity-dashboard-wds negative case: confirms we don't fall back to
+    // "Created" lines, which appear multiple times in the modern envelope
+    // (Created, Attached wisp <id>, Auto-convoy <id>). A partial run that
+    // creates beads but never reaches the Slung step should not pretend a
+    // routing happened.
+    h = await buildApp({
+      sling: async () => ({
+        exitCode: 0,
+        stdout: [
+          'Created gc-255139 — "Please review PR https://example/pull/1"',
+          'Auto-convoy gc-255141',
+          'Attached wisp gc-255140 (formula "mol-focus-review") to gc-255139',
+          '',
+        ].join('\n'),
         stderr: '',
         truncated: false,
         durationMs: 10,
