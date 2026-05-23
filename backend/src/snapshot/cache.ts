@@ -33,6 +33,28 @@ export interface SourceCacheOptions<T> {
   loadFixture?: () => Promise<T> | T;
   useFixture?: boolean;
   now?: () => Date;
+  /**
+   * Optional sanitizer applied to the raw error before it lands in
+   * SourceState.error (which is served to the browser via
+   * GET /api/snapshot). Collectors that touch local OS resources MUST
+   * opt in — a stray `ENOENT: open /proc/meminfo` would leak an
+   * internal path otherwise (gascity-dashboard-fhj). Upstream
+   * collectors whose load() already throws a sanitized message (e.g.
+   * GcClient: `gc supervisor returned ${status}`) leave this
+   * undefined and let the message pass through unchanged.
+   *
+   * The raw error is still passed to the optional `onError` hook (if
+   * present), so server-side logging can retain the full diagnostic.
+   */
+  sanitizeErrorMessage?: (err: unknown) => string;
+  /**
+   * Optional server-side observer for the raw error. Fires before
+   * sanitization so the caller can log the full Error.message / stack
+   * for operator debugging. Wire-shape SourceState.error remains
+   * driven by `sanitizeErrorMessage` (or the raw message if none is
+   * configured).
+   */
+  onError?: (source: SourceName, phase: 'load' | 'fixture', err: unknown) => void;
 }
 
 interface CacheEntry<T> {
@@ -47,6 +69,12 @@ export class SourceCache<T> {
   private readonly loadFixture?: () => Promise<T> | T;
   private readonly useFixture: boolean;
   private readonly now: () => Date;
+  private readonly sanitizeErrorMessage?: (err: unknown) => string;
+  private readonly onError?: (
+    source: SourceName,
+    phase: 'load' | 'fixture',
+    err: unknown,
+  ) => void;
   private liveEntry: CacheEntry<T> | null = null;
   private fixtureEntry: CacheEntry<T> | null = null;
   private lastError: string | null = null;
@@ -63,6 +91,8 @@ export class SourceCache<T> {
     this.loadFixture = options.loadFixture;
     this.useFixture = options.useFixture ?? false;
     this.now = options.now ?? (() => new Date());
+    this.sanitizeErrorMessage = options.sanitizeErrorMessage;
+    this.onError = options.onError;
   }
 
   async get(options: { force?: boolean } = {}): Promise<SourceState<T>> {
@@ -111,7 +141,8 @@ export class SourceCache<T> {
       this.lastError = null;
       return this.stateFromEntry(this.liveEntry, 'fresh', null);
     } catch (error) {
-      this.lastError = errorMessage(error);
+      this.onError?.(this.source, 'load', error);
+      this.lastError = this.sanitizedMessage(error);
 
       if (this.useFixture && this.loadFixture) {
         try {
@@ -122,7 +153,8 @@ export class SourceCache<T> {
           };
           return this.stateFromEntry(this.fixtureEntry, 'fixture', this.lastError);
         } catch (fixtureError) {
-          this.lastError = `${this.lastError}; fixture failed: ${errorMessage(fixtureError)}`;
+          this.onError?.(this.source, 'fixture', fixtureError);
+          this.lastError = `${this.lastError}; fixture failed: ${this.sanitizedMessage(fixtureError)}`;
         }
       }
 
@@ -163,6 +195,25 @@ export class SourceCache<T> {
     }
 
     return null;
+  }
+
+  /**
+   * Sanitize an error message at the cache boundary before it lands in
+   * SourceState.error (the wire shape served to the browser). When a
+   * collector opts in via `sanitizeErrorMessage`, the raw message —
+   * which may contain OS-internal paths from local file reads — is
+   * replaced by the sanitized form. Without opt-in, the raw message
+   * passes through; that path is reserved for collectors whose load()
+   * already produces a sanitized message (e.g. GcClient throws
+   * `gc supervisor returned ${status}` for upstream failures).
+   *
+   * See gascity-dashboard-fhj (resources ENOENT leak).
+   */
+  private sanitizedMessage(error: unknown): string {
+    if (this.sanitizeErrorMessage) {
+      return this.sanitizeErrorMessage(error);
+    }
+    return errorMessage(error);
   }
 
   private stateFromEntry(
