@@ -17,7 +17,10 @@ import { addSseClient, notifyRefresh, removeSseClient } from '../maintainer/sse.
 const GH_LOGIN_RE = /^[A-Za-z0-9][A-Za-z0-9-]{0,38}$/;
 const GH_URL_RE = /^https:\/\/github\.com\/[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+\/(issues|pull)\/\d+$/;
 const MAX_URL_LEN = 2_048;
-const BEAD_ID_RE = /\b(td-wisp-[a-z0-9]{3,12})\b/;
+// gc sling emits "created bead <id>" on success. The id alphabet matches
+// the supervisor's full id space (see lib/beadId.ts) — older fixtures used
+// td-wisp-* but modern dispatches return gascity-dashboard-*, agent-*, etc.
+const BEAD_ID_RE = /created bead ([A-Za-z0-9][A-Za-z0-9_.-]{0,63})/;
 
 type SlingIntent = 'review' | 'draft' | 'triage';
 type SlingKind = 'pr' | 'issue';

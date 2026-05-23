@@ -153,5 +153,5 @@ function positiveInteger(value: number, fallback: number): number {
 }
 
 function nonNegativeNumber(value: number): number {
-  return Number.isFinite(value) && value > 0 ? value : 0;
+  return Number.isFinite(value) && value >= 0 ? value : 0;
 }

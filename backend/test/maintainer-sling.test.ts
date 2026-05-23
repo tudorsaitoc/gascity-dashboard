@@ -532,6 +532,27 @@ describe('POST /api/maintainer/sling', { concurrency: false }, () => {
     assert.equal(parsed.target, 'mayor');
   });
 
+  test('extracts modern supervisor bead-id (gascity-dashboard-*) from stdout', async () => {
+    h = await buildApp({
+      sling: async () => ({
+        exitCode: 0,
+        stdout: 'created bead gascity-dashboard-xyz9\n',
+        stderr: '',
+        truncated: false,
+        durationMs: 10,
+      }),
+    });
+    const res = await postJson(`${h.url}/api/maintainer/sling`, {
+      kind: 'pr',
+      number: 1,
+      html_url: 'https://github.com/gastownhall/gascity/pull/1',
+      intent: 'review',
+    });
+    assert.equal(res.status, 200);
+    assert.equal(res.body.ok, true);
+    assert.equal(res.body.bead_id, 'gascity-dashboard-xyz9');
+  });
+
   test('stdout without bead-id still returns 200 with bead_id omitted', async () => {
     h = await buildApp({
       sling: async () => ({

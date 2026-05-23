@@ -17,16 +17,13 @@ export function snapshotRouter(service: SnapshotService): Router {
     try {
       const snapshot = await service.getSnapshot();
       res.json(snapshot);
-    } catch (err) {
-      // Note: per-source failures are absorbed by SourceCache and surface
-      // as status='error' inside the envelope; reaching this catch means
-      // SnapshotService itself broke (composition bug, JSON serialize,
-      // etc.). Use 500 — it is NOT an upstream failure.
-      res.status(500).json({
-        error: 'failed to build snapshot',
-        kind: 'internal',
-        details: { message: (err as Error).message },
-      });
+    } catch {
+      // Per-source failures are absorbed by SourceCache and surface as
+      // status='error' inside the envelope; reaching this catch means
+      // SnapshotService itself broke (composition bug, JSON serialize).
+      // Internal errors stay server-side — surfacing details would risk
+      // leaking paths/symbol names to the browser.
+      res.status(500).json({ error: 'failed to build snapshot', kind: 'internal' });
     }
   });
 
@@ -50,12 +47,8 @@ export function snapshotRouter(service: SnapshotService): Router {
         duration_ms: durationMs,
       });
       res.json(snapshot);
-    } catch (err) {
-      res.status(500).json({
-        error: 'failed to refresh snapshot',
-        kind: 'internal',
-        details: { message: (err as Error).message },
-      });
+    } catch {
+      res.status(500).json({ error: 'failed to refresh snapshot', kind: 'internal' });
     }
   });
 
@@ -80,6 +73,9 @@ function parseRefreshBody(body: unknown): RefreshBodyResult {
   }
   if (!Array.isArray(raw)) {
     return { kind: 'invalid', error: 'sources must be an array of source names' };
+  }
+  if (raw.length === 0) {
+    return { kind: 'invalid', error: 'sources must not be empty (omit the field to refresh all)' };
   }
   const invalid = raw.filter((s) => !isSourceName(s));
   if (invalid.length > 0) {

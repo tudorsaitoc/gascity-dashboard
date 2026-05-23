@@ -120,7 +120,7 @@ export async function dispatchSlings(
 ): Promise<SlingSummary> {
   const settled = await Promise.allSettled(requests.map((r) => send(r)));
   const outcomes: SlingOutcome[] = settled.map((result, i) => {
-    const request = requests[i] as SlingRequest;
+    const request = requests[i]!;
     if (result.status === 'fulfilled') {
       return { request, ok: true };
     }

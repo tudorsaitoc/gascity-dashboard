@@ -370,6 +370,30 @@ describe('POST /api/snapshot/refresh', () => {
     }
   });
 
+  test('rejects body.sources that is an empty array with 400', async () => {
+    const counts: SpyLoads = { city: 0, workflows: 0, resources: 0 };
+    const app = buildApp(buildCaches({ loadCounts: counts }));
+    const { url, close } = await startApp(app);
+    try {
+      await fetch(`${url}/api/snapshot`);
+      const baseline = { ...counts };
+      const res = await fetch(`${url}/api/snapshot/refresh`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ sources: [] }),
+      });
+      assert.equal(res.status, 400);
+      const body = (await res.json()) as { kind?: string };
+      assert.equal(body.kind, 'validation');
+      // No refresh fired — counts unchanged from baseline.
+      assert.equal(counts.city, baseline.city);
+      assert.equal(counts.workflows, baseline.workflows);
+      assert.equal(counts.resources, baseline.resources);
+    } finally {
+      await close();
+    }
+  });
+
   test('rejects body.sources that is not an array with 400', async () => {
     const counts: SpyLoads = { city: 0, workflows: 0, resources: 0 };
     const app = buildApp(buildCaches({ loadCounts: counts }));
