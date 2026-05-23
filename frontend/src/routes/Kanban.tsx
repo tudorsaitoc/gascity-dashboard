@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import type { KanbanCard, KanbanColumn, KanbanResponse } from 'gas-city-dashboard-shared';
 import { KANBAN_COLUMNS } from 'gas-city-dashboard-shared';
 import { api } from '../api/client';
@@ -8,6 +8,7 @@ import { PageHeader } from '../components/PageHeader';
 import { StatusBadge } from '../components/StatusBadge';
 import { useGcEventRefresh } from '../hooks/useGcEvents';
 import { useKanbanMoves, RECENT_MOVES_CAP, type Move } from '../hooks/kanbanMoves';
+import { reconcileKanban } from '../hooks/kanbanReconcile';
 import { formatRelative } from '../hooks/time';
 
 // Read-only Kanban view (gascity-dashboard-dh6). Ported from
@@ -58,13 +59,23 @@ export function KanbanPage() {
   const [error, setError] = useState<string | null>(null);
   const [now, setNow] = useState(() => Date.now());
   const [viewingBeadId, setViewingBeadId] = useState<string | null>(null);
+  // gascity-dashboard-0sh: last-displayed Kanban + per-bead consecutive-miss
+  // counts, for reconcileKanban (retain a transiently-missing card across
+  // one refresh so a supervisor partial-read doesn't flicker it out).
+  const displayedRef = useRef<KanbanResponse | null>(null);
+  const absenceRef = useRef<Map<string, number>>(new Map());
 
   const refresh = useCallback(async () => {
     setLoading(true);
     setError(null);
     try {
       const d = await api.kanban();
-      setData(d);
+      // gascity-dashboard-0sh: reconcile against last-displayed so a
+      // transiently-missing bead (supervisor partial city-store read)
+      // doesn't flicker out.
+      const merged = reconcileKanban(displayedRef.current, d, absenceRef.current);
+      displayedRef.current = merged;
+      setData(merged);
       setFetchedAt(Date.now());
     } catch (err) {
       setError(err instanceof Error ? err.message : 'kanban fetch failed');
