@@ -109,6 +109,10 @@ function buildCaches(opts: {
         return cityLoad();
       },
       loadFixture: wireFor.has('city') ? fixtureSourceLoader('city') : undefined,
+      // Mirror the prod city collector (gascity-dashboard-4r5):
+      // raw GcClient messages pass through, since they're already
+      // sanitized upstream.
+      sanitizeErrorMessage: null,
     }),
     resources: new SourceCache({
       source: 'resources',

@@ -34,25 +34,39 @@ export interface SourceCacheOptions<T> {
   useFixture?: boolean;
   now?: () => Date;
   /**
-   * Optional sanitizer applied to the raw error before it lands in
-   * SourceState.error (which is served to the browser via
-   * GET /api/snapshot). Collectors that touch local OS resources MUST
-   * opt in — a stray `ENOENT: open /proc/meminfo` would leak an
-   * internal path otherwise (gascity-dashboard-fhj). Upstream
-   * collectors whose load() already throws a sanitized message (e.g.
-   * GcClient: `gc supervisor returned ${status}`) leave this
-   * undefined and let the message pass through unchanged.
+   * Sanitizer applied to the raw error before it lands in
+   * SourceState.error (the wire shape served to the browser via
+   * GET /api/snapshot).
+   *
+   * Three call modes (gascity-dashboard-4r5 inverted the default to
+   * opt-out for security; a forgotten option must not leak):
+   *
+   *   - **omitted / `undefined`** — the default sanitizer fires,
+   *     replacing the raw message with `${source} collection failed`.
+   *     This is the safe default for any collector that touches local
+   *     OS resources or external state of unknown shape.
+   *   - **explicit `null`** — opt out of sanitization. The raw
+   *     Error.message passes through unchanged. Reserved for
+   *     collectors whose load() already throws a sanitized message
+   *     (e.g. GcClient: `gc supervisor returned ${status}`).
+   *   - **function** — custom sanitizer overrides the default. Useful
+   *     when a collector wants a more specific generic message than
+   *     the default.
    *
    * The raw error is still passed to the optional `onError` hook (if
-   * present), so server-side logging can retain the full diagnostic.
+   * present), so server-side logging can retain the full diagnostic
+   * regardless of which wire-shape mode is selected.
+   *
+   * See gascity-dashboard-fhj (original resources ENOENT leak) and
+   * gascity-dashboard-4r5 (default inversion).
    */
-  sanitizeErrorMessage?: (err: unknown) => string;
+  sanitizeErrorMessage?: ((err: unknown) => string) | null;
   /**
    * Optional server-side observer for the raw error. Fires before
    * sanitization so the caller can log the full Error.message / stack
-   * for operator debugging. Wire-shape SourceState.error remains
-   * driven by `sanitizeErrorMessage` (or the raw message if none is
-   * configured).
+   * for operator debugging. Wire-shape SourceState.error is always
+   * driven by `sanitizeErrorMessage` (default-on per
+   * gascity-dashboard-4r5).
    */
   onError?: (source: SourceName, phase: 'load' | 'fixture', err: unknown) => void;
 }
@@ -69,7 +83,7 @@ export class SourceCache<T> {
   private readonly loadFixture?: () => Promise<T> | T;
   private readonly useFixture: boolean;
   private readonly now: () => Date;
-  private readonly sanitizeErrorMessage?: (err: unknown) => string;
+  private readonly sanitizeErrorMessage?: ((err: unknown) => string) | null;
   private readonly onError?: (
     source: SourceName,
     phase: 'load' | 'fixture',
@@ -199,21 +213,27 @@ export class SourceCache<T> {
 
   /**
    * Sanitize an error message at the cache boundary before it lands in
-   * SourceState.error (the wire shape served to the browser). When a
-   * collector opts in via `sanitizeErrorMessage`, the raw message —
-   * which may contain OS-internal paths from local file reads — is
-   * replaced by the sanitized form. Without opt-in, the raw message
-   * passes through; that path is reserved for collectors whose load()
-   * already produces a sanitized message (e.g. GcClient throws
-   * `gc supervisor returned ${status}` for upstream failures).
+   * SourceState.error (the wire shape served to the browser).
    *
-   * See gascity-dashboard-fhj (resources ENOENT leak).
+   * Default-on sanitization (gascity-dashboard-4r5): when the collector
+   * omits `sanitizeErrorMessage`, the raw message — which may contain
+   * OS-internal paths from local file reads — is replaced with a
+   * generic `${source} collection failed`. Collectors opt out
+   * explicitly with `sanitizeErrorMessage: null` (reserved for sources
+   * whose load() already throws a sanitized message, e.g. GcClient's
+   * `gc supervisor returned ${status}`).
+   *
+   * See gascity-dashboard-fhj (original resources ENOENT leak) and
+   * gascity-dashboard-4r5 (default inversion to opt-out).
    */
   private sanitizedMessage(error: unknown): string {
-    if (this.sanitizeErrorMessage) {
+    if (this.sanitizeErrorMessage === null) {
+      return errorMessage(error);
+    }
+    if (this.sanitizeErrorMessage !== undefined) {
       return this.sanitizeErrorMessage(error);
     }
-    return errorMessage(error);
+    return `${this.source} collection failed`;
   }
 
   private stateFromEntry(

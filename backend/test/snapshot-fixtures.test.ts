@@ -55,6 +55,11 @@ describe('SourceCache + fixtureSourceLoader integration', () => {
         throw new Error('supervisor unreachable');
       },
       loadFixture: fixtureSourceLoader('city'),
+      // gascity-dashboard-4r5: mirror the city collector's prod
+      // contract (opt out of default-on sanitization because GcClient
+      // already sanitizes upstream messages). Without this, the
+      // assertion below would see the generic "city collection failed".
+      sanitizeErrorMessage: null,
     });
 
     const state = await cache.get();

@@ -51,14 +51,14 @@ export function createResourcesSourceCache(
     load: options.load ?? (() => collectResources(options)),
     loadFixture: options.loadFixture,
     useFixture: options.useFixture,
-    // gascity-dashboard-fhj: this collector touches /proc/meminfo and
-    // other local OS state. A raw fs error (e.g.
+    // gascity-dashboard-fhj / -4r5: this collector touches
+    // /proc/meminfo and other local OS state. A raw fs error (e.g.
     // "ENOENT: no such file or directory, open /proc/meminfo") would
     // leak an OS-internal path to the browser via
-    // GET /api/snapshot → SourceState.error. Collapse all collector
-    // failures to a generic wire-shape message; the raw error is
+    // GET /api/snapshot → SourceState.error. We rely on the
+    // SourceCache default sanitizer to collapse all collector
+    // failures to "resources collection failed"; the raw error is
     // preserved on stderr via the onError hook for operator debugging.
-    sanitizeErrorMessage: () => 'resource collection failed',
     onError: logCollectorError,
   });
 }

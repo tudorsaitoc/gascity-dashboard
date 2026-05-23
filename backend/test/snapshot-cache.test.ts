@@ -101,6 +101,10 @@ describe('SourceCache', () => {
         }
         return { value: 'live' };
       },
+      // Opt out of sanitization so the assertion below can probe the
+      // raw upstream message — this test is about the stale-while-error
+      // contract, not the sanitization path.
+      sanitizeErrorMessage: null,
     });
 
     const fresh = await cache.get();
@@ -127,6 +131,9 @@ describe('SourceCache', () => {
         throw new Error('live source unavailable');
       },
       loadFixture: async () => ({ activeAgents: 4 }),
+      // Probe raw error passthrough — this test is about the
+      // fixture-fallback contract, not sanitization.
+      sanitizeErrorMessage: null,
     });
 
     const state = await cache.get();
@@ -143,6 +150,9 @@ describe('SourceCache', () => {
       load: async () => {
         throw new Error('upstream offline');
       },
+      // Probe raw error passthrough — this test is about the
+      // never-fetched-error contract, not sanitization.
+      sanitizeErrorMessage: null,
     });
 
     const state = await cache.get();
@@ -302,14 +312,19 @@ describe('errorMessage', () => {
   });
 });
 
-describe('SourceCache error sanitization (gascity-dashboard-fhj)', () => {
+describe('SourceCache error sanitization (gascity-dashboard-fhj, gascity-dashboard-4r5)', () => {
   // The wire-shape SourceState.error is served to the browser via
   // GET /api/snapshot. For collectors that hit local OS resources
   // (e.g. /proc/meminfo), the raw Error.message will include the
-  // OS-internal path, which is a topology leak. Collectors that own
-  // local IO opt in via the sanitizeErrorMessage option; upstream
-  // sources whose errors are already sanitized (city via GcClient,
-  // 'gc supervisor returned NNN') pass through unchanged.
+  // OS-internal path, which is a topology leak.
+  //
+  // gascity-dashboard-4r5 inverted the default: sanitization is now ON
+  // for every source. A collector opts OUT (raw passthrough) by passing
+  // `sanitizeErrorMessage: null` explicitly — reserved for collectors
+  // whose load() already throws a sanitized message (e.g. GcClient:
+  // `gc supervisor returned ${status}`). Collectors that pass a custom
+  // function still get their custom sanitizer applied. The pre-fhj
+  // legacy where an omitted option leaked raw OS paths is gone.
 
   test('sanitizeErrorMessage collapses raw OS path leak to generic message', async () => {
     const cache = new SourceCache({
@@ -332,21 +347,89 @@ describe('SourceCache error sanitization (gascity-dashboard-fhj)', () => {
     assert.ok(!state.error?.includes('ENOENT'));
   });
 
-  test('without sanitizeErrorMessage, pre-sanitized upstream errors pass through unchanged', async () => {
+  test('default-on: omitting sanitizeErrorMessage collapses raw error to "<source> collection failed"', async () => {
+    // gascity-dashboard-4r5 acceptance: a hypothetical new local-IO
+    // collector that forgets to wire any sanitization option must NOT
+    // leak its raw error to the wire shape. The default sanitizer kicks
+    // in automatically.
+    const cache = new SourceCache({
+      source: 'resources',
+      ttlMs: 1_000,
+      load: async () => {
+        throw new Error('ENOENT: no such file or directory, open /proc/meminfo');
+      },
+    });
+
+    const state = await cache.get();
+    assert.equal(state.status, 'error');
+    assert.equal(state.error, 'resources collection failed');
+    assert.ok(!state.error?.includes('/proc/meminfo'));
+    assert.ok(!state.error?.includes('ENOENT'));
+  });
+
+  test('default-on uses the source name in the generic message', async () => {
+    // Pin the message shape so the contract is observable from outside
+    // the cache module (the route layer surfaces this to the operator).
+    const cases: Array<{ source: 'city' | 'workflows' | 'tokens'; expected: string }> = [
+      { source: 'city', expected: 'city collection failed' },
+      { source: 'workflows', expected: 'workflows collection failed' },
+      { source: 'tokens', expected: 'tokens collection failed' },
+    ];
+
+    for (const { source, expected } of cases) {
+      const cache = new SourceCache({
+        source,
+        ttlMs: 1_000,
+        load: async () => {
+          throw new Error('whatever the raw error was');
+        },
+      });
+      const state = await cache.get();
+      assert.equal(state.error, expected, `source=${source}`);
+    }
+  });
+
+  test('opt-out (sanitizeErrorMessage: null): raw upstream-sanitized message passes through unchanged', async () => {
     // Mirrors the city-source contract: GcClient.fetchOnce already
-    // throws `gc supervisor returned ${status}` and the cache should
-    // not double-sanitize that.
+    // throws `gc supervisor returned ${status}`. The city collector
+    // opts out via `sanitizeErrorMessage: null` so the operator sees
+    // the upstream status code in the wire-shape error.
     const cache = new SourceCache({
       source: 'city',
       ttlMs: 1_000,
       load: async () => {
         throw new Error('gc supervisor returned 503');
       },
+      sanitizeErrorMessage: null,
     });
 
     const state = await cache.get();
     assert.equal(state.status, 'error');
     assert.equal(state.error, 'gc supervisor returned 503');
+  });
+
+  test('opt-out applies to the fixture-failure concat path as well', async () => {
+    // Symmetry: when both load() and loadFixture() throw, the cache
+    // concatenates the two sanitized messages. With opt-out, both raw
+    // messages pass through (the city collector's loadFixture is the
+    // fixture loader, which only throws structural errors).
+    const cache = new SourceCache({
+      source: 'city',
+      ttlMs: 1_000,
+      useFixture: true,
+      load: async () => {
+        throw new Error('gc supervisor returned 503');
+      },
+      loadFixture: async () => {
+        throw new Error('fixture data for source city is null');
+      },
+      sanitizeErrorMessage: null,
+    });
+
+    const state = await cache.get();
+    assert.equal(state.status, 'error');
+    assert.ok(state.error?.includes('gc supervisor returned 503'));
+    assert.ok(state.error?.includes('fixture data for source city is null'));
   });
 
   test('onError observer fires with raw error BEFORE sanitization, so server-side logs keep fidelity', async () => {

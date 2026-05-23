@@ -71,6 +71,12 @@ export function createCityStatusSourceCache(
       }),
     loadFixture: options.loadFixture,
     useFixture: options.useFixture,
+    // gascity-dashboard-4r5: opt out of default-on sanitization.
+    // GcClient already throws sanitized messages
+    // (`gc supervisor returned ${status}`, `connection refused`, etc.)
+    // with no OS paths, so the operator benefits from seeing the
+    // actual upstream failure reason in the wire shape.
+    sanitizeErrorMessage: null,
   });
 }
 
