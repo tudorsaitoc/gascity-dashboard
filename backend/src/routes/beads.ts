@@ -20,7 +20,7 @@ function defaultBeadFilter(bead: GcBead): boolean {
   return true;
 }
 
-const BEAD_ID_RE = /^(td|th|jt)-[a-z0-9-]{3,32}$/;
+import { BEAD_ID_RE } from '../lib/beadId.js';
 
 // td-7t24i6 fix: gc default /beads limit is 50, far below the city's working
 // set (~2139 total, ~183 eng-only). Pull a wide window so the spam filter
@@ -62,14 +62,11 @@ export function beadsRouter(gc: GcClient): Router {
     }
   });
 
-  // Single bead read-through for the click-to-detail modal. Bead ids in
-  // this city come in mixed shapes (gc-123, agent-diagnostics-y84, td-abc),
-  // so the gc-CLI BEAD_ID_RE is too narrow — validate against a permissive
-  // alphanumeric+separator regex sized to the supervisor's actual id range.
-  const READ_BEAD_ID_RE = /^[A-Za-z0-9][A-Za-z0-9_.-]{0,63}$/;
+  // Single bead read-through for the click-to-detail modal. Uses the same
+  // BEAD_ID_RE as the write side — supervisor's id space is one alphabet.
   router.get('/:id', async (req, res) => {
     const id = req.params.id;
-    if (!READ_BEAD_ID_RE.test(id)) {
+    if (!BEAD_ID_RE.test(id)) {
       res.status(400).json({ error: 'invalid bead id', kind: 'validation' });
       return;
     }

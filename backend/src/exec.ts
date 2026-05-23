@@ -23,7 +23,9 @@ const MAX_CONCURRENT = 4;
 
 // Param schemas — every privileged exec validates its args against these.
 // SESSION_ID_RE lives in routes/sessions.ts now that peek is HTTP, not exec.
-const BEAD_ID_RE = /^(td|th|jt)-[a-z0-9-]{3,32}$/;
+// BEAD_ID_RE is shared with routes/beads.ts via lib/beadId.ts so any prefix
+// the read side accepts the write side can act on (gascity-dashboard-bwp).
+import { BEAD_ID_RE } from './lib/beadId.js';
 export const AGENT_ALIAS_RE = /^[a-z][a-z0-9_./-]{1,63}$/i;
 
 function cleanEnv(): NodeJS.ProcessEnv {
