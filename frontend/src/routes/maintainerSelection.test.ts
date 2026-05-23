@@ -429,35 +429,38 @@ describe('useSlingSuccess', () => {
     // error surface.
     const setSpy = vi.spyOn(globalThis, 'setTimeout');
     const clearSpy = vi.spyOn(globalThis, 'clearTimeout');
+    try {
+      const { result, unmount } = renderHook(() => useSlingSuccess());
+      act(() => {
+        result.current.setSuccess({ count: 1, target: 'triage agent' });
+      });
 
-    const { result, unmount } = renderHook(() => useSlingSuccess());
-    act(() => {
-      result.current.setSuccess({ count: 1, target: 'triage agent' });
-    });
+      // Pull the handle setSuccess scheduled so we can prove clearTimeout
+      // was called against THIS specific timer, not some unrelated one.
+      const scheduledHandle = setSpy.mock.results.at(-1)?.value as ReturnType<
+        typeof setTimeout
+      >;
+      expect(scheduledHandle).toBeDefined();
+      expect(vi.getTimerCount()).toBeGreaterThan(0);
 
-    // Pull the handle setSuccess scheduled so we can prove clearTimeout
-    // was called against THIS specific timer, not some unrelated one.
-    const scheduledHandle = setSpy.mock.results.at(-1)?.value as ReturnType<
-      typeof setTimeout
-    >;
-    expect(scheduledHandle).toBeDefined();
-    expect(vi.getTimerCount()).toBeGreaterThan(0);
+      unmount();
 
-    unmount();
+      // Direct proof the cleanup effect ran: clearTimeout was invoked with
+      // the exact handle setSuccess scheduled, and no pending fake timer
+      // remains. Either signal alone is enough; both together rule out a
+      // broken cleanup that happens to leave the timer in a benign state.
+      expect(clearSpy).toHaveBeenCalledWith(scheduledHandle);
+      expect(vi.getTimerCount()).toBe(0);
 
-    // Direct proof the cleanup effect ran: clearTimeout was invoked with
-    // the exact handle setSuccess scheduled, and no pending fake timer
-    // remains. Either signal alone is enough; both together rule out a
-    // broken cleanup that happens to leave the timer in a benign state.
-    expect(clearSpy).toHaveBeenCalledWith(scheduledHandle);
-    expect(vi.getTimerCount()).toBe(0);
-
-    // Smoke check: advancing past TTL after a clean unmount is a no-op.
-    expect(() => {
-      vi.advanceTimersByTime(SLING_SUCCESS_TTL_MS);
-    }).not.toThrow();
-
-    setSpy.mockRestore();
-    clearSpy.mockRestore();
+      // Smoke check: advancing past TTL after a clean unmount is a no-op.
+      expect(() => {
+        vi.advanceTimersByTime(SLING_SUCCESS_TTL_MS);
+      }).not.toThrow();
+    } finally {
+      // Restore in finally so a failed assertion above never leaks the
+      // spies into the next test in this describe block.
+      setSpy.mockRestore();
+      clearSpy.mockRestore();
+    }
   });
 });
