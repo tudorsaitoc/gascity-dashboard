@@ -1,3 +1,4 @@
+import { useCallback, useEffect, useRef, useState } from 'react';
 import type { TriageItem } from 'gas-city-dashboard-shared';
 
 // Pure helpers for the maintainer bulk-sling selection state
@@ -154,4 +155,78 @@ export async function dispatchSlings(
   }
   const succeeded = outcomes.filter((o) => o.ok).length;
   return { outcomes, succeeded, failed: outcomes.length - succeeded };
+}
+
+// ── Post-sling success acknowledgement (gascity-dashboard-5ly) ────────
+
+export interface SlingSuccess {
+  readonly count: number;
+  readonly target: string;
+}
+
+// 5 seconds is enough to read 'Slung N to <target>' + click the link.
+// Aligned with the bead description's '~5s'. Exported so tests can pin
+// the contract instead of guessing at a hardcoded ms value.
+export const SLING_SUCCESS_TTL_MS = 5_000;
+
+export interface SlingSuccessApi {
+  readonly success: SlingSuccess | null;
+  readonly setSuccess: (next: SlingSuccess) => void;
+  readonly clearSuccess: () => void;
+}
+
+/**
+ * Hook that owns the post-sling success line shown in the bulk-triage
+ * action bar. The bar was previously silent on success — the operator
+ * only saw it disappear, which is too quiet for a dispatch that just
+ * sent N items to an agent. This hook holds:
+ *
+ *   - The current success line (or null)
+ *   - The auto-clear timer
+ *   - Cleanup on unmount
+ *   - Reset on back-to-back slings (latest dispatch wins, no stacked timers)
+ *
+ * Lives next to the selection helpers so vitest can exercise the
+ * lifecycle without rendering Maintainer.tsx.
+ */
+export function useSlingSuccess(): SlingSuccessApi {
+  const [success, setSuccessState] = useState<SlingSuccess | null>(null);
+  // Hold the timer handle outside React state so a new setSuccess can
+  // cancel the prior timer synchronously. ReturnType<typeof setTimeout>
+  // covers both browser (number) and Node (Timeout) typings.
+  const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const cancelTimer = useCallback(() => {
+    if (timerRef.current !== null) {
+      clearTimeout(timerRef.current);
+      timerRef.current = null;
+    }
+  }, []);
+
+  const setSuccess = useCallback(
+    (next: SlingSuccess) => {
+      cancelTimer();
+      setSuccessState(next);
+      timerRef.current = setTimeout(() => {
+        timerRef.current = null;
+        setSuccessState(null);
+      }, SLING_SUCCESS_TTL_MS);
+    },
+    [cancelTimer],
+  );
+
+  const clearSuccess = useCallback(() => {
+    cancelTimer();
+    setSuccessState(null);
+  }, [cancelTimer]);
+
+  // Unmount cleanup: cancel any in-flight timer so it can't fire
+  // setSuccessState against an unmounted component.
+  useEffect(() => {
+    return () => {
+      cancelTimer();
+    };
+  }, [cancelTimer]);
+
+  return { success, setSuccess, clearSuccess };
 }

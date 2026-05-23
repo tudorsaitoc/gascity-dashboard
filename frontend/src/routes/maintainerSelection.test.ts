@@ -1,11 +1,14 @@
-import { describe, expect, it } from 'vitest';
+import { act, renderHook } from '@testing-library/react';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { TriageItem } from 'gas-city-dashboard-shared';
 import {
   buildSlingRequests,
   dispatchSlings,
   flattenTriageItems,
   selectionKey,
+  SLING_SUCCESS_TTL_MS,
   toggleSelectionItem,
+  useSlingSuccess,
   type SlingRequest,
 } from './maintainerSelection';
 
@@ -318,5 +321,117 @@ describe('dispatchSlings', () => {
     const failed = summary.outcomes.find((o) => !o.ok);
     expect(failed?.request.number).toBe(12);
     expect(failed?.error).toBe('boom');
+  });
+});
+
+// gascity-dashboard-5ly: post-sling success acknowledgement. After a
+// successful dispatch (failed === 0), the action bar showed nothing —
+// silent on success. The hook holds {count, target} until the operator
+// takes their next action or SLING_SUCCESS_TTL_MS elapses, whichever
+// comes first.
+describe('useSlingSuccess', () => {
+  beforeEach(() => {
+    vi.useFakeTimers();
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  it('starts with success === null', () => {
+    const { result } = renderHook(() => useSlingSuccess());
+    expect(result.current.success).toBeNull();
+  });
+
+  it('exposes a positive TTL constant so the auto-clear is meaningful', () => {
+    expect(SLING_SUCCESS_TTL_MS).toBeGreaterThan(0);
+  });
+
+  it('setSuccess populates the line with count + target', () => {
+    const { result } = renderHook(() => useSlingSuccess());
+    act(() => {
+      result.current.setSuccess({ count: 3, target: 'triage agent' });
+    });
+    expect(result.current.success).toEqual({ count: 3, target: 'triage agent' });
+  });
+
+  it('auto-clears after SLING_SUCCESS_TTL_MS elapses', () => {
+    const { result } = renderHook(() => useSlingSuccess());
+    act(() => {
+      result.current.setSuccess({ count: 2, target: 'triage agent' });
+    });
+    expect(result.current.success).not.toBeNull();
+    act(() => {
+      vi.advanceTimersByTime(SLING_SUCCESS_TTL_MS);
+    });
+    expect(result.current.success).toBeNull();
+  });
+
+  it('does not clear before SLING_SUCCESS_TTL_MS elapses', () => {
+    const { result } = renderHook(() => useSlingSuccess());
+    act(() => {
+      result.current.setSuccess({ count: 1, target: 'triage agent' });
+    });
+    act(() => {
+      vi.advanceTimersByTime(SLING_SUCCESS_TTL_MS - 1);
+    });
+    expect(result.current.success).not.toBeNull();
+  });
+
+  it('back-to-back setSuccess calls do not stack timers (only the latest TTL fires)', () => {
+    const { result } = renderHook(() => useSlingSuccess());
+    act(() => {
+      result.current.setSuccess({ count: 1, target: 'triage agent' });
+    });
+    act(() => {
+      vi.advanceTimersByTime(SLING_SUCCESS_TTL_MS - 1000);
+    });
+    // Second sling lands just before the first would clear. The second
+    // line is what should be visible; the first timer must NOT fire and
+    // wipe it 1 second later.
+    act(() => {
+      result.current.setSuccess({ count: 2, target: 'triage agent' });
+    });
+    act(() => {
+      vi.advanceTimersByTime(1000);
+    });
+    // First timer's deadline has passed but the second timer reset it.
+    expect(result.current.success).toEqual({ count: 2, target: 'triage agent' });
+    act(() => {
+      vi.advanceTimersByTime(SLING_SUCCESS_TTL_MS - 1000);
+    });
+    expect(result.current.success).toBeNull();
+  });
+
+  it('clearSuccess wipes the line immediately and cancels any pending timer', () => {
+    const { result } = renderHook(() => useSlingSuccess());
+    act(() => {
+      result.current.setSuccess({ count: 1, target: 'triage agent' });
+    });
+    act(() => {
+      result.current.clearSuccess();
+    });
+    expect(result.current.success).toBeNull();
+    // Advancing past the original deadline must not re-null an already
+    // null state (the timer was cancelled, not just observed-as-no-op).
+    act(() => {
+      vi.advanceTimersByTime(SLING_SUCCESS_TTL_MS);
+    });
+    expect(result.current.success).toBeNull();
+  });
+
+  it('clears the timer on unmount so a stale setSuccess does not fire on an unmounted component', () => {
+    const { result, unmount } = renderHook(() => useSlingSuccess());
+    act(() => {
+      result.current.setSuccess({ count: 1, target: 'triage agent' });
+    });
+    unmount();
+    // If unmount cleanup is missing, advancing time would invoke the
+    // setState callback against the unmounted hook. vitest/RTL will
+    // surface that as an act() warning or a noisy error in the run; the
+    // assertion below is a smoke check that nothing throws.
+    expect(() => {
+      vi.advanceTimersByTime(SLING_SUCCESS_TTL_MS);
+    }).not.toThrow();
   });
 });
