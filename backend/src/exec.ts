@@ -216,18 +216,6 @@ export async function execBeadAction(
   }
 }
 
-export async function execAgentNudge(alias: string): Promise<ExecResult> {
-  if (!AGENT_ALIAS_RE.test(alias)) {
-    throw new ExecError('invalid agent alias', 'validation');
-  }
-  await acquireSlot();
-  try {
-    return await runExec('gc', ['agents', 'nudge', alias], 10_000);
-  } finally {
-    releaseSlot();
-  }
-}
-
 /**
  * `gc prime --strict <alias>` — outputs the composed behavioural prompt
  * for an agent (the same text the agent reads on wake). gascity-dashboard-vq7
