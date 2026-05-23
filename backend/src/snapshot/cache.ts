@@ -156,7 +156,7 @@ export class SourceCache<T> {
       return this.stateFromEntry(this.liveEntry, 'fresh', null);
     } catch (error) {
       this.onError?.(this.source, 'load', error);
-      this.lastError = this.sanitizedMessage(error);
+      this.lastError = this.sanitize(error);
 
       if (this.useFixture && this.loadFixture) {
         try {
@@ -168,7 +168,7 @@ export class SourceCache<T> {
           return this.stateFromEntry(this.fixtureEntry, 'fixture', this.lastError);
         } catch (fixtureError) {
           this.onError?.(this.source, 'fixture', fixtureError);
-          this.lastError = `${this.lastError}; fixture failed: ${this.sanitizedMessage(fixtureError)}`;
+          this.lastError = `${this.lastError}; fixture failed: ${this.sanitize(fixtureError)}`;
         }
       }
 
@@ -223,10 +223,17 @@ export class SourceCache<T> {
    * whose load() already throws a sanitized message, e.g. GcClient's
    * `gc supervisor returned ${status}`).
    *
-   * See gascity-dashboard-fhj (original resources ENOENT leak) and
-   * gascity-dashboard-4r5 (default inversion to opt-out).
+   * Public so composition-layer wrappers (e.g. service.ts `settle()`)
+   * that catch rejections escaping `refreshUnshared` can route the raw
+   * error through the same sanitizer before writing to the wire. Without
+   * this, the failure-isolation wrapper would defeat the very contract
+   * the default-on inversion was added to enforce.
+   *
+   * See gascity-dashboard-fhj (original resources ENOENT leak),
+   * gascity-dashboard-4r5 (default inversion to opt-out), and
+   * gascity-dashboard-9tv (composition-layer settle wrapper).
    */
-  private sanitizedMessage(error: unknown): string {
+  sanitize(error: unknown): string {
     if (this.sanitizeErrorMessage === null) {
       return errorMessage(error);
     }

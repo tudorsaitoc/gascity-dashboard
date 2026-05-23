@@ -3,7 +3,6 @@ import assert from 'node:assert/strict';
 
 import type {
   CityStatusSummary,
-  DashboardSnapshot,
   ResourceSummary,
   WorkflowSummary,
 } from 'gas-city-dashboard-shared';
@@ -11,20 +10,31 @@ import type {
 import { SourceCache } from '../src/snapshot/cache.js';
 import {
   createSnapshotService,
+  type SnapshotService,
   type SourceCacheMap,
 } from '../src/snapshot/service.js';
 
 // ── Failure-isolation contract for readSources ───────────────────────────
 //
 // Regression guard for gascity-dashboard-9tv (Phase 4 review finding from
-// wave-8nj). readSources composes six SourceCaches with Promise.allSettled
-// so that a rejected promise from any single cache.get()/refresh() resolves
-// into a status='error' SourceState envelope rather than rejecting the
-// entire aggregate. Today SourceCache.refreshUnshared catches all collector
-// errors internally — but the route-level guarantee should not depend on
-// that invariant. If a future collector wrapper escapes the cache's catch
-// (sync throw, returned rejected promise, etc.), the snapshot must still
-// serve a partial envelope, not 500 the route.
+// wave-8nj). readSources composes six SourceCaches with Promise.all over
+// a `settle()` wrapper: a rejected promise from any single
+// cache.get()/refresh() resolves into a status='error' SourceState
+// envelope rather than rejecting the entire aggregate. Today
+// SourceCache.refreshUnshared catches all collector errors internally —
+// but the route-level guarantee should not depend on that invariant. If
+// a future collector wrapper escapes the cache's catch (sync throw,
+// returned rejected promise, etc.), the snapshot must still serve a
+// partial envelope, not 500 the route.
+//
+// Cross-bead invariant (gascity-dashboard-4r5 + 9tv): the settle catch
+// must route the rejected error through cache.sanitize() before writing
+// to SourceState.error. Otherwise the failure-isolation wrapper would
+// itself bypass the default-on sanitization that 4r5 introduced —
+// leaking raw error.message (potentially OS-internal paths) to the wire
+// in exactly the escape-the-internal-catch scenario that settle exists
+// to protect against. Asserted below by the "sanitizes the leaked error"
+// case.
 
 const SAMPLE_CITY: CityStatusSummary = {
   activeAgents: 1,
@@ -120,7 +130,7 @@ function sabotageCache(cache: SourceCache<unknown>, message: string): void {
   (cache as unknown as { refresh: () => Promise<unknown> }).refresh = rejector;
 }
 
-function buildService(caches: SourceCacheMap): { getSnapshot: () => Promise<DashboardSnapshot> } {
+function buildService(caches: SourceCacheMap): SnapshotService {
   return createSnapshotService({
     caches,
     config: {
@@ -131,7 +141,7 @@ function buildService(caches: SourceCacheMap): { getSnapshot: () => Promise<Dash
   });
 }
 
-describe('readSources failure isolation (Promise.allSettled contract)', () => {
+describe('readSources failure isolation (settle wrapper contract)', () => {
   test('a single cache rejecting becomes status=error in the envelope, siblings stay fresh', async () => {
     const caches = buildHealthyCaches();
     sabotageCache(caches.city as SourceCache<unknown>, 'simulated unhandled rejection');
@@ -174,14 +184,7 @@ describe('readSources failure isolation (Promise.allSettled contract)', () => {
     const caches = buildHealthyCaches();
     sabotageCache(caches.city as SourceCache<unknown>, 'city refresh exploded');
 
-    const service = createSnapshotService({
-      caches,
-      config: {
-        cityRoot: '/tmp/test-city',
-        githubRepo: 'test-org/test-repo',
-        useFixtures: false,
-      },
-    });
+    const service = buildService(caches);
 
     const snapshot = await service.refresh(['city', 'resources']);
 
@@ -189,5 +192,35 @@ describe('readSources failure isolation (Promise.allSettled contract)', () => {
     assert.equal(snapshot.sources.city.data, null);
     assert.equal(snapshot.sources.resources.status, 'fresh');
     assert.deepEqual(snapshot.sources.resources.data, SAMPLE_RESOURCES);
+  });
+
+  test('sanitizes the leaked error via cache.sanitize before writing to SourceState.error', async () => {
+    // Cross-bead regression guard (gascity-dashboard-4r5 + 9tv). If
+    // settle() emits raw error.message, the OS-path-bearing string below
+    // lands on the wire — exactly the failure mode 4r5 was added to
+    // prevent. With cache.sanitize routing, the default sanitizer fires
+    // for caches that omit sanitizeErrorMessage (resources) and the raw
+    // string passes through for caches that explicitly opt out
+    // (aimux/github/tokens via notWiredCache).
+    const caches = buildHealthyCaches();
+    const leakyPath = '/home/operator/.ssh/id_rsa';
+
+    // resources cache uses the default (no sanitizeErrorMessage option) →
+    // generic message expected on the wire.
+    sabotageCache(caches.resources as SourceCache<unknown>, leakyPath);
+
+    const service = buildService(caches);
+    const snapshot = await service.getSnapshot();
+
+    assert.equal(snapshot.sources.resources.status, 'error');
+    assert.equal(
+      snapshot.sources.resources.error,
+      'resources collection failed',
+      'settle() must route through cache.sanitize() so the default-on sanitizer fires',
+    );
+    assert.ok(
+      !snapshot.sources.resources.error?.includes(leakyPath),
+      'raw OS path must not leak to the wire even when the catch fires outside refreshUnshared',
+    );
   });
 });

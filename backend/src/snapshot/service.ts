@@ -193,12 +193,20 @@ function buildDefaultCaches(options: CreateSnapshotServiceOptions): SourceCacheM
  * tokens — dkb Q2 pending). Load throws so the snapshot envelope carries
  * status='error' for those sources. Tests cover the deferred shape in
  * snapshot-route.test.ts via the same constructor pattern.
+ *
+ * Opts out of the default-on sanitizer (gascity-dashboard-4r5) via
+ * `sanitizeErrorMessage: null`: the thrown message is a hand-authored
+ * string with no OS-path or secret material, and preserving the literal
+ * "${source} collector not wired (gascity-dashboard-37u, dkb Q2
+ * pending)" gives the operator a bead-id breadcrumb in the wire error
+ * instead of a generic "${source} collection failed".
  */
 function notWiredCache<T>(source: SourceName, now: (() => Date) | undefined): SourceCache<T> {
   return new SourceCache<T>({
     source,
     ttlMs: 30_000,
     now,
+    sanitizeErrorMessage: null,
     load: () => {
       throw new Error(`${source} collector not wired (gascity-dashboard-37u, dkb Q2 pending)`);
     },
@@ -229,6 +237,13 @@ async function readSources(
   // rejected promise, etc.), the dashboard still serves a partial
   // envelope — never 500s the whole route. Regression-guarded by
   // backend/test/snapshot-failure-isolation.test.ts (gascity-dashboard-9tv).
+  //
+  // The caught error is routed through cache.sanitize() before landing
+  // on the wire: the very scenario this wrapper protects against (an
+  // escape from refreshUnshared's internal catch) is also the scenario
+  // where SourceCache.sanitize never ran. Without delegating here, the
+  // settle wrapper would silently leak the raw error.message — defeating
+  // the default-on sanitization contract added in gascity-dashboard-4r5.
   const settle = async <T>(
     name: SourceName,
     cache: SourceCache<T>,
@@ -239,7 +254,7 @@ async function readSources(
       return {
         ...cache.snapshot(),
         status: 'error',
-        error: error instanceof Error ? error.message : String(error),
+        error: cache.sanitize(error),
         data: null,
       };
     }
