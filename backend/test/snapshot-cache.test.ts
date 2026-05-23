@@ -180,6 +180,114 @@ describe('SourceCache', () => {
     assert.deepEqual(warm.data, { value: 'cached' });
     assert.equal(loadCount, 1, 'snapshot() must not call load()');
   });
+
+  test('get({ force: true }) bypasses cache hit and re-invokes load() within TTL', async () => {
+    // Fixed clock so the TTL window never elapses on its own — the only
+    // thing that can cause a second load() is the force flag itself.
+    const fixedNow = new Date('2026-05-22T12:00:00.000Z');
+    let loadCount = 0;
+    const cache = new SourceCache({
+      source: 'resources',
+      ttlMs: 60_000,
+      now: () => fixedNow,
+      load: () => {
+        loadCount += 1;
+        return { value: `load-${loadCount}` };
+      },
+    });
+
+    const fresh = await cache.get();
+    assert.equal(fresh.status, 'fresh');
+    assert.deepEqual(fresh.data, { value: 'load-1' });
+    assert.equal(loadCount, 1);
+
+    // Without force, a second .get() inside TTL must NOT re-invoke load().
+    const cached = await cache.get();
+    assert.deepEqual(cached.data, { value: 'load-1' });
+    assert.equal(loadCount, 1, 'unforced .get() within TTL must reuse cache');
+
+    // With force: even inside TTL, .get() must bypass the cache-hit early
+    // return and trigger a fresh load().
+    const forced = await cache.get({ force: true });
+    assert.equal(forced.status, 'fresh');
+    assert.deepEqual(forced.data, { value: 'load-2' });
+    assert.equal(loadCount, 2, 'force=true must trigger a fresh load() within TTL');
+  });
+
+  test('supports synchronous load() returning T (not Promise<T>)', async () => {
+    // The load type is `() => Promise<T> | T` — tests 1 and 6 use the sync
+    // form implicitly. This case is the explicit, labelled contract test
+    // confirming a non-Promise return resolves correctly through .get().
+    let loadCount = 0;
+    const cache = new SourceCache<{ value: string }>({
+      source: 'tokens',
+      ttlMs: 1_000,
+      load: (): { value: string } => {
+        loadCount += 1;
+        return { value: 'sync-return' };
+      },
+    });
+
+    const state = await cache.get();
+    assert.equal(state.status, 'fresh');
+    assert.deepEqual(state.data, { value: 'sync-return' });
+    assert.equal(loadCount, 1);
+
+    // snapshot() must also surface the synchronously-loaded entry.
+    const snap = cache.snapshot();
+    assert.equal(snap.status, 'fresh');
+    assert.deepEqual(snap.data, { value: 'sync-return' });
+  });
+});
+
+describe('SourceCache constructor validation', () => {
+  test('throws when ttlMs is zero', () => {
+    assert.throws(
+      () =>
+        new SourceCache({
+          source: 'resources',
+          ttlMs: 0,
+          load: () => ({ value: 'noop' }),
+        }),
+      /ttlMs must be a positive finite number/,
+    );
+  });
+
+  test('throws when ttlMs is negative', () => {
+    assert.throws(
+      () =>
+        new SourceCache({
+          source: 'resources',
+          ttlMs: -1,
+          load: () => ({ value: 'noop' }),
+        }),
+      /ttlMs must be a positive finite number/,
+    );
+  });
+
+  test('throws when ttlMs is NaN', () => {
+    assert.throws(
+      () =>
+        new SourceCache({
+          source: 'resources',
+          ttlMs: Number.NaN,
+          load: () => ({ value: 'noop' }),
+        }),
+      /ttlMs must be a positive finite number/,
+    );
+  });
+
+  test('throws when ttlMs is Infinity', () => {
+    assert.throws(
+      () =>
+        new SourceCache({
+          source: 'resources',
+          ttlMs: Number.POSITIVE_INFINITY,
+          load: () => ({ value: 'noop' }),
+        }),
+      /ttlMs must be a positive finite number/,
+    );
+  });
 });
 
 describe('errorMessage', () => {
