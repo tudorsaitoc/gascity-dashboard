@@ -373,17 +373,14 @@ function AgentPanel({
 
   return (
     <aside className="shrink-0 w-64 pr-6 border-r border-rule">
-      <div className="flex items-baseline justify-between gap-2">
-        <span className="text-label uppercase tracking-wider text-fg-muted">Agents</span>
-        <button
-          type="button"
-          onClick={() => setExpanded(false)}
-          aria-expanded
-          className="text-label uppercase tracking-wider text-fg-muted hover:text-fg focus-mark rounded-sm"
-        >
-          ▾ Collapse
-        </button>
-      </div>
+      <button
+        type="button"
+        onClick={() => setExpanded(false)}
+        aria-expanded
+        className="text-label uppercase tracking-wider text-fg-muted hover:text-fg focus-mark rounded-sm"
+      >
+        ▾ Agents
+      </button>
 
       <div className="mt-2 text-label uppercase tracking-wider text-fg-faint">
         {isOperator ? 'Reading as' : <span className="text-accent">▲ Reading as</span>}{' '}
