@@ -44,6 +44,7 @@ function mkItem(overrides: Partial<TriageItem> & { kind: 'pr' | 'issue'; number:
     blast_files: overrides.blast_files ?? [],
     lines_changed: overrides.lines_changed ?? null,
     is_marked: overrides.is_marked ?? false,
+    has_in_flight_pr: overrides.has_in_flight_pr ?? false,
     linked_numbers: overrides.linked_numbers ?? [],
     weak_ties: overrides.weak_ties ?? [],
     created_at: overrides.created_at ?? '2026-05-20T00:00:00Z',
