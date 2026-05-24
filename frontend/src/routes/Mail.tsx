@@ -291,7 +291,7 @@ export function MailPage() {
   );
 }
 
-function AgentPanel({
+export function AgentPanel({
   buckets,
   loading,
   sessionsUnavailable,
@@ -461,11 +461,25 @@ function AgentPanel({
             the mail-derived aliases. Surface the partial state explicitly
             so the operator knows session-only agents (no mail activity)
             won't appear, instead of leaving them to wonder if the list is
-            still loading. */}
+            still loading.
+
+            gascity-dashboard-5gg: split the message into two branches.
+            When the visible list collapses to ONLY the operator entry
+            (both fetches failed, or the mail corpus is genuinely empty),
+            the old "showing mail-derived aliases only" copy is
+            misleading because no mail-derived aliases are actually
+            present. Use the broader "agent list and mail history both
+            unavailable" copy in that case. */}
         {!loading && sessionsUnavailable && filtered.length > 0 && (
-          <p className="text-label uppercase tracking-wider text-fg-faint italic">
-            Agent list unavailable; showing mail-derived aliases only.
-          </p>
+          isOperatorOnly(filtered) ? (
+            <p className="text-label uppercase tracking-wider text-fg-faint italic">
+              Agent list and mail history both unavailable.
+            </p>
+          ) : (
+            <p className="text-label uppercase tracking-wider text-fg-faint italic">
+              Agent list unavailable; showing mail-derived aliases only.
+            </p>
+          )
         )}
       </div>
 
@@ -660,6 +674,21 @@ function Field({ label, children }: { label: string; children: React.ReactNode }
 
 function capitalize(s: string): string {
   return s.charAt(0).toUpperCase() + s.slice(1);
+}
+
+// True iff the visible alias list collapses to the single operator
+// entry — i.e. neither sessions nor mail produced any non-operator
+// aliases. prioritizeAliases always emits the 'you' tier with the
+// operator, so the operator-only case is detectable as a single bucket
+// with a single alias after the AgentPanel's own search/wire-alias
+// filter has run. (gascity-dashboard-5gg)
+function isOperatorOnly(buckets: ReadonlyArray<AliasBucket>): boolean {
+  let total = 0;
+  for (const bucket of buckets) {
+    total += bucket.aliases.length;
+    if (total > 1) return false;
+  }
+  return total <= 1;
 }
 
 function formatAbsolute(iso: string): string {
