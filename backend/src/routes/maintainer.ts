@@ -2,6 +2,7 @@ import path from 'node:path';
 import { Router } from 'express';
 import type {
   ContributorStat,
+  GcSession,
   MaintainerTriage,
 } from 'gas-city-dashboard-shared';
 import { recordAudit } from '../audit.js';
@@ -14,6 +15,7 @@ import type { ExecResult } from '../exec.js';
 import { collectItems, fetchTriage, selectOneMark } from '../maintainer/triage.js';
 import { readCache, writeCache } from '../maintainer/storage.js';
 import { isMarkCandidate } from '../maintainer/classifier.js';
+import { resolveTargetToSession } from '../maintainer/resolve-target.js';
 import {
   readSlungState,
   slungKey,
@@ -83,6 +85,18 @@ interface MaintainerRouterOptions {
     beadText: string,
     cityPath?: string,
   ) => Promise<ExecResult>;
+  /**
+   * Injected supervisor sessions fetcher (gascity-dashboard-55b). Used
+   * to resolve the configured sling target role (e.g. 'chief-of-staff')
+   * to a concrete session_name at write time so the frontend's inline
+   * 'slung →' link lands on a real AgentDetail route instead of 404ing
+   * on the role label. Production wires gc.listSessions; tests pass a
+   * stub. When unset OR when the call fails, the route persists
+   * `resolved_session_name: null` and the slung itself still succeeds —
+   * the frontend then surfaces an inline 'no session for role X' error
+   * instead of a clickable link.
+   */
+  listSessions?: () => Promise<readonly GcSession[]>;
 }
 
 export function maintainerRouter({
@@ -93,6 +107,7 @@ export function maintainerRouter({
   triageTarget,
   cityPath,
   execGcSling = defaultExecGcSling,
+  listSessions,
 }: MaintainerRouterOptions): Router {
   const router = Router();
 
@@ -276,11 +291,22 @@ export function maintainerRouter({
       // workflow link (gascity-dashboard-9qs). Failed slings (above
       // non-zero-exit branch) deliberately don't write — slung state
       // means "agent has the work."
+      //
+      // gascity-dashboard-55b: resolve the target role (e.g.
+      // 'chief-of-staff') to a concrete session_name BEFORE persisting
+      // so the frontend renders a real /agents/<session_name> link
+      // instead of /agents/<role-label> (which 404s in AgentDetail's
+      // strict resolver). listSessions failure is non-fatal: we persist
+      // resolved_session_name=null and the renderer surfaces an inline
+      // 'no session for role X' error. The sling already routed; the
+      // link is a navigational courtesy, not a correctness invariant.
+      const resolvedSessionName = await resolveTargetSafely(target, listSessions);
       try {
         await writeSlungEntry(slungStatePath, slungKey(body.kind, body.number), {
           slung_at: new Date().toISOString(),
           target,
           bead_id: beadId,
+          resolved_session_name: resolvedSessionName,
         });
       } catch (slungErr) {
         // Slung-state write failure is non-fatal: the sling itself
@@ -419,6 +445,40 @@ function defaultSlungStatePath(cachePath: string): string {
   // Sibling of the envelope cache so a single state-dir holds the
   // maintainer's persisted bookkeeping.
   return path.join(path.dirname(cachePath), 'slung-state.json');
+}
+
+/**
+ * Resolves the configured `gc sling` target role to a concrete session
+ * name (gascity-dashboard-55b). Wraps both the absence of the
+ * listSessions injection AND any error it might throw — both cases
+ * return null so the slung-state entry persists with
+ * resolved_session_name=null. The frontend then renders an inline
+ * 'no session for role X' error instead of producing a 404-bound link
+ * built from the raw role label.
+ *
+ * This is deliberately separate from resolveTargetToSession itself:
+ * the pure resolver shouldn't know about DI or supervisor failure
+ * modes; the route handler owns the safety wrapping.
+ */
+async function resolveTargetSafely(
+  target: string,
+  listSessions: (() => Promise<readonly GcSession[]>) | undefined,
+): Promise<string | null> {
+  if (listSessions === undefined) return null;
+  try {
+    const sessions = await listSessions();
+    return resolveTargetToSession(target, sessions);
+  } catch (err) {
+    // Supervisor unreachable / 5xx / timeout — log and degrade. The
+    // sling itself still routed (gc sling is a separate subprocess
+    // path; we got here because exitCode === 0). The operator just
+    // won't get a clickable link on this entry until the next
+    // successful sling refreshes the resolution.
+    console.warn(
+      `[maintainer] sling target resolution failed (sling succeeded, link will surface 'no session for role' error): ${(err as Error).message}`,
+    );
+    return null;
+  }
 }
 
 /**

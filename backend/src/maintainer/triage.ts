@@ -293,9 +293,25 @@ export function collectItems(envelope: MaintainerTriage): TriageItem[] {
 
 /**
  * One Mark Rule enforcement: at most ONE maroon ● on the entire page.
- * Picks the single highest-scoring mark candidate via sortScore, clears
- * the rest, and transfers the mark from a winning PR to its parent issue
- * when that parent is in view.
+ * Picks the single highest-scoring mark candidate via sortScore and
+ * clears the rest.
+ *
+ * Semantics (gascity-dashboard-bs2): the mark is an operator-action
+ * signal, not a problem-anchor. The only meaningful operator move on
+ * a triage row is slinging a triage/draft agent. If an open PR already
+ * exists for an issue, the PR IS the action queue — marking the issue
+ * would invite the operator to sling a duplicate. So:
+ *
+ *   1. Any issue with at least one in-flight PR (status not 'merged'
+ *      / not 'closed') in this envelope claiming to close it via
+ *      `linked_numbers` is excluded from the candidate set. The mark
+ *      stays on the PR (or falls to the next non-blocked candidate
+ *      if the PR is not the top scorer).
+ *   2. The legacy parent-transfer from PR → parent issue only fires
+ *      when the parent issue is still a candidate after (1). With
+ *      step (1) in place, this is effectively a no-op for the
+ *      in-flight-PR case but defends against future isMarkCandidate
+ *      changes that might mark issues directly.
  *
  * Extracted from composeEnvelope so the GET overlay (gascity-dashboard-9qs)
  * can re-run the winnow after splicing slung-state onto items at serve
@@ -306,7 +322,28 @@ export function collectItems(envelope: MaintainerTriage): TriageItem[] {
  * Items whose is_marked is already false are passed over.
  */
 export function selectOneMark(items: TriageItem[]): void {
-  // Uses sortScore so a vetted item wins the mark over an unvetted item
+  // (1) Build the set of issue numbers whose in-flight PR is in view.
+  // A PR is in-flight when its status is anything other than merged /
+  // closed — gh issue/pr list returns only open items today, so all PRs
+  // here qualify, but the explicit predicate future-proofs against a
+  // wider fetch. Any candidate issue in this set is dropped from the
+  // mark scan so the eye lands on the action (the PR), not the problem.
+  const issueNumbersWithInFlightPr = new Set<number>();
+  for (const item of items) {
+    if (item.kind !== 'pr') continue;
+    if (item.status === 'merged' || item.status === 'closed') continue;
+    for (const linkedNum of item.linked_numbers) {
+      issueNumbersWithInFlightPr.add(linkedNum);
+    }
+  }
+  for (const item of items) {
+    if (item.kind === 'issue' && issueNumbersWithInFlightPr.has(item.number)) {
+      item.is_marked = false;
+    }
+  }
+
+  // (2) Pick the top scorer among the surviving candidates. Uses
+  // sortScore so a vetted item wins the mark over an unvetted item
   // with a higher heuristic score (vetted is the stronger signal).
   let topMark: TriageItem | null = null;
   for (const item of items) {
@@ -319,19 +356,18 @@ export function selectOneMark(items: TriageItem[]): void {
     if (item.is_marked && item !== topMark) item.is_marked = false;
   }
 
-  // Hand the mark up to the parent issue when the winner is a PR that
-  // has a parent issue in this envelope. The pair reads as one unit —
-  // the issue is the "what's wrong," the nested PR underneath is the
-  // "here's the fix" — and the eye should land on the problem first.
-  // PrRow renders nested PRs with the ↳ continuation glyph and would
-  // suppress the mark anyway; transferring it surfaces the One Mark
-  // visibly instead of hiding it on an indented row.
+  // (3) Legacy parent-transfer (PR → parent issue) gated on the parent
+  // still being a candidate after step (1). After bs2 this effectively
+  // never fires for PRs that close an issue, because step (1) removes
+  // the parent from the candidate set. The guard remains so a future
+  // candidate model that marks issues directly still gets the pairing
+  // behaviour without re-introducing the bs2 regression.
   if (topMark !== null && topMark.kind === 'pr' && topMark.linked_numbers.length > 0) {
     for (const linkedNum of topMark.linked_numbers) {
       const parent = items.find(
         (i) => i.kind === 'issue' && i.number === linkedNum,
       );
-      if (parent !== undefined) {
+      if (parent !== undefined && parent.is_marked) {
         topMark.is_marked = false;
         parent.is_marked = true;
         break;

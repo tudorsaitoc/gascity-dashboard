@@ -193,7 +193,11 @@ describe('SlungLink — inline workflow link for slung items', () => {
     expect(container.textContent).toBe('');
   });
 
-  it('renders a link to /agents/<target> when item.slung is set', () => {
+  it('renders a link to /agents/<resolved_session_name> when slung is set with a resolved session', () => {
+    // gascity-dashboard-55b: link target is the RESOLVED session_name,
+    // not the configured target role label. The bug was the link going
+    // to /agents/chief-of-staff (role label) and 404ing because
+    // AgentDetail strict-matches against session_name / alias / id.
     const { container } = render(
       <MemoryRouter>
         <SlungLink
@@ -202,6 +206,7 @@ describe('SlungLink — inline workflow link for slung items', () => {
               slung_at: '2026-05-24T12:00:00.000Z',
               target: 'chief-of-staff',
               bead_id: 'gc-abc',
+              resolved_session_name: 'oversight-rig__chief-of-staff',
             },
           }}
         />
@@ -209,13 +214,13 @@ describe('SlungLink — inline workflow link for slung items', () => {
     );
     const link = container.querySelector('a');
     expect(link).not.toBeNull();
-    expect(link?.getAttribute('href')).toBe('/agents/chief-of-staff');
+    expect(link?.getAttribute('href')).toBe('/agents/oversight-rig__chief-of-staff');
     expect(link?.textContent).toMatch(/slung/);
     // Faint weight so it reads as a secondary affordance, not a CTA.
     expect(link?.className).toMatch(/text-fg-faint/);
   });
 
-  it('title attribute carries the target alias so "no session matches" is interpretable', () => {
+  it('title attribute carries the target role label so the operator knows where it routed', () => {
     const { container } = render(
       <MemoryRouter>
         <SlungLink
@@ -224,6 +229,7 @@ describe('SlungLink — inline workflow link for slung items', () => {
               slung_at: '2026-05-24T12:00:00.000Z',
               target: 'project-lead',
               bead_id: null,
+              resolved_session_name: 'agent-diagnostics--project-lead',
             },
           }}
         />
@@ -234,15 +240,19 @@ describe('SlungLink — inline workflow link for slung items', () => {
     expect(link?.getAttribute('aria-label')).toMatch(/slung to project-lead/);
   });
 
-  it('URL-encodes the target alias so qualified names (rig/agent) link correctly', () => {
+  it('URL-encodes the resolved session_name so qualified names (rig/agent) link correctly', () => {
     const { container } = render(
       <MemoryRouter>
         <SlungLink
           item={{
             slung: {
               slung_at: '2026-05-24T12:00:00.000Z',
-              target: 'hello-world/chief-of-staff',
+              target: 'chief-of-staff',
               bead_id: null,
+              // Some session_names carry '/' as a rig delimiter; ensure
+              // encodeURIComponent still wraps it so React Router keeps
+              // the slug as a single :slug segment.
+              resolved_session_name: 'hello-world/chief-of-staff',
             },
           }}
         />
@@ -251,6 +261,59 @@ describe('SlungLink — inline workflow link for slung items', () => {
     const link = container.querySelector('a');
     // encodeURIComponent turns '/' into '%2F'.
     expect(link?.getAttribute('href')).toBe('/agents/hello-world%2Fchief-of-staff');
+  });
+
+  // ── gascity-dashboard-55b: no-session error path ──────────────────
+  //
+  // When the configured target role doesn't map to any running session
+  // (sling routed to an agent that's not spawned yet, OR supervisor was
+  // unreachable at sling-write time, OR the entry is a legacy pre-55b
+  // shape with no resolved_session_name field at all), the link must
+  // NOT render as /agents/<role-label> — that's the 404 bug this bead
+  // fixes. Surface an inline error instead so the operator knows the
+  // sling itself succeeded but the link can't drill in yet.
+
+  it('renders inline "no session" error when resolved_session_name is null', () => {
+    const { container } = render(
+      <MemoryRouter>
+        <SlungLink
+          item={{
+            slung: {
+              slung_at: '2026-05-24T12:00:00.000Z',
+              target: 'chief-of-staff',
+              bead_id: null,
+              resolved_session_name: null,
+            },
+          }}
+        />
+      </MemoryRouter>,
+    );
+    // No link element — this is the error path; nothing to drill in to.
+    expect(container.querySelector('a')).toBeNull();
+    // The error message names the role so the operator can either spawn
+    // the agent or reconfigure MAINTAINER_SLING_TARGET.
+    expect(container.textContent).toMatch(/no session for chief-of-staff/i);
+  });
+
+  it('renders inline "no session" error when resolved_session_name is undefined (legacy entry)', () => {
+    // Legacy pre-55b on-disk entries don't carry resolved_session_name at all.
+    // Treat undefined identically to null — no link, surface the error.
+    const { container } = render(
+      <MemoryRouter>
+        <SlungLink
+          item={{
+            slung: {
+              slung_at: '2026-05-24T12:00:00.000Z',
+              target: 'chief-of-staff',
+              bead_id: null,
+              // resolved_session_name absent
+            },
+          }}
+        />
+      </MemoryRouter>,
+    );
+    expect(container.querySelector('a')).toBeNull();
+    expect(container.textContent).toMatch(/no session for chief-of-staff/i);
   });
 
   // Stale-cache safety: an envelope from a pre-9qs build has slung as

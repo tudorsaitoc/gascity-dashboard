@@ -718,16 +718,17 @@ function PrRow({
   selection: ReadonlySet<string>;
   onToggleSelect: ToggleSelect;
 }) {
-  // Three visual states:
-  //   - Standalone PR, marked    → maroon ● in leading col (rare)
+  // Four visual states (post gascity-dashboard-bs2):
+  //   - Standalone PR, marked    → maroon ● in leading col
   //   - Standalone PR, unmarked  → "PR" label in leading col
-  //   - Nested PR                → '↳' continuation glyph + pl-10 indent
-  //     (urgency is the parent issue's, so no maroon mark even when
-  //     is_marked — the parent above already carries the One Mark)
-  const leading = nested ? (
-    <span className="text-fg-faint leading-none translate-y-[1px]" aria-label="fixes issue above">↳</span>
-  ) : item.is_marked ? (
+  //   - Nested PR, marked        → maroon ● in leading col (the PR IS
+  //     the action queue; bs2 stopped transferring the mark to the
+  //     parent issue, so a nested PR can legitimately carry the One Mark)
+  //   - Nested PR, unmarked      → '↳' continuation glyph + pl-10 indent
+  const leading = item.is_marked ? (
     <span className="text-accent text-[0.85em] leading-none translate-y-[1px]" aria-hidden>●</span>
+  ) : nested ? (
+    <span className="text-fg-faint leading-none translate-y-[1px]" aria-label="fixes issue above">↳</span>
   ) : (
     <span
       className="text-label uppercase tracking-wider text-fg-muted leading-none translate-y-[1px]"
@@ -868,40 +869,65 @@ export function TriageScore({ item }: { item: Pick<TriageItem, 'triage_score' | 
 }
 
 // Inline workflow link for items currently slung to a triage agent
-// (gascity-dashboard-9qs). When the maintainer clicks 'Send to triage
-// agent' the item gets a slung-state entry server-side; this link
-// surfaces that state so the operator can drill into the target
-// agent's session and verify the work is alive.
+// (gascity-dashboard-9qs + gascity-dashboard-55b).
+//
+// When the maintainer clicks 'Send to triage agent' the item gets a
+// slung-state entry server-side. The 9qs revision rendered a link to
+// /agents/<target> using the configured role label (e.g.
+// 'chief-of-staff'); that 404'd because AgentDetail strict-matches the
+// slug against session_name / alias / id and no session is literally
+// named after the role.
+//
+// 55b fix: the backend now resolves the role to a concrete session at
+// sling-write time and persists it on the slung-state entry as
+// `resolved_session_name`. This component renders the link using the
+// resolved value. When resolution failed (no running session matches
+// the role, or supervisor was unreachable at write time, or the entry
+// is a pre-55b legacy shape with no field at all), we render an
+// inline 'no session for <role>' error instead of a clickable link —
+// DON'T silently fall back to the role label as the slug, that's the
+// bug we're fixing.
 //
 // Loose `!= null` matches the TriageScore guard: an envelope cached by
 // a build that pre-dates this field has `slung: undefined`, and strict
 // `!== null` would let undefined pass into a property read and throw.
 //
-// Link target is /agents/<target> where target is the resolved agent
-// alias (e.g. 'chief-of-staff' for the default triage path). The
-// AgentDetail route resolves the slug against session_name / alias /
-// id; if the agent has no active session yet (sling just fired, agent
-// hasn't spun up), the page renders 'No session matches' rather than
-// 404ing. The title attribute carries the target alias so the operator
-// can interpret 'no session matches' as 'agent not running yet'.
-//
-// Qualified-name handling (rig/agent aliases like
+// Qualified-name handling (rig/agent session_names like
 // 'hello-world/chief-of-staff'): encodeURIComponent turns the '/' into
 // '%2F'. React Router v6 leaves percent-encoded path characters as-is
 // when matching `:slug`, so the encoded form arrives at useParams; the
 // existing AgentDetail.tsx wraps a try/catch decodeURIComponent around
 // the slug (it had to, for other reasons), so the round-trip lands the
 // canonical form in the page's lookup. Don't switch to a plain
-// `/agents/${target}` template — that splits qualified names into two
+// `/agents/${slug}` template — that splits qualified names into two
 // path segments and breaks the route match.
 export function SlungLink({ item }: { item: Pick<TriageItem, 'slung'> }) {
   if (item.slung == null) return null;
-  const { target } = item.slung;
+  const { target, resolved_session_name } = item.slung;
+  // No resolved session: render error rather than a 404-bound link.
+  // Treat both null (post-55b: resolution attempted, no match) and
+  // undefined (pre-55b on-disk shape) the same way — the operator's
+  // remediation is the same in both cases (spawn the agent or fix
+  // MAINTAINER_SLING_TARGET; then re-sling to refresh the resolution).
+  if (resolved_session_name == null) {
+    return (
+      <>
+        <span aria-hidden>·</span>
+        <span
+          className="text-fg-faint italic"
+          title={`slung to ${target}, but no running session carries that role; sling routed successfully, this link can drill in once the agent spawns`}
+          aria-label={`no session for role ${target}; sling itself succeeded`}
+        >
+          no session for {target}
+        </span>
+      </>
+    );
+  }
   return (
     <>
       <span aria-hidden>·</span>
       <Link
-        to={`/agents/${encodeURIComponent(target)}`}
+        to={`/agents/${encodeURIComponent(resolved_session_name)}`}
         className="text-fg-faint hover:text-fg focus-mark"
         title={`slung to ${target}; click to verify the agent is working`}
         aria-label={`slung to ${target}, open agent detail`}

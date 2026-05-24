@@ -106,6 +106,19 @@ function isValidStateMap(v: unknown): v is SlungStateMap {
     if (typeof e.slung_at !== 'string') return false;
     if (typeof e.target !== 'string') return false;
     if (e.bead_id !== null && typeof e.bead_id !== 'string') return false;
+    // gascity-dashboard-55b: resolved_session_name is OPTIONAL on disk.
+    // Pre-55b entries don't carry it; the field defaults to null at
+    // read time so the renderer surfaces the inline 'no session for
+    // role X' error instead of building a 404-bound link from the
+    // raw `target` role label. Accept null, string, or absent;
+    // reject any other type to stay strict on the wire shape.
+    if (
+      e.resolved_session_name !== undefined &&
+      e.resolved_session_name !== null &&
+      typeof e.resolved_session_name !== 'string'
+    ) {
+      return false;
+    }
   }
   return true;
 }

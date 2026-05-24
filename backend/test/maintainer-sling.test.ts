@@ -11,7 +11,7 @@ import { ExecError } from '../src/exec.js';
 import { maintainerRouter } from '../src/routes/maintainer.js';
 import { setAuditLogPath } from '../src/audit.js';
 import { readSlungState, slungKey, writeSlungEntry } from '../src/maintainer/slung-state.js';
-import type { MaintainerTriage, TriageItem } from 'gas-city-dashboard-shared';
+import type { GcSession, MaintainerTriage, TriageItem } from 'gas-city-dashboard-shared';
 
 // Tests for POST /api/maintainer/sling (gascity-dashboard-ib5).
 //
@@ -45,6 +45,15 @@ interface BuildOpts {
   slingTarget?: string;
   triageTarget?: string;
   cityPath?: string;
+  /**
+   * gascity-dashboard-55b: injected supervisor sessions fetcher used by
+   * the sling handler to resolve the target role into a concrete
+   * session_name. When omitted, the route gets no listSessions and
+   * persists resolved_session_name=null (legacy / pre-55b behaviour),
+   * which lets the older tests in this file keep their original
+   * assertions while new tests opt in explicitly.
+   */
+  listSessions?: () => Promise<readonly GcSession[]>;
 }
 
 async function buildApp(opts: BuildOpts = {}): Promise<AppHandle> {
@@ -86,6 +95,7 @@ async function buildApp(opts: BuildOpts = {}): Promise<AppHandle> {
       triageTarget: opts.triageTarget,
       cityPath: opts.cityPath,
       execGcSling: sling,
+      listSessions: opts.listSessions,
     }),
   );
 
@@ -1027,5 +1037,200 @@ describe('GET /api/maintainer/triage — slung overlay', { concurrency: false },
     const env = await res.json() as MaintainerTriage;
     const item = env.tiers[0]!.unclustered.find((it) => it.number === 60)!;
     assert.equal(item.is_marked, true, 'item 60 still the mark; orphan slung-state for 999 is silently ignored');
+  });
+});
+
+// ── Sling target role resolution (gascity-dashboard-55b) ────────────
+//
+// Sling POST resolves the configured target role to a concrete
+// supervisor session_name at write time so the frontend's inline
+// 'slung →' link lands on /agents/<session_name> instead of
+// /agents/<role-label> (which 404s in AgentDetail's strict resolver).
+//
+// Tests pin both:
+//   - happy path: listSessions returns a session carrying the role,
+//     resolved_session_name persists on the slung-state entry.
+//   - missing-session path: listSessions returns nothing matching the
+//     role, resolved_session_name is null so the renderer surfaces
+//     an inline error rather than a 404 link.
+//   - failure path: listSessions throws, the sling itself still
+//     succeeds and persists with resolved_session_name=null.
+
+function fakeSession(overrides: Partial<GcSession> & { id: string }): GcSession {
+  return {
+    template: 't',
+    state: 'active',
+    created_at: '2026-05-24T00:00:00Z',
+    attached: false,
+    ...overrides,
+  } as GcSession;
+}
+
+describe('POST /api/maintainer/sling — target role resolution (gascity-dashboard-55b)', { concurrency: false }, () => {
+  let h: AppHandle;
+  afterEach(async () => {
+    if (h !== undefined) await h.close();
+  });
+
+  test('resolves chief-of-staff role to oversight-rig__chief-of-staff session_name', async () => {
+    // Real-world fixture from the live supervisor: chief-of-staff is
+    // configured as a pool agent under the oversight-rig.
+    const cosSession = fakeSession({
+      id: 'gc-255180',
+      alias: 'oversight-rig.chief-of-staff',
+      session_name: 'oversight-rig__chief-of-staff',
+      pool: 'chief-of-staff',
+      agent_kind: 'pool',
+    });
+    h = await buildApp({
+      triageTarget: 'chief-of-staff',
+      listSessions: async () => [cosSession],
+    });
+    const res = await postJson(`${h.url}/api/maintainer/sling`, {
+      kind: 'pr',
+      number: 2510,
+      html_url: 'https://github.com/gastownhall/gascity/pull/2510',
+      intent: 'triage',
+    });
+    assert.equal(res.status, 200);
+
+    const state = await readSlungState(slungStatePathFor(h));
+    const entry = state['pr:2510'];
+    assert.ok(entry);
+    // target stays as the configured role label (audit fidelity); the
+    // RESOLVED slug is what the frontend builds the link from.
+    assert.equal(entry.target, 'chief-of-staff');
+    assert.equal(
+      entry.resolved_session_name,
+      'oversight-rig__chief-of-staff',
+      'should resolve role to real session_name so AgentDetail finds it',
+    );
+  });
+
+  test('persists resolved_session_name=null when no session matches the role', async () => {
+    // Acceptance from the bug: 'If no session matches the configured
+    // target role, UI shows clear inline "no session for role X" message
+    // instead of producing a 404 link.' The renderer keys off
+    // resolved_session_name being null/absent.
+    h = await buildApp({
+      triageTarget: 'chief-of-staff',
+      listSessions: async () => [
+        fakeSession({ id: 'gc-1', alias: 'unrelated', session_name: 'unrelated-session' }),
+      ],
+    });
+    const res = await postJson(`${h.url}/api/maintainer/sling`, {
+      kind: 'pr',
+      number: 1,
+      html_url: 'https://github.com/gastownhall/gascity/pull/1',
+      intent: 'triage',
+    });
+    assert.equal(res.status, 200, 'sling itself must still succeed');
+
+    const state = await readSlungState(slungStatePathFor(h));
+    const entry = state['pr:1'];
+    assert.ok(entry);
+    assert.equal(entry.target, 'chief-of-staff');
+    assert.equal(entry.resolved_session_name, null);
+  });
+
+  test('persists resolved_session_name=null when listSessions throws (supervisor down)', async () => {
+    // Operational degradation: the sling routed successfully (gc sling
+    // is a separate subprocess that doesn't care about /v0/sessions),
+    // but the dashboard couldn't resolve the role for link-building.
+    // Should NOT 5xx — the sling already worked. The link just renders
+    // as 'no session for role' until the next sling refreshes it.
+    h = await buildApp({
+      triageTarget: 'chief-of-staff',
+      listSessions: async () => {
+        throw new Error('gc supervisor returned 502');
+      },
+    });
+    const res = await postJson(`${h.url}/api/maintainer/sling`, {
+      kind: 'pr',
+      number: 1,
+      html_url: 'https://github.com/gastownhall/gascity/pull/1',
+      intent: 'triage',
+    });
+    assert.equal(res.status, 200);
+    assert.equal(res.body.ok, true);
+
+    const state = await readSlungState(slungStatePathFor(h));
+    const entry = state['pr:1'];
+    assert.ok(entry);
+    assert.equal(entry.resolved_session_name, null);
+  });
+
+  test('persists resolved_session_name=null when listSessions is not injected (legacy wiring)', async () => {
+    // Backwards-compat: a caller that doesn't pass listSessions keeps
+    // the pre-55b behaviour of no resolution. Production server.ts
+    // always wires it; this guards against accidental regressions in
+    // a downstream consumer that builds the router without it.
+    h = await buildApp({ triageTarget: 'chief-of-staff' });
+    const res = await postJson(`${h.url}/api/maintainer/sling`, {
+      kind: 'pr',
+      number: 1,
+      html_url: 'https://github.com/gastownhall/gascity/pull/1',
+      intent: 'triage',
+    });
+    assert.equal(res.status, 200);
+
+    const state = await readSlungState(slungStatePathFor(h));
+    const entry = state['pr:1'];
+    assert.ok(entry);
+    assert.equal(entry.resolved_session_name, null);
+  });
+
+  test('explicit target body field also gets resolved (not just config defaults)', async () => {
+    // A user-supplied body.target should also go through resolution so
+    // the link is correct regardless of where the target value came from.
+    const projectLead = fakeSession({
+      id: 'gc-83263',
+      alias: 'agent-diagnostics/oversight-rig.project-lead',
+      session_name: 'agent-diagnostics--oversight-rig__project-lead',
+      pool: 'project-lead',
+    });
+    h = await buildApp({
+      listSessions: async () => [projectLead],
+    });
+    const res = await postJson(`${h.url}/api/maintainer/sling`, {
+      kind: 'pr',
+      number: 1,
+      html_url: 'https://github.com/gastownhall/gascity/pull/1',
+      intent: 'review',
+      target: 'project-lead',
+    });
+    assert.equal(res.status, 200);
+    const state = await readSlungState(slungStatePathFor(h));
+    const entry = state['pr:1'];
+    assert.equal(entry?.target, 'project-lead');
+    assert.equal(entry?.resolved_session_name, 'agent-diagnostics--oversight-rig__project-lead');
+  });
+
+  test('overlay surfaces resolved_session_name on the rendered TriageItem.slung', async () => {
+    // End-to-end: write a cached envelope, sling, then GET /triage and
+    // confirm the item.slung field carries resolved_session_name through
+    // the applySlungOverlay pipeline. The frontend reads this directly.
+    const cos = fakeSession({
+      id: 'gc-1',
+      pool: 'chief-of-staff',
+      session_name: 'oversight-rig__chief-of-staff',
+    });
+    h = await buildApp({
+      triageTarget: 'chief-of-staff',
+      listSessions: async () => [cos],
+    });
+    await writeEnvelope(h, envelopeWithMarkedCandidates([makePr({ number: 47 })]));
+
+    await postJson(`${h.url}/api/maintainer/sling`, {
+      kind: 'pr',
+      number: 47,
+      html_url: 'https://github.com/gastownhall/gascity/pull/47',
+      intent: 'triage',
+    });
+
+    const env = (await fetch(`${h.url}/api/maintainer/triage`).then((r) => r.json())) as MaintainerTriage;
+    const item = env.tiers[0]!.unclustered.find((it) => it.number === 47)!;
+    assert.ok(item.slung);
+    assert.equal(item.slung.resolved_session_name, 'oversight-rig__chief-of-staff');
   });
 });

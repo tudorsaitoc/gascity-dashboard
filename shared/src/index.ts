@@ -445,13 +445,45 @@ export interface TriageAssessment {
 export interface SlungState {
   /** When the sling fired (server clock). */
   slung_at: IsoTimestamp;
-  /** Resolved `gc sling` target alias the work was sent to. The
-   *  frontend uses this as the AgentDetail slug for the inline link. */
+  /** Resolved `gc sling` target alias the work was sent to. Note: this
+   *  is the agent role / pool name the operator configured (e.g.
+   *  'chief-of-staff'), which gc supervisor itself resolves to a
+   *  concrete session at dispatch time. It is NOT a valid AgentDetail
+   *  slug — use `resolved_session_name` for that. The frontend renders
+   *  this value in the inline link's title / aria-label so the operator
+   *  knows which role the work was sent to, regardless of which session
+   *  actually picked it up. */
   target: string;
   /** Bead id parsed from `gc sling` stdout when present. Persisted for
    *  forward-compat with a future per-bead drill-in; not rendered in v1
    *  (the AgentDetail page surfaces the bead list naturally). */
   bead_id: string | null;
+  /**
+   * Concrete supervisor session identifier the `target` role resolved
+   * to at sling-write time (gascity-dashboard-55b). The frontend uses
+   * this as the AgentDetail route slug (`/agents/<resolved_session_name>`).
+   *
+   * Resolution order at write time:
+   *   1. session.alias === target (exact match)
+   *   2. session.pool === target (role pool match)
+   *   3. session.alias last segment === target (split on '/' or '.')
+   *   4. session.session_name last segment === target (split on '__' or '--')
+   * `active` sessions outrank non-active when multiple match.
+   *
+   * Null when:
+   *   - no running session carried the role (sling routed to a not-yet-spawned agent)
+   *   - listSessions failed at sling time (sling itself succeeded)
+   *
+   * Optional (rather than `: string | null`) because pre-55b on-disk
+   * entries don't carry this field at all. Readers MUST treat
+   * undefined and null identically — the renderer surfaces an inline
+   * 'no session for role X' error in both cases rather than
+   * constructing a 404-bound link to the raw `target` role label.
+   * Post-55b writers ALWAYS persist the field (null when resolution
+   * failed), so the undefined-on-disk shape only appears for legacy
+   * entries that survive across the upgrade.
+   */
+  resolved_session_name?: string | null;
 }
 
 export interface ContributorStat {

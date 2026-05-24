@@ -62,7 +62,7 @@ export interface SessionsRouterOptions {
  * socket on completion, and single-flight coalescing means concurrent
  * callers (e.g. the snapshot collector) still benefit from the same fetch.
  */
-function raceWithTimeout<T>(p: Promise<T>, ms: number): Promise<T> {
+export function raceWithTimeout<T>(p: Promise<T>, ms: number): Promise<T> {
   return new Promise<T>((resolve, reject) => {
     const timer = setTimeout(() => {
       const err = new Error(`sessions route timed out after ${ms}ms`);

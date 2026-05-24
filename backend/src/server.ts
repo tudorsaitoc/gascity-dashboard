@@ -11,7 +11,7 @@ import {
 } from './middleware/security.js';
 import { csrfIssueCookie, csrfValidate, getCsrfToken } from './middleware/csrf.js';
 import { GcClient } from './gc-client.js';
-import { sessionsRouter } from './routes/sessions.js';
+import { sessionsRouter, raceWithTimeout } from './routes/sessions.js';
 import { agentsRouter } from './routes/agents.js';
 import { beadsRouter } from './routes/beads.js';
 import { mailRouter } from './routes/mail.js';
@@ -99,6 +99,18 @@ function main(): void {
       slingTarget: config.maintainerSlingTarget,
       triageTarget: config.maintainerTriageTarget,
       cityPath: config.cityPath,
+      // gascity-dashboard-55b: resolve sling target role to a concrete
+      // supervisor session at write time so the inline 'slung →' link
+      // lands on a real /agents/<session_name> route. Wrapped in a 3s
+      // raceWithTimeout (matches SESSIONS_TIMEOUT_MS in routes/sessions.ts)
+      // so a degraded supervisor can't add 5s to every sling POST while
+      // the GcClient default ticks down — wave-p2-action-semantics Phase
+      // 4 security HIGH-1. The sling subprocess already succeeded by the
+      // time this runs; on timeout we degrade to resolved_session_name=null.
+      listSessions: async () => {
+        const { items } = await raceWithTimeout(gc.listSessions(), 3_000);
+        return items;
+      },
     }),
   );
 
