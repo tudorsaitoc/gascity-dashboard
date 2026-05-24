@@ -574,11 +574,14 @@ function workflowFormula(issues: WorkflowIssue[]): string | null {
 }
 
 function externalUrl(issues: WorkflowIssue[]): string | null {
-  return (
+  // gascity-dashboard-4x3 — defense-in-depth. Supervisor bead metadata is
+  // the trust boundary; LaneCard renders this as <a href>. React does not
+  // strip `javascript:` from anchor hrefs, so reject anything that is not
+  // http(s) before it reaches the frontend.
+  const raw =
     metadataString(issues, 'pr_review.pr_url') ||
-    metadataString(issues, 'bugflow.github_issue_url') ||
-    null
-  );
+    metadataString(issues, 'bugflow.github_issue_url');
+  return raw && /^https?:\/\//i.test(raw) ? raw : null;
 }
 
 function externalLabel(issues: WorkflowIssue[]): string | null {

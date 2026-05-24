@@ -305,6 +305,68 @@ describe('buildWorkflowSummary', () => {
     ]);
     assert.equal(summary.runCounts.blocked, 1);
   });
+
+  // gascity-dashboard-4x3 — defense-in-depth: only http(s) URLs reach the
+  // frontend as clickable hrefs. Supervisor bead metadata is the trust
+  // boundary; a stored `javascript:` URI would otherwise render as a live
+  // link in LaneCard.
+  test('externalUrl rejects non-http(s) protocols (javascript:, data:)', () => {
+    for (const malicious of [
+      'javascript:alert(1)',
+      'JAVASCRIPT:alert(1)',
+      'data:text/html,<script>alert(1)</script>',
+      'vbscript:msgbox(1)',
+      'file:///etc/passwd',
+      '/relative/path',
+      'example.com/no-protocol',
+    ]) {
+      const summary = buildWorkflowSummary([
+        issue({
+          id: 'evil-root',
+          title: 'malicious url',
+          issue_type: 'molecule',
+          metadata: { 'pr_review.pr_url': malicious },
+        }),
+      ]);
+      assert.equal(
+        summary.lanes[0]!.externalUrl,
+        null,
+        `expected ${malicious} rejected`,
+      );
+    }
+  });
+
+  test('externalUrl preserves http(s) URLs from pr_review.pr_url', () => {
+    const summary = buildWorkflowSummary([
+      issue({
+        id: 'pr-root',
+        title: 'safe pr url',
+        issue_type: 'molecule',
+        metadata: { 'pr_review.pr_url': 'https://github.com/o/r/pull/1' },
+      }),
+    ]);
+    assert.equal(
+      summary.lanes[0]!.externalUrl,
+      'https://github.com/o/r/pull/1',
+    );
+  });
+
+  test('externalUrl preserves http(s) URLs from bugflow.github_issue_url', () => {
+    const summary = buildWorkflowSummary([
+      issue({
+        id: 'bug-root',
+        title: 'safe issue url',
+        issue_type: 'molecule',
+        metadata: {
+          'bugflow.github_issue_url': 'http://github.com/o/r/issues/2',
+        },
+      }),
+    ]);
+    assert.equal(
+      summary.lanes[0]!.externalUrl,
+      'http://github.com/o/r/issues/2',
+    );
+  });
 });
 
 // ── createWorkflowsSourceCache (cache integration) ────────────────────────
