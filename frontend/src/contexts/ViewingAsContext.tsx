@@ -42,6 +42,14 @@ const OPERATOR = 'stephanie';
 const OPERATOR_WIRE = 'human';
 const ALIAS_RE = /^[a-z][a-z0-9_./-]{1,63}$/i;
 
+// Bounded retry schedule for /api/sessions (gascity-dashboard-5gg).
+// A transient 504 on first page load used to latch sessionsUnavailable
+// permanently because loadAliases() is one-shot. Schedule three retries
+// with growing backoff so a recovering supervisor flips the footnote
+// off; after the third failure the flag stays sticky (matching the old
+// terminal behaviour).
+const SESSIONS_RETRY_DELAYS_MS: ReadonlyArray<number> = [30_000, 90_000, 270_000];
+
 interface ViewingAsContextValue {
   viewingAs: ViewingAs;
   setAlias: (alias: string) => void;
@@ -106,6 +114,9 @@ export function ViewingAsProvider({ children }: { children: ReactNode }) {
   // ref `true` between the two mounts. (A naive `useRef(true)` + cleanup
   // pattern leaves the ref permanently `false` after the first cleanup.)
   const mountedRef = useRef<boolean>(true);
+  // Pending sessions-retry timer. Cleared on unmount, and replaced on
+  // each scheduled retry so we never have more than one in flight.
+  const sessionsRetryTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const setAlias = useCallback((next: string) => {
     setAliasState(next);
@@ -117,10 +128,61 @@ export function ViewingAsProvider({ children }: { children: ReactNode }) {
     writeStored(OPERATOR);
   }, []);
 
+  // One attempt at /api/sessions. Returns a promise that resolves to
+  // `true` on success (state updated) or `false` on failure. Extracted
+  // so the retry loop can call it without duplicating the parsing.
+  const attemptSessionsFetch = useCallback(async (): Promise<boolean> => {
+    try {
+      const sessions = await api.listSessions();
+      if (!mountedRef.current) return true; // unmounted; bail without state work
+      const seen = new Set<string>();
+      const out: string[] = [];
+      for (const s of sessions.items) {
+        if (typeof s.alias !== 'string') continue;
+        if (!ALIAS_RE.test(s.alias)) continue;
+        const key = s.alias.toLowerCase();
+        if (seen.has(key)) continue;
+        seen.add(key);
+        out.push(s.alias);
+      }
+      setSessionAliases(out);
+      // Recovery: if a prior attempt had latched the degraded flag, flip
+      // it back so the Mail footnote disappears (gascity-dashboard-5gg).
+      setSessionsUnavailable(false);
+      return true;
+    } catch {
+      return false;
+    }
+  }, []);
+
+  // Schedule the next retry from the SESSIONS_RETRY_DELAYS_MS table.
+  // `attemptIndex` is the 0-based index of the NEXT retry attempt
+  // (i.e. after `attemptIndex` failed retries have already happened, or
+  // `attemptIndex === 0` for the first retry after the initial failure).
+  // After the final delay is exhausted the flag stays sticky.
+  const scheduleSessionsRetry = useCallback(
+    (attemptIndex: number) => {
+      if (attemptIndex >= SESSIONS_RETRY_DELAYS_MS.length) return;
+      if (!mountedRef.current) return;
+      const delay = SESSIONS_RETRY_DELAYS_MS[attemptIndex];
+      sessionsRetryTimerRef.current = setTimeout(() => {
+        sessionsRetryTimerRef.current = null;
+        if (!mountedRef.current) return;
+        void attemptSessionsFetch().then((ok) => {
+          if (!mountedRef.current) return;
+          if (!ok) scheduleSessionsRetry(attemptIndex + 1);
+        });
+      }, delay);
+    },
+    [attemptSessionsFetch],
+  );
+
   // Idempotent lazy prefetch. First caller wins; subsequent calls
   // (re-renders, multiple consumers) are no-ops. Both fetches are read
   // requests; either failing leaves the dropdown with just the operator
-  // entry (still functional).
+  // entry (still functional). Sessions failure triggers a bounded retry
+  // schedule (gascity-dashboard-5gg); mail failure does not retry —
+  // its blast radius is smaller and the corpus call is fast.
   const loadAliases = useCallback(() => {
     if (startedRef.current) return;
     startedRef.current = true;
@@ -139,28 +201,18 @@ export function ViewingAsProvider({ children }: { children: ReactNode }) {
       if (pending === 0 && mountedRef.current) setAliasesLoading(false);
     };
 
-    void api
-      .listSessions()
-      .then((sessions) => {
+    void attemptSessionsFetch()
+      .then((ok) => {
         if (!mountedRef.current) return;
-        const seen = new Set<string>();
-        const out: string[] = [];
-        for (const s of sessions.items) {
-          if (typeof s.alias !== 'string') continue;
-          if (!ALIAS_RE.test(s.alias)) continue;
-          const key = s.alias.toLowerCase();
-          if (seen.has(key)) continue;
-          seen.add(key);
-          out.push(s.alias);
+        if (!ok) {
+          // sessions unavailable — panel still works off mail-derived
+          // aliases, but flag it so the Mail agent panel can swap its
+          // "Loading more agents" footnote for a terminal "agent list
+          // unavailable" message (gascity-dashboard-xba). Schedule the
+          // first retry; subsequent retries chain off each other.
+          setSessionsUnavailable(true);
+          scheduleSessionsRetry(0);
         }
-        setSessionAliases(out);
-      })
-      .catch(() => {
-        // sessions unavailable — panel still works off mail-derived
-        // aliases, but flag it so the Mail agent panel can swap its
-        // "Loading more agents" footnote for a terminal "agent list
-        // unavailable" message (gascity-dashboard-xba).
-        if (mountedRef.current) setSessionsUnavailable(true);
       })
       .finally(settleOne);
 
@@ -189,16 +241,22 @@ export function ViewingAsProvider({ children }: { children: ReactNode }) {
         /* mail corpus unavailable — falls back to sessions + operator */
       })
       .finally(settleOne);
-  }, []);
+  }, [attemptSessionsFetch, scheduleSessionsRetry]);
 
   // Re-mount-aware mounted flag. The effect body sets mountedRef.current
   // = true on every mount (covering StrictMode's mount → cleanup → re-mount
   // cycle), and the cleanup sets it false on real unmount. The async IIFE
-  // checks this flag before touching state.
+  // checks this flag before touching state. Cleanup also clears any
+  // pending sessions-retry timer so a late firing can't trigger a
+  // post-unmount /api/sessions call (gascity-dashboard-5gg).
   useEffect(() => {
     mountedRef.current = true;
     return () => {
       mountedRef.current = false;
+      if (sessionsRetryTimerRef.current !== null) {
+        clearTimeout(sessionsRetryTimerRef.current);
+        sessionsRetryTimerRef.current = null;
+      }
     };
   }, []);
 
