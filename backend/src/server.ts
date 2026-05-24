@@ -83,11 +83,19 @@ function main(): void {
   writeRouter.use('/system', healthRouter(gc));
   writeRouter.use('/dolt-noms', doltRouter());
   // Maintainer triage (gascity-dashboard-hq2 + 361 onward).
+  // Derive slung-state path once and pass to BOTH router and worker so
+  // the serve-time overlay and the post-refresh purge hit the same file
+  // (gascity-dashboard-4jy). Sibling of the envelope cache.
+  const maintainerSlungStatePath = path.join(
+    path.dirname(config.maintainerCachePath),
+    'slung-state.json',
+  );
   writeRouter.use(
     '/maintainer',
     maintainerRouter({
       repo: config.maintainerRepo,
       cachePath: config.maintainerCachePath,
+      slungStatePath: maintainerSlungStatePath,
       slingTarget: config.maintainerSlingTarget,
       triageTarget: config.maintainerTriageTarget,
       cityPath: config.cityPath,
@@ -129,6 +137,7 @@ function main(): void {
     startMaintainerRefresher({
       repo: config.maintainerRepo,
       cachePath: config.maintainerCachePath,
+      slungStatePath: maintainerSlungStatePath,
       intervalMs: config.maintainerRefreshIntervalMs,
     });
   }

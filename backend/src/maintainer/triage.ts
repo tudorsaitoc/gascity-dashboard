@@ -273,6 +273,25 @@ function defaultContributor(login: string): ContributorStat {
 }
 
 /**
+ * Walk every TriageItem in an envelope (unclustered + clustered, across
+ * all tiers) into a flat array. Shared by the serve-time overlay
+ * (gascity-dashboard-9qs, routes/maintainer.ts) and the worker
+ * slung-state purge (gascity-dashboard-4jy, maintainer/worker.ts) so
+ * both walk the envelope by the same rule. Mutations to the returned
+ * items mutate the envelope in place — both call sites depend on that.
+ */
+export function collectItems(envelope: MaintainerTriage): TriageItem[] {
+  const out: TriageItem[] = [];
+  for (const tier of envelope.tiers) {
+    for (const item of tier.unclustered) out.push(item);
+    for (const cluster of tier.clusters) {
+      for (const item of cluster.items) out.push(item);
+    }
+  }
+  return out;
+}
+
+/**
  * One Mark Rule enforcement: at most ONE maroon ● on the entire page.
  * Picks the single highest-scoring mark candidate via sortScore, clears
  * the rest, and transfers the mark from a winning PR to its parent issue

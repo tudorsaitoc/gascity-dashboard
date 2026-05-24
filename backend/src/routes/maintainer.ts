@@ -3,7 +3,6 @@ import { Router } from 'express';
 import type {
   ContributorStat,
   MaintainerTriage,
-  TriageItem,
 } from 'gas-city-dashboard-shared';
 import { recordAudit } from '../audit.js';
 import {
@@ -12,7 +11,7 @@ import {
   execGcSling as defaultExecGcSling,
 } from '../exec.js';
 import type { ExecResult } from '../exec.js';
-import { fetchTriage, selectOneMark } from '../maintainer/triage.js';
+import { collectItems, fetchTriage, selectOneMark } from '../maintainer/triage.js';
 import { readCache, writeCache } from '../maintainer/storage.js';
 import { isMarkCandidate } from '../maintainer/classifier.js';
 import {
@@ -451,16 +450,5 @@ async function applySlungOverlay(
     item.is_marked = item.tier !== null && isMarkCandidate(item, item.tier);
   }
   selectOneMark(allItems);
-}
-
-function collectItems(envelope: MaintainerTriage): TriageItem[] {
-  const out: TriageItem[] = [];
-  for (const tier of envelope.tiers) {
-    for (const item of tier.unclustered) out.push(item);
-    for (const cluster of tier.clusters) {
-      for (const item of cluster.items) out.push(item);
-    }
-  }
-  return out;
 }
 
