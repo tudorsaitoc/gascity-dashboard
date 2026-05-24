@@ -35,6 +35,11 @@ import { prioritizeAliases, type AliasBucket } from '../hooks/aliasPriority';
 
 const STORAGE_KEY = 'gascity.dashboard.viewingAs';
 const OPERATOR = 'stephanie';
+// gc's wire identity for the operator (mail is addressed to/from `human`,
+// not `stephanie` — see backend exec.ts and routes/mail.ts). The agent
+// panel hides this from the switchable list so it doesn't read as a second
+// inbox distinct from the operator's own.
+const OPERATOR_WIRE = 'human';
 const ALIAS_RE = /^[a-z][a-z0-9_./-]{1,63}$/i;
 
 interface ViewingAsContextValue {
@@ -110,50 +115,66 @@ export function ViewingAsProvider({ children }: { children: ReactNode }) {
     if (startedRef.current) return;
     startedRef.current = true;
     setAliasesLoading(true);
-    void (async () => {
-      try {
-        const [sessions, mail] = await Promise.allSettled([
-          api.listSessions(),
-          // Backend ignores alias for box='all' (returns the full corpus
-          // for client-side aggregation). The operator alias is passed
-          // only to satisfy the typed wrapper.
-          api.listMail('all', OPERATOR),
-        ]);
-        if (!mountedRef.current) return;
 
-        if (sessions.status === 'fulfilled') {
-          const seen = new Set<string>();
-          const out: string[] = [];
-          for (const s of sessions.value.items) {
-            if (typeof s.alias !== 'string') continue;
-            if (!ALIAS_RE.test(s.alias)) continue;
-            const key = s.alias.toLowerCase();
+    // Resolve each source independently rather than awaiting both: the
+    // mail corpus returns in ~0.5s while /api/sessions can take many
+    // seconds (or time out). Gating both behind Promise.allSettled held
+    // the fast mail-derived aliases hostage to the slow one, leaving the
+    // agent panel stuck on "loading" for the full sessions latency.
+    // Loading clears only when BOTH have settled (footnote, not full
+    // block), but the lists populate the moment each arrives.
+    let pending = 2;
+    const settleOne = () => {
+      pending -= 1;
+      if (pending === 0 && mountedRef.current) setAliasesLoading(false);
+    };
+
+    void api
+      .listSessions()
+      .then((sessions) => {
+        if (!mountedRef.current) return;
+        const seen = new Set<string>();
+        const out: string[] = [];
+        for (const s of sessions.items) {
+          if (typeof s.alias !== 'string') continue;
+          if (!ALIAS_RE.test(s.alias)) continue;
+          const key = s.alias.toLowerCase();
+          if (seen.has(key)) continue;
+          seen.add(key);
+          out.push(s.alias);
+        }
+        setSessionAliases(out);
+      })
+      .catch(() => {
+        /* sessions unavailable — panel still works off mail-derived aliases */
+      })
+      .finally(settleOne);
+
+    void api
+      // Backend ignores alias for box='all' (returns the full corpus for
+      // client-side aggregation). The operator alias is passed only to
+      // satisfy the typed wrapper.
+      .listMail('all', OPERATOR)
+      .then((mail) => {
+        if (!mountedRef.current) return;
+        const seen = new Set<string>();
+        const out: string[] = [];
+        for (const m of mail.items) {
+          for (const candidate of [m.from, m.to]) {
+            if (typeof candidate !== 'string' || candidate.length === 0) continue;
+            if (!ALIAS_RE.test(candidate)) continue;
+            const key = candidate.toLowerCase();
             if (seen.has(key)) continue;
             seen.add(key);
-            out.push(s.alias);
+            out.push(candidate);
           }
-          setSessionAliases(out);
         }
-
-        if (mail.status === 'fulfilled') {
-          const seen = new Set<string>();
-          const out: string[] = [];
-          for (const m of mail.value.items) {
-            for (const candidate of [m.from, m.to]) {
-              if (typeof candidate !== 'string' || candidate.length === 0) continue;
-              if (!ALIAS_RE.test(candidate)) continue;
-              const key = candidate.toLowerCase();
-              if (seen.has(key)) continue;
-              seen.add(key);
-              out.push(candidate);
-            }
-          }
-          setMailFromOrTo(out);
-        }
-      } finally {
-        if (mountedRef.current) setAliasesLoading(false);
-      }
-    })();
+        setMailFromOrTo(out);
+      })
+      .catch(() => {
+        /* mail corpus unavailable — falls back to sessions + operator */
+      })
+      .finally(settleOne);
   }, []);
 
   // Re-mount-aware mounted flag. The effect body sets mountedRef.current
@@ -220,3 +241,4 @@ export function useViewingAs(): ViewingAsContextValue {
 }
 
 export const OPERATOR_ALIAS = OPERATOR;
+export const OPERATOR_WIRE_ALIAS = OPERATOR_WIRE;

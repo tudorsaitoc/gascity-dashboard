@@ -200,6 +200,37 @@ describe('routes: upstream timeout -> HTTP 504', () => {
     }
   });
 
+  test('GET /api/mail inbox for the operator (stephanie) resolves to the wire alias `human`', async () => {
+    // gc addresses the human operator as `human`; the dashboard accounts
+    // for her as `stephanie`. A naive `to === stephanie` filter returns
+    // nothing. The route must map the display alias to the wire alias so
+    // the operator's own inbox populates (gascity-dashboard-1ik).
+    const corpus = [
+      { id: 'a', from: 'agent-x', to: 'human', subject: 's1', body: 'b1', created_at: '2026-05-23T10:00:00Z', read: false },
+      { id: 'b', from: 'agent-y', to: 'mayor', subject: 's2', body: 'b2', created_at: '2026-05-23T11:00:00Z', read: false },
+      { id: 'c', from: 'human', to: 'agent-z', subject: 's3', body: 'b3', created_at: '2026-05-23T12:00:00Z', read: true },
+    ];
+    fake.setHandler((_req, res) => {
+      res.statusCode = 200;
+      res.setHeader('content-type', 'application/json');
+      res.end(JSON.stringify({ items: corpus }));
+    });
+    const { app } = buildApp(fake.baseUrl);
+    const { url, close } = await startApp(app);
+    try {
+      const inbox = await fetch(`${url}/api/mail?alias=stephanie&box=inbox`);
+      assert.equal(inbox.status, 200);
+      const inboxBody = (await inbox.json()) as { items: Array<{ id: string }> };
+      assert.deepEqual(inboxBody.items.map((m) => m.id), ['a']);
+
+      const sent = await fetch(`${url}/api/mail?alias=stephanie&box=sent`);
+      const sentBody = (await sent.json()) as { items: Array<{ id: string }> };
+      assert.deepEqual(sentBody.items.map((m) => m.id), ['c']);
+    } finally {
+      await close();
+    }
+  });
+
   test('GET /api/system/system returns 504 with upstream-timeout kind when supervisor /health hangs', async () => {
     fake.setHandler(() => {
       /* never respond */

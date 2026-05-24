@@ -10,7 +10,7 @@ import { Modal } from '../components/Modal';
 import { PageHeader } from '../components/PageHeader';
 import { StatusBadge } from '../components/StatusBadge';
 import { type TableColumn } from '../components/Table';
-import { useViewingAs, OPERATOR_ALIAS } from '../contexts/ViewingAsContext';
+import { useViewingAs, OPERATOR_ALIAS, OPERATOR_WIRE_ALIAS } from '../contexts/ViewingAsContext';
 import {
   displayLabel,
   tierLabel,
@@ -198,8 +198,8 @@ export function MailPage() {
         }
       />
 
-      <div className="mb-8 space-y-4">
-        <IdentitySwitcher
+      <div className="flex gap-8 items-start">
+        <AgentPanel
           buckets={aliasBuckets}
           loading={aliasesLoading}
           value={viewingAs.alias}
@@ -207,42 +207,47 @@ export function MailPage() {
           onReset={resetToOperator}
           isOperator={viewingAs.isOperator}
         />
-        <BoxTabs box={box} onChange={setBox} />
-      </div>
 
-      <div className="mb-6 space-y-3">
-        <ListSearchBar
-          value={filters.search}
-          onChange={filters.setSearch}
-          placeholder="Search mail by sender, subject, rig"
-          matchCount={filters.totalMatches}
-          totalCount={items.length}
-          ariaLabel="Search mail"
-        />
-        {visibleChips.length > 0 && (
-          <FilterChips
-            chips={visibleChips}
-            activeIds={filters.activeChipIds}
-            onToggle={filters.toggleChip}
-            legend="Read state"
+        <div className="flex-1 min-w-0">
+          <div className="mb-6">
+            <BoxTabs box={box} onChange={setBox} />
+          </div>
+
+          <div className="mb-6 space-y-3">
+            <ListSearchBar
+              value={filters.search}
+              onChange={filters.setSearch}
+              placeholder="Search mail by sender, subject, rig"
+              matchCount={filters.totalMatches}
+              totalCount={items.length}
+              ariaLabel="Search mail"
+            />
+            {visibleChips.length > 0 && (
+              <FilterChips
+                chips={visibleChips}
+                activeIds={filters.activeChipIds}
+                onToggle={filters.toggleChip}
+                legend="Read state"
+              />
+            )}
+          </div>
+
+          <GroupedTable
+            groups={filters.groups}
+            columns={columns}
+            rowKey={(r) => r.id}
+            onToggleProject={filters.toggleProject}
+            onRowClick={(r) => void openThread(r)}
+            emptyMessage={
+              filters.search.length > 0 || filters.activeChipIds.size > 0
+                ? 'No messages match the current search or filter.'
+                : `${box === 'inbox' ? 'Inbox' : 'Sent'} empty for ${aliasLabel}.`
+            }
+            perProjectEmpty="No messages in this project."
+            initialSort={{ key: 'created_at', dir: 'desc' }}
           />
-        )}
+        </div>
       </div>
-
-      <GroupedTable
-        groups={filters.groups}
-        columns={columns}
-        rowKey={(r) => r.id}
-        onToggleProject={filters.toggleProject}
-        onRowClick={(r) => void openThread(r)}
-        emptyMessage={
-          filters.search.length > 0 || filters.activeChipIds.size > 0
-            ? 'No messages match the current search or filter.'
-            : `${box === 'inbox' ? 'Inbox' : 'Sent'} empty for ${aliasLabel}.`
-        }
-        perProjectEmpty="No messages in this project."
-        initialSort={{ key: 'created_at', dir: 'desc' }}
-      />
 
       <Modal
         open={threadFor !== null}
@@ -278,7 +283,7 @@ export function MailPage() {
   );
 }
 
-function IdentitySwitcher({
+function AgentPanel({
   buckets,
   loading,
   value,
@@ -293,61 +298,174 @@ function IdentitySwitcher({
   onReset: () => void;
   isOperator: boolean;
 }) {
-  // Persistent identity strip per shape brief. When impersonating, the
-  // state is loud (accent maroon); when the operator is herself, it's
-  // quiet but still present so impersonation is one click away.
+  // Left-side identity panel. Starts collapsed to a thin rail showing only
+  // who you're reading as; expands to a searchable, tier-grouped agent
+  // list. Replaces the old <select> dropdown so the operator can type to
+  // find an inbox instead of scrolling a long option list.
   //
-  // While the alias list is in-flight, render the current value as plain
-  // text instead of a one-item dropdown — clicking a dropdown only to
-  // watch it grow is the bug e85 fixes.
-  return (
-    <div className="flex items-baseline gap-4 flex-wrap pb-4 border-b border-rule">
-      <span className="text-label uppercase tracking-wider text-fg-muted">
-        {isOperator ? 'Reading as' : (
-          <span className="text-accent">▲ Reading as</span>
-        )}
-      </span>
-      {loading ? (
-        <span className="text-body text-fg-muted italic">
-          {displayLabel(value, OPERATOR_ALIAS)}{' '}
-          <span className="text-label uppercase tracking-wider text-fg-faint not-italic ml-1">
-            loading aliases
-          </span>
-        </span>
-      ) : (
-        <select
-          value={value}
-          onChange={(e) => onChange(e.target.value)}
-          className={`bg-transparent text-body focus-mark rounded-sm border-0 border-b border-rule pb-0.5 hover:border-fg focus:border-accent transition-colors ${
-            isOperator ? 'text-fg' : 'text-accent font-medium'
-          }`}
+  // Collapse/search state is local: the panel owns its own UI affordances;
+  // the page only owns the load-bearing `value`/`onChange` identity state.
+  const [expanded, setExpanded] = useState(false);
+  const [query, setQuery] = useState('');
+  const valueLabel = displayLabel(value, OPERATOR_ALIAS);
+
+  // Filter the tier buckets by the panel's own search box, and drop the
+  // operator's wire alias (`human`) — it's the same inbox as "user" and
+  // would otherwise read as a confusing duplicate.
+  const filtered = useMemo(() => {
+    const q = query.trim().toLowerCase();
+    return buckets
+      .map((bucket) => ({
+        tier: bucket.tier,
+        aliases: bucket.aliases.filter((alias) => {
+          if (alias.toLowerCase() === OPERATOR_WIRE_ALIAS) return false;
+          if (q.length === 0) return true;
+          const label = displayLabel(alias, OPERATOR_ALIAS).toLowerCase();
+          return label.includes(q) || alias.toLowerCase().includes(q);
+        }),
+      }))
+      .filter((bucket) => bucket.aliases.length > 0);
+  }, [buckets, query]);
+
+  const select = (alias: string) => {
+    onChange(alias);
+    setExpanded(false);
+    setQuery('');
+  };
+
+  if (!expanded) {
+    return (
+      <aside className="shrink-0 w-44 pr-6 border-r border-rule">
+        <button
+          type="button"
+          onClick={() => setExpanded(true)}
+          aria-expanded={false}
+          className="text-label uppercase tracking-wider text-fg-muted hover:text-fg focus-mark rounded-sm"
         >
-          {buckets.map((bucket) => (
-            <optgroup key={bucket.tier} label={tierLabel(bucket.tier)}>
-              {bucket.aliases.map((alias) => (
-                <option key={alias} value={alias}>
-                  {displayLabel(alias, OPERATOR_ALIAS)}
-                </option>
-              ))}
-            </optgroup>
-          ))}
-        </select>
-      )}
+          ▸ Agents
+        </button>
+        <div className="mt-4 text-label uppercase tracking-wider text-fg-faint">
+          {isOperator ? 'Reading as' : <span className="text-accent">▲ Reading as</span>}
+        </div>
+        <div
+          className={`mt-1 text-body truncate ${isOperator ? 'text-fg' : 'text-accent font-medium'}`}
+          title={valueLabel}
+        >
+          {valueLabel}
+        </div>
+        {!isOperator && (
+          <>
+            <button
+              type="button"
+              onClick={onReset}
+              className="mt-3 block text-label uppercase tracking-wider text-fg-muted hover:text-fg focus-mark underline decoration-dotted underline-offset-2 rounded-sm"
+            >
+              Back to operator
+            </button>
+            <p className="mt-2 text-label uppercase tracking-wider text-fg-faint italic">
+              Read-only. Sends go from the operator.
+            </p>
+          </>
+        )}
+      </aside>
+    );
+  }
+
+  return (
+    <aside className="shrink-0 w-64 pr-6 border-r border-rule">
+      <div className="flex items-baseline justify-between gap-2">
+        <span className="text-label uppercase tracking-wider text-fg-muted">Agents</span>
+        <button
+          type="button"
+          onClick={() => setExpanded(false)}
+          aria-expanded
+          className="text-label uppercase tracking-wider text-fg-muted hover:text-fg focus-mark rounded-sm"
+        >
+          ▾ Collapse
+        </button>
+      </div>
+
+      <div className="mt-2 text-label uppercase tracking-wider text-fg-faint">
+        {isOperator ? 'Reading as' : <span className="text-accent">▲ Reading as</span>}{' '}
+        <span className={`not-italic ${isOperator ? 'text-fg-muted' : 'text-accent'}`}>
+          {valueLabel}
+        </span>
+      </div>
+
+      <div className="mt-3 border-b border-rule pb-1">
+        <input
+          type="search"
+          value={query}
+          onChange={(e) => setQuery(e.target.value)}
+          placeholder="Find an agent"
+          aria-label="Find an agent"
+          autoFocus
+          className="w-full bg-transparent border-0 text-body text-fg placeholder:text-fg-faint focus:outline-none focus:ring-0 px-0 py-0.5"
+        />
+      </div>
+
+      <div className="mt-3 max-h-[28rem] overflow-y-auto -mr-2 pr-2 space-y-4">
+        {/* Progressive: mail-derived aliases land in ~0.5s while the
+            slower /api/sessions call is still in flight. Render whatever
+            is ready and footnote "loading more" rather than hiding the
+            whole list behind the slowest fetch. */}
+        {filtered.length === 0 ? (
+          <p className="text-label uppercase tracking-wider text-fg-faint italic">
+            {loading ? 'Loading aliases' : 'No agents match.'}
+          </p>
+        ) : (
+          filtered.map((bucket) => (
+            <div key={bucket.tier}>
+              <div className="text-label uppercase tracking-wider text-fg-faint mb-1">
+                {tierLabel(bucket.tier)}
+              </div>
+              <ul className="space-y-0.5">
+                {bucket.aliases.map((alias) => {
+                  const active = alias.toLowerCase() === value.toLowerCase();
+                  return (
+                    <li key={alias}>
+                      <button
+                        type="button"
+                        onClick={() => select(alias)}
+                        aria-current={active}
+                        className={`block w-full text-left truncate text-body transition-colors duration-150 ease-out-quart focus-mark rounded-sm py-0.5 ${
+                          active
+                            ? 'text-fg font-semibold'
+                            : 'text-fg-muted hover:text-fg'
+                        }`}
+                        title={displayLabel(alias, OPERATOR_ALIAS)}
+                      >
+                        {displayLabel(alias, OPERATOR_ALIAS)}
+                      </button>
+                    </li>
+                  );
+                })}
+              </ul>
+            </div>
+          ))
+        )}
+        {loading && filtered.length > 0 && (
+          <p className="text-label uppercase tracking-wider text-fg-faint italic">
+            Loading more agents
+          </p>
+        )}
+      </div>
+
       {!isOperator && (
-        <>
+        <div className="mt-4 pt-3 border-t border-rule space-y-2">
           <button
             type="button"
             onClick={onReset}
-            className="text-label uppercase tracking-wider text-fg-muted hover:text-fg focus-mark underline decoration-dotted underline-offset-2 rounded-sm"
+            className="block text-label uppercase tracking-wider text-fg-muted hover:text-fg focus-mark underline decoration-dotted underline-offset-2 rounded-sm"
           >
             Back to operator
           </button>
-          <span className="text-label uppercase tracking-wider text-fg-faint italic ml-auto">
+          <p className="text-label uppercase tracking-wider text-fg-faint italic">
             Read-only. Sends always go from the operator.
-          </span>
-        </>
+          </p>
+        </div>
       )}
-    </div>
+    </aside>
   );
 }
 

@@ -1,8 +1,7 @@
 import type { ChangeEvent } from 'react';
 
-// A bare typeset search input. Border-b hairline matches the
-// IdentitySwitcher pattern (Flat Page Rule: no box, no card).
-// Placeholder reads as instruction, not decoration.
+// A bare typeset search input. Border-b hairline, no box, no card
+// (Flat Page Rule). Placeholder reads as instruction, not decoration.
 
 interface ListSearchBarProps {
   value: string;

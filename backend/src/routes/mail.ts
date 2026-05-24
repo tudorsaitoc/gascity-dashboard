@@ -9,6 +9,15 @@ import { recordAudit } from '../audit.js';
 
 const ALIAS_RE = /^[a-z][a-z0-9_./-]{1,63}$/i;
 const BOX_VALUES = new Set(['inbox', 'sent', 'all']);
+// The operator's dashboard-internal display identity vs. gc's wire identity.
+// gc addresses the human operator as `human` (see exec.ts execMailSend's
+// `--from human` pin); the dashboard accounts for her as `stephanie`. Mail
+// is never addressed to `stephanie` on the wire, so a naive
+// `to === 'stephanie'` inbox filter returns nothing. Resolve the display
+// alias to the wire alias before matching so the operator's own inbox/sent
+// boxes actually populate.
+const OPERATOR_DISPLAY_ALIAS = 'stephanie';
+const OPERATOR_WIRE_ALIAS = 'human';
 // td-7t24i6 scope expansion: gc supervisor's mail endpoint defaults to
 // limit=50 and caps at 1000 (verified — limit=2000 returns 1000). 1000 is
 // the practical max. For the current corpus (~1167 mails) this covers
@@ -128,7 +137,10 @@ function filterByBox(
 ): GcMailItem[] {
   // Aliases are case-insensitive at our scale — gc emits a mix of styles
   // (e.g. 'mayor or scix-worker/orchestrator' vs 'human'). Lowercase both sides.
-  const a = alias.toLowerCase();
+  // Resolve the operator's display alias to her wire alias so her own boxes
+  // match the mail gc actually addresses to/from `human`.
+  const lower = alias.toLowerCase();
+  const a = lower === OPERATOR_DISPLAY_ALIAS ? OPERATOR_WIRE_ALIAS : lower;
   if (box === 'all') return items.slice();
   if (box === 'inbox') {
     return items.filter((m) => typeof m.to === 'string' && m.to.toLowerCase() === a);
