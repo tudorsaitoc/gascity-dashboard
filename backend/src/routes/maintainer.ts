@@ -1,7 +1,9 @@
+import path from 'node:path';
 import { Router } from 'express';
 import type {
   ContributorStat,
   MaintainerTriage,
+  TriageItem,
 } from 'gas-city-dashboard-shared';
 import { recordAudit } from '../audit.js';
 import {
@@ -10,8 +12,14 @@ import {
   execGcSling as defaultExecGcSling,
 } from '../exec.js';
 import type { ExecResult } from '../exec.js';
-import { fetchTriage } from '../maintainer/triage.js';
+import { fetchTriage, selectOneMark } from '../maintainer/triage.js';
 import { readCache, writeCache } from '../maintainer/storage.js';
+import { isMarkCandidate } from '../maintainer/classifier.js';
+import {
+  readSlungState,
+  slungKey,
+  writeSlungEntry,
+} from '../maintainer/slung-state.js';
 import { addSseClient, notifyRefresh, removeSseClient } from '../maintainer/sse.js';
 
 const GH_LOGIN_RE = /^[A-Za-z0-9][A-Za-z0-9-]{0,38}$/;
@@ -43,6 +51,12 @@ type SlingKind = 'pr' | 'issue';
 interface MaintainerRouterOptions {
   repo: string;
   cachePath: string;
+  /**
+   * Path to the active-sling-state JSON map (gascity-dashboard-9qs).
+   * Defaults to a sibling of cachePath when omitted so callers that
+   * predate this option don't need to thread a separate config.
+   */
+  slungStatePath?: string;
   /** Default `gc sling` target when the request omits one. From config. */
   slingTarget: string;
   /**
@@ -75,6 +89,7 @@ interface MaintainerRouterOptions {
 export function maintainerRouter({
   repo,
   cachePath,
+  slungStatePath = defaultSlungStatePath(cachePath),
   slingTarget,
   triageTarget,
   cityPath,
@@ -85,6 +100,13 @@ export function maintainerRouter({
   router.get('/triage', async (_req, res) => {
     const cached = await readCache(cachePath);
     if (cached !== null) {
+      // Splice-at-read overlay (gascity-dashboard-9qs): hydrate item.slung
+      // from the persisted slung-state file, then re-run isMarkCandidate +
+      // selectOneMark over the modified candidate set so the maroon ●
+      // reflects the latest slings without waiting for the worker tick
+      // (6h default). Vetted items force slung=null (the agent already
+      // delivered; slung was the placeholder while waiting).
+      await applySlungOverlay(cached, slungStatePath);
       void recordAudit({
         type: 'dashboard.fetch',
         endpoint: 'GET /api/maintainer/triage',
@@ -178,7 +200,15 @@ export function maintainerRouter({
         .json({ error: 'invalid intent (review|draft|triage)', kind: 'validation' });
       return;
     }
-    if (typeof body.number !== 'number' || !Number.isInteger(body.number) || body.number < 1) {
+    if (
+      typeof body.number !== 'number' ||
+      !Number.isInteger(body.number) ||
+      body.number < 1 ||
+      // GitHub's effective ceiling for issue / PR numbers. Above this is
+      // either a crafted request or a typo; either way it can't reference
+      // a real upstream item, so reject before it lands in slung-state.
+      body.number > 2_147_483_647
+    ) {
       res.status(400).json({ error: 'invalid number', kind: 'validation' });
       return;
     }
@@ -241,7 +271,42 @@ export function maintainerRouter({
         return;
       }
       const idMatch = BEAD_ID_RE.exec(result.stdout);
-      res.json({ ok: true, bead_id: idMatch?.[1] });
+      const beadId = idMatch?.[1] ?? null;
+      // Persist active slung state so subsequent GET /triage requests
+      // exclude this item from the One Mark and surface the inline
+      // workflow link (gascity-dashboard-9qs). Failed slings (above
+      // non-zero-exit branch) deliberately don't write — slung state
+      // means "agent has the work."
+      try {
+        await writeSlungEntry(slungStatePath, slungKey(body.kind, body.number), {
+          slung_at: new Date().toISOString(),
+          target,
+          bead_id: beadId,
+        });
+      } catch (slungErr) {
+        // Slung-state write failure is non-fatal: the sling itself
+        // succeeded, the audit row is in place, the operator just
+        // won't see the One Mark move until the next refresh. Log
+        // and continue rather than 500ing on a downstream-of-success
+        // disk hiccup.
+        console.warn(
+          `[maintainer] slung-state write failed (sling succeeded): ${(slungErr as Error).message}`,
+        );
+      }
+      // Push connected clients to refetch so the One Mark moves
+      // visibly within ~1s of the click rather than waiting for the
+      // 6h worker tick. The frontend SSE handler ignores the payload
+      // (it just triggers a refetch), so we stamp a minimal meta —
+      // computed_at: null signals "this is a serve-time refresh, not
+      // a re-compose" without lying about the cache's freshness.
+      notifyRefresh({ computed_at: null, repo });
+      // Wire/disk asymmetry on bead_id: persisted as null on disk
+      // (isValidStateMap accepts null), returned to the client as
+      // omitted-field via `?? undefined` so the response matches the
+      // client's `bead_id?: string` contract (JSON.stringify drops
+      // undefined). Disk keeps the explicit null to make field
+      // presence machine-checkable.
+      res.json({ ok: true, bead_id: beadId ?? undefined });
     } catch (err) {
       // gascity-dashboard-ur0: thrown errors must also leave an audit row.
       // Timeouts in particular are operationally significant — the
@@ -347,5 +412,55 @@ function countItems(envelope: MaintainerTriage): number {
       tier.clusters.reduce((m, c) => m + c.items.length, 0),
     0,
   );
+}
+
+// ── Slung-state overlay (gascity-dashboard-9qs) ──────────────────────
+
+function defaultSlungStatePath(cachePath: string): string {
+  // Sibling of the envelope cache so a single state-dir holds the
+  // maintainer's persisted bookkeeping.
+  return path.join(path.dirname(cachePath), 'slung-state.json');
+}
+
+/**
+ * Mutates the cached envelope in place to reflect the latest slung
+ * state. Order matters:
+ *   1. Hydrate item.slung from the file (vetted-overrides-slung: a
+ *      vetted item is not in flight even if the file says otherwise;
+ *      the worker sweep eventually purges those entries from disk,
+ *      this is the serve-side guarantee).
+ *   2. Re-evaluate isMarkCandidate per item so item.is_marked
+ *      reflects the slung filter. Tier was set at compose time and
+ *      doesn't change here.
+ *   3. Re-run selectOneMark across all items so the maroon ● lands
+ *      on the next non-slung candidate.
+ *
+ * readSlungState swallows its own IO + parse errors and returns {},
+ * so a corrupt slung-state file can't 502 the route.
+ */
+async function applySlungOverlay(
+  envelope: MaintainerTriage,
+  slungStatePath: string,
+): Promise<void> {
+  const state = await readSlungState(slungStatePath);
+  const allItems = collectItems(envelope);
+  for (const item of allItems) {
+    const persisted = state[slungKey(item.kind, item.number)];
+    item.slung =
+      persisted !== undefined && item.triage_assessment == null ? persisted : null;
+    item.is_marked = item.tier !== null && isMarkCandidate(item, item.tier);
+  }
+  selectOneMark(allItems);
+}
+
+function collectItems(envelope: MaintainerTriage): TriageItem[] {
+  const out: TriageItem[] = [];
+  for (const tier of envelope.tiers) {
+    for (const item of tier.unclustered) out.push(item);
+    for (const cluster of tier.clusters) {
+      for (const item of cluster.items) out.push(item);
+    }
+  }
+  return out;
 }
 

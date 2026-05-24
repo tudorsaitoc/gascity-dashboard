@@ -180,6 +180,7 @@ function mapIssue(it: GhIssue): TriageItem {
     tier: null,
     triage_score: null,
     triage_assessment: null,
+    slung: null,
     cluster_id: null,
     blast_files: [],
     lines_changed: null,
@@ -225,6 +226,7 @@ function mapPr(pr: GhPr): TriageItem {
     tier: null,
     triage_score: null,
     triage_assessment: null,
+    slung: null,
     cluster_id: null,
     blast_files: extractFiles(pr.files),
     lines_changed: adds + dels,
@@ -270,27 +272,23 @@ function defaultContributor(login: string): ContributorStat {
   };
 }
 
-function composeEnvelope(repo: string, items: TriageItem[]): MaintainerTriage {
-  const issuesOpen = items.filter((i) => i.kind === 'issue').length;
-  const prsOpen = items.filter((i) => i.kind === 'pr').length;
-
-  // Apply the priority classifier (gascity-dashboard-7ts) in place:
-  // every item gets its tier, triage_score, and a provisional is_marked.
-  // Then overlay the agent-vetted triage_assessment (are) — when the
-  // triage skill agent has labeled an item with the full triage/* set,
-  // its vetted_score takes precedence over the heuristic for sort + render.
-  for (const item of items) {
-    const { tier, is_marked, triage_score } = classifyItem(item);
-    item.tier = tier;
-    item.is_marked = is_marked;
-    item.triage_score = triage_score;
-    item.triage_assessment = parseTriageAssessment(item.labels);
-  }
-
-  // One Mark Rule enforcement: at most ONE maroon ● on the entire page.
-  // Find the single highest-scoring mark candidate; clear the rest. Uses
-  // sortScore so a vetted item wins the mark over an unvetted item with
-  // a higher heuristic score (vetted is the stronger signal).
+/**
+ * One Mark Rule enforcement: at most ONE maroon ● on the entire page.
+ * Picks the single highest-scoring mark candidate via sortScore, clears
+ * the rest, and transfers the mark from a winning PR to its parent issue
+ * when that parent is in view.
+ *
+ * Extracted from composeEnvelope so the GET overlay (gascity-dashboard-9qs)
+ * can re-run the winnow after splicing slung-state onto items at serve
+ * time. Mutates each item's is_marked in place.
+ *
+ * Callers must have already populated tier + triage_score on every item
+ * AND set the provisional is_marked from classifyItem / isMarkCandidate.
+ * Items whose is_marked is already false are passed over.
+ */
+export function selectOneMark(items: TriageItem[]): void {
+  // Uses sortScore so a vetted item wins the mark over an unvetted item
+  // with a higher heuristic score (vetted is the stronger signal).
   let topMark: TriageItem | null = null;
   for (const item of items) {
     if (!item.is_marked) continue;
@@ -321,6 +319,26 @@ function composeEnvelope(repo: string, items: TriageItem[]): MaintainerTriage {
       }
     }
   }
+}
+
+function composeEnvelope(repo: string, items: TriageItem[]): MaintainerTriage {
+  const issuesOpen = items.filter((i) => i.kind === 'issue').length;
+  const prsOpen = items.filter((i) => i.kind === 'pr').length;
+
+  // Apply the priority classifier (gascity-dashboard-7ts) in place:
+  // every item gets its tier, triage_score, and a provisional is_marked.
+  // Then overlay the agent-vetted triage_assessment (are) — when the
+  // triage skill agent has labeled an item with the full triage/* set,
+  // its vetted_score takes precedence over the heuristic for sort + render.
+  for (const item of items) {
+    const { tier, is_marked, triage_score } = classifyItem(item);
+    item.tier = tier;
+    item.is_marked = is_marked;
+    item.triage_score = triage_score;
+    item.triage_assessment = parseTriageAssessment(item.labels);
+  }
+
+  selectOneMark(items);
 
   const byTier = new Map<TriageTier, TriageItem[]>([
     ['regression_breaking', []],

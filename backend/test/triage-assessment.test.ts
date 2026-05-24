@@ -219,6 +219,7 @@ describe('sortScore — vetted overrides heuristic, falls back when null', () =>
       tier: 'regression',
       triage_score: 200,
       triage_assessment: null,
+      slung: null,
       cluster_id: null,
       blast_files: [],
       lines_changed: null,

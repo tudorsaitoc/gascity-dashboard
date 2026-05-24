@@ -65,14 +65,18 @@ function classifyTier(item: TriageItem): TriageTier {
  *   - tier must be regression_breaking
  *   - status NOT 'draft' (author still working on it)
  *   - status NOT 'changes_requested' (review feedback to address)
+ *   - NOT currently slung (item is already with the triage agent;
+ *     mark should move to the next unhandled candidate — gascity-
+ *     dashboard-9qs). Loose `!= null` catches stale-cache `undefined`.
  * Everything else (open / approved / needs_review) qualifies because
  * gh's reviewDecision is null on most PRs in this workflow — open
  * effectively means "in the review queue, not blocked."
  * composeEnvelope keeps only the top-1 such candidate by score.
  */
-function isMarkCandidate(item: TriageItem, tier: TriageTier): boolean {
+export function isMarkCandidate(item: TriageItem, tier: TriageTier): boolean {
   if (item.kind !== 'pr') return false;
   if (tier !== 'regression_breaking') return false;
+  if (item.slung != null) return false;
   return item.status !== 'draft' && item.status !== 'changes_requested';
 }
 

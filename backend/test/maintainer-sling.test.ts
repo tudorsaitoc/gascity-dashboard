@@ -10,6 +10,8 @@ import type { ExecResult } from '../src/exec.js';
 import { ExecError } from '../src/exec.js';
 import { maintainerRouter } from '../src/routes/maintainer.js';
 import { setAuditLogPath } from '../src/audit.js';
+import { readSlungState, slungKey, writeSlungEntry } from '../src/maintainer/slung-state.js';
+import type { MaintainerTriage, TriageItem } from 'gas-city-dashboard-shared';
 
 // Tests for POST /api/maintainer/sling (gascity-dashboard-ib5).
 //
@@ -117,6 +119,34 @@ async function postJson(
   });
   const data = (await res.json()) as Record<string, unknown>;
   return { status: res.status, body: data };
+}
+
+async function readSseSome(
+  res: globalThis.Response,
+  minBytes: number,
+  timeoutMs: number,
+): Promise<string> {
+  if (!res.body) throw new Error('no body');
+  const reader = res.body.getReader();
+  const decoder = new TextDecoder();
+  let acc = '';
+  const deadline = Date.now() + timeoutMs;
+  while (acc.length < minBytes) {
+    const remaining = deadline - Date.now();
+    if (remaining <= 0) break;
+    const timer = new Promise<{ value?: undefined; done: true }>((r) =>
+      setTimeout(() => r({ done: true }), remaining),
+    );
+    const next = await Promise.race([reader.read(), timer]);
+    if (next.done || !next.value) break;
+    acc += decoder.decode(next.value, { stream: true });
+  }
+  try {
+    reader.releaseLock();
+  } catch {
+    // ignore
+  }
+  return acc;
 }
 
 async function readAudit(p: string): Promise<Array<Record<string, unknown>>> {
@@ -688,5 +718,314 @@ describe('POST /api/maintainer/sling', { concurrency: false }, () => {
     assert.equal(res.status, 200);
     assert.equal(res.body.ok, true);
     assert.equal(res.body.bead_id, undefined);
+  });
+});
+
+// ── Slung-state persistence (gascity-dashboard-9qs) ──────────────────
+//
+// Successful slings must write the active-slung-state file so the
+// next GET /triage's overlay can move the One Mark + render the
+// inline workflow link. Failed slings must NOT write — slung state
+// means "agent has the work."
+
+function slungStatePathFor(handle: AppHandle): string {
+  // Mirrors defaultSlungStatePath in routes/maintainer.ts: sibling of
+  // the envelope cache. AppHandle exposes the cache via auditPath's
+  // dir (both live in the same tmpDir).
+  return path.join(path.dirname(handle.auditPath), 'slung-state.json');
+}
+
+describe('POST /api/maintainer/sling — slung-state persistence', { concurrency: false }, () => {
+  let h: AppHandle;
+  afterEach(async () => {
+    if (h !== undefined) await h.close();
+  });
+
+  test('success path writes a slung-state entry keyed by kind:number', async () => {
+    h = await buildApp();
+    const res = await postJson(`${h.url}/api/maintainer/sling`, {
+      kind: 'pr',
+      number: 47,
+      html_url: 'https://github.com/gastownhall/gascity/pull/47',
+      intent: 'triage',
+    });
+    assert.equal(res.status, 200);
+
+    const state = await readSlungState(slungStatePathFor(h));
+    const entry = state['pr:47'];
+    assert.ok(entry, 'expected slung-state entry for pr:47');
+    assert.equal(entry.target, 'mayor');
+    assert.equal(entry.bead_id, 'gc-255139');
+    assert.match(entry.slung_at, /^\d{4}-\d{2}-\d{2}T/);
+  });
+
+  test('success path persists bead_id: null when stdout has no parseable id', async () => {
+    h = await buildApp({
+      sling: async () => ({
+        exitCode: 0,
+        stdout: 'unrelated output\n',
+        stderr: '',
+        truncated: false,
+        durationMs: 5,
+      }),
+    });
+    const res = await postJson(`${h.url}/api/maintainer/sling`, {
+      kind: 'issue',
+      number: 99,
+      html_url: 'https://github.com/gastownhall/gascity/issues/99',
+      intent: 'triage',
+    });
+    assert.equal(res.status, 200);
+    assert.equal(res.body.bead_id, undefined);
+
+    const state = await readSlungState(slungStatePathFor(h));
+    const entry = state['issue:99'];
+    assert.ok(entry);
+    assert.equal(entry.bead_id, null);
+  });
+
+  test('non-zero exit code does NOT write slung-state (sling failed)', async () => {
+    h = await buildApp({
+      sling: async () => ({
+        exitCode: 1,
+        stdout: '',
+        stderr: 'gc supervisor unreachable',
+        truncated: false,
+        durationMs: 10,
+      }),
+    });
+    const res = await postJson(`${h.url}/api/maintainer/sling`, {
+      kind: 'pr',
+      number: 12,
+      html_url: 'https://github.com/gastownhall/gascity/pull/12',
+      intent: 'triage',
+    });
+    assert.equal(res.status, 502);
+
+    const state = await readSlungState(slungStatePathFor(h));
+    assert.equal(state['pr:12'], undefined);
+  });
+
+  test('thrown ExecError (timeout) does NOT write slung-state', async () => {
+    h = await buildApp({
+      sling: async () => {
+        throw new ExecError('gc sling timed out', 'timeout');
+      },
+    });
+    const res = await postJson(`${h.url}/api/maintainer/sling`, {
+      kind: 'pr',
+      number: 13,
+      html_url: 'https://github.com/gastownhall/gascity/pull/13',
+      intent: 'triage',
+    });
+    assert.equal(res.status, 504);
+
+    const state = await readSlungState(slungStatePathFor(h));
+    assert.equal(state['pr:13'], undefined);
+  });
+
+  test('re-sling to same item overwrites existing entry with newer timestamp + target', async () => {
+    h = await buildApp({ triageTarget: 'chief-of-staff' });
+    await postJson(`${h.url}/api/maintainer/sling`, {
+      kind: 'pr',
+      number: 99,
+      html_url: 'https://github.com/gastownhall/gascity/pull/99',
+      intent: 'triage',
+    });
+    const firstState = await readSlungState(slungStatePathFor(h));
+    const firstAt = firstState['pr:99']?.slung_at;
+    assert.ok(firstAt);
+    assert.equal(firstState['pr:99']?.target, 'chief-of-staff');
+
+    // Re-sling with explicit override target.
+    await new Promise((r) => setTimeout(r, 5));
+    await postJson(`${h.url}/api/maintainer/sling`, {
+      kind: 'pr',
+      number: 99,
+      html_url: 'https://github.com/gastownhall/gascity/pull/99',
+      intent: 'triage',
+      target: 'project-lead',
+    });
+    const secondState = await readSlungState(slungStatePathFor(h));
+    const second = secondState['pr:99'];
+    assert.ok(second, 'expected pr:99 entry after re-sling');
+    assert.equal(second.target, 'project-lead');
+    assert.ok(second.slung_at >= firstAt);
+    assert.equal(Object.keys(secondState).length, 1);
+  });
+
+  test('successful sling fires the maintainer SSE refreshed event so frontends refetch within ~1s', async () => {
+    h = await buildApp();
+    // Open the SSE stream first so we don't miss the event.
+    const ctrl = new AbortController();
+    const stream = await fetch(`${h.url}/api/maintainer/events`, { signal: ctrl.signal });
+    assert.equal(stream.status, 200);
+    assert.equal(stream.headers.get('content-type'), 'text/event-stream');
+
+    // Sling. The route's notifyRefresh() should push to all open clients.
+    const slingRes = await postJson(`${h.url}/api/maintainer/sling`, {
+      kind: 'pr',
+      number: 47,
+      html_url: 'https://github.com/gastownhall/gascity/pull/47',
+      intent: 'triage',
+    });
+    assert.equal(slingRes.status, 200);
+
+    // Drain enough bytes to capture the refreshed event (initial `: hello`
+    // comment + the `event: refreshed` line). 200 bytes is overkill for
+    // both, 2s window covers slow CI.
+    const body = await readSseSome(stream, 200, 2_000);
+    ctrl.abort();
+    assert.match(body, /event: refreshed/, 'expected an SSE refreshed event after a successful sling');
+  });
+});
+
+// ── GET /api/maintainer/triage — slung overlay (gascity-dashboard-9qs) ──
+//
+// End-to-end: write a cached envelope where one PR is the marked
+// candidate, sling that PR, then GET /triage and assert the maroon
+// dot moved off the slung item onto the next candidate. This is the
+// integration test that proves splice-at-read closes the regression.
+
+function makePr(overrides: Partial<TriageItem> & { number: number }): TriageItem {
+  return {
+    kind: 'pr',
+    title: `PR ${overrides.number}`,
+    status: 'needs_review',
+    author: {
+      login: 'sjarmak',
+      tier: 'core',
+      issues_accepted: null,
+      issues_opened: null,
+      prs_merged: null,
+      prs_opened: null,
+      computed_at: null,
+    },
+    created_at: '2026-05-24T00:00:00Z',
+    updated_at: '2026-05-24T00:00:00Z',
+    labels: ['kind/bug', 'priority/p0'],
+    tier: 'regression_breaking',
+    triage_score: 300,
+    triage_assessment: null,
+    slung: null,
+    cluster_id: null,
+    blast_files: [],
+    lines_changed: 100,
+    weak_ties: [],
+    linked_numbers: [],
+    html_url: `https://github.com/gastownhall/gascity/pull/${overrides.number}`,
+    is_marked: true,
+    ...overrides,
+  };
+}
+
+function envelopeWithMarkedCandidates(items: TriageItem[]): MaintainerTriage {
+  return {
+    computed_at: '2026-05-24T00:00:00Z',
+    repo: 'gastownhall/gascity',
+    tiers: [
+      { tier: 'regression_breaking', clusters: [], unclustered: items },
+      { tier: 'regression', clusters: [], unclustered: [] },
+      { tier: 'stability', clusters: [], unclustered: [] },
+    ],
+    totals: { issues_open: 0, prs_open: items.length },
+  };
+}
+
+async function writeEnvelope(handle: AppHandle, envelope: MaintainerTriage): Promise<void> {
+  await fs.writeFile(
+    path.join(path.dirname(handle.auditPath), 'cache.json'),
+    JSON.stringify(envelope, null, 2),
+    'utf-8',
+  );
+}
+
+describe('GET /api/maintainer/triage — slung overlay', { concurrency: false }, () => {
+  let h: AppHandle;
+  afterEach(async () => {
+    if (h !== undefined) await h.close();
+  });
+
+  test('moves the One Mark off a slung PR onto the next candidate by sortScore', async () => {
+    h = await buildApp();
+    // Two regression_breaking PRs: 47 scores higher, would normally win
+    // the mark. After slinging 47, the mark should land on 48.
+    const top = makePr({ number: 47, triage_score: 320, lines_changed: 50 });
+    const next = makePr({ number: 48, triage_score: 290, lines_changed: 200 });
+    await writeEnvelope(h, envelopeWithMarkedCandidates([top, next]));
+
+    // Pre-sling: cached envelope already has both marked candidates;
+    // overlay's selectOneMark winnows to the top scorer (47).
+    const before = await fetch(`${h.url}/api/maintainer/triage`).then((r) => r.json()) as MaintainerTriage;
+    const beforeItems = before.tiers[0]!.unclustered;
+    const marked = beforeItems.filter((it) => it.is_marked).map((it) => it.number);
+    assert.deepEqual(marked, [47], 'pre-sling One Mark should be on 47');
+
+    // Sling 47.
+    const slingRes = await postJson(`${h.url}/api/maintainer/sling`, {
+      kind: 'pr',
+      number: 47,
+      html_url: 'https://github.com/gastownhall/gascity/pull/47',
+      intent: 'triage',
+    });
+    assert.equal(slingRes.status, 200);
+
+    // GET overlay should now exclude 47 and put the mark on 48.
+    const after = await fetch(`${h.url}/api/maintainer/triage`).then((r) => r.json()) as MaintainerTriage;
+    const afterItems = after.tiers[0]!.unclustered;
+    const slungItem = afterItems.find((it) => it.number === 47);
+    const nextMarked = afterItems.find((it) => it.number === 48);
+
+    assert.ok(slungItem?.slung, 'item 47 should carry slung state after the sling');
+    assert.equal(slungItem!.slung.target, 'mayor');
+    assert.equal(slungItem!.slung.bead_id, 'gc-255139');
+    assert.equal(slungItem!.is_marked, false, 'slung item should not carry the mark');
+    assert.equal(nextMarked?.is_marked, true, 'mark should move to the next candidate');
+  });
+
+  test('vetted item with stale slung-state entry: overlay forces slung=null', async () => {
+    h = await buildApp();
+    const vettedAndSlung = makePr({
+      number: 50,
+      triage_score: 280,
+      triage_assessment: {
+        vetted_score: 290,
+        source: 'agent',
+        notes: '',
+        vetted_at: '2026-05-24T00:00:00Z',
+      },
+    });
+    await writeEnvelope(h, envelopeWithMarkedCandidates([vettedAndSlung]));
+
+    // Manually plant a stale slung-state entry (e.g. the worker sweep
+    // hasn't purged it yet after the agent applied triage/vetted).
+    await writeSlungEntry(slungStatePathFor(h), slungKey('pr', 50), {
+      slung_at: '2026-05-23T00:00:00Z',
+      target: 'chief-of-staff',
+      bead_id: 'gc-stale',
+    });
+
+    const env = await fetch(`${h.url}/api/maintainer/triage`).then((r) => r.json()) as MaintainerTriage;
+    const item = env.tiers[0]!.unclustered.find((it) => it.number === 50)!;
+    assert.equal(item.slung, null, 'vetted-overrides-slung: overlay must zero out slung even if file says otherwise');
+    // And the vetted item remains a mark candidate (it's not slung in the overlay's view).
+    assert.equal(item.is_marked, true);
+  });
+
+  test('slung-state entry for an item no longer in the envelope: silently dropped, no error', async () => {
+    h = await buildApp();
+    await writeEnvelope(h, envelopeWithMarkedCandidates([makePr({ number: 60 })]));
+
+    await writeSlungEntry(slungStatePathFor(h), slungKey('pr', 999), {
+      slung_at: '2026-05-23T00:00:00Z',
+      target: 'chief-of-staff',
+      bead_id: 'gc-orphan',
+    });
+
+    const res = await fetch(`${h.url}/api/maintainer/triage`);
+    assert.equal(res.status, 200);
+    const env = await res.json() as MaintainerTriage;
+    const item = env.tiers[0]!.unclustered.find((it) => it.number === 60)!;
+    assert.equal(item.is_marked, true, 'item 60 still the mark; orphan slung-state for 999 is silently ignored');
   });
 });

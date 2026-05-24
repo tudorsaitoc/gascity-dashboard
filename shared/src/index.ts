@@ -427,6 +427,33 @@ export interface TriageAssessment {
   vetted_at: IsoTimestamp;
 }
 
+/**
+ * Active sling state for a TriageItem (gascity-dashboard-9qs).
+ *
+ * Set when the maintainer slings an item to a triage agent. While
+ * present, the item is excluded from the One Mark candidate set
+ * (`isMarkCandidate` returns false) so the maroon ● moves to the next
+ * unhandled item. The frontend renders an inline `· slung →` link to
+ * `/agents/<target>` so the operator can verify the agent is working.
+ *
+ * Self-clearing: once the triage agent applies the structured
+ * `triage/vetted` label set, `parseTriageAssessment` returns a
+ * non-null `TriageAssessment` and the slung overlay nulls this field
+ * out at serve time (vetted is the stronger signal; slung was the
+ * placeholder while waiting).
+ */
+export interface SlungState {
+  /** When the sling fired (server clock). */
+  slung_at: IsoTimestamp;
+  /** Resolved `gc sling` target alias the work was sent to. The
+   *  frontend uses this as the AgentDetail slug for the inline link. */
+  target: string;
+  /** Bead id parsed from `gc sling` stdout when present. Persisted for
+   *  forward-compat with a future per-bead drill-in; not rendered in v1
+   *  (the AgentDetail page surfaces the bead list naturally). */
+  bead_id: string | null;
+}
+
 export interface ContributorStat {
   login: string;
   tier: ContributorTier;
@@ -470,6 +497,11 @@ export interface TriageItem {
    *  faint italic register. Populated by the label parser in
    *  backend/src/maintainer/triage-assessment.ts. */
   triage_assessment: TriageAssessment | null;
+  /** Active sling state (gascity-dashboard-9qs). Non-null while the item
+   *  is in flight to a triage agent and not yet vetted. Excludes the
+   *  item from the One Mark candidate set and surfaces an inline link
+   *  to the target agent's detail view. See `SlungState` JSDoc. */
+  slung: SlungState | null;
   /** Primary file-overlap cluster id; items sharing this id sit together. Null when uncomputed. */
   cluster_id: string | null;
   /** Files this item touches / is predicted to touch. Empty array when uncomputed. */

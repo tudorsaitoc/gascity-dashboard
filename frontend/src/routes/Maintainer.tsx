@@ -799,6 +799,7 @@ function RowMeta({
         #{item.number}
       </a>
       <TriageScore item={item} />
+      <SlungLink item={item} />
 
       <span aria-hidden>·</span>
       <ContributorByline author={item.author} />
@@ -864,6 +865,51 @@ export function TriageScore({ item }: { item: Pick<TriageItem, 'triage_score' | 
     );
   }
   return null;
+}
+
+// Inline workflow link for items currently slung to a triage agent
+// (gascity-dashboard-9qs). When the maintainer clicks 'Send to triage
+// agent' the item gets a slung-state entry server-side; this link
+// surfaces that state so the operator can drill into the target
+// agent's session and verify the work is alive.
+//
+// Loose `!= null` matches the TriageScore guard: an envelope cached by
+// a build that pre-dates this field has `slung: undefined`, and strict
+// `!== null` would let undefined pass into a property read and throw.
+//
+// Link target is /agents/<target> where target is the resolved agent
+// alias (e.g. 'chief-of-staff' for the default triage path). The
+// AgentDetail route resolves the slug against session_name / alias /
+// id; if the agent has no active session yet (sling just fired, agent
+// hasn't spun up), the page renders 'No session matches' rather than
+// 404ing. The title attribute carries the target alias so the operator
+// can interpret 'no session matches' as 'agent not running yet'.
+//
+// Qualified-name handling (rig/agent aliases like
+// 'hello-world/chief-of-staff'): encodeURIComponent turns the '/' into
+// '%2F'. React Router v6 leaves percent-encoded path characters as-is
+// when matching `:slug`, so the encoded form arrives at useParams; the
+// existing AgentDetail.tsx wraps a try/catch decodeURIComponent around
+// the slug (it had to, for other reasons), so the round-trip lands the
+// canonical form in the page's lookup. Don't switch to a plain
+// `/agents/${target}` template — that splits qualified names into two
+// path segments and breaks the route match.
+export function SlungLink({ item }: { item: Pick<TriageItem, 'slung'> }) {
+  if (item.slung == null) return null;
+  const { target } = item.slung;
+  return (
+    <>
+      <span aria-hidden>·</span>
+      <Link
+        to={`/agents/${encodeURIComponent(target)}`}
+        className="text-fg-faint hover:text-fg focus-mark"
+        title={`slung to ${target}; click to verify the agent is working`}
+        aria-label={`slung to ${target}, open agent detail`}
+      >
+        slung →
+      </Link>
+    </>
+  );
 }
 
 function PrStatus({ status }: { status: TriageItemStatus }) {

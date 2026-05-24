@@ -39,6 +39,7 @@ function mkItem(overrides: Partial<TriageItem> & { kind: 'pr' | 'issue'; number:
     tier: overrides.tier ?? null,
     triage_score: overrides.triage_score ?? null,
     triage_assessment: overrides.triage_assessment ?? null,
+    slung: overrides.slung ?? null,
     cluster_id: overrides.cluster_id ?? null,
     blast_files: overrides.blast_files ?? [],
     lines_changed: overrides.lines_changed ?? null,

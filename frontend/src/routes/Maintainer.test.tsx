@@ -1,7 +1,7 @@
 import { cleanup, render, screen } from '@testing-library/react';
 import { afterEach, describe, expect, it } from 'vitest';
 import { MemoryRouter } from 'react-router-dom';
-import { SelectionActionBar, TriageScore } from './Maintainer';
+import { SelectionActionBar, SlungLink, TriageScore } from './Maintainer';
 
 // gascity-dashboard-5ly: render-level assertions for the bulk action bar.
 // The success-state lifecycle (timer cleanup, back-to-back slings) is
@@ -176,6 +176,92 @@ describe('TriageScore — vetted vs heuristic visual distinction', () => {
     );
     const titled = container.querySelector('span[title]');
     expect(titled?.getAttribute('title')).toMatch(/vetted by agent.*340/);
+  });
+});
+
+describe('SlungLink — inline workflow link for slung items', () => {
+  afterEach(() => {
+    cleanup();
+  });
+
+  it('renders nothing when item.slung is null', () => {
+    const { container } = render(
+      <MemoryRouter>
+        <SlungLink item={{ slung: null }} />
+      </MemoryRouter>,
+    );
+    expect(container.textContent).toBe('');
+  });
+
+  it('renders a link to /agents/<target> when item.slung is set', () => {
+    const { container } = render(
+      <MemoryRouter>
+        <SlungLink
+          item={{
+            slung: {
+              slung_at: '2026-05-24T12:00:00.000Z',
+              target: 'chief-of-staff',
+              bead_id: 'gc-abc',
+            },
+          }}
+        />
+      </MemoryRouter>,
+    );
+    const link = container.querySelector('a');
+    expect(link).not.toBeNull();
+    expect(link?.getAttribute('href')).toBe('/agents/chief-of-staff');
+    expect(link?.textContent).toMatch(/slung/);
+    // Faint weight so it reads as a secondary affordance, not a CTA.
+    expect(link?.className).toMatch(/text-fg-faint/);
+  });
+
+  it('title attribute carries the target alias so "no session matches" is interpretable', () => {
+    const { container } = render(
+      <MemoryRouter>
+        <SlungLink
+          item={{
+            slung: {
+              slung_at: '2026-05-24T12:00:00.000Z',
+              target: 'project-lead',
+              bead_id: null,
+            },
+          }}
+        />
+      </MemoryRouter>,
+    );
+    const link = container.querySelector('a');
+    expect(link?.getAttribute('title')).toMatch(/slung to project-lead/);
+    expect(link?.getAttribute('aria-label')).toMatch(/slung to project-lead/);
+  });
+
+  it('URL-encodes the target alias so qualified names (rig/agent) link correctly', () => {
+    const { container } = render(
+      <MemoryRouter>
+        <SlungLink
+          item={{
+            slung: {
+              slung_at: '2026-05-24T12:00:00.000Z',
+              target: 'hello-world/chief-of-staff',
+              bead_id: null,
+            },
+          }}
+        />
+      </MemoryRouter>,
+    );
+    const link = container.querySelector('a');
+    // encodeURIComponent turns '/' into '%2F'.
+    expect(link?.getAttribute('href')).toBe('/agents/hello-world%2Fchief-of-staff');
+  });
+
+  // Stale-cache safety: an envelope from a pre-9qs build has slung as
+  // undefined. Loose != null in the component must catch both cases.
+  it('renders nothing when item.slung is undefined (stale cache from pre-field build)', () => {
+    const { container } = render(
+      <MemoryRouter>
+        <SlungLink item={{ slung: undefined as unknown as null }} />
+      </MemoryRouter>,
+    );
+    expect(container.textContent).toBe('');
   });
 });
 
