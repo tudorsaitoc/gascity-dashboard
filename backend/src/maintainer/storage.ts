@@ -1,6 +1,6 @@
 import fs from 'node:fs/promises';
 import path from 'node:path';
-import type { MaintainerTriage } from 'gas-city-dashboard-shared';
+import type { MaintainerTriage, TriageItem } from 'gas-city-dashboard-shared';
 
 // Atomic JSON cache for the maintainer triage view.
 // Reads are best-effort: missing file or parse error returns null so the
@@ -54,6 +54,9 @@ export async function writeCache(
 // here. Failure to add one means a stale cache silently survives the shape
 // check and lands at consumers with `undefined`, forcing every reader to
 // add a loose-null guard. See gascity-dashboard-3qy.
+// The `satisfies` clause is load-bearing: it makes a rename on TriageItem
+// (e.g. `triage_assessment` → `triage_result`) a compile error here, so the
+// CONTRACT comment above is enforced by the type system rather than memory.
 const REQUIRED_TRIAGE_ITEM_KEYS = [
   'number',
   'kind',
@@ -61,7 +64,7 @@ const REQUIRED_TRIAGE_ITEM_KEYS = [
   'triage_score',
   'triage_assessment',
   'is_marked',
-] as const;
+] as const satisfies ReadonlyArray<keyof TriageItem>;
 
 function firstTriageItem(env: MaintainerTriage): unknown {
   for (const tier of env.tiers) {

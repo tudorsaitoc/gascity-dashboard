@@ -148,9 +148,14 @@ export function sessionsRouter(
         });
         return;
       }
+      // Same rationale as the list-sessions handler above: peek goes
+      // through the same fetch path, so the same topology-leak class
+      // (ECONNREFUSED / DNS) applies. Class name only to the browser;
+      // server-side log retains full fidelity for ops debugging.
+      console.warn(`[sessions] /api/sessions/:id/peek failed: ${(err as Error).message}`);
       res
         .status(502)
-        .json({ error: 'failed to fetch transcript', kind: 'upstream', details: { message: (err as Error).message } });
+        .json({ error: 'failed to fetch transcript', kind: 'upstream', details: { name: (err as Error).name ?? 'Error' } });
     }
   });
 

@@ -168,10 +168,17 @@ export function ViewingAsProvider({ children }: { children: ReactNode }) {
       sessionsRetryTimerRef.current = setTimeout(() => {
         sessionsRetryTimerRef.current = null;
         if (!mountedRef.current) return;
-        void attemptSessionsFetch().then((ok) => {
-          if (!mountedRef.current) return;
-          if (!ok) scheduleSessionsRetry(attemptIndex + 1);
-        });
+        void attemptSessionsFetch()
+          .then((ok) => {
+            if (!mountedRef.current) return;
+            if (!ok) scheduleSessionsRetry(attemptIndex + 1);
+          })
+          .catch(() => {
+            // attemptSessionsFetch swallows its own rejections, but guard
+            // the .then() callback so a synchronous throw inside
+            // scheduleSessionsRetry can't surface as an unhandled
+            // promise rejection.
+          });
       }, delay);
     },
     [attemptSessionsFetch],
