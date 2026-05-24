@@ -44,15 +44,60 @@ export async function writeCache(
   await fs.rename(tmp, cachePath);
 }
 
+// Required keys spot-checked on the first TriageItem we find in the envelope.
+// A cache written before a new required field shipped will deserialise with
+// the key entirely absent; checking via `in` (rather than `!= null`) lets
+// genuinely nullable fields like triage_score / triage_assessment pass when
+// explicitly null while still rejecting pre-migration caches.
+//
+// CONTRACT: any new required field on TriageItem needs a one-line addition
+// here. Failure to add one means a stale cache silently survives the shape
+// check and lands at consumers with `undefined`, forcing every reader to
+// add a loose-null guard. See gascity-dashboard-3qy.
+const REQUIRED_TRIAGE_ITEM_KEYS = [
+  'number',
+  'kind',
+  'status',
+  'triage_score',
+  'triage_assessment',
+  'is_marked',
+] as const;
+
+function firstTriageItem(env: MaintainerTriage): unknown {
+  for (const tier of env.tiers) {
+    if (!tier || typeof tier !== 'object') continue;
+    const clusters = Array.isArray(tier.clusters) ? tier.clusters : [];
+    for (const cluster of clusters) {
+      if (cluster && Array.isArray(cluster.items) && cluster.items.length > 0) {
+        return cluster.items[0];
+      }
+    }
+    const unclustered = Array.isArray(tier.unclustered) ? tier.unclustered : [];
+    if (unclustered.length > 0) return unclustered[0];
+  }
+  return undefined;
+}
+
 function isValidEnvelope(v: unknown): v is MaintainerTriage {
   if (typeof v !== 'object' || v === null) return false;
   const env = v as Partial<MaintainerTriage>;
-  return (
+  const topLevelOk =
     typeof env.repo === 'string' &&
     Array.isArray(env.tiers) &&
     typeof env.totals === 'object' &&
     env.totals !== null &&
     typeof (env.totals as { issues_open: unknown }).issues_open === 'number' &&
-    typeof (env.totals as { prs_open: unknown }).prs_open === 'number'
-  );
+    typeof (env.totals as { prs_open: unknown }).prs_open === 'number';
+  if (!topLevelOk) return false;
+
+  // Deep spot-check the first TriageItem we find. An empty envelope (no
+  // items in any tier) passes the wire-shape check — the next worker tick
+  // will repopulate; there's nothing to invalidate yet.
+  const sample = firstTriageItem(env as MaintainerTriage);
+  if (sample === undefined) return true;
+  if (typeof sample !== 'object' || sample === null) return false;
+  for (const key of REQUIRED_TRIAGE_ITEM_KEYS) {
+    if (!(key in sample)) return false;
+  }
+  return true;
 }
