@@ -123,8 +123,23 @@ describe('buildSlingRequests', () => {
 
   it('passes target through when explicitly provided', () => {
     const selection = new Set(['pr:10']);
-    const reqs = buildSlingRequests(selection, items, 'chief-of-staff');
+    const reqs = buildSlingRequests(selection, items, 'triage', 'chief-of-staff');
     expect(reqs[0]?.target).toBe('chief-of-staff');
+  });
+
+  it("plumbs intent='draft' through when caller selects the draft action", () => {
+    const selection = new Set(['issue:11']);
+    const reqs = buildSlingRequests(selection, items, 'draft');
+    expect(reqs).toHaveLength(1);
+    expect(reqs[0]?.intent).toBe('draft');
+    expect(reqs[0]?.kind).toBe('issue');
+  });
+
+  it("plumbs intent='draft' alongside an explicit target", () => {
+    const selection = new Set(['issue:11']);
+    const reqs = buildSlingRequests(selection, items, 'draft', 'mayor');
+    expect(reqs[0]?.intent).toBe('draft');
+    expect(reqs[0]?.target).toBe('mayor');
   });
 
   it('silently skips selected keys that no longer exist in the envelope', () => {

@@ -23,15 +23,17 @@ import {
   selectionKey,
   toggleSelectionItem,
   useSlingSuccess,
+  type MaintainerSlingIntent,
   type SlingSuccess,
 } from './maintainerSelection';
 
-// Display label for the default triage target. The actual alias the
-// backend dispatches to is resolved server-side from
-// MAINTAINER_TRIAGE_TARGET (default 'chief-of-staff'); the frontend
-// never sees it. 'triage agent' matches the existing button copy
-// ('Send to triage agent') so the success line reads in the same voice.
+// Display labels for the two operator-facing sling intents
+// (gascity-dashboard-5xw). The actual aliases the backend dispatches
+// to are resolved server-side from MAINTAINER_TRIAGE_TARGET /
+// MAINTAINER_SLING_TARGET; the frontend never sees them. Each label
+// matches its button copy so the success line reads in the same voice.
 const TRIAGE_TARGET_LABEL = 'triage agent';
+const DRAFT_TARGET_LABEL = 'draft agent';
 
 // Triage route — read-only maintainer surface for gastownhall/gascity.
 // Shell + tokens from gascity-dashboard-hq2; live data from
@@ -105,7 +107,11 @@ export function MaintainerPage() {
   // state; refresh / route change clears it. Bulk triage is a 'do it
   // now' operation, not a saved view.
   const [selection, setSelection] = useState<Set<string>>(() => new Set());
-  const [slinging, setSlinging] = useState(false);
+  // Which intent (if any) is currently in flight. null = idle. Drives both
+  // the disabled state on both buttons AND which button's label flips to
+  // 'Sending' — a plain boolean would attach 'Sending' to the wrong button
+  // when the operator clicks the draft action (gascity-dashboard-5xw ts MED-1).
+  const [slinging, setSlinging] = useState<MaintainerSlingIntent | null>(null);
   const [slingError, setSlingError] = useState<string | null>(null);
   // Post-sling success acknowledgement (gascity-dashboard-5ly). Hook
   // owns the auto-clear timer + unmount cleanup so this component just
@@ -183,31 +189,34 @@ export function MaintainerPage() {
   // every render.
   const allItems = useMemo(() => (data ? flattenTriageItems(data) : []), [data]);
 
-  const handleSendToTriage = useCallback(async () => {
-    setSlinging(true);
+  // Single dispatch path, parameterised on intent (gascity-dashboard-5xw).
+  // intent='triage' → backend resolves to MAINTAINER_TRIAGE_TARGET
+  // (default 'chief-of-staff'); intent='draft' → MAINTAINER_SLING_TARGET
+  // (default 'mayor'). Target omitted from each request so the backend
+  // owns the routing decision.
+  const handleSend = useCallback(async (intent: MaintainerSlingIntent) => {
+    const successLabel =
+      intent === 'triage' ? TRIAGE_TARGET_LABEL : DRAFT_TARGET_LABEL;
+    setSlinging(intent);
     setSlingError(null);
     // New dispatch supersedes any prior success line. The TTL would also
-    // clear it eventually, but clearing now avoids 'Slung 3 to triage
-    // agent' lingering next to 'Sending' on the next batch.
+    // clear it eventually, but clearing now avoids a stale 'Slung 3 to X'
+    // lingering next to 'Sending' on the next batch.
     clearSlingSuccess();
     try {
-      // target omitted: backend resolves intent='triage' to its
-      // maintainerTriageTarget (default 'chief-of-staff', env-overridable
-      // via MAINTAINER_TRIAGE_TARGET).
-      const requests = buildSlingRequests(selection, allItems);
+      const requests = buildSlingRequests(selection, allItems, intent);
       const summary = await dispatchSlings(requests, (req) => api.maintainerSling(req));
       if (summary.failed === 0) {
         setSelection(new Set());
         if (summary.succeeded > 0) {
-          // Use the abstract TRIAGE_TARGET_LABEL because the actual
-          // resolved alias is server-side; matching the existing
-          // 'Send to triage agent' button keeps the One Voice Rule.
-          setSlingSuccess({ count: summary.succeeded, target: TRIAGE_TARGET_LABEL });
+          // Abstract label, not the resolved alias: the actual server-side
+          // target is invisible to the frontend and the label matches its
+          // button copy so the success line reads in one voice.
+          setSlingSuccess({ count: summary.succeeded, target: successLabel });
         }
       } else {
         // Keep the failed subset selected so the operator can retry. The
-        // succeeded ones get dropped from the selection so the next
-        // 'Send to triage agent' click doesn't redispatch them.
+        // succeeded ones get dropped so the next click doesn't redispatch them.
         const remaining = new Set<string>();
         for (const o of summary.outcomes) {
           if (!o.ok) remaining.add(selectionKey(o.request));
@@ -220,13 +229,13 @@ export function MaintainerPage() {
         // shares space with the error. The operator's next action will
         // clear both via clearSlingSuccess + setSlingError(null).
         if (summary.succeeded > 0) {
-          setSlingSuccess({ count: summary.succeeded, target: TRIAGE_TARGET_LABEL });
+          setSlingSuccess({ count: summary.succeeded, target: successLabel });
         }
       }
     } catch (err) {
       setSlingError(err instanceof Error ? err.message : 'send failed');
     } finally {
-      setSlinging(false);
+      setSlinging(null);
     }
   }, [selection, allItems, setSlingSuccess, clearSlingSuccess]);
 
@@ -277,7 +286,8 @@ export function MaintainerPage() {
           {viewingAs.isOperator && (selection.size > 0 || slingSuccess !== null) && (
             <SelectionActionBar
               count={selection.size}
-              onSend={() => void handleSendToTriage()}
+              onSend={() => void handleSend('triage')}
+              onSendDraft={() => void handleSend('draft')}
               onClear={clearSelection}
               sending={slinging}
               error={slingError}
@@ -311,18 +321,32 @@ export function MaintainerPage() {
 export function SelectionActionBar({
   count,
   onSend,
+  onSendDraft,
   onClear,
   sending,
   error,
   success,
 }: {
   count: number;
+  /** Dispatch with intent='triage' (asks an agent to assess prioritisation). */
   onSend: () => void;
+  /** Dispatch with intent='draft' (asks an agent to write a PR). Optional for
+   *  back-compat with existing callers / tests that only exercise the triage
+   *  intent; when omitted the draft button is hidden. New callers should
+   *  always pass it. */
+  onSendDraft?: () => void;
   onClear: () => void;
-  sending: boolean;
+  /** Which intent is mid-flight, or null when idle. Accepts boolean for
+   *  back-compat with existing single-intent callers — `true` collapses to
+   *  'triage' since that was the only intent available before
+   *  gascity-dashboard-5xw. */
+  sending: MaintainerSlingIntent | boolean | null;
   error: string | null;
   success: SlingSuccess | null;
 }) {
+  const sendingIntent: MaintainerSlingIntent | null =
+    sending === true ? 'triage' : sending === false || sending === null ? null : sending;
+  const isSending = sendingIntent !== null;
   // Inner container mirrors Layout's main column (max-w-[1280px] + the
   // same horizontal padding) so the action line sits under the page
   // content, not above the gutters.
@@ -377,10 +401,15 @@ export function SelectionActionBar({
           )}
         </div>
         <div className="flex items-baseline gap-3">
-          <Button size="sm" onClick={onSend} disabled={sending || count === 0}>
-            {sending ? 'Sending' : 'Send to triage agent'}
+          <Button size="sm" onClick={onSend} disabled={isSending || count === 0}>
+            {sendingIntent === 'triage' ? 'Sending' : 'Send to triage agent'}
           </Button>
-          <Button size="sm" tone="quiet" onClick={onClear} disabled={sending}>
+          {onSendDraft !== undefined && (
+            <Button size="sm" onClick={onSendDraft} disabled={isSending || count === 0}>
+              {sendingIntent === 'draft' ? 'Sending' : 'Send to draft agent'}
+            </Button>
+          )}
+          <Button size="sm" tone="quiet" onClick={onClear} disabled={isSending}>
             Clear
           </Button>
         </div>

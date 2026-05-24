@@ -12,11 +12,18 @@ export interface SelectionKey {
   readonly number: number;
 }
 
+/** Operator-facing sling intents in the maintainer view's bulk action bar
+ *  (gascity-dashboard-5xw). `'triage'` asks an agent to assess an item
+ *  (populates triage_assessment); `'draft'` asks an agent to write a PR for
+ *  an issue lacking one. The backend's third intent `'review'` is not
+ *  surfaced here — merging via GitHub is the operator's review workflow. */
+export type MaintainerSlingIntent = 'triage' | 'draft';
+
 export interface SlingRequest {
   readonly kind: 'pr' | 'issue';
   readonly number: number;
   readonly html_url: string;
-  readonly intent: 'triage';
+  readonly intent: MaintainerSlingIntent;
   readonly target?: string;
 }
 
@@ -55,6 +62,7 @@ export function toggleSelectionItem(
 export function buildSlingRequests(
   selection: ReadonlySet<string>,
   items: ReadonlyArray<TriageItem>,
+  intent: MaintainerSlingIntent = 'triage',
   target?: string,
 ): SlingRequest[] {
   const byKey = new Map<string, TriageItem>();
@@ -69,7 +77,7 @@ export function buildSlingRequests(
       kind: item.kind,
       number: item.number,
       html_url: item.html_url,
-      intent: 'triage',
+      intent,
       ...(target !== undefined ? { target } : {}),
     };
     out.push(req);

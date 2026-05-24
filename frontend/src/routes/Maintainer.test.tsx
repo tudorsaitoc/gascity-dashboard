@@ -35,6 +35,7 @@ function renderBar(props: Partial<React.ComponentProps<typeof SelectionActionBar
       <SelectionActionBar
         count={props.count ?? 2}
         onSend={props.onSend ?? (() => {})}
+        onSendDraft={props.onSendDraft}
         onClear={props.onClear ?? (() => {})}
         sending={props.sending ?? false}
         error={props.error ?? null}
@@ -352,5 +353,67 @@ describe('SelectionActionBar — selection counter', () => {
     renderBar({ count: 0, success: { count: 3, target: 'triage agent' } });
     expect(screen.queryByText(/selected/i)).toBeNull();
     expect(screen.getByRole('status')).toBeTruthy();
+  });
+});
+
+// gascity-dashboard-5xw: the bar now exposes two intent buttons. Triage
+// stays the default (back-compat for callers that haven't migrated);
+// draft is rendered only when onSendDraft is supplied. Keeps existing
+// test contexts working without forcing every callsite to handle both.
+describe('SelectionActionBar — dual-intent buttons', () => {
+  afterEach(() => {
+    cleanup();
+  });
+
+  it('hides the draft button when onSendDraft is not provided', () => {
+    renderBar();
+    expect(screen.queryByRole('button', { name: /send to draft agent/i })).toBeNull();
+  });
+
+  it('renders the draft button alongside triage when onSendDraft is provided', () => {
+    renderBar({ onSendDraft: () => {} });
+    expect(screen.getByRole('button', { name: /send to triage agent/i })).toBeTruthy();
+    expect(screen.getByRole('button', { name: /send to draft agent/i })).toBeTruthy();
+  });
+
+  it('invokes onSendDraft on click', () => {
+    let called = 0;
+    renderBar({ onSendDraft: () => { called += 1; } });
+    screen.getByRole('button', { name: /send to draft agent/i }).click();
+    expect(called).toBe(1);
+  });
+
+  it('disables both intent buttons while sending', () => {
+    renderBar({ onSendDraft: () => {}, sending: true });
+    const triage = screen.getByRole('button', { name: /sending/i }) as HTMLButtonElement;
+    const draft = screen.getByRole('button', { name: /send to draft agent/i }) as HTMLButtonElement;
+    expect(triage.disabled).toBe(true);
+    expect(draft.disabled).toBe(true);
+  });
+
+  it('disables both intent buttons when count=0 (selection cleared post-success)', () => {
+    renderBar({ count: 0, onSendDraft: () => {}, success: { count: 3, target: 'triage agent' } });
+    const triage = screen.getByRole('button', { name: /send to triage agent/i }) as HTMLButtonElement;
+    const draft = screen.getByRole('button', { name: /send to draft agent/i }) as HTMLButtonElement;
+    expect(triage.disabled).toBe(true);
+    expect(draft.disabled).toBe(true);
+  });
+
+  it("shows 'Sending' on the triage button only when sending='triage'", () => {
+    renderBar({ onSendDraft: () => {}, sending: 'triage' });
+    // The triage button is the one whose name became 'Sending'.
+    expect(screen.queryByRole('button', { name: /send to triage agent/i })).toBeNull();
+    expect(screen.getByRole('button', { name: /sending/i })).toBeTruthy();
+    // The draft button keeps its static label.
+    expect(screen.getByRole('button', { name: /send to draft agent/i })).toBeTruthy();
+  });
+
+  it("shows 'Sending' on the draft button only when sending='draft'", () => {
+    renderBar({ onSendDraft: () => {}, sending: 'draft' });
+    // The draft button is the one whose name became 'Sending'.
+    expect(screen.queryByRole('button', { name: /send to draft agent/i })).toBeNull();
+    expect(screen.getByRole('button', { name: /sending/i })).toBeTruthy();
+    // The triage button keeps its static label.
+    expect(screen.getByRole('button', { name: /send to triage agent/i })).toBeTruthy();
   });
 });
