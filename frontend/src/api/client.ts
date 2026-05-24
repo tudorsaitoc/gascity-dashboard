@@ -14,6 +14,7 @@ import type {
   MaintainerTriage,
   ContributorStat,
   ApiError,
+  DashboardSnapshot,
 } from 'gas-city-dashboard-shared';
 
 // Typed fetch client for the admin backend's /api/*. Shares types with
@@ -165,6 +166,9 @@ export const api = {
   },
   kanban(): Promise<KanbanResponse> {
     return request('GET', '/api/admin/kanban');
+  },
+  snapshot(): Promise<DashboardSnapshot> {
+    return request('GET', '/api/snapshot');
   },
   maintainerTriage(): Promise<MaintainerTriage> {
     return request('GET', '/api/maintainer/triage');

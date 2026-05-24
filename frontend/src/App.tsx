@@ -6,7 +6,7 @@ import { BeadsPage } from './routes/Beads';
 import { MailPage } from './routes/Mail';
 import { ActivityPage } from './routes/Activity';
 import { HealthPage } from './routes/Health';
-import { KanbanPage } from './routes/Kanban';
+import { WorkflowsPage } from './routes/Workflows';
 import { MaintainerPage } from './routes/Maintainer';
 import { ViewingAsProvider } from './contexts/ViewingAsContext';
 
@@ -19,7 +19,13 @@ export function App() {
           <Route path="/agents" element={<AgentsPage />} />
           <Route path="/agents/:slug" element={<AgentDetailPage />} />
           <Route path="/beads" element={<BeadsPage />} />
-          <Route path="/kanban" element={<KanbanPage />} />
+          <Route path="/workflows" element={<WorkflowsPage />} />
+          {/* /kanban superseded by /workflows (gascity-dashboard-0t6 + dkb Q3);
+              redirect preserved so bookmarks keep working. */}
+          <Route
+            path="/kanban"
+            element={<Navigate to="/workflows" replace />}
+          />
           <Route path="/mail" element={<MailPage />} />
           <Route path="/activity" element={<ActivityPage />} />
           <Route path="/health" element={<HealthPage />} />

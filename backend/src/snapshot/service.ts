@@ -29,8 +29,8 @@ import { fixtureSourceLoader } from './fixtures/loader.js';
 //   - aimux/github/tokens caches are wired with throwing load() (their
 //     collectors are deferred) — snapshot serves status='error' for those
 //     three sources in v0. NOT a bug; the deferred contract is explicit.
-//   - workflows is a STUB collector that returns a zeroed WorkflowSummary
-//     until gascity-dashboard-0t6 (WorkflowMap port) lands.
+//   - workflows runs the real lane builder (gascity-dashboard-0t6) over
+//     gc.listBeads({ limit }) with the co-located workflowBeadFilter.
 
 export const SOURCE_NAMES = [
   'aimux',
@@ -179,6 +179,7 @@ function buildDefaultCaches(options: CreateSnapshotServiceOptions): SourceCacheM
       loadFixture: useFixture ? fixtureSourceLoader('resources') : undefined,
     }),
     workflows: createWorkflowsSourceCache({
+      gc,
       now,
       useFixture,
       loadFixture: useFixture ? fixtureSourceLoader('workflows') : undefined,

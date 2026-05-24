@@ -14,7 +14,7 @@ import { argv, exit } from 'node:process';
 const BASE = 'http://127.0.0.1:5174';
 const OUT  = '/tmp/cp-snaps';
 
-const ROUTES = ['agents', 'beads', 'mail', 'activity', 'health', 'maintainer'];
+const ROUTES = ['agents', 'beads', 'workflows', 'mail', 'activity', 'health', 'maintainer'];
 const THEMES = ['light', 'dark'];
 
 const args = argv.slice(2);

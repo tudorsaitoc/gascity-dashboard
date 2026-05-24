@@ -5,7 +5,7 @@ import { useViewingAs } from '../contexts/ViewingAsContext';
 const ROUTES: { to: string; label: string }[] = [
   { to: '/agents', label: 'Agents' },
   { to: '/beads', label: 'Beads' },
-  { to: '/kanban', label: 'Kanban' },
+  { to: '/workflows', label: 'Workflows' },
   { to: '/mail', label: 'Mail' },
   { to: '/activity', label: 'Activity' },
   { to: '/health', label: 'Health' },
