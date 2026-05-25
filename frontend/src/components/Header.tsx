@@ -1,7 +1,9 @@
 import { NavLink, useLocation } from 'react-router-dom';
+import { api } from '../api/client';
 import { useTheme } from '../contexts/ThemeContext';
 import { useViewingAs, OPERATOR_ALIAS } from '../contexts/ViewingAsContext';
 import { displayLabel } from '../hooks/aliasPriority';
+import { useCachedData } from '../hooks/useCachedData';
 
 const ROUTES: { to: string; label: string }[] = [
   { to: '/agents', label: 'Agents' },
@@ -20,6 +22,7 @@ const ROUTES: { to: string; label: string }[] = [
 export function Header() {
   const { resolved, toggle } = useTheme();
   const { viewingAs } = useViewingAs();
+  const { data: config } = useCachedData('config', () => api.config());
   const { pathname } = useLocation();
   // "Reading as" is a Mail-only concept — the value persists across views
   // (for Maintainer's impersonation guard + AgentDetail's chat filter) but
@@ -35,7 +38,7 @@ export function Header() {
           </span>
           <span className="text-fg-muted" aria-hidden="true">·</span>
           <span className="text-label uppercase tracking-wider text-fg-muted">
-            ds-research
+            {config?.cityName ?? 'city'}
           </span>
           {showReadingAs && (
             <span className="text-label uppercase tracking-wider text-accent ml-3">

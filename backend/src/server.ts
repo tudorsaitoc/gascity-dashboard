@@ -2,6 +2,7 @@ import express from 'express';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import fs from 'node:fs';
+import type { DashboardRuntimeConfig } from 'gas-city-dashboard-shared';
 
 import { loadConfig } from './config.js';
 import {
@@ -66,9 +67,18 @@ function main(): void {
     baseUrl: config.gcSupervisorUrl,
     cityName: config.cityName,
   });
+  const dashboardConfig: DashboardRuntimeConfig = {
+    cityName: config.cityName,
+    cityRoot: config.cityPath,
+    githubRepo: config.maintainerRepo,
+    useFixtures: config.useFixtures,
+  };
 
   const writeRouter = express.Router();
   writeRouter.use(csrfValidate);
+  writeRouter.get('/config', (_req, res) => {
+    res.json(dashboardConfig);
+  });
   writeRouter.use('/sessions', sessionsRouter(gc));
   writeRouter.use('/agents', agentsRouter(config.cityPath));
   writeRouter.use('/beads', beadsRouter(gc, config.cityPath));
@@ -119,11 +129,7 @@ function main(): void {
   // single-flight + fixture state survive across requests.
   const snapshotService = createSnapshotService({
     gc,
-    config: {
-      cityRoot: config.cityPath,
-      githubRepo: config.maintainerRepo,
-      useFixtures: config.useFixtures,
-    },
+    config: dashboardConfig,
     cityPath: config.cityPath,
   });
   writeRouter.use('/snapshot', snapshotRouter(snapshotService));

@@ -15,6 +15,7 @@ import type {
   ApiError,
   DashboardSnapshot,
   SourceName,
+  DashboardRuntimeConfig,
 } from 'gas-city-dashboard-shared';
 
 // Typed fetch client for the admin backend's /api/*. Shares types with
@@ -148,6 +149,9 @@ export const api = {
   },
   health(): Promise<{ ok: boolean; ts: string }> {
     return request('GET', '/api/health');
+  },
+  config(): Promise<DashboardRuntimeConfig> {
+    return request('GET', '/api/config');
   },
   listCommits(view: GitView): Promise<GitCommitList> {
     return request('GET', `/api/git/commits?view=${encodeURIComponent(view)}`);
