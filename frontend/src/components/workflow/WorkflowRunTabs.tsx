@@ -17,10 +17,13 @@ export function WorkflowRunTabs({ diff, selectedNode }: WorkflowRunTabsProps) {
 
   return (
     <section aria-label="Workflow evidence">
-      <div className="flex gap-2 border-b border-rule">
+      <div className="flex items-baseline gap-2 text-label" role="tablist" aria-label="Workflow evidence views">
         <TabButton active={tab === 'diff'} onClick={() => setTab('diff')}>
           Diff
         </TabButton>
+        <span aria-hidden className="text-fg-faint">
+          ·
+        </span>
         <TabButton active={tab === 'session'} onClick={() => setTab('session')}>
           Session
         </TabButton>
@@ -44,12 +47,13 @@ function TabButton({
   return (
     <button
       type="button"
-      className={`focus-mark text-label uppercase tracking-wider px-0 py-2 border-b-2 ${
+      role="tab"
+      aria-selected={active}
+      className={`focus-mark rounded-sm px-0.5 uppercase tracking-wider ${
         active
-          ? 'border-accent text-fg'
-          : 'border-transparent text-fg-muted'
+          ? 'text-fg font-semibold underline decoration-fg underline-offset-4'
+          : 'text-fg-muted hover:text-fg'
       }`}
-      aria-pressed={active}
       onClick={onClick}
     >
       {children}

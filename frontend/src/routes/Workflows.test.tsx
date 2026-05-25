@@ -44,13 +44,9 @@ vi.mock('../hooks/useGcEvents', () => ({
   }),
 }));
 
-// eslint-disable-next-line import/first
 import { api } from '../api/client';
-// eslint-disable-next-line import/first
 import { invalidateKey } from '../api/cache';
-// eslint-disable-next-line import/first
 import { WorkflowsPage } from './Workflows';
-// eslint-disable-next-line import/first
 import type { DashboardSnapshot, SourceStatus } from 'gas-city-dashboard-shared';
 
 const mockSnapshot = api.snapshot as Mock;
@@ -60,6 +56,7 @@ function buildEnvelope(workflowsStatus: SourceStatus = 'fresh'): DashboardSnapsh
   return {
     generatedAt: '2026-05-25T00:00:00.000Z',
     config: {
+      cityName: 'racoon-city',
       cityRoot: '/tmp/example-city',
       githubRepo: 'example-org/example-repo',
       useFixtures: false,
@@ -106,7 +103,10 @@ afterEach(() => {
 
 function mount() {
   return render(
-    <MemoryRouter initialEntries={['/workflows']}>
+    <MemoryRouter
+      initialEntries={['/workflows']}
+      future={{ v7_relativeSplatPath: true, v7_startTransition: true }}
+    >
       <WorkflowsPage />
     </MemoryRouter>,
   );

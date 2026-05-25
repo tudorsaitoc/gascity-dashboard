@@ -5,7 +5,6 @@ import { GcClient } from '../gc-client.js';
 import { BEAD_ID_RE } from '../lib/beadId.js';
 import { enrichWorkflowRun, UnsupportedWorkflowError } from '../workflows/enrich.js';
 import { readWorkflowGitDiff } from '../workflows/diff.js';
-import type { RawWorkflowSnapshot } from '../workflows/types.js';
 
 const SCOPE_REF_RE = /^[A-Za-z0-9][A-Za-z0-9_.:/-]{0,127}$/;
 
@@ -27,7 +26,7 @@ export function workflowsRouter(
     }
     try {
       const raw = await gc.getWorkflow(parsed.workflowId, undefined, parsed.scope);
-      const detail = enrichWorkflowRun(raw as RawWorkflowSnapshot, {
+      const detail = enrichWorkflowRun(raw, {
         fallbackScopeRef: gc.cityName,
         rigRoot: opts.rigRoot,
       });
@@ -46,7 +45,7 @@ export function workflowsRouter(
     }
     try {
       const raw = await gc.getWorkflow(parsed.workflowId, undefined, parsed.scope);
-      const detail = enrichWorkflowRun(raw as RawWorkflowSnapshot, {
+      const detail = enrichWorkflowRun(raw, {
         fallbackScopeRef: gc.cityName,
         rigRoot: opts.rigRoot,
       });

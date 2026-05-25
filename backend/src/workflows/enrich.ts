@@ -5,16 +5,14 @@ import type {
   WorkflowDisplayLane,
   WorkflowDisplayNode,
   WorkflowExecutionInstance,
+  GcWorkflowBead,
+  GcWorkflowDep,
+  GcWorkflowSnapshot,
   WorkflowNodeStatus,
   WorkflowRunDetail,
   WorkflowScopeKind,
   WorkflowSessionLink,
 } from 'gas-city-dashboard-shared';
-import type {
-  RawWorkflowBead,
-  RawWorkflowDep,
-  RawWorkflowSnapshot,
-} from './types.js';
 
 interface EnrichOptions {
   fallbackScopeRef: string;
@@ -28,7 +26,7 @@ interface Group {
   constructKind: WorkflowConstructKind;
   scopeRef?: string;
   loopControlNodeId?: string;
-  beads: RawWorkflowBead[];
+  beads: GcWorkflowBead[];
 }
 
 const HIDDEN_CONSTRUCTS = new Set<WorkflowConstructKind>([
@@ -45,7 +43,7 @@ export class UnsupportedWorkflowError extends Error {
 }
 
 export function enrichWorkflowRun(
-  raw: RawWorkflowSnapshot,
+  raw: GcWorkflowSnapshot,
   opts: EnrichOptions,
 ): WorkflowRunDetail {
   if (!isGraphV2(raw)) {
@@ -118,7 +116,7 @@ export function enrichWorkflowRun(
   };
 }
 
-function isGraphV2(raw: RawWorkflowSnapshot): boolean {
+function isGraphV2(raw: GcWorkflowSnapshot): boolean {
   const root = raw.root ?? firstBead(raw);
   const candidates = [
     raw.contract,
@@ -130,7 +128,7 @@ function isGraphV2(raw: RawWorkflowSnapshot): boolean {
   return candidates.some((value) => value === 'graph.v2');
 }
 
-function firstBead(raw: RawWorkflowSnapshot): RawWorkflowBead | undefined {
+function firstBead(raw: GcWorkflowSnapshot): GcWorkflowBead | undefined {
   return Array.isArray(raw.beads) ? raw.beads[0] : undefined;
 }
 
@@ -139,8 +137,8 @@ function parseScopeKind(raw: string | undefined): WorkflowScopeKind {
 }
 
 function workflowFormula(
-  raw: RawWorkflowSnapshot,
-  root: RawWorkflowBead,
+  raw: GcWorkflowSnapshot,
+  root: GcWorkflowBead,
 ): string | null {
   return (
     nonEmpty(raw.formula) ??
@@ -152,9 +150,9 @@ function workflowFormula(
 }
 
 function resolveRawExecutionPath(
-  raw: RawWorkflowSnapshot,
-  root: RawWorkflowBead,
-  beads: RawWorkflowBead[],
+  raw: GcWorkflowSnapshot,
+  root: GcWorkflowBead,
+  beads: GcWorkflowBead[],
   rigRoot?: string,
 ): string | null {
   const candidates = [
@@ -178,9 +176,9 @@ function resolveRawExecutionPath(
   return candidates.find((candidate) => candidate !== undefined) ?? null;
 }
 
-function dedupeBeads(beads: RawWorkflowBead[]): RawWorkflowBead[] {
+function dedupeBeads(beads: GcWorkflowBead[]): GcWorkflowBead[] {
   const seen = new Set<string>();
-  const out: RawWorkflowBead[] = [];
+  const out: GcWorkflowBead[] = [];
   for (const bead of beads) {
     const id = nonEmpty(bead.id);
     if (id) {
@@ -193,7 +191,7 @@ function dedupeBeads(beads: RawWorkflowBead[]): RawWorkflowBead[] {
 }
 
 function groupBeads(
-  beads: RawWorkflowBead[],
+  beads: GcWorkflowBead[],
   rootBeadId: string,
 ): {
   groups: Group[];
@@ -302,7 +300,7 @@ function buildDisplayNode(
 
 function buildExecutionInstance(
   semanticNodeId: string,
-  bead: RawWorkflowBead,
+  bead: GcWorkflowBead,
   index: number,
 ): WorkflowExecutionInstance {
   const beadId = nonEmpty(bead.id);
@@ -324,7 +322,7 @@ function buildExecutionInstance(
 }
 
 function buildEdges(
-  deps: RawWorkflowDep[],
+  deps: GcWorkflowDep[],
   physicalToSemantic: Map<string, string>,
   nodes: WorkflowDisplayNode[],
 ): WorkflowDisplayEdge[] {
@@ -364,7 +362,7 @@ function buildLanes(nodes: WorkflowDisplayNode[]): WorkflowDisplayLane[] {
   return [...byScope.values()];
 }
 
-function semanticNodeIdFor(bead: RawWorkflowBead, rootBeadId: string): string {
+function semanticNodeIdFor(bead: GcWorkflowBead, rootBeadId: string): string {
   const beadId = nonEmpty(bead.id);
   if (beadId && beadId === rootBeadId) return rootBeadId;
   const explicit = meta(bead, 'gc.logical_bead_id') ?? nonEmpty(bead.logical_bead_id);
@@ -381,7 +379,7 @@ function semanticNodeIdFor(bead: RawWorkflowBead, rootBeadId: string): string {
 }
 
 function hiddenBadgeTarget(
-  bead: RawWorkflowBead,
+  bead: GcWorkflowBead,
   rootBeadId: string,
 ): string | null {
   const kind = constructKindFor(bead, rootBeadId);
@@ -394,7 +392,7 @@ function hiddenBadgeTarget(
 }
 
 function constructKindFor(
-  bead: RawWorkflowBead,
+  bead: GcWorkflowBead,
   rootBeadId: string,
 ): WorkflowConstructKind {
   const beadId = nonEmpty(bead.id);
@@ -431,7 +429,7 @@ function constructKindFor(
   }
 }
 
-function rawKind(bead: RawWorkflowBead): string {
+function rawKind(bead: GcWorkflowBead): string {
   return (
     meta(bead, 'gc.kind') ??
     meta(bead, 'gc.original_kind') ??
@@ -441,7 +439,7 @@ function rawKind(bead: RawWorkflowBead): string {
 }
 
 function externalKind(
-  bead: RawWorkflowBead,
+  bead: GcWorkflowBead,
   constructKind: WorkflowConstructKind,
 ): string {
   if (constructKind === 'check-loop') return 'check-loop';
@@ -469,7 +467,7 @@ function isConstructKind(
   );
 }
 
-function presentationStatus(bead: RawWorkflowBead): WorkflowNodeStatus {
+function presentationStatus(bead: GcWorkflowBead): WorkflowNodeStatus {
   const raw = nonEmpty(bead.status) ?? '';
   const outcome = meta(bead, 'gc.outcome');
   if (raw === 'closed' || raw === 'completed' || raw === 'done') {
@@ -519,7 +517,7 @@ function compareExecutionInstances(
   );
 }
 
-function attemptBadgeFor(beads: RawWorkflowBead[]): string | undefined {
+function attemptBadgeFor(beads: GcWorkflowBead[]): string | undefined {
   const maxAttempts = beads
     .map((bead) => meta(bead, 'gc.max_attempts'))
     .find((value) => value !== undefined);
@@ -551,7 +549,7 @@ function instanceLabel(
 }
 
 function sessionLinkFor(
-  bead: RawWorkflowBead,
+  bead: GcWorkflowBead,
   status: WorkflowNodeStatus,
 ): WorkflowSessionLink | null {
   if (!isRunningStatus(status) && status !== 'completed' && status !== 'done') {
@@ -577,7 +575,7 @@ function sessionLinkFor(
   };
 }
 
-function displayTitle(bead: RawWorkflowBead, fallback: string): string {
+function displayTitle(bead: GcWorkflowBead, fallback: string): string {
   return nonEmpty(bead.title) ?? fallback.replace(/[-_]/g, ' ');
 }
 
@@ -592,7 +590,7 @@ function badgeLabelFor(kind: WorkflowConstructKind): string {
   }
 }
 
-function loopControlNodeId(bead: RawWorkflowBead): string | undefined {
+function loopControlNodeId(bead: GcWorkflowBead): string | undefined {
   const ref = normalizedStepRef(bead);
   if (!ref || !ref.includes('.iteration.')) return undefined;
   const parent = ref.slice(0, ref.indexOf('.iteration.'));
@@ -601,7 +599,7 @@ function loopControlNodeId(bead: RawWorkflowBead): string | undefined {
   return last ? externalizeId(last) : undefined;
 }
 
-function iterationFor(bead: RawWorkflowBead): number | undefined {
+function iterationFor(bead: GcWorkflowBead): number | undefined {
   return (
     numericMeta(bead, 'gc.iteration') ??
     numericRefSegment(bead, 'iteration') ??
@@ -609,7 +607,7 @@ function iterationFor(bead: RawWorkflowBead): number | undefined {
   );
 }
 
-function attemptFor(bead: RawWorkflowBead): number | undefined {
+function attemptFor(bead: GcWorkflowBead): number | undefined {
   return (
     numericMeta(bead, 'gc.attempt') ??
     numericField(bead.attempt) ??
@@ -617,7 +615,7 @@ function attemptFor(bead: RawWorkflowBead): number | undefined {
   );
 }
 
-function normalizedStepRef(bead: RawWorkflowBead): string | null {
+function normalizedStepRef(bead: GcWorkflowBead): string | null {
   const ref =
     meta(bead, 'gc.step_ref') ??
     meta(bead, 'step_ref') ??
@@ -626,7 +624,7 @@ function normalizedStepRef(bead: RawWorkflowBead): string | null {
 }
 
 function numericRefSegment(
-  bead: RawWorkflowBead,
+  bead: GcWorkflowBead,
   marker: string,
 ): number | undefined {
   const ref = normalizedStepRef(bead);
@@ -640,7 +638,7 @@ function numericRefSegment(
   return undefined;
 }
 
-function numericMeta(bead: RawWorkflowBead, key: string): number | undefined {
+function numericMeta(bead: GcWorkflowBead, key: string): number | undefined {
   return numericField(meta(bead, key));
 }
 
@@ -651,7 +649,7 @@ function numericField(value: unknown): number | undefined {
   return Number.isFinite(parsed) ? parsed : undefined;
 }
 
-function meta(bead: RawWorkflowBead | undefined, key: string): string | undefined {
+function meta(bead: GcWorkflowBead | undefined, key: string): string | undefined {
   const value = bead?.metadata?.[key];
   if (typeof value === 'string') return nonEmpty(value);
   if (typeof value === 'number' || typeof value === 'boolean') {

@@ -1,10 +1,10 @@
-import { useEffect, useState } from 'react';
 import type {
   WorkflowDiffResponse,
   WorkflowRunDetail,
   WorkflowScopeKind,
 } from 'gas-city-dashboard-shared';
 import { api } from '../api/client';
+import { useCachedData } from './useCachedData';
 
 interface WorkflowRunDetailState {
   detail: WorkflowRunDetail | null;
@@ -17,53 +17,54 @@ export function useWorkflowRunDetail(
   workflowId: string | undefined,
   scopeKind?: WorkflowScopeKind,
   scopeRef?: string,
-): WorkflowRunDetailState {
-  const [state, setState] = useState<WorkflowRunDetailState>({
-    detail: null,
-    diff: null,
-    loading: true,
-    error: null,
-  });
+): WorkflowRunDetailState & { refresh: () => Promise<void> } {
+  const key = workflowRunDetailCacheKey(workflowId, scopeKind, scopeRef);
+  const { data, loading, error, refresh } = useCachedData(key, () =>
+    loadWorkflowRunDetail(workflowId, scopeKind, scopeRef),
+  );
 
-  useEffect(() => {
-    if (!workflowId) {
-      setState({ detail: null, diff: null, loading: false, error: 'Missing workflow id.' });
-      return;
-    }
-    let cancelled = false;
-    setState((current) => ({ ...current, loading: true, error: null }));
-    const params = { scopeKind, scopeRef };
-    Promise.all([
-      api.workflowRun(workflowId, params),
-      api.workflowDiff(workflowId, params).catch((err: unknown) => ({
-        kind: 'error',
-        rootPath: null,
-        status: [],
-        changedFiles: [],
-        unstagedDiff: '',
-        stagedDiff: '',
-        truncated: false,
-        error: err instanceof Error ? err.message : 'Failed to load diff.',
-      } satisfies WorkflowDiffResponse)),
-    ]).then(
-      ([detail, diff]) => {
-        if (!cancelled) setState({ detail, diff, loading: false, error: null });
-      },
-      (err: unknown) => {
-        if (!cancelled) {
-          setState({
-            detail: null,
-            diff: null,
-            loading: false,
-            error: err instanceof Error ? err.message : 'Failed to load workflow.',
-          });
-        }
-      },
-    );
-    return () => {
-      cancelled = true;
-    };
-  }, [workflowId, scopeKind, scopeRef]);
+  return {
+    detail: data?.detail ?? null,
+    diff: data?.diff ?? null,
+    loading,
+    error,
+    refresh,
+  };
+}
 
-  return state;
+async function loadWorkflowRunDetail(
+  workflowId: string | undefined,
+  scopeKind?: WorkflowScopeKind,
+  scopeRef?: string,
+): Promise<Pick<WorkflowRunDetailState, 'detail' | 'diff'>> {
+  if (!workflowId) throw new Error('Missing workflow id.');
+  const params = { scopeKind, scopeRef };
+  const [detail, diff] = await Promise.all([
+    api.workflowRun(workflowId, params),
+    api.workflowDiff(workflowId, params).catch((err: unknown) => ({
+      kind: 'error',
+      rootPath: null,
+      status: [],
+      changedFiles: [],
+      unstagedDiff: '',
+      stagedDiff: '',
+      truncated: false,
+      error: err instanceof Error ? err.message : 'Failed to load diff.',
+    } satisfies WorkflowDiffResponse)),
+  ]);
+  return { detail, diff };
+}
+
+function workflowRunDetailCacheKey(
+  workflowId: string | undefined,
+  scopeKind?: WorkflowScopeKind,
+  scopeRef?: string,
+): string {
+  const parts = [
+    'workflow-run',
+    workflowId ?? 'missing',
+    scopeKind ?? 'default',
+    scopeRef ?? 'default',
+  ];
+  return parts.join(':');
 }

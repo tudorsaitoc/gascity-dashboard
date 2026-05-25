@@ -30,6 +30,9 @@ export function eventsRouter(opts: EventsRouterOptions): Router {
   const heartbeatMs = opts.heartbeatMs ?? DEFAULT_HEARTBEAT_MS;
 
   router.get('/stream', async (req: Request, res: Response) => {
+    // EventSource sends Last-Event-ID automatically on reconnect. The
+    // existing FE hook also passes ?after= explicitly; accept both, prefer
+    // the header (set by the browser without the FE having to manage it).
     const upstream = new URL(
       `${opts.supervisorUrl}/v0/city/${encodeURIComponent(opts.cityName)}/events/stream`,
     );

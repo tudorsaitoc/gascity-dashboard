@@ -30,8 +30,10 @@ export function WorkflowRunNode({ node, selected, onToggle }: WorkflowRunNodePro
       type="button"
       aria-pressed={selected}
       onClick={() => onToggle(node.id)}
-      className={`focus-mark w-full text-left px-4 py-3 border bg-transparent ${shapeClass} ${
-        selected ? 'border-accent shadow-[inset_3px_0_0_oklch(var(--accent))]' : 'border-rule'
+      className={`focus-mark w-full text-left px-4 py-3 bg-transparent transition-colors duration-150 ease-out-quart ${shapeClass} ${
+        selected
+          ? 'text-fg border-accent bg-surface-tint'
+          : 'text-fg border-rule hover:border-fg-faint hover:bg-surface-tint'
       }`}
     >
       <div className="flex items-start justify-between gap-3">
@@ -46,6 +48,11 @@ export function WorkflowRunNode({ node, selected, onToggle }: WorkflowRunNodePro
           {statusGlyph(node.status)} {STATUS_LABEL[node.status]}
         </span>
       </div>
+      {selected && (
+        <p className="mt-2 text-label uppercase tracking-wider text-accent">
+          selected
+        </p>
+      )}
       {history && (
         <p className="mt-2 text-label uppercase tracking-wider text-fg-faint tnum">
           stacked history: {history}
@@ -70,20 +77,20 @@ export function WorkflowRunNode({ node, selected, onToggle }: WorkflowRunNodePro
 function shapeClassFor(node: WorkflowDisplayNode): string {
   switch (node.constructKind) {
     case 'workflow-root':
-      return 'rounded-[3px] border-4';
+      return 'rounded-[3px] border-2';
     case 'retry':
-      return 'rounded-full border-double';
+      return 'rounded-full border-2 border-double';
     case 'check-loop':
-      return 'rounded-l-full rounded-r-[4px] border-double';
+      return 'rounded-l-full rounded-r-[4px] border-2 border-double';
     case 'scope':
-      return 'rounded-md border-dashed';
+      return 'rounded-md border border-dashed';
     case 'condition':
-      return 'rounded-[18px_4px] border-dashed';
+      return 'rounded-[18px_4px] border border-dashed';
     case 'fanout':
     case 'expansion':
-      return 'rounded-md border-dashed';
+      return 'rounded-md border border-dashed';
     default:
-      return 'rounded-[3px]';
+      return 'rounded-[3px] border';
   }
 }
 

@@ -4,6 +4,7 @@ import type {
   GcBeadList,
   GcMailList,
   GcEventList,
+  GcWorkflowSnapshot,
   TranscriptTurn,
   WorkflowScopeKind,
 } from 'gas-city-dashboard-shared';
@@ -208,12 +209,12 @@ export class GcClient {
     workflowId: string,
     signal?: AbortSignal,
     scope?: { scopeKind?: WorkflowScopeKind; scopeRef?: string },
-  ): Promise<unknown> {
+  ): Promise<GcWorkflowSnapshot> {
     const search = new URLSearchParams();
     if (scope?.scopeKind) search.set('scope_kind', scope.scopeKind);
     if (scope?.scopeRef) search.set('scope_ref', scope.scopeRef);
     const qs = search.toString();
-    return this.getJson<unknown>(
+    return this.getJson<GcWorkflowSnapshot>(
       this.cityPath(`/workflow/${encodeURIComponent(workflowId)}${qs.length > 0 ? `?${qs}` : ''}`),
       signal,
     );

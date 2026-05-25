@@ -63,43 +63,62 @@ export function WorkflowNodeSessionPanel({
         )}
       </div>
       {iterationGroups.length > 1 && (
-        <div className="mt-3 flex flex-wrap gap-2" aria-label="Iterations">
+        <div
+          className="mt-3 flex flex-wrap items-baseline gap-x-2 gap-y-1 text-label"
+          role="radiogroup"
+          aria-label="Iterations"
+        >
+          <span className="uppercase tracking-wider text-fg-faint">Iterations</span>
           {iterationGroups.map((group) => {
             const instance = group.instances.at(-1);
             if (!instance) return null;
             const label = group.iteration === null ? 'Base' : `Iteration ${group.iteration}`;
+            const active = group.iteration === selectedIteration;
             return (
-              <button
-                key={label}
-                type="button"
-                className={`focus-mark text-label uppercase tracking-wider border px-2 py-1 ${
-                  group.iteration === selectedIteration
-                    ? 'border-accent text-fg'
-                    : 'border-rule text-fg-muted'
-                }`}
-                onClick={() => setSelectedKey(instanceKey(instance))}
-              >
-                {label}
-              </button>
+              <span key={label} className="flex items-baseline gap-1">
+                <span aria-hidden className="text-fg-faint">·</span>
+                <button
+                  type="button"
+                  role="radio"
+                  aria-checked={active}
+                  className={`focus-mark rounded-sm px-0.5 uppercase tracking-wider ${
+                    active
+                      ? 'text-fg font-semibold underline decoration-fg underline-offset-4'
+                      : 'text-fg-muted hover:text-fg'
+                  }`}
+                  onClick={() => setSelectedKey(instanceKey(instance))}
+                >
+                  {label}
+                </button>
+              </span>
             );
           })}
         </div>
       )}
       {attempts.length > 1 && (
-        <div className="mt-2 flex flex-wrap gap-2" aria-label="Attempts">
+        <div
+          className="mt-2 flex flex-wrap items-baseline gap-x-2 gap-y-1 text-label"
+          role="radiogroup"
+          aria-label="Attempts"
+        >
+          <span className="uppercase tracking-wider text-fg-faint">Attempts</span>
           {attempts.map((instance) => (
-            <button
-              key={instanceKey(instance)}
-              type="button"
-              className={`focus-mark text-label uppercase tracking-wider border px-2 py-1 ${
-                instanceKey(instance) === instanceKey(selected)
-                  ? 'border-accent text-fg'
-                  : 'border-rule text-fg-muted'
-              }`}
-              onClick={() => setSelectedKey(instanceKey(instance))}
-            >
-              Attempt {instance.attempt ?? 1}
-            </button>
+            <span key={instanceKey(instance)} className="flex items-baseline gap-1">
+              <span aria-hidden className="text-fg-faint">·</span>
+              <button
+                type="button"
+                role="radio"
+                aria-checked={instanceKey(instance) === instanceKey(selected)}
+                className={`focus-mark rounded-sm px-0.5 uppercase tracking-wider ${
+                  instanceKey(instance) === instanceKey(selected)
+                    ? 'text-fg font-semibold underline decoration-fg underline-offset-4'
+                    : 'text-fg-muted hover:text-fg'
+                }`}
+                onClick={() => setSelectedKey(instanceKey(instance))}
+              >
+                Attempt {instance.attempt ?? 1}
+              </button>
+            </span>
           ))}
         </div>
       )}

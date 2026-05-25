@@ -202,7 +202,7 @@ describe('WorkflowRunDetailPage', () => {
     fireEvent.click(screen.getByRole('button', { name: /codex review/i }));
     await screen.findByText(/working on iteration 2/i);
 
-    fireEvent.click(screen.getByRole('button', { name: /iteration 1/i }));
+    fireEvent.click(screen.getByRole('radio', { name: /iteration 1/i }));
     await screen.findByText(/finished iteration 1/i);
     expect(screen.getByText(/historical/i)).toBeTruthy();
   });

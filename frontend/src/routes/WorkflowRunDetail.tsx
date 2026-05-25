@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Link, useParams, useSearchParams } from 'react-router-dom';
 import type { WorkflowDisplayNode, WorkflowScopeKind } from 'gas-city-dashboard-shared';
+import { Button } from '../components/Button';
 import { PageHeader } from '../components/PageHeader';
 import { WorkflowRunDiagram } from '../components/workflow/WorkflowRunDiagram';
 import { WorkflowRunTabs } from '../components/workflow/WorkflowRunTabs';
@@ -12,7 +13,7 @@ export function WorkflowRunDetailPage() {
   const scopeKind = parseScopeKind(search.get('scope_kind'));
   const scopeRef = search.get('scope_ref') ?? undefined;
   const initialNodeId = search.get('node');
-  const { detail, diff, loading, error } = useWorkflowRunDetail(
+  const { detail, diff, loading, error, refresh } = useWorkflowRunDetail(
     workflowId,
     scopeKind,
     scopeRef,
@@ -68,6 +69,9 @@ export function WorkflowRunDetailPage() {
                 v{detail.snapshotVersion}
               </span>
             )}
+            <Button size="sm" onClick={() => void refresh()} disabled={loading}>
+              {loading ? 'Refreshing' : 'Refresh'}
+            </Button>
           </>
         }
       />

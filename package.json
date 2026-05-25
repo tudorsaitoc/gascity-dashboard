@@ -18,7 +18,7 @@
     "lint": "eslint . --max-warnings=0",
     "start": "node backend/dist/server.js",
     "typecheck": "npm run typecheck:src && npm run typecheck:test",
-    "typecheck:src": "npm --workspace shared run typecheck && npm --workspace backend run typecheck && npm --workspace frontend run typecheck",
+    "typecheck:src": "npm --workspace shared run typecheck && npm run build:shared && npm --workspace backend run typecheck && npm --workspace frontend run typecheck",
     "typecheck:test": "npm --workspace backend run typecheck:test && npm --workspace frontend run typecheck:test"
   },
   "engines": {
