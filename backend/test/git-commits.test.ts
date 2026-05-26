@@ -5,7 +5,6 @@ import os from 'node:os';
 import path from 'node:path';
 import type { AddressInfo } from 'node:net';
 import express from 'express';
-import type { ExecResult } from '../src/exec.js';
 import { ExecError } from '../src/exec.js';
 import { gitRouter } from '../src/routes/git.js';
 import type { GitRouterOptions } from '../src/routes/git.js';

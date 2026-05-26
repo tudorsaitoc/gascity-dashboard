@@ -1,4 +1,4 @@
-import { ExecError } from '../exec.js';
+import type { ExecError } from '../exec.js';
 
 // gascity-dashboard-uza: the two error-redaction shapes that wave-473 +
 // ayr/sr6 spread across ~12 catch arms in the route files
