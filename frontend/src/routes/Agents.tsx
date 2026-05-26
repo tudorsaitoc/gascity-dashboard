@@ -431,4 +431,3 @@ export function buildSynopsis(rows: ReadonlyArray<GcSession>): string {
   if (stuck > 0) parts.push(`${stuck} stuck`);
   return parts.join(', ') + '.';
 }
-

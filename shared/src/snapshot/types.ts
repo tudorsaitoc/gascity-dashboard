@@ -37,6 +37,7 @@ export interface DashboardSnapshot {
 }
 
 export interface DashboardRuntimeConfig {
+  cityName: string;
   cityRoot: string;
   githubRepo: string;
   useFixtures: boolean;
@@ -275,6 +276,9 @@ export interface WorkflowLane {
   id: string;
   title: string;
   formula: string | null;
+  scopeKind?: 'city' | 'rig' | null;
+  scopeRef?: string | null;
+  rootStoreRef?: string | null;
   externalUrl: string | null;
   externalLabel: string | null;
   phase: WorkflowPhase;

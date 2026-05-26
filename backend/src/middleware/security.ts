@@ -7,6 +7,8 @@ import type { Request, Response, NextFunction } from 'express';
 // '192.168.1.58') are added at runtime via hostHeaderAllowlistFactory() —
 // see td-9u9im9 for the headless-VM workflow this supports.
 const ALLOWED_HOSTS_FLOOR: ReadonlyArray<string> = ['127.0.0.1', 'localhost'];
+const THEME_BOOT_SCRIPT_HASH =
+  "'sha256-UwUdbc/TSVCB3Er6sM8M1BP5Fk3RrQVkswCUvEjf08g='";
 
 function hostnameOnly(host: string | undefined): string | null {
   if (!host) return null;
@@ -65,7 +67,7 @@ export function securityHeaders(extraConnectSrc: ReadonlyArray<string> = []) {
   const connectSrc = ["'self'", ...extraConnectSrc].join(' ');
   const csp = [
     "default-src 'self'",
-    "script-src 'self'",
+    `script-src 'self' ${THEME_BOOT_SCRIPT_HASH}`,
     "style-src 'self' 'unsafe-inline'",
     "img-src 'self' data:",
     `connect-src ${connectSrc}`,

@@ -14,17 +14,25 @@ Rejected alternatives:
 - **Go** — wrong coupling direction (admin tool shouldn't carry gc-the-orchestrator's lang dep).
 - **Direct-from-frontend (no backend)** — doesn't work; peek + git + system-health need shell-exec.
 
-## Real-time: direct EventSource against gc (Phase C — ✅ shipped)
+## Real-time: same-origin SSE proxy (Phase C — ✅ shipped)
 
-Architect addendum **td-wisp-ijk7g** (mechanic td-wisp-e1v14) corrected the earlier reading: `/v0/city/{name}/events/stream` IS SSE today (the `/stream` suffix; the previous probe missed it). gc supervisor also serves a permissive CORS policy that echoes the request `Origin`, so the browser can `new EventSource(...)` directly against it.
+Architect addendum **td-wisp-ijk7g** (mechanic td-wisp-e1v14) corrected the earlier reading: `/v0/city/{name}/events/stream` IS SSE today (the `/stream` suffix; the previous probe missed it). The dashboard now proxies supervisor SSE through the backend instead of opening the supervisor origin directly from the browser.
 
-What this collapses:
+Why same-origin wins here:
 
-- No backend cursor-poll indirection.
-- No backend-emitted SSE wrapper.
-- `frontend/src/hooks/useGcEvents.ts::useGcEventRefresh(prefixes, onMatch)` opens an `EventSource` directly against `http://127.0.0.1:8372/v0/city/<GC_CITY_NAME>/events/stream`, with `?after=<lastEventId>` for resume on reconnect, and exponential-backoff retry capped at 30 s.
-- The backend exposes `/api/config/gc-supervisor` so the frontend gets the supervisor URL from one source of truth (no hardcoding in two places).
-- Agents page subscribes to `session.*` events → table refreshes live. Beads page subscribes to `bead.*` events → table refreshes live. Both pages show a small `live` / `connecting` / `offline` pill so the SSE state is visible.
+- CSP stays simple: browser `connect-src` remains `self`.
+- Remote/SSH-forwarded development needs one browser-visible port, not dashboard plus supervisor.
+- EventSource can send cookies but cannot attach custom CSRF headers; keeping streams as GET-only same-origin routes preserves the existing Origin/Host defenses without special frontend CORS paths.
+- City events and per-session streams share one backend proxy helper (`backend/src/routes/sse-proxy.ts`) for upstream fetch, heartbeat, backpressure, disconnect cleanup, and `Last-Event-ID` forwarding.
+
+Current flow:
+
+- `frontend/src/hooks/useGcEvents.ts::useGcEventRefresh(prefixes, onMatch)` opens `EventSource('/api/events/stream')`.
+- `backend/src/routes/events.ts` proxies `/api/events/stream` to `/v0/city/{name}/events/stream`.
+- `frontend/src/hooks/useSessionStream.ts` opens `EventSource('/api/sessions/:id/stream')` only for active selected workflow-node sessions and exposes live/connecting/closed state to the workflow session panel.
+- `backend/src/routes/session-stream.ts` proxies that stream to `/v0/city/{name}/session/{id}/stream`.
+- The browser forwards `Last-Event-ID` automatically on reconnect; the backend proxy also accepts explicit `?after=` and forwards the cursor upstream.
+- Agents, Beads, and Workflows subscribe to matching event prefixes and refresh their cached data. Workflows route event-driven refreshes through `/api/snapshot/refresh` so it bypasses the snapshot TTL.
 - Belt-and-braces still applies: every panel has a manual Refresh button for the tab-sleep / laptop-close case.
 
 ## Activity + Health (Phase C — ✅ shipped)

@@ -1,6 +1,6 @@
 # gas-city-dashboard
 
-An editorial-typographic ambient dashboard for a single [Gas City](https://github.com/gastownhall/gascity) (`gc`) operator. Five views — Agents, Beads, Mail, Activity, Health — laid out as a thoughtfully-set page rather than a wall of cards. The room is calm by default; the only thing that earns the eye is something going wrong.
+An editorial-typographic ambient dashboard for a single [Gas City](https://github.com/gastownhall/gascity) (`gc`) operator. Six views — Agents, Beads, Workflows, Mail, Activity, Health — laid out as a thoughtfully-set page rather than a wall of cards. The room is calm by default; the only thing that earns the eye is something going wrong.
 
 The shape is forked from [Wldc4rd/citadel](https://github.com/Wldc4rd/citadel) (MIT, Charlie Coutts) which solved the orchestrator-tab problem first. The visual register is a full redesign, driven through [impeccable](https://impeccable.style/) with the design context captured in [`PRODUCT.md`](PRODUCT.md) and [`DESIGN.md`](DESIGN.md).
 
@@ -8,6 +8,7 @@ The shape is forked from [Wldc4rd/citadel](https://github.com/Wldc4rd/citadel) (
 
 - **Agents** — every session's state at a glance, with a Peek modal for `gc session peek` snapshots.
 - **Beads** — engineering work in `gc bd` (system noise filtered by default), with inline claim / close / nudge and click-to-filter label chips.
+- **Workflows** — active formula runs, with graph.v2 run details, node session transcripts, and current execution-folder git diffs.
 - **Mail** — read any agent's inbox via a persistent "Reading as" strip. Sends always go from the operator; impersonation is read-only.
 - **Activity** — recent commits and the dev-deploy log, with view tabs (recent · main / recent · all / 24h / 7d). Live updates via SSE from the supervisor.
 - **Health** — supervisor state, host memory + load, admin process stats, plus a 24-hour dolt-noms trend sparkline.
@@ -41,6 +42,15 @@ node backend/dist/server.js     # serves API + frontend on :8081
 
 For systemd-managed install: [`deploy/README.md`](deploy/README.md).
 
+## Quality gates
+
+```bash
+npm run lint       # ESLint, zero warnings allowed
+npm run typecheck  # source + test TypeScript checks
+npm --workspace frontend test
+npm --workspace backend test
+```
+
 ## Configuration
 
 All knobs are environment variables. See [`backend/src/config.ts`](backend/src/config.ts) for the authoritative list.
@@ -51,7 +61,7 @@ All knobs are environment variables. See [`backend/src/config.ts`](backend/src/c
 | `HOST` | `127.0.0.1` | Bind interface. Set `0.0.0.0` for LAN access on a trusted network. |
 | `ADMIN_EXTRA_ALLOWED_HOSTS` | (empty) | CSV of extra hostnames allowed in the `Host:` header (e.g. `my-vm,192.168.1.58`). The floor `127.0.0.1` / `localhost` is always allowed. |
 | `GC_SUPERVISOR_URL` | `http://127.0.0.1:8372` | gc supervisor API base URL. |
-| `GC_CITY_NAME` | `gas-city` | Name of the city this dashboard manages. One dashboard per city. |
+| `GC_CITY_NAME` | `racoon-city` | Name of the city this dashboard manages. One dashboard per city. |
 | `ADMIN_AUDIT_LOG_PATH` | `$HOME/.gc/events.jsonl` | Where state-changing actions append audit entries. |
 | `ADMIN_FRONTEND_DIST` | `../frontend/dist` | Path to built frontend assets. |
 | `ADMIN_GIT_REPO` | `$HOME` | Repo for the Activity view's `git log` queries. |
@@ -72,7 +82,7 @@ Built for **single-operator** use on a **trusted network**.
 - **Host-header allow-list** always permits `127.0.0.1` and `localhost`; LAN names opt in via `ADMIN_EXTRA_ALLOWED_HOSTS`.
 - **CSRF** — state-changing endpoints require a token issued via cookie (double-submit pattern). The CSRF cookie is `gascity_admin_csrf`.
 - **Origin check** — POST/PATCH/DELETE require an `Origin` matching the allowed-host set.
-- **Content Security Policy** — `script-src 'self'`, no inline scripts, no `eval`.
+- **Content Security Policy** — `script-src 'self'` plus a hash for the static theme bootstrap, no arbitrary inline scripts, no `eval`.
 - **Exec whitelist** — every shell-out is enumerated explicitly in [`backend/src/exec.ts`](backend/src/exec.ts). There is no general-purpose command execution path.
 
 Full threat model: [`docs/SECURITY.md`](docs/SECURITY.md).
@@ -96,6 +106,7 @@ gas-city-dashboard/
 │   └── src/{server.ts,middleware,routes,gc-client.ts,exec.ts,audit.ts}
 ├── frontend/                 # React + Vite + Tailwind
 │   └── src/{components,routes,contexts,styles}
+├── specs/plans/              # implementation plans and design specs
 ├── scripts/                  # Playwright snap harness for design iteration
 ├── deploy/                   # systemd unit + install README
 └── docs/                     # ARCHITECTURE, SECURITY, EXTENDING

@@ -10,7 +10,7 @@ The product runs on the operator's host, on `127.0.0.1`, with no auth. That is *
 - **Host header allowlist** (DNS rebinding defense). `middleware/security.ts::hostHeaderAllowlist`. Allowed: `127.0.0.1`, `localhost` (with optional port). Anything else → **HTTP 421 Misdirected Request**.
 - **Origin header check** on state-changing endpoints. Must be `http://127.0.0.1:<port>` or `http://localhost:<port>`. Anything else → **HTTP 403**.
 - **IPv6 posture**: Node's `app.listen('127.0.0.1', …)` binds IPv4 only, so `::1` is naturally refused.
-- **CSP `connect-src` includes the gc supervisor URL.** Phase C wires `EventSource` from the browser directly to `http://127.0.0.1:8372/v0/city/{name}/events/stream`. Different port = different origin, so the supervisor URL must be explicitly enumerated. The middleware factory takes an `extraConnectSrc` array; the server passes `[config.gcSupervisorUrl]` at boot. Anything else attempting to call out from the page fails the CSP — `'self'` covers the dashboard's own API, the extras list covers the supervisor.
+- **CSP `connect-src` is same-origin.** Browser `EventSource` connections go to this dashboard's `/api/events/stream` and `/api/sessions/:id/stream` proxies. The backend opens the upstream supervisor stream from server-side code, so the page does not need direct browser access to `http://127.0.0.1:8372`.
 
 ### Invariants
 
@@ -22,7 +22,7 @@ curl -sX POST -H 'Origin: http://evil.com' http://127.0.0.1:8081/api/sessions/td
 ## Frame / content type
 
 - `X-Frame-Options: DENY`
-- `Content-Security-Policy: default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; object-src 'none'; frame-ancestors 'none'; base-uri 'none'; form-action 'self'`
+- `Content-Security-Policy: default-src 'self'; script-src 'self' 'sha256-...'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'self'; object-src 'none'; frame-ancestors 'none'; base-uri 'none'; form-action 'self'`
 - `X-Content-Type-Options: nosniff`
 - `Referrer-Policy: no-referrer`
 
@@ -49,7 +49,7 @@ Every privileged invocation routes through `backend/src/exec.ts`. **No general-p
 
 - **Param schemas** enforced before any privileged call:
   - Bead id: `^(td|th|jt)-[a-z0-9-]{3,32}$`
-  - Session id: `^(td|th)-[a-z0-9]{3,12}$` (validated in `routes/sessions.ts` before the gc HTTP call)
+  - Session id: `^(gc|td|th|[a-z]{4})-[a-z0-9-]{1,32}$` (case-sensitive, no `/i`; validated via the shared `SESSION_ID_RE` in `lib/sessionId.ts`, used by both the peek and stream routes before the gc HTTP call). The `[a-z]{4}` alternation admits city-scoped prefixes (e.g. `fddc-*`) whose codes are derived per-deployment and can't be enumerated here; the lowercase-only, hyphen-and-alphanumeric body keeps the gate strict.
   - Agent alias: `^[a-z][a-z0-9_./-]{1,63}$`
 - **Spawn options**:
   - `shell: false` — non-negotiable. No `sh -c`, no command injection vectors.

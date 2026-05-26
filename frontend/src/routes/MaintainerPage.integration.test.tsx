@@ -1,6 +1,11 @@
 import { act, cleanup, render, screen, waitFor } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi, type Mock } from 'vitest';
 import { MemoryRouter } from 'react-router-dom';
+import type { MaintainerTriage } from 'gas-city-dashboard-shared';
+import { api } from '../api/client';
+import { invalidateKey } from '../api/cache';
+import { ViewingAsProvider } from '../contexts/ViewingAsContext';
+import { MaintainerPage } from './Maintainer';
 
 // gascity-dashboard-ppe: end-to-end pin of the dual-intent dispatch
 // contract on MaintainerPage. The bar-level unit tests in
@@ -36,17 +41,6 @@ vi.mock('../api/client', () => ({
   },
   ApiClientError: class extends Error {},
 }));
-
-// eslint-disable-next-line import/first
-import { api } from '../api/client';
-// eslint-disable-next-line import/first
-import { invalidateKey } from '../api/cache';
-// eslint-disable-next-line import/first
-import { MaintainerPage } from './Maintainer';
-// eslint-disable-next-line import/first
-import { ViewingAsProvider } from '../contexts/ViewingAsContext';
-// eslint-disable-next-line import/first
-import type { MaintainerTriage } from 'gas-city-dashboard-shared';
 
 const mockTriage = api.maintainerTriage as Mock;
 const mockSling = api.maintainerSling as Mock;
@@ -153,7 +147,7 @@ afterEach(() => {
 
 function mount() {
   return render(
-    <MemoryRouter>
+    <MemoryRouter future={{ v7_relativeSplatPath: true, v7_startTransition: true }}>
       <ViewingAsProvider>
         <MaintainerPage />
       </ViewingAsProvider>

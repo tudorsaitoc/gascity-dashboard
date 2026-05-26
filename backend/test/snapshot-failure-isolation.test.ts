@@ -151,8 +151,9 @@ function sabotageCache(cache: SourceCache<unknown>, message: string): void {
 function buildService(caches: SourceCacheMap): SnapshotService {
   return createSnapshotService({
     caches,
-    config: {
-      cityRoot: '/tmp/test-city',
+	    config: {
+	      cityName: 'test-city',
+	      cityRoot: '/tmp/test-city',
       githubRepo: 'test-org/test-repo',
       useFixtures: false,
     },

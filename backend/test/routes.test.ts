@@ -211,7 +211,7 @@ describe('routes: upstream timeout -> HTTP 504', () => {
     app.use('/api/sessions', sessionsRouter(gc, { sessionsTimeoutMs: 500 }));
     const { url, close } = await startApp(app);
     try {
-      const res = await fetch(`${url}/api/sessions/gc-peek/peek`, {
+      const res = await fetch(`${url}/api/sessions/gc-session-b/peek`, {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
         body: '{}',

@@ -31,7 +31,7 @@ function hasNormalisedText(needle: RegExp) {
 
 function renderBar(props: Partial<React.ComponentProps<typeof SelectionActionBar>> = {}) {
   return render(
-    <MemoryRouter>
+    <MemoryRouter future={{ v7_relativeSplatPath: true, v7_startTransition: true }}>
       <SelectionActionBar
         count={props.count ?? 2}
         onSend={props.onSend ?? (() => {})}
@@ -187,7 +187,7 @@ describe('SlungLink — inline workflow link for slung items', () => {
 
   it('renders nothing when item.slung is null', () => {
     const { container } = render(
-      <MemoryRouter>
+      <MemoryRouter future={{ v7_relativeSplatPath: true, v7_startTransition: true }}>
         <SlungLink item={{ slung: null }} />
       </MemoryRouter>,
     );
@@ -200,7 +200,7 @@ describe('SlungLink — inline workflow link for slung items', () => {
     // to /agents/chief-of-staff (role label) and 404ing because
     // AgentDetail strict-matches against session_name / alias / id.
     const { container } = render(
-      <MemoryRouter>
+      <MemoryRouter future={{ v7_relativeSplatPath: true, v7_startTransition: true }}>
         <SlungLink
           item={{
             slung: {
@@ -223,7 +223,7 @@ describe('SlungLink — inline workflow link for slung items', () => {
 
   it('title attribute carries the target role label so the operator knows where it routed', () => {
     const { container } = render(
-      <MemoryRouter>
+      <MemoryRouter future={{ v7_relativeSplatPath: true, v7_startTransition: true }}>
         <SlungLink
           item={{
             slung: {
@@ -251,7 +251,7 @@ describe('SlungLink — inline workflow link for slung items', () => {
   // the null case.
   it('renders inline "no session" error (no link) when resolved_session_name contains "/"', () => {
     const { container } = render(
-      <MemoryRouter>
+      <MemoryRouter future={{ v7_relativeSplatPath: true, v7_startTransition: true }}>
         <SlungLink
           item={{
             slung: {
@@ -286,7 +286,7 @@ describe('SlungLink — inline workflow link for slung items', () => {
 
   it('renders inline "no session" error when resolved_session_name is null', () => {
     const { container } = render(
-      <MemoryRouter>
+      <MemoryRouter future={{ v7_relativeSplatPath: true, v7_startTransition: true }}>
         <SlungLink
           item={{
             slung: {
@@ -310,7 +310,7 @@ describe('SlungLink — inline workflow link for slung items', () => {
     // Legacy pre-55b on-disk entries don't carry resolved_session_name at all.
     // Treat undefined identically to null — no link, surface the error.
     const { container } = render(
-      <MemoryRouter>
+      <MemoryRouter future={{ v7_relativeSplatPath: true, v7_startTransition: true }}>
         <SlungLink
           item={{
             slung: {
@@ -331,7 +331,7 @@ describe('SlungLink — inline workflow link for slung items', () => {
   // undefined. Loose != null in the component must catch both cases.
   it('renders nothing when item.slung is undefined (stale cache from pre-field build)', () => {
     const { container } = render(
-      <MemoryRouter>
+      <MemoryRouter future={{ v7_relativeSplatPath: true, v7_startTransition: true }}>
         <SlungLink item={{ slung: undefined as unknown as null }} />
       </MemoryRouter>,
     );

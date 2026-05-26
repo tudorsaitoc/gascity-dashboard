@@ -15,6 +15,10 @@ import type {
   ApiError,
   DashboardSnapshot,
   SourceName,
+  DashboardRuntimeConfig,
+  WorkflowDiffResponse,
+  WorkflowRunDetail,
+  WorkflowScopeKind,
 } from 'gas-city-dashboard-shared';
 
 // Typed fetch client for the admin backend's /api/*. Shares types with
@@ -149,6 +153,9 @@ export const api = {
   health(): Promise<{ ok: boolean; ts: string }> {
     return request('GET', '/api/health');
   },
+  config(): Promise<DashboardRuntimeConfig> {
+    return request('GET', '/api/config');
+  },
   listCommits(view: GitView): Promise<GitCommitList> {
     return request('GET', `/api/git/commits?view=${encodeURIComponent(view)}`);
   },
@@ -180,6 +187,23 @@ export const api = {
     const body = sources && sources.length > 0 ? { sources } : {};
     return request('POST', '/api/snapshot/refresh', body);
   },
+  workflowRun(
+    workflowId: string,
+    params?: { scopeKind?: WorkflowScopeKind; scopeRef?: string },
+  ): Promise<WorkflowRunDetail> {
+    const qs = workflowQuery(params);
+    return request('GET', `/api/workflows/${encodeURIComponent(workflowId)}${qs}`);
+  },
+  workflowDiff(
+    workflowId: string,
+    params?: { scopeKind?: WorkflowScopeKind; scopeRef?: string },
+  ): Promise<WorkflowDiffResponse> {
+    const qs = workflowQuery(params);
+    return request('GET', `/api/workflows/${encodeURIComponent(workflowId)}/diff${qs}`);
+  },
+  sessionStreamUrl(id: string): string {
+    return `/api/sessions/${encodeURIComponent(id)}/stream`;
+  },
   maintainerTriage(): Promise<MaintainerTriage> {
     return request('GET', '/api/maintainer/triage');
   },
@@ -202,3 +226,13 @@ export const api = {
     return request('POST', '/api/maintainer/sling', payload);
   },
 };
+
+function workflowQuery(params?: { scopeKind?: WorkflowScopeKind; scopeRef?: string }): string {
+  const search = new URLSearchParams();
+  if (params?.scopeKind && params.scopeRef) {
+    search.set('scope_kind', params.scopeKind);
+    search.set('scope_ref', params.scopeRef);
+  }
+  const qs = search.toString();
+  return qs.length > 0 ? `?${qs}` : '';
+}

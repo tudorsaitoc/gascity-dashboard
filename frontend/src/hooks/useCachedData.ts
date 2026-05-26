@@ -39,6 +39,9 @@ export function useCachedData<T>(
   fetcherRef.current = fetcher;
   const refreshFetcherRef = useRef(options?.refreshFetcher);
   refreshFetcherRef.current = options?.refreshFetcher;
+  const currentKeyRef = useRef(key);
+  currentKeyRef.current = key;
+  const runIdRef = useRef(0);
 
   const [data, setData] = useState<T | undefined>(() => getCached<T>(key));
   const [loading, setLoading] = useState<boolean>(() => getCached<T>(key) === undefined);
@@ -46,16 +49,23 @@ export function useCachedData<T>(
 
   const runFetcher = useCallback(
     async (fetch: () => Promise<T>) => {
+      const runId = runIdRef.current + 1;
+      runIdRef.current = runId;
+      const cacheKey = key;
       setLoading(true);
       setError(null);
       try {
         const fresh = await fetch();
-        setCached(key, fresh);
-        setData(fresh);
+        const isLatestRun = runIdRef.current === runId;
+        const isInactiveKey = currentKeyRef.current !== cacheKey;
+        if (isLatestRun || isInactiveKey) setCached(cacheKey, fresh);
+        if (isLatestRun) setData(fresh);
       } catch (err) {
-        setError(err instanceof Error ? err.message : 'failed to load');
+        if (runIdRef.current === runId) {
+          setError(err instanceof Error ? err.message : 'failed to load');
+        }
       } finally {
-        setLoading(false);
+        if (runIdRef.current === runId) setLoading(false);
       }
     },
     [key],

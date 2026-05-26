@@ -20,6 +20,7 @@ const typeAwareSourceFiles = [
   'shared/src/index.ts',
   'shared/src/snapshot/**/*.ts',
   'shared/src/workflow-detail.ts',
+  'shared/src/workflow-snapshot.ts',
 ];
 
 export default tseslint.config(

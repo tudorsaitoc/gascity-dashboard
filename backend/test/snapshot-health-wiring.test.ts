@@ -97,7 +97,12 @@ function summary(lanes: WorkflowLane[]): WorkflowSummary {
   };
 }
 
-const CONFIG = { cityRoot: '/tmp/x', githubRepo: 'o/r', useFixtures: false };
+const CONFIG = {
+  cityName: 'test-city',
+  cityRoot: '/tmp/x',
+  githubRepo: 'o/r',
+  useFixtures: false,
+};
 
 describe('health engine wiring on /api/snapshot', () => {
   test('enriches each lane with health and computes the census from the shared sessions', async () => {

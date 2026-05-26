@@ -4,6 +4,7 @@
 //   node scripts/snap.mjs            # snap all routes × both themes
 //   node scripts/snap.mjs agents     # snap one route, both themes
 //   node scripts/snap.mjs agents light  # one route, one theme
+//   node scripts/snap.mjs workflows --test  # fail on API/browser errors
 //
 // SSE routes (/agents, /workflows) auto-wait longer so the live-connection
 // badge settles to 'live' before the shot. SNAP_WAIT_MS=<ms> overrides the
@@ -48,8 +49,10 @@ const waitFor = (r) =>
   overrideWaitMs ?? (SSE_ROUTES.has(r) ? SSE_WAIT_MS : DEFAULT_WAIT_MS);
 
 const args = argv.slice(2);
-const route = args[0];
-const theme = args[1];
+const TEST_MODE = args.includes('--test');
+const positional = args.filter((arg) => arg !== '--test');
+const route = positional[0];
+const theme = positional[1];
 
 const wantRoutes = route ? [route] : ROUTES;
 const wantThemes = theme ? [theme] : THEMES;
@@ -66,6 +69,7 @@ if (theme && !THEMES.includes(theme)) {
 await mkdir(OUT, { recursive: true });
 
 const browser = await chromium.launch();
+const results = [];
 try {
   for (const t of wantThemes) {
     const ctx = await browser.newContext({
@@ -85,21 +89,109 @@ try {
       },
     });
     const page = await ctx.newPage();
+    const apiCalls = [];
+    const apiFailures = [];
+    page.on('response', (response) => {
+      const url = new URL(response.url());
+      if (url.pathname.startsWith('/api/')) {
+        apiCalls.push({
+          url: url.toString(),
+          method: response.request().method(),
+          status: response.status(),
+        });
+      }
+    });
+    page.on('requestfailed', (request) => {
+      const url = new URL(request.url());
+      if (url.pathname.startsWith('/api/')) {
+        apiFailures.push({
+          url: url.toString(),
+          method: request.method(),
+          failure: request.failure()?.errorText ?? 'request failed',
+        });
+      }
+    });
+
     for (const r of wantRoutes) {
+      const beforeCalls = apiCalls.length;
+      const beforeFailures = apiFailures.length;
+      const result = { theme: t, route: r, path: null, errors: [], apiCalls: [], apiFailures: [] };
       const url = `${BASE}/${r}`;
-      await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 15_000 });
-      // Wait for the React app to mount + at least one fetch round trip.
-      // Vite dev keeps an HMR socket open so networkidle never fires.
-      await page.waitForSelector('header', { timeout: 5_000 }).catch(() => {});
-      // SSE routes need extra time for the EventSource to reach 'live'; others
-      // keep the short wait. SNAP_WAIT_MS overrides both. See waitFor() above.
-      await page.waitForTimeout(waitFor(r));
-      const path = `${OUT}/${t}-${r}.png`;
-      await page.screenshot({ path, fullPage: false });
-      console.log(`snap ${path}`);
+      try {
+        await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 15_000 });
+        // Wait for the React app to mount + at least one fetch round trip.
+        // Vite dev keeps an HMR socket open so networkidle never fires.
+        await page.waitForSelector('header', { timeout: 5_000 }).catch(() => {});
+        // SSE routes need extra time for the EventSource to reach 'live'; others
+        // keep the short wait. SNAP_WAIT_MS overrides both. See waitFor() above.
+        await page.waitForTimeout(waitFor(r));
+        const path = `${OUT}/${t}-${r}.png`;
+        await page.screenshot({ path, fullPage: false });
+        result.path = path;
+      } catch (err) {
+        result.errors.push(err instanceof Error ? err.message : String(err));
+      }
+      result.apiCalls = apiCalls.slice(beforeCalls);
+      result.apiFailures = apiFailures.slice(beforeFailures);
+      if (TEST_MODE) {
+        recordApiFailures(result);
+      }
+      results.push(result);
     }
     await ctx.close();
   }
 } finally {
   await browser.close();
+}
+
+let hadErrors = false;
+for (const result of results) {
+  if (result.path) console.log(`snap ${result.path}`);
+  if (TEST_MODE) {
+    for (const call of result.apiCalls) {
+      console.log(
+        `[${result.theme}/${result.route}] api ${call.status} ${call.method} ${call.url}`,
+      );
+    }
+    for (const call of result.apiFailures) {
+      console.log(
+        `[${result.theme}/${result.route}] api failed ${call.method} ${call.url} (${call.failure})`,
+      );
+    }
+  }
+  if (result.errors.length > 0) {
+    hadErrors = true;
+    for (const error of result.errors) {
+      console.error(`[${result.theme}/${result.route}] FAIL, ${error}`);
+    }
+  } else if (TEST_MODE) {
+    console.log(`[${result.theme}/${result.route}] PASS`);
+  }
+}
+
+if (hadErrors) {
+  console.error(TEST_MODE ? 'snapshot regression: FAILED' : 'snapshot: FAILED');
+  exit(1);
+}
+
+if (TEST_MODE) {
+  console.log('snapshot regression: PASSED');
+}
+
+function recordApiFailures(result) {
+  const failedApiCalls = result.apiCalls.filter((call) => call.status >= 400);
+  if (failedApiCalls.length > 0) {
+    result.errors.push(
+      `unexpected API failures: ${failedApiCalls
+        .map((call) => `${call.status} ${call.url}`)
+        .join('; ')}`,
+    );
+  }
+  if (result.apiFailures.length > 0) {
+    result.errors.push(
+      `unexpected API request failures: ${result.apiFailures
+        .map((call) => `${call.method} ${call.url} (${call.failure})`)
+        .join('; ')}`,
+    );
+  }
 }

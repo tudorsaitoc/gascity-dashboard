@@ -1,4 +1,5 @@
 import type { WorkflowLane, WorkflowStage } from 'gas-city-dashboard-shared';
+import { Link } from 'react-router-dom';
 import { formatRelative } from '../../hooks/time';
 
 // Per-lane typographic row. No card chrome — vertical rhythm carries the
@@ -50,7 +51,12 @@ export function LaneCard({ lane, now }: LaneCardProps) {
         </span>
       </div>
 
-      <p className="mt-1 text-body text-fg leading-snug">{lane.title}</p>
+      <Link
+        to={workflowDetailHref(lane)}
+        className="focus-mark mt-1 block text-body text-fg leading-snug hover:text-accent"
+      >
+        {lane.title}
+      </Link>
 
       {(lane.externalLabel !== null || lane.formula !== null) && (
         <div className="mt-1 flex items-baseline gap-x-4 gap-y-1 flex-wrap text-label">
@@ -121,6 +127,16 @@ export function LaneCard({ lane, now }: LaneCardProps) {
       </div>
     </li>
   );
+}
+
+function workflowDetailHref(lane: WorkflowLane): string {
+  const search = new URLSearchParams();
+  if (lane.scopeKind && lane.scopeRef) {
+    search.set('scope_kind', lane.scopeKind);
+    search.set('scope_ref', lane.scopeRef);
+  }
+  const qs = search.toString();
+  return `/workflows/${encodeURIComponent(lane.id)}${qs ? `?${qs}` : ''}`;
 }
 
 function statusSortKey(status: string): string {

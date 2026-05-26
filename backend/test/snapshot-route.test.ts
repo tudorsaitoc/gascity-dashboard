@@ -173,6 +173,7 @@ function buildApp(caches: SourceCacheMap): express.Express {
   const service = createSnapshotService({
     caches,
     config: {
+      cityName: 'test-city',
       cityRoot: '/tmp/test-city',
       githubRepo: 'test-org/test-repo',
       useFixtures: false,

@@ -1,6 +1,7 @@
 import { act, cleanup, render } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi, type Mock } from 'vitest';
 import { useEffect } from 'react';
+import { api } from '../api/client';
 import { ViewingAsProvider, useViewingAs } from './ViewingAsContext';
 
 // gascity-dashboard-5gg: bounded retry for /api/sessions in the alias
@@ -26,10 +27,6 @@ vi.mock('../api/client', () => ({
   },
   ApiClientError: class extends Error {},
 }));
-
-// Import the mocked module after the mock so we get the vi.fn() references.
-// eslint-disable-next-line import/first
-import { api } from '../api/client';
 
 const mockListSessions = api.listSessions as Mock;
 const mockListMail = api.listMail as Mock;

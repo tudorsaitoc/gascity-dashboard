@@ -150,6 +150,32 @@ describe('events proxy: GET /api/events/stream', () => {
     }
   });
 
+  test('opens the browser-facing stream before quiet upstream sends an event', async () => {
+    fake.setHandler((_req, _res) => {
+      // Hold the upstream request open without flushing headers. The browser
+      // EventSource should still leave CONNECTING because the dashboard proxy
+      // owns the client-facing stream lifecycle.
+    });
+    const app = buildApp(fake.baseUrl);
+    const { url, close } = await startApp(app);
+    try {
+      const ctrl = new AbortController();
+      const res = await fetch(`${url}/api/events/stream`, { signal: ctrl.signal });
+      assert.equal(res.status, 200);
+      assert.equal(res.headers.get('content-type'), 'text/event-stream');
+      const body = await readSome(res, 3, 1_000);
+      assert.equal(body, ':\n\n');
+      const deadline = Date.now() + 1_000;
+      while (!fake.lastRequest && Date.now() < deadline) {
+        await new Promise((resolve) => setTimeout(resolve, 10));
+      }
+      ctrl.abort();
+      assert.ok(fake.lastRequest, 'upstream connection should be attempted');
+    } finally {
+      await close();
+    }
+  });
+
   test('forwards Last-Event-ID header as ?after= upstream', async () => {
     const app = buildApp(fake.baseUrl);
     const { url, close } = await startApp(app);
@@ -182,20 +208,22 @@ describe('events proxy: GET /api/events/stream', () => {
     }
   });
 
-  test('returns 502 when upstream is unreachable', async () => {
+  test('emits an SSE error event when upstream is unreachable after stream open', async () => {
     const app = buildApp('http://127.0.0.1:1');
     const { url, close } = await startApp(app);
     try {
       const res = await fetch(`${url}/api/events/stream`);
-      assert.equal(res.status, 502);
-      const body = (await res.json()) as { kind?: string };
-      assert.equal(body.kind, 'upstream');
+      assert.equal(res.status, 200);
+      assert.equal(res.headers.get('content-type'), 'text/event-stream');
+      const body = await res.text();
+      assert.match(body, /event: error/);
+      assert.match(body, /gc supervisor SSE upstream unreachable/);
     } finally {
       await close();
     }
   });
 
-  test('returns 502 when upstream returns non-200', async () => {
+  test('emits an SSE error event when upstream returns non-200 after stream open', async () => {
     fake.setHandler((_req, res) => {
       res.statusCode = 500;
       res.end('broken');
@@ -204,9 +232,11 @@ describe('events proxy: GET /api/events/stream', () => {
     const { url, close } = await startApp(app);
     try {
       const res = await fetch(`${url}/api/events/stream`);
-      assert.equal(res.status, 502);
-      const body = (await res.json()) as { kind?: string };
-      assert.equal(body.kind, 'upstream');
+      assert.equal(res.status, 200);
+      assert.equal(res.headers.get('content-type'), 'text/event-stream');
+      const body = await res.text();
+      assert.match(body, /event: error/);
+      assert.match(body, /gc supervisor returned 500/);
     } finally {
       await close();
     }

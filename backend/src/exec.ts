@@ -1,7 +1,7 @@
 import { spawn } from 'node:child_process';
 
 // Param schemas — every privileged exec validates its args against these.
-// SESSION_ID_RE lives in routes/sessions.ts now that peek is HTTP, not exec.
+// SESSION_ID_RE lives in lib/sessionId.ts now that peek is HTTP, not exec.
 // BEAD_ID_RE is shared with routes/beads.ts via lib/beadId.ts so any prefix
 // the read side accepts the write side can act on (gascity-dashboard-bwp).
 import { BEAD_ID_RE } from './lib/beadId.js';
@@ -24,6 +24,7 @@ const MAX_BYTES = 100 * 1024;
 // 2MB hard ceiling prevents a runaway from filling memory while leaving
 // generous headroom for repos with hundreds of long-labeled items.
 const MAX_BYTES_LARGE = 2 * 1024 * 1024;
+const MAX_WORKFLOW_DIFF_BYTES = 512 * 1024;
 const MAX_CONCURRENT = 4;
 // Agent alias / `gc sling` target validator.
 //
@@ -207,8 +208,7 @@ function sanitiseTerminalOutput(raw: string): string {
 // Note: peek used to be a shell-exec wrapper here. Architect addendum
 // td-wisp-ijk7g (mechanic td-wisp-e1v14) confirmed peek is served by
 // `gc supervisor`'s HTTP API as a structured transcript — see
-// `routes/sessions.ts` + `gc-client.ts::fetchTranscript`. The SESSION_ID_RE
-// + sanitiseTerminalOutput pair stays here for use by that path.
+// `routes/sessions.ts` + `gc-client.ts::fetchTranscript`.
 
 export async function execBeadAction(
   beadId: string,
@@ -434,6 +434,45 @@ export async function execGitLog(view: string): Promise<ExecResult> {
   } finally {
     releaseSlot();
   }
+}
+
+type WorkflowGitView = 'root' | 'status' | 'diff' | 'diff-cached';
+
+const WORKFLOW_GIT_VIEWS: Record<WorkflowGitView, string[]> = {
+  root: ['rev-parse', '--show-toplevel'],
+  status: ['status', '--porcelain=v1'],
+  diff: ['diff', '--no-ext-diff', '--no-color'],
+  'diff-cached': ['diff', '--cached', '--no-ext-diff', '--no-color'],
+};
+
+/**
+ * Whitelisted git reads for workflow run detail diffs. The execution path
+ * comes from supervisor-owned run metadata, not a browser parameter, but it is
+ * still validated here so every subprocess boundary remains in this file.
+ */
+export async function execWorkflowGit(
+  cwd: string,
+  view: WorkflowGitView,
+): Promise<ExecResult> {
+  if (!isValidWorkflowCwd(cwd)) {
+    throw new ExecError('invalid workflow cwd', 'validation');
+  }
+  const args = WORKFLOW_GIT_VIEWS[view];
+  await acquireSlot();
+  try {
+    return await runExec(
+      'git',
+      ['-C', cwd, ...args],
+      5_000,
+      view === 'diff' || view === 'diff-cached' ? MAX_WORKFLOW_DIFF_BYTES : MAX_BYTES,
+    );
+  } finally {
+    releaseSlot();
+  }
+}
+
+function isValidWorkflowCwd(cwd: string): boolean {
+  return cwd.startsWith('/') && !cwd.includes('\0') && !cwd.split('/').includes('..');
 }
 
 // ── Maintainer triage: gh CLI wrappers ───────────────────────────────

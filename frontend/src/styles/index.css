@@ -101,6 +101,71 @@
     border-radius: 2px;
   }
 
+  .workflow-node-shape-root {
+    border-width: 3px;
+    border-style: double;
+    border-radius: 3px;
+  }
+
+  .workflow-node-shape-step {
+    border-width: 1px;
+    border-style: solid;
+    border-radius: 3px;
+  }
+
+  .workflow-node-shape-retry {
+    border-width: 2px;
+    border-style: double;
+    border-radius: 9999px;
+    outline: 1px solid oklch(var(--rule));
+    outline-offset: 3px;
+  }
+
+  .workflow-node-shape-check-loop {
+    border-width: 2px;
+    border-style: double;
+    border-radius: 9999px 4px 4px 9999px;
+  }
+
+  .workflow-node-shape-scope {
+    border-width: 1px;
+    border-style: dashed;
+    border-radius: 3px 10px 10px 3px;
+  }
+
+  .workflow-node-shape-condition {
+    border-width: 1px;
+    border-style: dashed;
+    border-radius: 18px 4px;
+  }
+
+  .workflow-node-shape-fanout {
+    border-width: 1px;
+    border-style: dashed;
+    border-radius: 6px;
+    background-image: repeating-linear-gradient(
+      90deg,
+      transparent 0,
+      transparent 0.75rem,
+      oklch(var(--rule) / 0.28) 0.75rem,
+      oklch(var(--rule) / 0.28) 0.8125rem
+    );
+  }
+
+  .workflow-node-shape-expansion {
+    border-width: 1px;
+    border-style: dashed;
+    border-radius: 6px;
+    outline: 1px dashed oklch(var(--rule));
+    outline-offset: 3px;
+  }
+
+  .workflow-node-shape-control {
+    border-width: 1px;
+    border-style: dotted;
+    border-radius: 4px;
+  }
+
   /* ansi_up renders terminal output as <span class="ansi-..."> inside
      the Peek modal. Kept as terminal-colored so the modal reads as
      terminal output, deliberately distinct from the dashboard's

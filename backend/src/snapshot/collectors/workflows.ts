@@ -32,11 +32,10 @@ import {
 //
 // Filter divergence from /api/beads (plan review C1): the workflows
 // collector keeps the gc:* label exclusion but ALSO admits issue_type
-// 'molecule' and beads with metadata['gc.kind'] === 'workflow' — those
-// are the very lane-root beads workflowRootId() / displayTitle() key on.
-// Reusing routes/beads.ts::defaultBeadFilter would strip them and
-// collapse the view to zero lanes; the filter therefore lives co-located
-// with the lane builder rather than being shared.
+// 'molecule' and beads with metadata['gc.kind'] === 'workflow' so graph.v2
+// root groups have enough context to build lanes. The final lane list is
+// intentionally graph.v2-only; non-graph formula molecules are filtered out
+// after grouping because the detail route cannot render them.
 
 export const WORKFLOWS_CACHE_TTL_MS = 60 * 1000;
 export const WORKFLOWS_FETCH_LIMIT = 1_000;
@@ -112,7 +111,11 @@ export function buildWorkflowSummary(issues: WorkflowIssue[]): WorkflowSummary {
     groups.set(rootId, group);
   }
 
-  const lanes = Array.from(groups.entries())
+  const workflowGroups = Array.from(groups.entries()).filter(([rootId, groupIssues]) =>
+    isGraphV2WorkflowGroup(rootId, groupIssues),
+  );
+  const laneIssues = workflowGroups.flatMap(([, groupIssues]) => groupIssues);
+  const lanes = workflowGroups
     .map(([rootId, groupIssues]) => workflowLane(rootId, groupIssues))
     .sort(compareLanes);
   const visibleLanes = lanes.slice(0, MAX_VISIBLE_WORKFLOW_LANES);
@@ -121,12 +124,17 @@ export function buildWorkflowSummary(issues: WorkflowIssue[]): WorkflowSummary {
     totalActive: lanes.length,
     runCounts: runCounts(lanes, visibleLanes.length),
     lanes: visibleLanes,
-    recentChanges: recentChanges(issues),
+    recentChanges: recentChanges(laneIssues),
     // census is engine-derived (gascity-dashboard-3ax) — the lane builder
     // has no session data and no phaseConfidence yet. deriveWorkflowHealth
     // fills it in the snapshot read path.
     census: null,
   };
+}
+
+function isGraphV2WorkflowGroup(rootId: string, issues: WorkflowIssue[]): boolean {
+  const root = issues.find((issue) => issue.id === rootId);
+  return stringValue(root?.metadata?.['gc.formula_contract']) === 'graph.v2';
 }
 
 function runCounts(lanes: WorkflowLane[], visible: number): WorkflowRunCounts {
@@ -209,11 +217,15 @@ function workflowLane(rootId: string, issues: WorkflowIssue[]): WorkflowLane {
     formulaStages.length > 0 &&
     activeStepId !== null &&
     formulaStages.some((s) => s.steps.includes(activeStepId));
+  const scope = workflowScope(rootId, issues);
 
   return {
     id: rootId,
     title: displayTitle(rootId, issues),
     formula,
+    scopeKind: scope.scopeKind,
+    scopeRef: scope.scopeRef,
+    rootStoreRef: scope.rootStoreRef,
     externalUrl: externalUrl(issues),
     externalLabel: externalLabel(issues),
     phase: phase.phase,
@@ -248,6 +260,44 @@ function workflowRootId(issue: WorkflowIssue): string {
   if (moleculeId) return moleculeId;
 
   return issue.id;
+}
+
+function workflowScope(
+  rootId: string,
+  issues: WorkflowIssue[],
+): Pick<WorkflowLane, 'scopeKind' | 'scopeRef' | 'rootStoreRef'> {
+  const root = issues.find((i) => i.id === rootId);
+  const ordered = root
+    ? [root, ...issues.filter((issue) => issue !== root)]
+    : issues;
+  const rootStoreRef = metadataString(ordered, 'gc.root_store_ref') || null;
+  const rootScopeKind = stringValue(root?.metadata?.['gc.scope_kind']);
+  const rootScopeRef = stringValue(root?.metadata?.['gc.scope_ref']);
+  const scopeKind =
+    parseWorkflowScopeKind(rootScopeKind) ??
+    scopeKindFromStoreRef(rootStoreRef);
+  const scopeRef =
+    rootScopeRef ||
+    scopeRefFromStoreRef(rootStoreRef) ||
+    metadataString(ordered, 'gc.scope_ref') ||
+    null;
+
+  return { scopeKind, scopeRef, rootStoreRef };
+}
+
+function parseWorkflowScopeKind(value: string): WorkflowLane['scopeKind'] {
+  return value === 'city' || value === 'rig' ? value : null;
+}
+
+function scopeKindFromStoreRef(rootStoreRef: string | null): WorkflowLane['scopeKind'] {
+  const [kind] = (rootStoreRef ?? '').split(':', 1);
+  return parseWorkflowScopeKind(kind ?? '');
+}
+
+function scopeRefFromStoreRef(rootStoreRef: string | null): string | null {
+  const ref = rootStoreRef ?? '';
+  const colon = ref.indexOf(':');
+  return colon >= 0 && colon < ref.length - 1 ? ref.slice(colon + 1) : null;
 }
 
 function sourceWorkflowRootId(issue: WorkflowIssue): string {

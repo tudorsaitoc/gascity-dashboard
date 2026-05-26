@@ -2,6 +2,7 @@ import express from 'express';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import fs from 'node:fs';
+import type { DashboardRuntimeConfig } from 'gas-city-dashboard-shared';
 
 import { loadConfig } from './config.js';
 import {
@@ -12,8 +13,10 @@ import {
 import { csrfIssueCookie, csrfValidate, getCsrfToken } from './middleware/csrf.js';
 import { GcClient } from './gc-client.js';
 import { sessionsRouter, raceWithTimeout } from './routes/sessions.js';
+import { sessionStreamRouter } from './routes/session-stream.js';
 import { agentsRouter } from './routes/agents.js';
 import { beadsRouter } from './routes/beads.js';
+import { workflowsRouter } from './routes/workflows.js';
 import { mailRouter } from './routes/mail.js';
 import { mailSendRouter } from './routes/mail-send.js';
 import { gitRouter } from './routes/git.js';
@@ -66,10 +69,20 @@ function main(): void {
     baseUrl: config.gcSupervisorUrl,
     cityName: config.cityName,
   });
+  const dashboardConfig: DashboardRuntimeConfig = {
+    cityName: config.cityName,
+    cityRoot: config.cityPath,
+    githubRepo: config.maintainerRepo,
+    useFixtures: config.useFixtures,
+  };
 
   const writeRouter = express.Router();
   writeRouter.use(csrfValidate);
+  writeRouter.get('/config', (_req, res) => {
+    res.json(dashboardConfig);
+  });
   writeRouter.use('/sessions', sessionsRouter(gc));
+  writeRouter.use('/workflows', workflowsRouter(gc, { rigRoot: config.cityPath }));
   writeRouter.use('/agents', agentsRouter(config.cityPath));
   writeRouter.use('/beads', beadsRouter(gc, config.cityPath));
   writeRouter.use('/mail', mailRouter(gc));
@@ -119,14 +132,17 @@ function main(): void {
   // single-flight + fixture state survive across requests.
   const snapshotService = createSnapshotService({
     gc,
-    config: {
-      cityRoot: config.cityPath,
-      githubRepo: config.maintainerRepo,
-      useFixtures: config.useFixtures,
-    },
+    config: dashboardConfig,
     cityPath: config.cityPath,
   });
   writeRouter.use('/snapshot', snapshotRouter(snapshotService));
+
+  // Session SSE is mounted before the csrf-protected API router. It is a
+  // GET-only same-origin stream, and EventSource cannot attach CSRF headers.
+  app.use('/api/sessions', sessionStreamRouter({
+    supervisorUrl: config.gcSupervisorUrl,
+    cityName: config.cityName,
+  }));
 
   app.use('/api', writeRouter);
 

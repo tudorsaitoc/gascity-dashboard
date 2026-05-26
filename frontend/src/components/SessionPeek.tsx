@@ -1,4 +1,4 @@
-import { useMemo } from 'react';
+import { useMemo, type ReactNode } from 'react';
 import { AnsiUp } from 'ansi_up';
 import type { TranscriptResult, TranscriptTurn } from 'gas-city-dashboard-shared';
 import { formatClockTime, formatRelative, formatShortDate } from '../hooks/time';
@@ -6,6 +6,7 @@ import { formatClockTime, formatRelative, formatShortDate } from '../hooks/time'
 // Render layer for a session's transcript snapshot. Used by:
 //   - Agents page peek modal (one-shot fetch)
 //   - Agent drilldown live peek panel (auto-refreshing)
+//   - Workflow run node session panel (snapshot plus active SSE turns)
 //
 // Pure presentation — fetch + cadence decisions belong to the caller.
 
@@ -111,11 +112,7 @@ function TurnBlock({
   index: number;
   now: number;
 }) {
-  const html = useMemo(() => {
-    const renderer = new AnsiUp();
-    renderer.use_classes = true;
-    return renderer.ansi_to_html(turn.text);
-  }, [turn.text]);
+  const renderedText = useMemo(() => ansiToReactNodes(turn.text), [turn.text]);
 
   const timestamp = useMemo(() => extractTurnTimestamp(turn.text), [turn.text]);
 
@@ -140,10 +137,45 @@ function TurnBlock({
       </header>
       <pre
         className="text-body whitespace-pre-wrap leading-relaxed overflow-x-auto text-fg"
-        // eslint-disable-next-line react/no-danger -- html is ansi_up output of server-sanitised text; see SECURITY.md
-        dangerouslySetInnerHTML={{ __html: html }}
-      />
+      >
+        {renderedText}
+      </pre>
     </li>
+  );
+}
+
+function ansiToReactNodes(text: string): ReactNode[] {
+  const renderer = new AnsiUp();
+  renderer.use_classes = true;
+  const html = renderer.ansi_to_html(text);
+  if (typeof DOMParser === 'undefined') return [text];
+
+  const doc = new DOMParser().parseFromString(`<body>${html}</body>`, 'text/html');
+  return Array.from(doc.body.childNodes).map((node, index) =>
+    htmlNodeToReact(node, String(index)),
+  );
+}
+
+function htmlNodeToReact(node: ChildNode, key: string): ReactNode {
+  if (node.nodeType === 3) return node.textContent ?? '';
+  if (node.nodeType !== 1) return null;
+
+  const element = node as Element;
+  const children = Array.from(element.childNodes).map((child, index) =>
+    htmlNodeToReact(child, `${key}-${index}`),
+  );
+
+  if (element.tagName.toLowerCase() === 'br') {
+    return <br key={key} />;
+  }
+  if (element.tagName.toLowerCase() !== 'span') {
+    return <span key={key}>{children}</span>;
+  }
+
+  return (
+    <span key={key} className={element.getAttribute('class') ?? undefined}>
+      {children}
+    </span>
   );
 }
 

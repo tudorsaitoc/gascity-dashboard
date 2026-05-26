@@ -8,6 +8,16 @@ import { loadConfig } from '../src/config.js';
 // behavior reviewable in one place.
 
 describe('loadConfig', () => {
+  test('cityName defaults to racoon-city for the single-city dashboard', () => {
+    const cfg = loadConfig({});
+    assert.equal(cfg.cityName, 'racoon-city');
+  });
+
+  test('cityName honors GC_CITY_NAME when set', () => {
+    const cfg = loadConfig({ GC_CITY_NAME: 'other-city' });
+    assert.equal(cfg.cityName, 'other-city');
+  });
+
   test('useFixtures is true when SNAPSHOT_USE_FIXTURES=1', () => {
     const cfg = loadConfig({ SNAPSHOT_USE_FIXTURES: '1' });
     assert.equal(cfg.useFixtures, true);

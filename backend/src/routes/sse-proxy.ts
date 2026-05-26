@@ -15,6 +15,7 @@ export interface SupervisorSseProxyOptions {
   heartbeatMs: number;
   unreachableMessage: string;
   noBodyMessage: string;
+  openImmediately?: boolean;
 }
 
 /**
@@ -38,6 +39,13 @@ export async function proxySupervisorSse(
   const ctrl = new AbortController();
   req.on('close', () => ctrl.abort());
 
+  let heartbeat: NodeJS.Timeout | undefined;
+  if (opts.openImmediately) {
+    openSseResponse(res);
+    res.write(':\n\n');
+    heartbeat = startHeartbeat(res, opts.heartbeatMs);
+  }
+
   let upstreamRes: globalThis.Response;
   try {
     upstreamRes = await fetch(opts.upstream, {
@@ -45,6 +53,11 @@ export async function proxySupervisorSse(
       headers: { accept: 'text/event-stream' },
     });
   } catch {
+    if (heartbeat) clearInterval(heartbeat);
+    if (res.headersSent) {
+      writeUpstreamFailure(res, opts.unreachableMessage);
+      return;
+    }
     if (!res.headersSent && !res.writableEnded) {
       res.status(502).json({ error: opts.unreachableMessage, kind: 'upstream' });
     }
@@ -53,28 +66,18 @@ export async function proxySupervisorSse(
 
   if (!upstreamRes.ok) {
     upstreamRes.body?.cancel().catch(() => undefined);
-    res.status(502).json({
-      error: `gc supervisor returned ${upstreamRes.status}`,
-      kind: 'upstream',
-    });
+    if (heartbeat) clearInterval(heartbeat);
+    writeUpstreamFailure(res, `gc supervisor returned ${upstreamRes.status}`);
     return;
   }
   if (!upstreamRes.body) {
-    res.status(502).json({ error: opts.noBodyMessage, kind: 'upstream' });
+    if (heartbeat) clearInterval(heartbeat);
+    writeUpstreamFailure(res, opts.noBodyMessage);
     return;
   }
 
-  res.status(200);
-  res.setHeader('Content-Type', 'text/event-stream');
-  res.setHeader('Cache-Control', 'no-cache, no-transform');
-  res.setHeader('Connection', 'keep-alive');
-  // Nginx / similar reverse proxies otherwise buffer streaming responses.
-  res.setHeader('X-Accel-Buffering', 'no');
-  res.flushHeaders();
-
-  const heartbeat = setInterval(() => {
-    if (!res.writableEnded) res.write(':\n\n');
-  }, opts.heartbeatMs);
+  if (!res.headersSent) openSseResponse(res);
+  heartbeat ??= startHeartbeat(res, opts.heartbeatMs);
 
   const reader = upstreamRes.body.getReader();
   try {
@@ -100,7 +103,7 @@ export async function proxySupervisorSse(
   } catch {
     // Upstream errored or client disconnected. Cleanup below owns closure.
   } finally {
-    clearInterval(heartbeat);
+    if (heartbeat) clearInterval(heartbeat);
     try {
       reader.releaseLock();
     } catch {
@@ -109,4 +112,30 @@ export async function proxySupervisorSse(
     ctrl.abort();
     if (!res.writableEnded) res.end();
   }
+}
+
+function openSseResponse(res: Response): void {
+  res.status(200);
+  res.setHeader('Content-Type', 'text/event-stream');
+  res.setHeader('Cache-Control', 'no-cache, no-transform');
+  res.setHeader('Connection', 'keep-alive');
+  res.setHeader('X-Accel-Buffering', 'no');
+  res.flushHeaders();
+}
+
+function startHeartbeat(res: Response, heartbeatMs: number): NodeJS.Timeout {
+  return setInterval(() => {
+    if (!res.writableEnded) res.write(':\n\n');
+  }, heartbeatMs);
+}
+
+function writeUpstreamFailure(res: Response, error: string): void {
+  if (res.headersSent) {
+    if (!res.writableEnded) {
+      res.write(`event: error\ndata: ${JSON.stringify({ error, kind: 'upstream' })}\n\n`);
+      res.end();
+    }
+    return;
+  }
+  res.status(502).json({ error, kind: 'upstream' });
 }

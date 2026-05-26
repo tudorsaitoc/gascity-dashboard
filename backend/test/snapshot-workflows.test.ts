@@ -58,6 +58,16 @@ function issue(
   };
 }
 
+function graphWorkflowMetadata(
+  overrides: Record<string, string> = {},
+): Record<string, string> {
+  return {
+    'gc.kind': 'workflow',
+    'gc.formula_contract': 'graph.v2',
+    ...overrides,
+  };
+}
+
 // ── workflowBeadFilter ────────────────────────────────────────────────────
 
 describe('workflowBeadFilter', () => {
@@ -166,6 +176,7 @@ describe('buildWorkflowSummary', () => {
         issue_type: 'molecule',
         status: 'open',
         updated_at: '2026-05-10T20:00:00Z',
+        metadata: graphWorkflowMetadata(),
       }),
       issue({
         id: 'ga-review',
@@ -191,6 +202,66 @@ describe('buildWorkflowSummary', () => {
     assert.equal(lane.updatedAt, '2026-05-10T21:00:00Z');
   });
 
+  test('carries workflow scope metadata onto lanes for supervisor detail links', () => {
+    const summary = buildWorkflowSummary([
+      issue({
+        id: 'ga-root',
+        title: 'Scoped graph workflow',
+        issue_type: 'molecule',
+        status: 'open',
+        metadata: {
+          ...graphWorkflowMetadata(),
+          'gc.scope_kind': 'rig',
+          'gc.scope_ref': 'worktree',
+          'gc.root_store_ref': 'rig:worktree',
+        },
+      }),
+      issue({
+        id: 'ga-child',
+        title: 'Child scoped to body',
+        status: 'in_progress',
+        metadata: {
+          'gc.root_bead_id': 'ga-root',
+          'gc.scope_ref': 'body',
+        },
+      }),
+    ]);
+
+    const lane = summary.lanes[0]!;
+    assert.equal(lane.scopeKind, 'rig');
+    assert.equal(lane.scopeRef, 'worktree');
+    assert.equal(lane.rootStoreRef, 'rig:worktree');
+  });
+
+  test('derives workflow scope from root_store_ref when explicit scope fields are absent', () => {
+    const summary = buildWorkflowSummary([
+      issue({
+        id: 'ga-root',
+        title: 'Scoped graph workflow',
+        issue_type: 'molecule',
+        status: 'open',
+        metadata: {
+          ...graphWorkflowMetadata(),
+          'gc.root_store_ref': 'city:racoon-city',
+        },
+      }),
+      issue({
+        id: 'ga-child',
+        title: 'Body-scoped child',
+        status: 'in_progress',
+        metadata: {
+          'gc.root_bead_id': 'ga-root',
+          'gc.scope_ref': 'body',
+        },
+      }),
+    ]);
+
+    const lane = summary.lanes[0]!;
+    assert.equal(lane.scopeKind, 'city');
+    assert.equal(lane.scopeRef, 'racoon-city');
+    assert.equal(lane.rootStoreRef, 'city:racoon-city');
+  });
+
   test('groups workflow roots and molecule children (M4-c)', () => {
     // Multi-step bead group keyed on molecule id → exactly one lane.
     const summary = buildWorkflowSummary([
@@ -198,7 +269,7 @@ describe('buildWorkflowSummary', () => {
         id: 'ga-explicit-root',
         title: 'Explicit root',
         status: 'open',
-        metadata: { 'gc.kind': 'workflow' },
+        metadata: graphWorkflowMetadata(),
       }),
       issue({
         id: 'ga-child-a',
@@ -227,7 +298,8 @@ describe('buildWorkflowSummary', () => {
       issue({
         id: `lane-${idx}`,
         title: `mol-${idx}`,
-        issue_type: 'molecule',
+        issue_type: 'task',
+        metadata: graphWorkflowMetadata(),
         updated_at: `2026-05-10T${String(idx + 10).padStart(2, '0')}:00:00Z`,
       }),
     );
@@ -243,7 +315,8 @@ describe('buildWorkflowSummary', () => {
         issue({
           id: `ga-workflow-${idx}`,
           title: `Workflow ${idx}`,
-          issue_type: 'molecule',
+          issue_type: 'task',
+          metadata: graphWorkflowMetadata(),
           updated_at: `2026-05-10T${String(idx + 10).padStart(2, '0')}:00:00Z`,
         }),
       ),
@@ -261,13 +334,22 @@ describe('buildWorkflowSummary', () => {
   });
 
   test('recentChanges sorted by updatedAt desc, capped at 12', () => {
-    const issues = Array.from({ length: 20 }, (_, idx) =>
+    const issues = [
       issue({
-        id: `change-${idx}`,
-        title: `change ${idx}`,
-        updated_at: `2026-05-10T${String(idx).padStart(2, '0')}:00:00Z`,
+        id: 'change-root',
+        title: 'Graph workflow',
+        metadata: graphWorkflowMetadata(),
+        updated_at: '2026-05-09T00:00:00Z',
       }),
-    );
+      ...Array.from({ length: 20 }, (_, idx) =>
+        issue({
+          id: `change-${idx}`,
+          title: `change ${idx}`,
+          metadata: { 'gc.root_bead_id': 'change-root' },
+          updated_at: `2026-05-10T${String(idx).padStart(2, '0')}:00:00Z`,
+        }),
+      ),
+    ];
     const summary = buildWorkflowSummary(issues);
     assert.equal(summary.recentChanges.length, 12);
     // Most recent change is at index 0.
@@ -286,7 +368,7 @@ describe('buildWorkflowSummary', () => {
         id: 'pr-root',
         title: 'mol-adopt-pr-v2',
         issue_type: 'molecule',
-        metadata: { 'gc.formula': 'mol-adopt-pr-v2' },
+        metadata: graphWorkflowMetadata({ 'gc.formula': 'mol-adopt-pr-v2' }),
       }),
     ]);
     assert.equal(summary.runCounts.prReview, 1);
@@ -300,10 +382,32 @@ describe('buildWorkflowSummary', () => {
         id: 'a',
         title: 'workflow root',
         status: 'blocked',
-        issue_type: 'molecule',
+        issue_type: 'task',
+        metadata: graphWorkflowMetadata(),
       }),
     ]);
     assert.equal(summary.runCounts.blocked, 1);
+  });
+
+  test('excludes non-graph.v2 molecule groups that cannot open in workflow detail', () => {
+    const summary = buildWorkflowSummary([
+      issue({
+        id: 'legacy-root',
+        title: 'mol-dog-stale-db',
+        issue_type: 'molecule',
+      }),
+      issue({
+        id: 'graph-root',
+        title: 'Plan Todo App demo',
+        issue_type: 'task',
+        metadata: graphWorkflowMetadata({
+          'gc.root_store_ref': 'rig:todo-app',
+        }),
+      }),
+    ]);
+
+    assert.equal(summary.totalActive, 1);
+    assert.deepEqual(summary.lanes.map((lane) => lane.id), ['graph-root']);
   });
 
   // gascity-dashboard-4x3 — defense-in-depth: only http(s) URLs reach the
@@ -325,7 +429,7 @@ describe('buildWorkflowSummary', () => {
           id: 'evil-root',
           title: 'malicious url',
           issue_type: 'molecule',
-          metadata: { 'pr_review.pr_url': malicious },
+          metadata: graphWorkflowMetadata({ 'pr_review.pr_url': malicious }),
         }),
       ]);
       assert.equal(
@@ -342,7 +446,9 @@ describe('buildWorkflowSummary', () => {
         id: 'pr-root',
         title: 'safe pr url',
         issue_type: 'molecule',
-        metadata: { 'pr_review.pr_url': 'https://github.com/o/r/pull/1' },
+        metadata: graphWorkflowMetadata({
+          'pr_review.pr_url': 'https://github.com/o/r/pull/1',
+        }),
       }),
     ]);
     assert.equal(
@@ -357,9 +463,9 @@ describe('buildWorkflowSummary', () => {
         id: 'bug-root',
         title: 'safe issue url',
         issue_type: 'molecule',
-        metadata: {
+        metadata: graphWorkflowMetadata({
           'bugflow.github_issue_url': 'http://github.com/o/r/issues/2',
-        },
+        }),
       }),
     ]);
     assert.equal(

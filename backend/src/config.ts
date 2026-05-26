@@ -97,7 +97,7 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): AdminConfig {
     bindHost: env.HOST ?? '127.0.0.1',
     extraAllowedHosts,
     gcSupervisorUrl: (env.GC_SUPERVISOR_URL ?? 'http://127.0.0.1:8372').replace(/\/+$/, ''),
-    cityName: env.GC_CITY_NAME ?? 'gas-city',
+    cityName: env.GC_CITY_NAME ?? 'racoon-city',
     cityPath: env.GC_CITY_PATH ?? '',
     auditLogPath:
       env.ADMIN_AUDIT_LOG_PATH ?? process.env.HOME ? `${process.env.HOME}/.gc/events.jsonl` : '.gc/events.jsonl',
