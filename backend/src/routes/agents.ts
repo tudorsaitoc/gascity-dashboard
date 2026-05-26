@@ -5,6 +5,7 @@ import {
 } from '../exec.js';
 import type { ExecResult } from '../exec.js';
 import { recordAudit } from '../audit.js';
+import { toWireExecError, toWireInternal500 } from '../lib/sanitise-error.js';
 
 // gascity-dashboard-vq7: per-agent prompt/directive surface. Read-only.
 // The bead acceptance is explicitly read-only — direct prompt edit via
@@ -119,12 +120,11 @@ export function agentsRouter(opts: AgentsRouterOptions | string = {}): Router {
         });
         // gascity-dashboard-473: spawn-arm host path redaction. See
         // beads.ts / mail-send.ts for rationale.
-        const wireMessage =
-          err.kind === 'spawn' ? 'subprocess could not be started' : err.message;
         if (err.kind === 'spawn') {
           console.warn(`[agents] /api/agents/${alias}/prime spawn failed: ${err.message}`);
         }
-        res.status(status).json({ error: wireMessage, kind: err.kind });
+        const wire = toWireExecError(err, status);
+        res.status(wire.status).json(wire.body);
         return;
       }
       void recordAudit({
@@ -137,9 +137,12 @@ export function agentsRouter(opts: AgentsRouterOptions | string = {}): Router {
       // catch-all 500. Raw err.message can embed OS detail; details.name
       // (Error class) is the only safe channel.
       console.warn(`[agents] /api/agents/${alias}/prime failed: ${(err as Error).message}`);
-      res
-        .status(500)
-        .json({ error: 'internal error', kind: 'internal', details: { name: (err as Error).name ?? 'Error' } });
+      const wire = toWireInternal500(err, {
+        status: 500,
+        error: 'internal error',
+        kind: 'internal',
+      });
+      res.status(wire.status).json(wire.body);
     }
   });
 
