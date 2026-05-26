@@ -12,6 +12,7 @@ import type { GcClient } from '../../gc-client.js';
 import { SourceCache } from '../cache.js';
 import {
   mapWorkflowPhase,
+  reviewRoundForIssues,
   stringValue,
   type PhaseMapping,
   type WorkflowIssue,
@@ -121,6 +122,10 @@ export function buildWorkflowSummary(issues: WorkflowIssue[]): WorkflowSummary {
     runCounts: runCounts(lanes, visibleLanes.length),
     lanes: visibleLanes,
     recentChanges: recentChanges(issues),
+    // census is engine-derived (gascity-dashboard-3ax) — the lane builder
+    // has no session data and no phaseConfidence yet. deriveWorkflowHealth
+    // fills it in the snapshot read path.
+    census: null,
   };
 }
 
@@ -174,7 +179,36 @@ function workflowLane(rootId: string, issues: WorkflowIssue[]): WorkflowLane {
   const updatedAt = latestUpdatedAt(issues);
   const formula = workflowFormula(issues);
   const stages = stageProgress(phase, formula, issues);
-  const activeStage = stages.find((s) => s.status === 'active');
+  const foundStageIndex = stages.findIndex((s) => s.status === 'active');
+  const activeStage = foundStageIndex >= 0 ? stages[foundStageIndex] : undefined;
+  // Null (not -1) when no stage is active, matching the WorkflowLane field
+  // contract the engine's "graph position flat" check reads.
+  const activeStageIndex = foundStageIndex >= 0 ? foundStageIndex : null;
+
+  // Engine inputs for the workflow-health derivation (gascity-dashboard-3ax).
+  // activeStepId is the raw gc.step_id of the in-progress primary step — the
+  // semantic node id L2 keys on and the `?node=` deep-link target — NOT the
+  // coarse stage key. activeStepAttempt is the attempt count of THAT step
+  // (not the lossy lane-wide max), so the engine's monotonicity predicate
+  // fires on a wedged retry of one step rather than on a stage transition.
+  const primaryInProgress = issues.filter(
+    (i) => isPrimaryStepIssue(i) && i.status === 'in_progress',
+  );
+  const activeStepId = latestStepId(primaryInProgress);
+  const activeStepAttempt = activeStepId
+    ? reviewRoundForIssues(stepIssues(issues, activeStepId))
+    : null;
+
+  // Provenance for phaseConfidence (gascity-dashboard-3ax): stages came from
+  // a recognised formula AND the active gc.step_id mapped into one of them.
+  // Distinguishes a real formula-driven phase from the generic 5-stage
+  // fallback / the includes('blocked') sniff (PRD §6 / R2). The engine ANDs
+  // this with session-resolution.
+  const formulaStages = stagesForFormula(formula);
+  const formulaStageResolved =
+    formulaStages.length > 0 &&
+    activeStepId !== null &&
+    formulaStages.some((s) => s.steps.includes(activeStepId));
 
   return {
     id: rootId,
@@ -188,6 +222,10 @@ function workflowLane(rootId: string, issues: WorkflowIssue[]): WorkflowLane {
     activeAssignees: activeAssignees(issues),
     updatedAt,
     stages,
+    activeStepId,
+    activeStepAttempt,
+    activeStageIndex,
+    formulaStageResolved,
   };
 }
 
@@ -618,6 +656,7 @@ export function emptyWorkflowSummary(): WorkflowSummary {
     },
     lanes: [],
     recentChanges: [],
+    census: null,
   };
 }
 

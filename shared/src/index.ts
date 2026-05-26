@@ -7,6 +7,11 @@
 // optional and never assume presence in render code.
 
 export type * from './snapshot/types.js';
+export {
+  resolveSessionForTarget,
+  matchesSessionTarget,
+  lastSegment,
+} from './session-resolve.js';
 
 export type IsoTimestamp = string;
 export type BeadId = string;

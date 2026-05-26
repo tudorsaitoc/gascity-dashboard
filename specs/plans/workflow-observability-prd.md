@@ -136,11 +136,19 @@ stall (not just "this run is stuck"). `WorkflowLane` gains a `stuckNodeId?` fiel
   controller sweep. No `phase_known` flag is planned. **Design the confidence/staleness field to
   CONSUME `metadata.gc.last_heartbeat_at` when #1855 lands** — until then the join +
   progress-monotonicity inference is load-bearing, not optional.
-- **Engine location: backend snapshot collector**, computed once inside the workflows load,
-  shipped on `/api/snapshot`. Inherits the existing 60s TTL + bypass-refresh + `bead.*` SSE
-  flow for free. Ship raw ISO timestamps; do *tier classification* server-side and
-  *age display* in a 1s-ticking frontend selector (avoids the cached-snapshot staleness
-  under-count).
+- **Engine location: backend snapshot read path** (resolved in P2a `gascity-dashboard-3ax`,
+  corrected from the original "inside the workflows load"). The derivation runs in the
+  service composition layer *after* both the workflows source and a **shared sessions cache**
+  settle — the workflows loader fetches only beads and must not gain a 2nd `listSessions`
+  (R2), so the bead×session join cannot live inside it. Shipped on `/api/snapshot`; inherits
+  the existing 60s TTL + bypass-refresh + `bead.*` SSE flow for free. **R9-strict (resolved in
+  P2a):** the server ships *facts* — raw ISO timestamps, session liveness fields,
+  `phaseConfidence`, and the one cross-cycle signal it alone can compute (`thrashingDetected`,
+  the R1 progress-monotonicity result) — plus a *threshold-independent* census (`byPhase`,
+  confidence-scoped denominators). It does **not** ship a staleness-tier enum or a
+  by-staleness-tier census: the staleness threshold crossing and *age display* are computed in
+  the 1s-ticking frontend selector (kb3), because a server-frozen tier would under-count for up
+  to the cache TTL on a pure-time stall crossing (R9).
 - **Standing Sentence = deterministic template** in the collector, emitted as
   `standingSentence: string[]` (clauses, each carrying its lane id + stuck node id). Enforces
   the no-em-dash style rule trivially. **No API key, no cache layer, no hallucination path.**

@@ -52,6 +52,25 @@ const SAMPLE_WORKFLOWS: WorkflowSummary = {
     other: 0,
   },
   lanes: [],
+  // gascity-dashboard-3ax: the snapshot read path now runs the health engine,
+  // which always derives a census. With no lanes it is the all-zero census,
+  // so the served workflows.data carries this exact value.
+  census: {
+    byPhase: {
+      intake: 0,
+      implementation: 0,
+      review: 0,
+      approval: 0,
+      finalization: 0,
+      blocked: 0,
+      complete: 0,
+      active: 0,
+    },
+    totalInFlight: 0,
+    unverifiable: 0,
+    knownDenominator: 0,
+    thrashing: 0,
+  },
   recentChanges: [],
 };
 

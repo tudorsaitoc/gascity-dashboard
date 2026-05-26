@@ -1,4 +1,39 @@
-import type { DashboardSnapshot } from 'gas-city-dashboard-shared';
+import type { DashboardSnapshot, GcSessionList } from 'gas-city-dashboard-shared';
+
+// Committed sample sessions for SNAPSHOT_USE_FIXTURES=1 mode
+// (gascity-dashboard-3ax). The shared sessions cache falls back to these
+// when the supervisor is unreachable, so the workflow-health engine can
+// resolve the fixture lane's assignees (agent-1 / agent-2) and populate the
+// session-fact half of the health derivation instead of degrading every
+// fixture lane to unresolved. NOT placed on the /api/snapshot wire.
+export const fixtureSessions: GcSessionList = {
+  items: [
+    {
+      id: 'agent-1',
+      template: 'codex',
+      alias: 'agent-1',
+      state: 'active',
+      created_at: '2026-05-22T20:00:00.000Z',
+      last_active: '2026-05-22T21:59:30.000Z',
+      attached: false,
+      running: true,
+      activity: 'tool_use',
+      provider: 'codex',
+    },
+    {
+      id: 'agent-2',
+      template: 'claude',
+      alias: 'agent-2',
+      state: 'active',
+      created_at: '2026-05-22T20:05:00.000Z',
+      last_active: '2026-05-22T21:58:10.000Z',
+      attached: false,
+      running: true,
+      activity: 'thinking',
+      provider: 'claude',
+    },
+  ],
+};
 
 // Committed sample data for SNAPSHOT_USE_FIXTURES=1 runtime mode. This is
 // what the dashboard serves when the supervisor / upstream sources are
@@ -128,6 +163,13 @@ export const fixtureSnapshot = {
               { key: 'implementation', label: 'Implementation', status: 'complete' },
               { key: 'review', label: 'Review', status: 'active' },
             ],
+            // Engine inputs (gascity-dashboard-3ax). 'mol-example-v1' is not a
+            // recognised formula, so formulaStageResolved is false → the engine
+            // serves this lane as 'inferred' (honest for a degraded-mode sample).
+            activeStepId: null,
+            activeStepAttempt: null,
+            activeStageIndex: 2,
+            formulaStageResolved: false,
           },
         ],
         recentChanges: [
@@ -138,6 +180,10 @@ export const fixtureSnapshot = {
             updatedAt: '2026-05-22T21:58:00.000Z',
           },
         ],
+        // census + per-lane health are engine-derived at serve time
+        // (gascity-dashboard-3ax); the stored fixture leaves them null and
+        // deriveWorkflowHealth fills them in the snapshot read path.
+        census: null,
       },
     },
     github: {
