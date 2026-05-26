@@ -15,6 +15,7 @@
     "build": "npm run build:shared && npm run build:backend && npm run build:frontend",
     "dev:backend": "npm --workspace backend run dev",
     "dev:frontend": "npm --workspace frontend run dev",
+    "lint": "eslint . --max-warnings=0",
     "start": "node backend/dist/server.js",
     "typecheck": "npm --workspace shared run typecheck && npm --workspace backend run typecheck && npm --workspace frontend run typecheck"
   },
@@ -28,5 +29,15 @@
     "url": "https://github.com/sjarmak/gascity-dashboard.git"
   },
   "homepage": "https://github.com/sjarmak/gascity-dashboard",
-  "bugs": "https://github.com/sjarmak/gascity-dashboard/issues"
+  "bugs": "https://github.com/sjarmak/gascity-dashboard/issues",
+  "devDependencies": {
+    "@eslint/js": "^9.37.0",
+    "eslint": "^9.37.0",
+    "eslint-plugin-import": "^2.32.0",
+    "eslint-plugin-react": "^7.37.5",
+    "eslint-plugin-react-hooks": "^7.1.1",
+    "globals": "^17.6.0",
+    "typescript": "^5.6.3",
+    "typescript-eslint": "^8.59.4"
+  }
 }

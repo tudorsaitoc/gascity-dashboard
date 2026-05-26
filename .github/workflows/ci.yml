@@ -1,6 +1,8 @@
 # Quality gates run on every PR against main and every push to main.
 #
 # Scope is intentionally narrow for v1:
+#   - lint (eslint flat config: typescript-eslint + type-aware rules,
+#     react-hooks, react/no-danger, import/first) at --max-warnings=0
 #   - typecheck across all three workspaces (shared, backend, frontend)
 #   - typecheck of test files too (catches type drift the runtime tests miss)
 #   - backend tests (node --test via tsx loader)
@@ -8,7 +10,6 @@
 #
 # Not yet in CI (file a separate bead if you want to change this):
 #   - scripts/snap.mjs (Playwright visual snaps — too heavy, no golden source)
-#   - lint (no ESLint config in the repo yet)
 #   - npm audit / dependency scans
 #
 # The job is single + sequential. Split into a matrix later if the wall-clock
@@ -71,6 +72,12 @@ jobs:
 
       - name: Typecheck (frontend tests)
         run: npm --workspace frontend run typecheck:test
+
+      # Lint after typecheck (type-aware rules reuse the same tsconfig
+      # projects) and before tests, so a hygiene failure surfaces fast.
+      # --max-warnings=0 is set in the `lint` script: warnings fail CI too.
+      - name: Lint
+        run: npm run lint
 
       # Vite's bundler resolution can fail where tsc passes (path aliases,
       # asset imports, dynamic import boundaries). Run the real build so

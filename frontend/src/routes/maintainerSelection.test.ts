@@ -257,7 +257,7 @@ describe('dispatchSlings', () => {
     // Promise rejections in JS can carry any value, not just Error
     // instances. Verify the helper produces a string regardless.
     const send = async () => {
-      throw 'plain string reason'; // eslint-disable-line no-throw-literal
+      throw 'plain string reason';
     };
     const summary = await dispatchSlings([reqA], send);
     expect(summary.failed).toBe(1);

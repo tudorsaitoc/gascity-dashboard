@@ -92,7 +92,7 @@ export function AgentsPage() {
     'sessions',
     () => api.listSessions(),
   );
-  const rows = data?.items ?? [];
+  const rows = useMemo(() => data?.items ?? [], [data]);
   const [now, setNow] = useState(() => Date.now());
 
   const [peekFor, setPeekFor] = useState<GcSession | null>(null);

@@ -74,7 +74,7 @@ export function MailPage() {
     `mail:${box}:${viewingAs.alias}`,
     () => api.listMail(box, viewingAs.alias),
   );
-  const items = mailData?.items ?? [];
+  const items = useMemo(() => mailData?.items ?? [], [mailData]);
   const [error, setError] = useState<string | null>(null);
   // Surface fetch errors from the cached hook through the same state
   // local handlers use, so the existing error banner keeps working.

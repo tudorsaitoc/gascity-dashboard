@@ -8,16 +8,6 @@ import type { Request, Response, NextFunction } from 'express';
 // see td-9u9im9 for the headless-VM workflow this supports.
 const ALLOWED_HOSTS_FLOOR: ReadonlyArray<string> = ['127.0.0.1', 'localhost'];
 
-function originHost(value: string | undefined): string | null {
-  if (!value) return null;
-  try {
-    const u = new URL(value);
-    return u.hostname;
-  } catch {
-    return null;
-  }
-}
-
 function hostnameOnly(host: string | undefined): string | null {
   if (!host) return null;
   // Strip port + ipv6 brackets

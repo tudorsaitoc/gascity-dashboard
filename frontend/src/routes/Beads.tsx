@@ -37,7 +37,7 @@ export function BeadsPage() {
     showAll ? 'beads:all' : 'beads:open',
     () => api.listBeads(showAll),
   );
-  const rows = data?.items ?? [];
+  const rows = useMemo(() => data?.items ?? [], [data]);
   const totalShown = data?.total ?? 0;
   const upstreamTotal = data?.upstream_total;
   const upstreamFetched = data?.upstream_fetched;

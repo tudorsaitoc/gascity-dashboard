@@ -8,7 +8,7 @@ import type {
   GcSession,
   GcSessionList,
 } from 'gas-city-dashboard-shared';
-import { GcClient } from '../../gc-client.js';
+import { type GcClient } from '../../gc-client.js';
 import { SourceCache } from '../cache.js';
 
 // City status collector — gascity-dashboard-8nj. Source of truth is

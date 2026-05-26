@@ -43,8 +43,8 @@ export function ActivityPage() {
     refresh: refreshDeploys,
   } = useCachedData('builds', () => api.listBuilds());
 
-  const commits = commitsData?.items ?? [];
-  const deploys = deploysData?.items ?? [];
+  const commits = useMemo(() => commitsData?.items ?? [], [commitsData]);
+  const deploys = useMemo(() => deploysData?.items ?? [], [deploysData]);
   const deployFailedMarker = deploysData?.failed_marker ?? false;
   const deploySource = deploysData?.source ?? null;
   // Surface whichever fetch most recently errored. Either-or is fine —

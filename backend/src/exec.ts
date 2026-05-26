@@ -1,5 +1,11 @@
 import { spawn } from 'node:child_process';
 
+// Param schemas — every privileged exec validates its args against these.
+// SESSION_ID_RE lives in routes/sessions.ts now that peek is HTTP, not exec.
+// BEAD_ID_RE is shared with routes/beads.ts via lib/beadId.ts so any prefix
+// the read side accepts the write side can act on (gascity-dashboard-bwp).
+import { BEAD_ID_RE } from './lib/beadId.js';
+
 // Whitelisted-only shell-exec wrapper. Every privileged invocation in the
 // app routes through this — there is intentionally no general-purpose
 // exec helper exported elsewhere.
@@ -18,14 +24,7 @@ const MAX_BYTES = 100 * 1024;
 // 2MB hard ceiling prevents a runaway from filling memory while leaving
 // generous headroom for repos with hundreds of long-labeled items.
 const MAX_BYTES_LARGE = 2 * 1024 * 1024;
-const DEFAULT_TIMEOUT_MS = 15_000;
 const MAX_CONCURRENT = 4;
-
-// Param schemas — every privileged exec validates its args against these.
-// SESSION_ID_RE lives in routes/sessions.ts now that peek is HTTP, not exec.
-// BEAD_ID_RE is shared with routes/beads.ts via lib/beadId.ts so any prefix
-// the read side accepts the write side can act on (gascity-dashboard-bwp).
-import { BEAD_ID_RE } from './lib/beadId.js';
 // Agent alias / `gc sling` target validator.
 //
 // The char class deliberately permits `/` and `.` because gc treats the
