@@ -5,6 +5,7 @@ import {
 } from '../exec.js';
 import type { ExecResult } from '../exec.js';
 import { recordAudit } from '../audit.js';
+import { toWireExecError, toWireInternal500 } from '../lib/sanitise-error.js';
 
 // WRITE-only mail router. Physically separated from ./mail.ts per the
 // architect's design (security_researcher td-wisp-eb0pn): the handler in
@@ -85,21 +86,23 @@ export function mailSendRouter(opts: MailSendRouterOptions = {}): Router {
         // 'spawn' kind wraps node's "spawn <abs-path> ENOENT" exposing
         // the operator's binary layout; validation/timeout carry safe
         // pre-authored strings by ExecError construction.
-        const wireMessage =
-          err.kind === 'spawn' ? 'subprocess could not be started' : err.message;
         if (err.kind === 'spawn') {
           console.warn(`[mail-send] spawn failed: ${err.message}`);
         }
-        res.status(status).json({ error: wireMessage, kind: err.kind });
+        const wire = toWireExecError(err, status);
+        res.status(wire.status).json(wire.body);
         return;
       }
       // gascity-dashboard-473: mirror the ayr sr6 redaction on the
       // catch-all 500. Raw err.message can embed OS detail; details.name
       // (Error class) is the only safe channel.
       console.warn(`[mail-send] failed: ${(err as Error).message}`);
-      res
-        .status(500)
-        .json({ error: 'internal error', kind: 'internal', details: { name: (err as Error).name ?? 'Error' } });
+      const wire = toWireInternal500(err, {
+        status: 500,
+        error: 'internal error',
+        kind: 'internal',
+      });
+      res.status(wire.status).json(wire.body);
     }
   });
 

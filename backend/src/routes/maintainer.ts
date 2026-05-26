@@ -26,6 +26,7 @@ import {
   writeSlungEntry,
 } from '../maintainer/slung-state.js';
 import { addSseClient, notifyRefresh, removeSseClient } from '../maintainer/sse.js';
+import { toWireExecError, toWireInternal500 } from '../lib/sanitise-error.js';
 
 const GH_LOGIN_RE = /^[A-Za-z0-9][A-Za-z0-9-]{0,38}$/;
 const GH_URL_RE = /^https:\/\/github\.com\/[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+\/(issues|pull)\/\d+$/;
@@ -193,12 +194,11 @@ export function maintainerRouter({
         // operator's PATH layout. validation/timeout carry pre-authored
         // safe strings by ExecError construction (see backend/src/exec.ts),
         // so they pass through.
-        const wireMessage =
-          err.kind === 'spawn' ? 'subprocess could not be started' : err.message;
         if (err.kind === 'spawn') {
           console.warn(`[maintainer] /api/maintainer/refresh spawn failed: ${err.message}`);
         }
-        res.status(status).json({ error: wireMessage, kind: err.kind });
+        const wire = toWireExecError(err, status);
+        res.status(wire.status).json(wire.body);
         return;
       }
       // gascity-dashboard-ayr: mirror the sr6 redaction. Non-ExecError
@@ -207,9 +207,12 @@ export function maintainerRouter({
       // is the only safe channel for the browser. journalctl keeps the
       // full message via the warn below.
       console.warn(`[maintainer] /api/maintainer/refresh failed: ${(err as Error).message}`);
-      res
-        .status(502)
-        .json({ error: 'failed to refresh maintainer triage', kind: 'upstream', details: { name: (err as Error).name ?? 'Error' } });
+      const wire = toWireInternal500(err, {
+        status: 502,
+        error: 'failed to refresh maintainer triage',
+        kind: 'upstream',
+      });
+      res.status(wire.status).json(wire.body);
     }
   });
 
@@ -385,21 +388,23 @@ export function maintainerRouter({
           err.kind === 'validation' ? 400 : err.kind === 'timeout' ? 504 : 502;
         // gascity-dashboard-473: spawn-arm host path redaction; see
         // /refresh above for rationale.
-        const wireMessage =
-          err.kind === 'spawn' ? 'subprocess could not be started' : err.message;
         if (err.kind === 'spawn') {
           console.warn(`[maintainer] /api/maintainer/sling spawn failed: ${err.message}`);
         }
-        res.status(status).json({ error: wireMessage, kind: err.kind });
+        const wire = toWireExecError(err, status);
+        res.status(wire.status).json(wire.body);
         return;
       }
       // gascity-dashboard-473: mirror the ayr sr6 redaction on the
       // catch-all 500. Raw err.message from unexpected throws can embed
       // OS detail; details.name (Error class) is the only safe channel.
       console.warn(`[maintainer] /api/maintainer/sling failed: ${(err as Error).message}`);
-      res
-        .status(500)
-        .json({ error: 'internal error', kind: 'internal', details: { name: (err as Error).name ?? 'Error' } });
+      const wire = toWireInternal500(err, {
+        status: 500,
+        error: 'internal error',
+        kind: 'internal',
+      });
+      res.status(wire.status).json(wire.body);
     }
   });
 
