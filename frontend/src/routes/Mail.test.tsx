@@ -1,6 +1,6 @@
 import { cleanup, fireEvent, render, screen } from '@testing-library/react';
 import { afterEach, describe, expect, it } from 'vitest';
-import { AgentPanel } from './Mail';
+import { AgentPanel } from '../components/AgentPanel';
 import type { AliasBucket } from '../hooks/aliasPriority';
 
 // gascity-dashboard-5gg: Mail agent panel degraded-state footnote.
