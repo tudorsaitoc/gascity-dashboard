@@ -215,6 +215,42 @@ describe('readCache — deep TriageItem shape rejections (gascity-dashboard-3qy)
     });
   });
 
+  // Traversal-order contract: firstTriageItem must visit (unclustered, then
+  // clusters[*].items) in the SAME order as triage.ts collectItems. When a tier
+  // has BOTH a valid unclustered item and a stale clustered item, the spot-check
+  // must sample the unclustered one (first) — so the envelope is accepted, not
+  // rejected on the cluster's stale item. See gascity-dashboard-34m.
+  test('samples unclustered before clusters (order matches collectItems)', async () => {
+    await withTmpDir(async (dir) => {
+      const cachePath = path.join(dir, 'cache.json');
+      const valid = makeItem({ number: 1 });
+      const item = makeItem({ number: 2 });
+      const { triage_assessment: _drop, ...stale } = item;
+      const env: MaintainerTriage = {
+        computed_at: FIXED_ISO,
+        repo: 'gastownhall/gascity',
+        tiers: [
+          {
+            tier: 'stability',
+            clusters: [
+              {
+                cluster_id: 'c1',
+                files: ['a.ts'],
+                items: [stale as unknown as TriageItem],
+                lines_pending: 0,
+              },
+            ],
+            unclustered: [valid],
+          },
+        ],
+        totals: { issues_open: 2, prs_open: 0 },
+      };
+      await fs.writeFile(cachePath, JSON.stringify(env), 'utf-8');
+      const got = await readCache(cachePath);
+      assert.deepEqual(got, env);
+    });
+  });
+
   test('spot-checks the first item inside a cluster when unclustered is empty', async () => {
     await withTmpDir(async (dir) => {
       const cachePath = path.join(dir, 'cache.json');

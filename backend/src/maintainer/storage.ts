@@ -68,16 +68,20 @@ const REQUIRED_TRIAGE_ITEM_KEYS = [
 ] as const satisfies ReadonlyArray<keyof TriageItem>;
 
 function firstTriageItem(env: MaintainerTriage): unknown {
+  // Traversal order MUST match triage.ts collectItems (the source of truth for
+  // how the envelope is walked): unclustered first, then clusters[*].items.
+  // Keeping the validator's "first item" in lockstep with the walker is the
+  // contract noted above (gascity-dashboard-34m).
   for (const tier of env.tiers) {
     if (!tier || typeof tier !== 'object') continue;
+    const unclustered = Array.isArray(tier.unclustered) ? tier.unclustered : [];
+    if (unclustered.length > 0) return unclustered[0];
     const clusters = Array.isArray(tier.clusters) ? tier.clusters : [];
     for (const cluster of clusters) {
       if (cluster && Array.isArray(cluster.items) && cluster.items.length > 0) {
         return cluster.items[0];
       }
     }
-    const unclustered = Array.isArray(tier.unclustered) ? tier.unclustered : [];
-    if (unclustered.length > 0) return unclustered[0];
   }
   return undefined;
 }
