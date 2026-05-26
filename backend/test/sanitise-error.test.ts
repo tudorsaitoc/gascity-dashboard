@@ -121,4 +121,18 @@ describe('toWireInternal500 — details.name redaction', () => {
     });
     assert.deepEqual(body.details, { name: 'Error' });
   });
+
+  test('a real Error with an empty name degrades to "Error" (no empty string on the wire)', () => {
+    // Regression: the older `(err as Error).name ?? 'Error'` only coalesced
+    // null/undefined, so an Error whose name was set to '' shipped an empty
+    // string as details.name. Empty name must fall back to 'Error'.
+    const err = new Error('connect ECONNREFUSED 127.0.0.1:8723');
+    err.name = '';
+    const { body } = toWireInternal500(err, {
+      status: 500,
+      error: 'internal error',
+      kind: 'internal',
+    });
+    assert.deepEqual(body.details, { name: 'Error' });
+  });
 });

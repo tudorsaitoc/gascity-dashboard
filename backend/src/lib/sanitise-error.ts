@@ -51,9 +51,12 @@ interface Internal500Options {
  * existing copy ('internal error'/'internal', 'failed to list
  * beads'/'upstream', …).
  *
- * `err` is typed `unknown` and narrowed with the verbatim
- * `(err as Error).name ?? 'Error'` behaviour the call sites used, so a
- * thrown non-Error value degrades to 'Error' rather than throwing.
+ * `err` is typed `unknown` and narrowed with `instanceof Error` rather than
+ * an unchecked `(err as Error)` cast (strict useUnknownInCatchVariables), so
+ * a thrown non-Error value degrades to 'Error' rather than throwing. A real
+ * Error with an empty `name` ('') also degrades to 'Error': the older
+ * `?? 'Error'` only coalesced null/undefined and let an empty class name slip
+ * onto the wire as an empty string.
  */
 export function toWireInternal500(
   err: unknown,
@@ -62,6 +65,6 @@ export function toWireInternal500(
   status: number;
   body: { error: string; kind: string; details: { name: string } };
 } {
-  const name = (err as Error).name ?? 'Error';
+  const name = err instanceof Error && err.name ? err.name : 'Error';
   return { status, body: { error, kind, details: { name } } };
 }
