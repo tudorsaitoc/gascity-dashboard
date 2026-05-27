@@ -211,7 +211,7 @@ function sanitiseTerminalOutput(raw: string): string {
 // `routes/sessions.ts` + `gc-client.ts::fetchTranscript`.
 
 // Bead CLOSE + agent NUDGE only. CLAIM moved to GcClient.updateBead (HTTP
-// POST /bead/{id}/update) under gascity-dashboard-mq2 — the supervisor
+// PATCH /bead/{id}) under gascity-dashboard-mq2 — the supervisor
 // exposes that write endpoint. CLOSE stays here because the HTTP
 // `/bead/{id}/close` endpoint has no reason field and the dashboard's
 // close-reason UI would silently lose it; NUDGE stays because no HTTP route

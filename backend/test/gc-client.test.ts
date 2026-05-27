@@ -337,8 +337,9 @@ describe('GcClient.sling', () => {
   });
 });
 
-// gascity-dashboard-mq2: GcClient.updateBead POSTs to /bead/{id}/update in
-// place of the `gc bd update` CLI subprocess (the bead-CLAIM path).
+// gascity-dashboard-mq2: GcClient.updateBead PATCHes /bead/{id} (the canonical
+// update verb per api-ops-design.md) in place of the `gc bd update` CLI
+// subprocess (the bead-CLAIM path).
 describe('GcClient.updateBead', () => {
   let fake: Fake;
   beforeEach(async () => {
@@ -348,7 +349,7 @@ describe('GcClient.updateBead', () => {
     await fake.close();
   });
 
-  test('POSTs to the city bead-update endpoint with the CSRF header + JSON body', async () => {
+  test('PATCHes the city bead endpoint with the CSRF header + JSON body', async () => {
     let method: string | undefined;
     let url: string | undefined;
     let csrf: string | undefined;
@@ -370,8 +371,8 @@ describe('GcClient.updateBead', () => {
 
     await gc.updateBead('td-wisp-abc123', { status: 'in_progress', assignee: 'stephanie' });
 
-    assert.equal(method, 'POST');
-    assert.equal(url, '/v0/city/test-city/bead/td-wisp-abc123/update');
+    assert.equal(method, 'PATCH');
+    assert.equal(url, '/v0/city/test-city/bead/td-wisp-abc123');
     assert.ok(csrf && csrf.length > 0, 'X-GC-Request header must be present');
     assert.match(contentType ?? '', /application\/json/);
     assert.deepEqual(JSON.parse(bodyRaw), {
@@ -393,7 +394,7 @@ describe('GcClient.updateBead', () => {
     });
     const gc = new GcClient({ baseUrl: fake.baseUrl, cityName: 'test-city', defaultTimeoutMs: 5_000 });
     await gc.updateBead('gc-1/2', { status: 'in_progress' });
-    assert.equal(url, '/v0/city/test-city/bead/gc-1%2F2/update');
+    assert.equal(url, '/v0/city/test-city/bead/gc-1%2F2');
   });
 
   test('non-2xx throws a redacted error (status only, no topology)', async () => {
