@@ -85,6 +85,18 @@ describe('workflow session link resolution', () => {
     );
   });
 
+  test('normalizes completed provider-prefixed assignees to supervisor session ids', () => {
+    assert.deepEqual(
+      workflowSessionLinkFor(workflowBead({ assignee: 'claude-fddc-54n' }), 'completed'),
+      {
+        sessionId: 'fddc-54n',
+        sessionName: 'claude-fddc-54n',
+        assignee: 'claude-fddc-54n',
+        rigId: undefined,
+      },
+    );
+  });
+
   test('resolves an assignee alias to the supervisor session id', () => {
     const index = buildWorkflowSessionIndex([
       session({

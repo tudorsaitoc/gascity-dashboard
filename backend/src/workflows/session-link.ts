@@ -4,6 +4,7 @@ import type {
   WorkflowNodeStatus,
   WorkflowSessionLink,
 } from 'gas-city-dashboard-shared';
+import { SESSION_ID_RE } from '../lib/sessionId.js';
 import { meta, nonEmpty } from './bead-fields.js';
 
 export interface WorkflowSessionIndex {
@@ -42,23 +43,35 @@ export function workflowSessionLinkFor(
   context: WorkflowSessionLinkContext = {},
 ): WorkflowSessionLink | null {
   if (status === 'pending' || status === 'ready') return null;
+  const assignee = nonEmpty(bead.assignee);
   const sessionId =
     meta(bead, 'session_id') ??
-    nonEmpty(bead.assignee);
+    supervisorSessionIdFrom(assignee) ??
+    assignee;
   const sessionName =
     meta(bead, 'session_name') ??
+    assignee ??
     sessionId;
   const rawLink =
     sessionId || sessionName
       ? {
           sessionId: sessionId ?? sessionName ?? '',
           sessionName: sessionName ?? sessionId ?? '',
-          assignee: nonEmpty(bead.assignee) ?? sessionName ?? sessionId ?? '',
+          assignee: assignee ?? sessionName ?? sessionId ?? '',
           rigId: meta(bead, 'rig_id'),
         }
       : null;
   if (!rawLink) return null;
   return resolveWorkflowSessionLink(rawLink, context.sessionIndex);
+}
+
+function supervisorSessionIdFrom(value: string | undefined): string | undefined {
+  const clean = nonEmpty(value);
+  if (!clean) return undefined;
+  if (SESSION_ID_RE.test(clean)) return clean;
+  const suffix = clean.match(/(?:^|[-_/])((?:gc|td|th|[a-z]{4})-[a-z0-9-]{1,32})$/)?.[1];
+  if (!suffix || !SESSION_ID_RE.test(suffix)) return undefined;
+  return suffix;
 }
 
 function resolveWorkflowSessionLink(

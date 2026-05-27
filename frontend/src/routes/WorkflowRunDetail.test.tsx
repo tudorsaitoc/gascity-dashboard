@@ -246,6 +246,34 @@ describe('WorkflowRunDetailPage', () => {
     await screen.findByText(/stream kept its listener after a transient error/i);
   });
 
+  it('streams supervisor transcript snapshot events for an active selected node', async () => {
+    renderPage();
+    await screen.findByRole('heading', { name: /adopt pr #42/i });
+    fireEvent.click(screen.getByRole('button', { name: reviewPipelineName }));
+    await screen.findByText(/checking graph\.v2 node grouping/i);
+    await waitFor(() => expect(eventSources).toHaveLength(1));
+
+    eventSources[0]?.open();
+    await screen.findByText(/^live$/i);
+    eventSources[0]?.dispatch('turn', {
+      session_id: 'gc-session-review-i2',
+      template: 'workflows.codex',
+      provider: 'codex',
+      format: 'conversation',
+      turns: [
+        {
+          role: 'assistant',
+          text: 'supervisor snapshot event replaced the active transcript',
+        },
+      ],
+      total_chars: 55,
+      captured_at: '2026-01-01T00:00:00.000Z',
+      truncated: false,
+    });
+
+    await screen.findByText(/supervisor snapshot event replaced the active transcript/i);
+  });
+
   it('closes the active session stream when selection changes or the Session tab is hidden', async () => {
     renderPage();
     await screen.findByRole('heading', { name: /adopt pr #42/i });
