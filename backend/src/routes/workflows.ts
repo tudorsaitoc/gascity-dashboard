@@ -124,6 +124,18 @@ async function getWorkflowWithRuntimeState(
   scope: { scopeKind: WorkflowScopeKind; scopeRef: string },
 ): Promise<{ raw: GcWorkflowSnapshot; partial: boolean }> {
   const raw = await gc.getWorkflow(workflowId, undefined, scope);
+  // The per-bead canonical refresh below only works for workflows whose beads
+  // live in the city store: the supervisor exposes bead reads solely at
+  // /v0/city/{city}/bead/{id}, with no rig-store bead endpoint. For a
+  // non-city-store workflow (e.g. root_store_ref=rig:<rig>) every /bead read
+  // 404s structurally, not transiently — refreshing would fire N pointless
+  // failing requests AND raise a misleading 'partial' badge (which signals a
+  // recoverable flake). Treat the embedded snapshot rows as authoritative
+  // instead and skip the refresh entirely. City workflows keep the refresh
+  // and the allSettled-based partial flagging (see below).
+  if (!isCityStore(raw, gc.cityName)) {
+    return { raw, partial: false };
+  }
   const ids = workflowBeadIds(raw);
   // Fan out runtime bead reads with allSettled, NOT Promise.all: a single
   // failed /bead/:id read (transient timeout, 404, etc.) must not collapse the
@@ -142,6 +154,17 @@ async function getWorkflowWithRuntimeState(
     );
   }
   return { raw: mergeWorkflowRuntimeState(raw, runtime), partial: failed > 0 };
+}
+
+/**
+ * True when the workflow's root bead store is the dashboard's city store, i.e.
+ * its beads are individually addressable via /v0/city/{city}/bead/{id}. The
+ * supervisor identifies the city store as `city:<cityName>` in root_store_ref;
+ * anything else (notably `rig:<rig>`) is not addressable through the city bead
+ * endpoint.
+ */
+function isCityStore(raw: GcWorkflowSnapshot, cityName: string): boolean {
+  return nonEmpty(raw.root_store_ref) === `city:${cityName}`;
 }
 
 function workflowBeadIds(raw: GcWorkflowSnapshot): string[] {
