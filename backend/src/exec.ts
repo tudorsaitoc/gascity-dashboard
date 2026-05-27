@@ -210,9 +210,15 @@ function sanitiseTerminalOutput(raw: string): string {
 // `gc supervisor`'s HTTP API as a structured transcript — see
 // `routes/sessions.ts` + `gc-client.ts::fetchTranscript`.
 
+// Bead CLOSE + agent NUDGE only. CLAIM moved to GcClient.updateBead (HTTP
+// POST /bead/{id}/update) under gascity-dashboard-mq2 — the supervisor
+// exposes that write endpoint. CLOSE stays here because the HTTP
+// `/bead/{id}/close` endpoint has no reason field and the dashboard's
+// close-reason UI would silently lose it; NUDGE stays because no HTTP route
+// exists for it (it's the CLI nudgequeue subsystem).
 export async function execBeadAction(
   beadId: string,
-  action: 'claim' | 'close' | 'nudge',
+  action: 'close' | 'nudge',
   reason?: string,
   cityPath?: string,
 ): Promise<ExecResult> {
@@ -233,10 +239,7 @@ export async function execBeadAction(
           return `--city=${cityPath}`;
         })()
       : undefined;
-  if (action === 'claim') {
-    args.push('update', beadId, '--status=in_progress', '--assignee=stephanie');
-    if (cityArg) args.push(cityArg);
-  } else if (action === 'close') {
+  if (action === 'close') {
     args.push('close', beadId);
     if (cityArg) args.push(cityArg);
     if (typeof reason === 'string' && reason.length > 0 && reason.length <= 1024) {
@@ -302,40 +305,12 @@ export async function execAgentPrime(
   }
 }
 
-// PHYSICAL SEPARATION (security_researcher td-wisp-eb0pn): mail-send is its
-// OWN wrapper, deliberately with NO `from` / `as` parameter in its
-// signature. The --from human pin is the SECOND belt — even if some
-// future caller tries to add a `from` arg, the function refuses it because
-// it isn't a parameter at all.
-//
-// `human` is gc's canonical wire identity for the operator. The audit log
-// separately records `actor=stephanie` (see audit.ts) — that's the
-// dashboard's internal accounting, distinct from gc's wire-level sender.
-export async function execMailSend(
-  to: string,
-  subject: string,
-  body: string,
-): Promise<ExecResult> {
-  if (!AGENT_ALIAS_RE.test(to)) {
-    throw new ExecError('invalid recipient alias', 'validation');
-  }
-  if (subject.length === 0 || subject.length > 200) {
-    throw new ExecError('subject must be 1–200 chars', 'validation');
-  }
-  if (body.length === 0 || body.length > 16 * 1024) {
-    throw new ExecError('body too short or too long', 'validation');
-  }
-  await acquireSlot();
-  try {
-    return await runExec(
-      'gc',
-      ['mail', 'send', to, '--from', 'human', '-s', subject, '-m', body],
-      10_000,
-    );
-  } finally {
-    releaseSlot();
-  }
-}
+// Mail send moved to GcClient.sendMail (HTTP POST /mail with from:'human')
+// under gascity-dashboard-mq2 — the supervisor exposes that write endpoint.
+// The physical-separation guarantee (no `from`/`as` slot reaching the
+// browser) now lives in the browser-facing MailComposeRequest shape +
+// server.ts pinning from:'human'; the route file mail-send.ts still has no
+// identity parameter in its handler.
 
 // Hardcoded enum of `git log` invocations. Each view's args live entirely
 // in this file — the operator cannot pass arbitrary git arguments to the

@@ -8,6 +8,9 @@ import type {
   GcWorkflowSnapshot,
   SlingInput,
   SlingResponse,
+  BeadUpdateInput,
+  MailSendInput,
+  MailSendResponse,
   TranscriptTurn,
   WorkflowScopeKind,
 } from 'gas-city-dashboard-shared';
@@ -206,6 +209,34 @@ export class GcClient {
    */
   async sling(input: SlingInput): Promise<SlingResponse> {
     return this.postJson<SlingResponse>('/sling', input, SLING_TIMEOUT_MS);
+  }
+
+  /**
+   * `POST /bead/{id}/update` — the bead-CLAIM path (gascity-dashboard-mq2;
+   * replaces `gc bd update --status=in_progress --assignee=stephanie`). The
+   * supervisor returns OKResponseBody{status}; the caller ignores the body
+   * (success = 2xx). Unlike sling, this is a fast metadata write, so it uses
+   * the read default timeout. Bead CLOSE + agent NUDGE stay on the CLI (no
+   * reason field / no HTTP route respectively).
+   */
+  async updateBead(id: string, body: BeadUpdateInput): Promise<void> {
+    await this.postJson<{ status?: string }>(
+      `/bead/${encodeURIComponent(id)}/update`,
+      body,
+      this.defaultTimeoutMs,
+    );
+  }
+
+  /**
+   * `POST /mail` — operator mail send (gascity-dashboard-mq2; replaces
+   * `gc mail send ... --from human`). The supervisor returns 201 with the
+   * created Message; the caller reads `id` off the response in place of the
+   * old stdout `Sent <id>` parse. Fast write, so it uses the read default
+   * timeout. `from` is pinned to 'human' by the caller (server.ts), never the
+   * browser — the browser-facing shape has no `from` slot.
+   */
+  async sendMail(body: MailSendInput): Promise<MailSendResponse> {
+    return this.postJson<MailSendResponse>('/mail', body, this.defaultTimeoutMs);
   }
 
   async listSessions(signal?: AbortSignal): Promise<GcSessionList> {

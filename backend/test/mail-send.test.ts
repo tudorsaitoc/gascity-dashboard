@@ -5,23 +5,24 @@ import os from 'node:os';
 import path from 'node:path';
 import type { AddressInfo } from 'node:net';
 import express from 'express';
-import type { ExecResult } from '../src/exec.js';
-import { ExecError } from '../src/exec.js';
 import { mailSendRouter } from '../src/routes/mail-send.js';
 import { setAuditLogPath } from '../src/audit.js';
+import type { MailSendResponse } from 'gas-city-dashboard-shared';
 
-// Tests for POST /api/mail-send (gascity-dashboard-pf2 retrofit).
+// Tests for POST /api/mail-send.
 //
-// Mirrors backend/test/maintainer-sling.test.ts harness: the route accepts
-// execMailSend via DI so tests can stub without module mocking. Audit
-// assertions hit a tmp file via setAuditLogPath. concurrency:false because
-// setAuditLogPath is global module state.
+// gascity-dashboard-mq2: mail send moved off the `gc mail send` subprocess to
+// an HTTP POST /mail on the supervisor (injected `sendMail` fn). The route
+// accepts sendMail via DI so tests can stub without module mocking; the stub
+// returns the supervisor's Message shape (`id`) instead of an ExecResult.
+// Audit assertions hit a tmp file via setAuditLogPath. concurrency:false
+// because setAuditLogPath is global module state.
 
 type MailSendStub = (
   to: string,
   subject: string,
   body: string,
-) => Promise<ExecResult>;
+) => Promise<MailSendResponse>;
 
 interface StubCall {
   to: string;
@@ -46,14 +47,16 @@ async function buildApp(opts: BuildOpts = {}): Promise<AppHandle> {
   setAuditLogPath(auditPath);
 
   const calls: StubCall[] = [];
-  // Real `gc mail send` prints "Sent td-wisp-abc123 ..." on success; the
-  // route extracts the message id via /b(td-wisp-[a-z0-9]{3,12})b/.
+  // The supervisor's POST /mail returns the created Message; the route
+  // surfaces only `id` as message_id.
   const defaultStub: MailSendStub = async () => ({
-    exitCode: 0,
-    stdout: 'Sent td-wisp-abc123 to recipient\n',
-    stderr: '',
-    truncated: false,
-    durationMs: 21,
+    id: 'td-wisp-abc123',
+    from: 'human',
+    to: 'recipient',
+    subject: 'status',
+    body: 'all green',
+    created_at: '2026-05-26T00:00:00Z',
+    read: false,
   });
   const mailSend: MailSendStub = async (to, subject, body) => {
     calls.push({ to, subject, body });
@@ -62,7 +65,7 @@ async function buildApp(opts: BuildOpts = {}): Promise<AppHandle> {
 
   const app = express();
   app.use(express.json());
-  app.use('/api/mail-send', mailSendRouter({ execMailSend: mailSend }));
+  app.use('/api/mail-send', mailSendRouter({ sendMail: mailSend }));
 
   return new Promise((resolve) => {
     const srv = app.listen(0, '127.0.0.1', () => {
@@ -138,7 +141,9 @@ describe('POST /api/mail-send', { concurrency: false }, () => {
     assert.equal(row.type, 'dashboard.send_mail');
     assert.equal(row.endpoint, 'POST /api/mail-send');
     assert.equal(row.actor, 'stephanie');
-    assert.equal(row.exit_code, 0);
+    // HTTP path no longer has a subprocess exit code; the row records
+    // duration only on success.
+    assert.equal(row.exit_code, undefined);
     assert.equal(typeof row.duration_ms, 'number');
     const parsed = row.parsed_args as Record<string, string>;
     assert.equal(parsed.to, 'mayor');
@@ -218,21 +223,18 @@ describe('POST /api/mail-send', { concurrency: false }, () => {
     assert.equal(h.calls.length, 0);
   });
 
-  // gascity-dashboard-i0b: the non-zero-exit SUCCESS-path branch (exec
-  // resolved, but `gc mail send` returned non-zero) used to echo raw stderr
-  // on the wire — same threat-family as the 473 catch-arms. gc's stderr can
-  // embed host paths / socket paths / ENOENT. The wire must carry only the
-  // fixed details:{name:'NonZeroExit'} shape (mirroring agents.ts i53);
-  // full stderr is retained server-side via console.warn for journalctl.
-  test('gc mail send non-zero exit surfaces as 502 with redacted details', async () => {
+  // gascity-dashboard-mq2: an upstream failure (the supervisor returned
+  // non-2xx, or a network error) surfaces as 502. GcClient throws
+  // `gc supervisor returned NNN` (and fetch errors embed host:port) — the
+  // wire must carry only details.name, never the raw message, mirroring the
+  // maintainer sling redaction (gascity-dashboard-473/ayr).
+  test('upstream failure surfaces as 502 with redacted details', async () => {
+    const leakyErr = new Error('gc supervisor returned 500 at http://127.0.0.1:8372');
+    leakyErr.name = 'UpstreamError';
     h = await buildApp({
-      mailSend: async () => ({
-        exitCode: 1,
-        stdout: '',
-        stderr: 'gc: open /home/ds/.local/share/gc/mail.sock: ENOENT\n',
-        truncated: false,
-        durationMs: 15,
-      }),
+      mailSend: async () => {
+        throw leakyErr;
+      },
     });
     const res = await postJson(`${h.url}/api/mail-send`, {
       to: 'mayor',
@@ -241,43 +243,26 @@ describe('POST /api/mail-send', { concurrency: false }, () => {
     });
     assert.equal(res.status, 502);
     assert.equal(res.body.kind, 'upstream');
-    const details = res.body.details as { stderr?: string; name?: string };
-    assert.equal(details.stderr, undefined, 'wire must not carry raw stderr');
-    assert.equal(
-      details.name,
-      'NonZeroExit',
-      'wire must carry the fixed details discriminator only',
-    );
+    const details = res.body.details as { name?: string; message?: string };
+    assert.equal(details?.message, undefined, 'details.message must be redacted');
+    assert.equal(details?.name, 'UpstreamError');
     const wire = JSON.stringify(res.body);
-    assert.ok(!wire.includes('/home/ds'), `response leaks operator home: ${wire}`);
-    assert.ok(!wire.includes('.sock'), `response leaks socket path: ${wire}`);
-    assert.ok(!wire.includes('ENOENT'), `response leaks OS errno: ${wire}`);
+    assert.ok(!wire.includes('127.0.0.1'), `response leaks loopback: ${wire}`);
+    assert.ok(!wire.includes('8372'), `response leaks supervisor port: ${wire}`);
 
+    // The failure still leaves an audit row (forensic parity with success).
     const rows = await readAudit(h.auditPath);
     assert.equal(rows.length, 1);
-    assert.equal(rows[0]!.exit_code, 1);
+    assert.equal((rows[0]!.parsed_args as Record<string, string>).error_kind, 'upstream');
   });
 
-  test('ExecError validation surfaces as 400', async () => {
+  test('timeout surfaces as 504', async () => {
     h = await buildApp({
       mailSend: async () => {
-        throw new ExecError('invalid recipient alias', 'validation');
-      },
-    });
-    const res = await postJson(`${h.url}/api/mail-send`, {
-      to: 'mayor',
-      subject: 'x',
-      body: 'y',
-    });
-    assert.equal(res.status, 400);
-    assert.equal(res.body.kind, 'validation');
-    assert.equal(h.calls.length, 1);
-  });
-
-  test('ExecError timeout surfaces as 504', async () => {
-    h = await buildApp({
-      mailSend: async () => {
-        throw new ExecError('mail send timed out', 'timeout');
+        // Mirror the shape GcClient produces on a per-request timeout.
+        const err = new Error('The operation was aborted due to timeout');
+        err.name = 'TimeoutError';
+        throw err;
       },
     });
     const res = await postJson(`${h.url}/api/mail-send`, {
@@ -290,30 +275,16 @@ describe('POST /api/mail-send', { concurrency: false }, () => {
     assert.equal(h.calls.length, 1);
   });
 
-  test('non-ExecError throw surfaces as 500 internal', async () => {
-    h = await buildApp({
-      mailSend: async () => {
-        throw new Error('boom');
-      },
-    });
-    const res = await postJson(`${h.url}/api/mail-send`, {
-      to: 'mayor',
-      subject: 'x',
-      body: 'y',
-    });
-    assert.equal(res.status, 500);
-    assert.equal(res.body.kind, 'internal');
-    assert.equal(h.calls.length, 1);
-  });
-
-  test('stdout without message_id pattern returns 200 with message_id omitted', async () => {
+  test('empty message id returns 200 with message_id omitted', async () => {
     h = await buildApp({
       mailSend: async () => ({
-        exitCode: 0,
-        stdout: 'queued\n',
-        stderr: '',
-        truncated: false,
-        durationMs: 10,
+        id: '',
+        from: 'human',
+        to: 'recipient',
+        subject: 'x',
+        body: 'y',
+        created_at: '2026-05-26T00:00:00Z',
+        read: false,
       }),
     });
     const res = await postJson(`${h.url}/api/mail-send`, {
@@ -324,78 +295,5 @@ describe('POST /api/mail-send', { concurrency: false }, () => {
     assert.equal(res.status, 200);
     assert.equal(res.body.ok, true);
     assert.equal(res.body.message_id, undefined);
-  });
-
-  // gascity-dashboard-473: complete the ayr/sr6 redaction sweep on the
-  // POST /api/mail-send catch arms. See beads-nudge.test.ts for the
-  // two-pattern rationale.
-  test('ExecError spawn arm redacts host path from response body', async () => {
-    h = await buildApp({
-      mailSend: async () => {
-        throw new ExecError(
-          'spawn failed: spawn /home/ds/.local/bin/gc ENOENT',
-          'spawn',
-        );
-      },
-    });
-    const res = await postJson(`${h.url}/api/mail-send`, {
-      to: 'mayor',
-      subject: 'x',
-      body: 'y',
-    });
-    assert.equal(res.status, 500);
-    assert.equal(res.body.kind, 'spawn');
-    const wire = JSON.stringify(res.body);
-    assert.ok(
-      !wire.includes('/home/ds'),
-      `response leaks operator home: ${wire}`,
-    );
-    assert.ok(
-      !wire.includes('.local/bin'),
-      `response leaks binary path: ${wire}`,
-    );
-    assert.ok(
-      !wire.includes('ENOENT'),
-      `response leaks OS errno: ${wire}`,
-    );
-  });
-
-  test('non-ExecError 500 fallback redacts raw err.message', async () => {
-    const leakyErr = new Error(
-      'connect ECONNREFUSED 127.0.0.1:1 (interface lo) at /var/run/sock',
-    );
-    leakyErr.name = 'NetworkError';
-    h = await buildApp({
-      mailSend: async () => {
-        throw leakyErr;
-      },
-    });
-    const res = await postJson(`${h.url}/api/mail-send`, {
-      to: 'mayor',
-      subject: 'x',
-      body: 'y',
-    });
-    assert.equal(res.status, 500);
-    assert.equal(res.body.kind, 'internal');
-    const details = res.body.details as { name?: string; message?: string };
-    assert.equal(
-      details?.message,
-      undefined,
-      'details.message must be redacted',
-    );
-    assert.equal(
-      details?.name,
-      'NetworkError',
-      'details.name must carry the Error class discriminator',
-    );
-    const wire = JSON.stringify(res.body);
-    assert.ok(
-      !wire.includes('ECONNREFUSED'),
-      `response leaks ECONNREFUSED: ${wire}`,
-    );
-    assert.ok(
-      !wire.includes('/var/run/sock'),
-      `response leaks file path: ${wire}`,
-    );
   });
 });

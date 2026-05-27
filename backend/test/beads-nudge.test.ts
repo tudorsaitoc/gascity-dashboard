@@ -10,27 +10,40 @@ import { ExecError } from '../src/exec.js';
 import { beadsRouter } from '../src/routes/beads.js';
 import { setAuditLogPath } from '../src/audit.js';
 import { GcClient } from '../src/gc-client.js';
+import type { BeadUpdateInput } from 'gas-city-dashboard-shared';
 
-// Tests for POST /api/beads/:id/{claim,close,nudge} (gascity-dashboard-pf2).
+// Tests for POST /api/beads/:id/{claim,close,nudge}.
 //
-// The bead nudge route is "agent-nudge" from the operator's POV — `gc bd
-// nudge <id>` pokes the assigned agent on a bead. The router accepts
-// execBeadAction via DI so tests can stub without module mocking. Mirrors
-// backend/test/maintainer-sling.test.ts harness shape. concurrency:false
-// because setAuditLogPath is global module state.
+// gascity-dashboard-mq2: CLAIM moved to an HTTP POST /bead/{id}/update on the
+// supervisor (injected `updateBead` fn). CLOSE + NUDGE stay on the gc CLI —
+// close because the HTTP /bead/{id}/close endpoint has no reason field, nudge
+// because no HTTP route exists for it — so they keep flowing through the
+// injected `execBeadAction` stub. The router accepts both via DI so tests
+// can stub without module mocking. concurrency:false because setAuditLogPath
+// is global module state.
 
 type BeadActionStub = (
   beadId: string,
-  action: 'claim' | 'close' | 'nudge',
+  action: 'close' | 'nudge',
   reason?: string,
   cityPath?: string,
 ) => Promise<ExecResult>;
 
+type UpdateBeadStub = (
+  id: string,
+  body: BeadUpdateInput,
+) => Promise<void>;
+
 interface StubCall {
   beadId: string;
-  action: 'claim' | 'close' | 'nudge';
+  action: 'close' | 'nudge';
   reason?: string;
   cityPath?: string;
+}
+
+interface UpdateCall {
+  id: string;
+  body: BeadUpdateInput;
 }
 
 interface AppHandle {
@@ -38,10 +51,12 @@ interface AppHandle {
   close: () => Promise<void>;
   auditPath: string;
   calls: StubCall[];
+  updateCalls: UpdateCall[];
 }
 
 interface BuildOpts {
   execBeadAction?: BeadActionStub;
+  updateBead?: UpdateBeadStub;
 }
 
 // We only exercise the write routes (claim/close/nudge); the read routes
@@ -56,6 +71,7 @@ async function buildApp(opts: BuildOpts = {}): Promise<AppHandle> {
   setAuditLogPath(auditPath);
 
   const calls: StubCall[] = [];
+  const updateCalls: UpdateCall[] = [];
   const defaultStub: BeadActionStub = async () => ({
     exitCode: 0,
     stdout: 'ok\n',
@@ -67,10 +83,18 @@ async function buildApp(opts: BuildOpts = {}): Promise<AppHandle> {
     calls.push({ beadId, action, reason, cityPath });
     return (opts.execBeadAction ?? defaultStub)(beadId, action, reason, cityPath);
   };
+  const defaultUpdate: UpdateBeadStub = async () => {};
+  const updateBead: UpdateBeadStub = async (id, body) => {
+    updateCalls.push({ id, body });
+    return (opts.updateBead ?? defaultUpdate)(id, body);
+  };
 
   const app = express();
   app.use(express.json());
-  app.use('/api/beads', beadsRouter(STUB_GC, TEST_CITY_PATH, { execBeadAction }));
+  app.use(
+    '/api/beads',
+    beadsRouter(STUB_GC, TEST_CITY_PATH, { execBeadAction, updateBead }),
+  );
 
   return new Promise((resolve) => {
     const srv = app.listen(0, '127.0.0.1', () => {
@@ -79,6 +103,7 @@ async function buildApp(opts: BuildOpts = {}): Promise<AppHandle> {
         url: `http://127.0.0.1:${port}`,
         auditPath,
         calls,
+        updateCalls,
         close: () =>
           new Promise<void>((r) =>
             srv.close(async () => {
@@ -150,13 +175,74 @@ describe('POST /api/beads/:id/{claim,close,nudge}', { concurrency: false }, () =
     assert.ok(!('reason' in parsed));
   });
 
-  test('happy path: claim dispatches via DI stub', async () => {
+  // gascity-dashboard-mq2: claim is now an HTTP POST /bead/{id}/update via
+  // the injected updateBead fn, NOT a gc CLI subprocess. It must set
+  // status:'in_progress' + assignee:'stephanie' and never touch
+  // execBeadAction (which is now close/nudge only).
+  test('happy path: claim dispatches via HTTP updateBead and audits', async () => {
     h = await buildApp();
     const res = await postJson(`${h.url}/api/beads/td-wisp-abc123/claim`);
     assert.equal(res.status, 200);
     assert.equal(res.body.ok, true);
-    assert.equal(h.calls.length, 1);
-    assert.equal(h.calls[0]!.action, 'claim');
+    // No CLI subprocess on the claim path.
+    assert.equal(h.calls.length, 0);
+    assert.equal(h.updateCalls.length, 1);
+    assert.deepEqual(h.updateCalls[0], {
+      id: 'td-wisp-abc123',
+      body: { status: 'in_progress', assignee: 'stephanie' },
+    });
+
+    const rows = await readAudit(h.auditPath);
+    assert.equal(rows.length, 1);
+    const row = rows[0]!;
+    assert.equal(row.type, 'dashboard.exec');
+    assert.equal(row.endpoint, 'POST /api/beads/:id/claim');
+    assert.equal(row.actor, 'stephanie');
+    assert.equal(typeof row.duration_ms, 'number');
+    const parsed = row.parsed_args as Record<string, string>;
+    assert.equal(parsed.bead_id, 'td-wisp-abc123');
+  });
+
+  test('claim invalid bead id returns 400 before reaching updateBead', async () => {
+    h = await buildApp();
+    const res = await postJson(`${h.url}/api/beads/bad%20id%20!!/claim`);
+    assert.equal(res.status, 400);
+    assert.equal(res.body.kind, 'validation');
+    assert.equal(h.updateCalls.length, 0);
+  });
+
+  test('claim upstream failure surfaces as 502 with redacted details', async () => {
+    const leakyErr = new Error('gc supervisor returned 500 at http://127.0.0.1:8372');
+    leakyErr.name = 'UpstreamError';
+    h = await buildApp({
+      updateBead: async () => {
+        throw leakyErr;
+      },
+    });
+    const res = await postJson(`${h.url}/api/beads/td-wisp-abc123/claim`);
+    assert.equal(res.status, 502);
+    assert.equal(res.body.kind, 'upstream');
+    const details = res.body.details as { name?: string; message?: string };
+    assert.equal(details?.message, undefined, 'details.message must be redacted');
+    assert.equal(details?.name, 'UpstreamError');
+    const wire = JSON.stringify(res.body);
+    assert.ok(!wire.includes('127.0.0.1'), `response leaks loopback: ${wire}`);
+    assert.ok(!wire.includes('8372'), `response leaks supervisor port: ${wire}`);
+  });
+
+  test('claim timeout surfaces as 504', async () => {
+    h = await buildApp({
+      updateBead: async () => {
+        // Mirror the shape GcClient produces on a per-request timeout: a
+        // TimeoutError whose name isTimeoutError() recognises.
+        const err = new Error('The operation was aborted due to timeout');
+        err.name = 'TimeoutError';
+        throw err;
+      },
+    });
+    const res = await postJson(`${h.url}/api/beads/td-wisp-abc123/claim`);
+    assert.equal(res.status, 504);
+    assert.equal(res.body.kind, 'upstream-timeout');
   });
 
   test('happy path: close with reason threads reason to exec', async () => {

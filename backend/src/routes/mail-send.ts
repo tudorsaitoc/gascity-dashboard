@@ -1,18 +1,16 @@
 import { Router } from 'express';
-import {
-  execMailSend as defaultExecMailSend,
-  ExecError,
-} from '../exec.js';
-import type { ExecResult } from '../exec.js';
+import type { MailSendResponse } from 'gas-city-dashboard-shared';
+import { GcClient } from '../gc-client.js';
 import { recordAudit } from '../audit.js';
-import { toWireExecError, toWireInternal500 } from '../lib/sanitise-error.js';
+import { toWireInternal500 } from '../lib/sanitise-error.js';
 
 // WRITE-only mail router. Physically separated from ./mail.ts per the
 // architect's design (security_researcher td-wisp-eb0pn): the handler in
-// this file does NOT read `viewing-as` from anywhere. The exec wrapper it
-// calls has no as-identity parameter in its signature. There is no code
-// path through this file that can send-as-someone-else — the structural
-// guarantee is the file, not discipline.
+// this file does NOT read `viewing-as` from anywhere. The injected sendMail
+// fn has no as-identity parameter in its signature — `from` is pinned to
+// 'human' by the caller in server.ts, never sourced from the request. There
+// is no code path through this file that can send-as-someone-else — the
+// structural guarantee is the file, not discipline.
 
 const TO_RE = /^[a-z][a-z0-9_./-]{1,63}$/i;
 const MAX_SUBJECT = 200;
@@ -20,22 +18,23 @@ const MAX_BODY = 16 * 1024;
 
 interface MailSendRouterOptions {
   /**
-   * Injected `gc mail send` runner. Defaults to the real exec wrapper;
-   * tests pass a stub. Mirrors the DI pattern established by
-   * maintainerRouter.execGcSling (gascity-dashboard-ib5) and applied to
-   * audit (gascity-dashboard-gxf). The structural-separation guarantee
-   * of this file (no `from`/`viewing_as` slot) is preserved: the stub
-   * type has no identity parameter either.
+   * Injected mail-send runner (gascity-dashboard-mq2). Production wires a
+   * closure over `gc.sendMail` that pins `from:'human'` (see server.ts);
+   * tests pass a stub. Replaces the former `execMailSend` subprocess DI —
+   * the supervisor exposes `POST /mail`. The structural-separation
+   * guarantee of this file is preserved: the fn's only inputs are
+   * to/subject/body, so this handler has no `from`/`viewing_as` slot.
+   * Returns the supervisor's Message; the route surfaces only `id`.
    */
-  execMailSend?: (
+  sendMail: (
     to: string,
     subject: string,
     body: string,
-  ) => Promise<ExecResult>;
+  ) => Promise<MailSendResponse>;
 }
 
-export function mailSendRouter(opts: MailSendRouterOptions = {}): Router {
-  const execMailSend = opts.execMailSend ?? defaultExecMailSend;
+export function mailSendRouter(opts: MailSendRouterOptions): Router {
+  const { sendMail } = opts;
   const router = Router();
 
   router.post('/', async (req, res) => {
@@ -57,59 +56,47 @@ export function mailSendRouter(opts: MailSendRouterOptions = {}): Router {
       return;
     }
 
+    const startedAt = Date.now();
     try {
-      const result = await execMailSend(to, subject, text);
+      const result = await sendMail(to, subject, text);
       void recordAudit({
         type: 'dashboard.send_mail',
         endpoint: 'POST /api/mail-send',
         // viewing_as deliberately NOT recorded here — sender is always the
         // operator. The signature has no slot for it. Record only what was sent.
         parsed_args: { to, subject_len: String(subject.length), body_len: String(text.length) },
-        exit_code: result.exitCode,
-        duration_ms: result.durationMs,
+        duration_ms: Date.now() - startedAt,
       });
-      if (result.exitCode !== 0) {
-        // gascity-dashboard-i0b: do NOT echo raw stderr on the wire. gc's
-        // stderr is implementation-defined and can embed host paths /
-        // socket paths / ENOENT. Mirror the i53 (agents.ts) + 473
-        // catch-arm pattern: stderr stays server-side in console.warn for
-        // journalctl; the wire carries kind + a fixed message plus
-        // details:{name} for shape parity with the catch-all 500.
-        console.warn(
-          `[mail-send] non-zero exit ${result.exitCode}: ${result.stderr}`,
-        );
-        res.status(502).json({
-          error: `gc mail send failed (${result.exitCode})`,
-          kind: 'upstream',
-          details: { name: 'NonZeroExit' },
-        });
-        return;
-      }
-      // gc mail send prints the message id; pull it best-effort from stdout.
-      const idMatch = /\b(td-wisp-[a-z0-9]{3,12})\b/.exec(result.stdout);
-      res.json({ ok: true, message_id: idMatch?.[1] });
+      // The supervisor returns the created Message; `id` replaces the old
+      // `Sent <id>` stdout parse. Typed string, but guard against an empty
+      // value so the client's `message_id?: string` stays meaningful.
+      res.json({ ok: true, message_id: result.id.length > 0 ? result.id : undefined });
     } catch (err) {
-      if (err instanceof ExecError) {
-        const status = err.kind === 'validation' ? 400 : err.kind === 'timeout' ? 504 : 500;
-        // gascity-dashboard-473: spawn-arm host path redaction. The
-        // 'spawn' kind wraps node's "spawn <abs-path> ENOENT" exposing
-        // the operator's binary layout; validation/timeout carry safe
-        // pre-authored strings by ExecError construction.
-        if (err.kind === 'spawn') {
-          console.warn(`[mail-send] spawn failed: ${err.message}`);
-        }
-        const wire = toWireExecError(err, status);
-        res.status(wire.status).json(wire.body);
-        return;
-      }
-      // gascity-dashboard-473: mirror the ayr sr6 redaction on the
-      // catch-all 500. Raw err.message can embed OS detail; details.name
-      // (Error class) is the only safe channel.
+      // gascity-dashboard-mq2: mail send is now an HTTP POST to the
+      // supervisor. A true client-side timeout maps to 504; any other
+      // failure (non-2xx from the supervisor, network error) maps to 502
+      // upstream. The raw message can embed the supervisor URL / host
+      // (GcClient throws `gc supervisor returned NNN`; fetch errors embed
+      // host:port), so it stays server-side in console.warn — only
+      // details.name reaches the wire, mirroring the maintainer sling +
+      // sr6 redaction (gascity-dashboard-473/ayr).
+      const isTimeout = GcClient.isTimeoutError(err);
+      void recordAudit({
+        type: 'dashboard.send_mail',
+        endpoint: 'POST /api/mail-send',
+        parsed_args: {
+          to,
+          subject_len: String(subject.length),
+          body_len: String(text.length),
+          error_kind: isTimeout ? 'timeout' : 'upstream',
+        },
+        duration_ms: Date.now() - startedAt,
+      });
       console.warn(`[mail-send] failed: ${(err as Error).message}`);
       const wire = toWireInternal500(err, {
-        status: 500,
-        error: 'internal error',
-        kind: 'internal',
+        status: isTimeout ? 504 : 502,
+        error: isTimeout ? 'gc supervisor timed out' : 'gc mail send failed',
+        kind: isTimeout ? 'timeout' : 'upstream',
       });
       res.status(wire.status).json(wire.body);
     }
