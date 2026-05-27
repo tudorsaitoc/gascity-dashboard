@@ -517,9 +517,15 @@ describe('workflows detail route', () => {
     const snapshot = graphV2Snapshot();
     snapshot.scope_kind = 'rig';
     snapshot.scope_ref = 'tic-tac-toe-app';
-    snapshot.root_store_ref = 'rig:tic-tac-toe-app';
-    snapshot.resolved_root_store = 'rig:tic-tac-toe-app';
-    snapshot.stores_scanned = ['rig:tic-tac-toe-app'];
+    // rig SCOPE with a city STORE: the workflow is resolved under the rig scope
+    // but its beads live in the city store, so they remain refreshable via
+    // /v0/city/{city}/bead/{id}. Scope and store are independent dimensions
+    // (gascity-dashboard-sd9). This test exercises rig-scope session resolution
+    // over the live per-bead refresh path; the non-city-store skip is covered
+    // by its own dedicated tests below.
+    snapshot.root_store_ref = 'city:racoon-city';
+    snapshot.resolved_root_store = 'city:racoon-city';
+    snapshot.stores_scanned = ['city:racoon-city'];
     snapshot.beads = snapshot.beads?.map((bead) =>
       bead.id === 'gc-root'
         ? {
@@ -529,7 +535,7 @@ describe('workflows detail route', () => {
               ...bead.metadata,
               'gc.scope_kind': 'rig',
               'gc.scope_ref': 'tic-tac-toe-app',
-              'gc.root_store_ref': 'rig:tic-tac-toe-app',
+              'gc.root_store_ref': 'city:racoon-city',
               'gc.run_target': 'tic-tac-toe-app/codex',
             },
           }
@@ -607,9 +613,10 @@ describe('workflows detail route', () => {
     const snapshot = graphV2Snapshot();
     snapshot.scope_kind = 'rig';
     snapshot.scope_ref = 'tic-tac-toe-app';
-    snapshot.root_store_ref = 'rig:tic-tac-toe-app';
-    snapshot.resolved_root_store = 'rig:tic-tac-toe-app';
-    snapshot.stores_scanned = ['rig:tic-tac-toe-app'];
+    // rig SCOPE, city STORE — beads stay refreshable (see the note above).
+    snapshot.root_store_ref = 'city:racoon-city';
+    snapshot.resolved_root_store = 'city:racoon-city';
+    snapshot.stores_scanned = ['city:racoon-city'];
     snapshot.beads = snapshot.beads?.map((bead) => {
       if (bead.id !== 'gc-codex-iter2') return bead;
       const { assignee: _assignee, metadata: beadMetadata, ...rest } = bead;
@@ -693,6 +700,104 @@ describe('workflows detail route', () => {
           ready: 2,
         },
       });
+    } finally {
+      await close();
+    }
+  });
+
+  test('skips per-bead refresh for a non-city-store workflow and does not flag partial', async () => {
+    // Regression for gascity-dashboard-6zz: a rig-store-backed workflow's beads
+    // are NOT addressable via /v0/city/{city}/bead/{id} (the supervisor exposes
+    // no rig bead endpoint), so the old code fired N /bead reads that all 404'd
+    // and flagged the run permanently 'partial'. The fix treats the embedded
+    // snapshot rows as authoritative and skips the refresh entirely.
+    const snapshot = graphV2Snapshot();
+    snapshot.scope_kind = 'city';
+    snapshot.scope_ref = 'racoon-city';
+    snapshot.root_store_ref = 'rig:codeprobe';
+    snapshot.resolved_root_store = 'rig:codeprobe';
+    snapshot.stores_scanned = ['rig:codeprobe'];
+    snapshot.beads = snapshot.beads?.map((bead) =>
+      bead.id === 'gc-root'
+        ? { ...bead, metadata: { ...bead.metadata, 'gc.root_store_ref': 'rig:codeprobe' } }
+        : bead,
+    ) ?? [];
+    fake.setHandler((req, res) => {
+      res.setHeader('content-type', 'application/json');
+      if (respondMissingFormulaDetail(req, res)) return;
+      if (req.url === '/v0/city/racoon-city/sessions') {
+        res.end(JSON.stringify({ items: [] }));
+        return;
+      }
+      if (req.url?.startsWith('/v0/city/racoon-city/bead/')) {
+        // No rig bead endpoint exists upstream; the supervisor 404s these.
+        res.statusCode = 404;
+        res.end(JSON.stringify({ detail: 'bead not found' }));
+        return;
+      }
+      res.end(JSON.stringify(snapshot));
+    });
+    const { url, close } = await startApp(buildApp(fake.baseUrl));
+    try {
+      const res = await fetch(`${url}/api/workflows/gc-root`);
+      assert.equal(res.status, 200);
+      const body = await res.json();
+      // Not degraded: the embedded rows are the intended source for a
+      // non-city-store run, so the route must not raise the partial badge
+      // (the snapshot's own partial:false flows through unchanged).
+      assert.notEqual(body.partial, true);
+      // Crucially, the route must not have attempted ANY /bead read.
+      assert.equal(
+        fake.requests.some((request) => request.startsWith('/v0/city/racoon-city/bead/')),
+        false,
+        `expected no /bead reads, got: ${fake.requests.join(', ')}`,
+      );
+      // Embedded status still drives the view: gc-codex-iter2 carries
+      // status=in_progress + assignee in the snapshot, so its node is active
+      // even though no /bead refresh ran.
+      const codexNode = body.nodes.find(
+        (node: { semanticNodeId?: string }) => node.semanticNodeId === 'review-codex',
+      );
+      assert.equal(codexNode?.status, 'active');
+    } finally {
+      await close();
+    }
+  });
+
+  test('still refreshes per-bead and flags partial when a city-store bead read fails', async () => {
+    // Counterpart to the skip above: genuine city workflows keep the
+    // allSettled refresh, so a transient subset failure still surfaces partial.
+    const snapshot = graphV2Snapshot();
+    fake.setHandler((req, res) => {
+      res.setHeader('content-type', 'application/json');
+      if (respondMissingFormulaDetail(req, res)) return;
+      if (req.url === '/v0/city/racoon-city/sessions') {
+        res.end(JSON.stringify({ items: [] }));
+        return;
+      }
+      if (req.url?.startsWith('/v0/city/racoon-city/bead/')) {
+        const id = req.url.split('/').pop() ?? '';
+        if (id === 'gc-codex-iter2') {
+          res.statusCode = 500;
+          res.end(JSON.stringify({ detail: 'transient' }));
+          return;
+        }
+        res.end(JSON.stringify(runtimeBead(id, 'pending')));
+        return;
+      }
+      res.end(JSON.stringify(snapshot));
+    });
+    const { url, close } = await startApp(buildApp(fake.baseUrl));
+    try {
+      const res = await fetch(`${url}/api/workflows/gc-root`);
+      assert.equal(res.status, 200);
+      const body = await res.json();
+      assert.equal(body.partial, true);
+      // The refresh was attempted for city-store beads.
+      assert.ok(
+        fake.requests.some((request) => request.startsWith('/v0/city/racoon-city/bead/')),
+        `expected /bead reads, got: ${fake.requests.join(', ')}`,
+      );
     } finally {
       await close();
     }
