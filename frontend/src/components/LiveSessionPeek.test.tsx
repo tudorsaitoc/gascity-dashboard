@@ -89,6 +89,9 @@ describe('isSessionStreamable', () => {
   it('is true when the gc state is active', () => {
     expect(isSessionStreamable(session({ state: 'active', running: false }))).toBe(true);
   });
+  it("is true when the gc state is 'running' (aligns with SESSION_CHIPS)", () => {
+    expect(isSessionStreamable(session({ state: 'running', running: false }))).toBe(true);
+  });
   it('is false for a non-running, non-active session', () => {
     expect(isSessionStreamable(session({ state: 'asleep', running: false }))).toBe(false);
   });

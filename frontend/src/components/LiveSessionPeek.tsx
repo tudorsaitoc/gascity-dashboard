@@ -90,11 +90,16 @@ export function streamBadge(state: SessionStreamConnState): {
 /**
  * Whether a session is worth opening a live stream for. A streamed dead
  * session would hold a connection that never emits a turn and show a
- * perpetual "connecting" badge, so gate on the process-running signal
- * (mirrors the backend's instance.streamable, which keys on the running
- * status) plus the gc-level active state.
+ * perpetual "connecting" badge, so gate on the running signal. Mirrors the
+ * "running" filter chip predicate in routes/Agents.tsx (SESSION_CHIPS) so a
+ * session the rest of the UI shows as running also streams: process
+ * `running`, gc state `active`, OR gc state `running`.
  */
 export function isSessionStreamable(session: GcSession | null): boolean {
   if (session === null) return false;
-  return session.running === true || session.state === 'active';
+  return (
+    session.running === true ||
+    session.state === 'active' ||
+    session.state === 'running'
+  );
 }

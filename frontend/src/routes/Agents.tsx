@@ -95,7 +95,14 @@ export function AgentsPage() {
   const rows = useMemo(() => data?.items ?? [], [data]);
   const [now, setNow] = useState(() => Date.now());
 
-  const [peekFor, setPeekFor] = useState<GcSession | null>(null);
+  const [peekId, setPeekId] = useState<string | null>(null);
+  // Derive the peeked session from the live rows by id rather than from a
+  // click-time snapshot, so its streamable state stays current as the
+  // session list refreshes while the modal is open.
+  const peekSession = useMemo(
+    () => (peekId === null ? null : rows.find((s) => s.id === peekId) ?? null),
+    [rows, peekId],
+  );
 
   useEffect(() => {
     const tick = setInterval(() => {
@@ -234,7 +241,7 @@ export function AgentsPage() {
       key: 'actions',
       label: '',
       render: (r) => (
-        <Button size="sm" tone="quiet" onClick={() => setPeekFor(r)}>
+        <Button size="sm" tone="quiet" onClick={() => setPeekId(r.id)}>
           Peek
         </Button>
       ),
@@ -303,15 +310,23 @@ export function AgentsPage() {
       />
 
       <Modal
-        open={peekFor !== null}
-        onClose={() => setPeekFor(null)}
-        title={peekFor ? `${peekFor.alias ?? peekFor.title ?? peekFor.id}` : 'Transcript'}
-        caption="Live transcript from the supervisor's session stream."
+        open={peekId !== null}
+        onClose={() => setPeekId(null)}
+        title={
+          peekSession
+            ? `${peekSession.alias ?? peekSession.title ?? peekSession.id}`
+            : (peekId ?? 'Transcript')
+        }
+        caption={
+          isSessionStreamable(peekSession)
+            ? "Live transcript from the supervisor's session stream."
+            : "Snapshot from the supervisor's transcript API."
+        }
         widthClass="max-w-5xl"
       >
         <LiveSessionPeek
-          sessionId={peekFor?.id ?? null}
-          stream={isSessionStreamable(peekFor)}
+          sessionId={peekId}
+          stream={isSessionStreamable(peekSession)}
           showBadge
           showCaption
         />
