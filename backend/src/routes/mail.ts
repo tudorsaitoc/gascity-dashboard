@@ -10,8 +10,9 @@ import { recordAudit } from '../audit.js';
 const ALIAS_RE = /^[a-z][a-z0-9_./-]{1,63}$/i;
 const BOX_VALUES = new Set(['inbox', 'sent', 'all']);
 // The operator's dashboard-internal display identity vs. gc's wire identity.
-// gc addresses the human operator as `human` (see exec.ts execMailSend's
-// `--from human` pin); the dashboard accounts for her as `stephanie`. Mail
+// gc addresses the human operator as `human` (see server.ts's mailSendRouter
+// `from:'human'` pin on gc.sendMail); the dashboard accounts for her as
+// `stephanie`. Mail
 // is never addressed to `stephanie` on the wire, so a naive
 // `to === 'stephanie'` inbox filter returns nothing. Resolve the display
 // alias to the wire alias before matching so the operator's own inbox/sent

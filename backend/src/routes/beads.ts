@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import type { Response } from 'express';
-import type { GcBead } from 'gas-city-dashboard-shared';
+import type { GcBead, BeadUpdateInput } from 'gas-city-dashboard-shared';
 import { GcClient } from '../gc-client.js';
 import {
   execBeadAction as defaultExecBeadAction,
@@ -37,18 +37,27 @@ const BEADS_FETCH_LIMIT = 1000;
 
 interface BeadsRouterOptions {
   /**
-   * Injected `gc bd <claim|close|nudge>` runner. Defaults to the real
-   * exec wrapper; tests pass a stub. Mirrors the DI pattern established
-   * by maintainerRouter.execGcSling (gascity-dashboard-ib5). This is the
-   * live "agent-nudge" path: POST /api/beads/:id/nudge → execBeadAction(id,
-   * 'nudge') → `gc bd nudge <id>`.
+   * Injected `gc bd <close|nudge>` runner. Defaults to the real exec
+   * wrapper; tests pass a stub. CLOSE and NUDGE stay on the CLI by design
+   * (gascity-dashboard-mq2): the supervisor's HTTP `/bead/{id}/close` has no
+   * reason field — which the dashboard's close-reason UI depends on — and no
+   * HTTP route exists for agent NUDGE at all. The CLAIM path moved to the
+   * `updateBead` HTTP fn below.
    */
   execBeadAction?: (
     beadId: string,
-    action: 'claim' | 'close' | 'nudge',
+    action: 'close' | 'nudge',
     reason?: string,
     cityPath?: string,
   ) => Promise<ExecResult>;
+  /**
+   * Injected bead-CLAIM runner (gascity-dashboard-mq2). Production wires
+   * `gc.updateBead` (GcClient HTTP `POST /bead/{id}/update`); tests pass a
+   * stub. Replaces the former `execBeadAction(id, 'claim')` subprocess —
+   * the supervisor exposes the write endpoint, so the dashboard adopts it.
+   * Mirrors the maintainerRouter.sling DI pattern (gascity-dashboard-mq2).
+   */
+  updateBead?: (id: string, body: BeadUpdateInput) => Promise<void>;
 }
 
 export function beadsRouter(
@@ -57,6 +66,7 @@ export function beadsRouter(
   opts: BeadsRouterOptions = {},
 ): Router {
   const execBeadAction = opts.execBeadAction ?? defaultExecBeadAction;
+  const updateBead = opts.updateBead ?? ((id, body) => gc.updateBead(id, body));
   const router = Router();
 
   router.get('/', async (req, res) => {
@@ -147,7 +157,7 @@ export function beadsRouter(
   });
 
   router.post('/:id/claim', async (req, res) => {
-    await runBeadAction(req.params.id, 'claim', undefined, res, execBeadAction, cityPath);
+    await runBeadClaim(req.params.id, res, updateBead);
   });
 
   router.post('/:id/close', async (req, res) => {
@@ -162,9 +172,56 @@ export function beadsRouter(
   return router;
 }
 
+// Bead CLAIM over HTTP (gascity-dashboard-mq2): POST /bead/{id}/update with
+// {status:'in_progress', assignee:'stephanie'}, replacing the former
+// `gc bd update` subprocess. Error mapping mirrors the maintainer sling
+// handler: a true client-side timeout → 504, any other upstream failure
+// (non-2xx from the supervisor, network error) → 502, with the same
+// toWireInternal500 redaction (only details.name on the wire — the raw
+// message can embed the supervisor URL / host).
+async function runBeadClaim(
+  beadId: string,
+  res: Response,
+  updateBead: NonNullable<BeadsRouterOptions['updateBead']>,
+): Promise<void> {
+  if (!BEAD_ID_RE.test(beadId)) {
+    res.status(400).json({ error: 'invalid bead id', kind: 'validation' });
+    return;
+  }
+  const startedAt = Date.now();
+  try {
+    await updateBead(beadId, { status: 'in_progress', assignee: 'stephanie' });
+    void recordAudit({
+      type: 'dashboard.exec',
+      endpoint: 'POST /api/beads/:id/claim',
+      parsed_args: { bead_id: beadId },
+      duration_ms: Date.now() - startedAt,
+    });
+    res.json({ ok: true });
+  } catch (err) {
+    const isTimeout = GcClient.isTimeoutError(err);
+    void recordAudit({
+      type: 'dashboard.exec',
+      endpoint: 'POST /api/beads/:id/claim',
+      parsed_args: {
+        bead_id: beadId,
+        error_kind: isTimeout ? 'timeout' : 'upstream',
+      },
+      duration_ms: Date.now() - startedAt,
+    });
+    console.warn(`[beads] /api/beads/:id/claim failed: ${(err as Error).message}`);
+    const wire = toWireInternal500(err, {
+      status: isTimeout ? 504 : 502,
+      error: isTimeout ? 'gc supervisor timed out' : 'failed to claim bead',
+      kind: isTimeout ? 'upstream-timeout' : 'upstream',
+    });
+    res.status(wire.status).json(wire.body);
+  }
+}
+
 async function runBeadAction(
   beadId: string,
-  action: 'claim' | 'close' | 'nudge',
+  action: 'close' | 'nudge',
   reason: string | undefined,
   res: Response,
   execBeadAction: NonNullable<BeadsRouterOptions['execBeadAction']>,

@@ -336,3 +336,160 @@ describe('GcClient.sling', () => {
     assert.doesNotMatch(msg, /127\.0\.0\.1/, `message leaked loopback address: ${msg}`);
   });
 });
+
+// gascity-dashboard-mq2: GcClient.updateBead POSTs to /bead/{id}/update in
+// place of the `gc bd update` CLI subprocess (the bead-CLAIM path).
+describe('GcClient.updateBead', () => {
+  let fake: Fake;
+  beforeEach(async () => {
+    fake = await startFake();
+  });
+  afterEach(async () => {
+    await fake.close();
+  });
+
+  test('POSTs to the city bead-update endpoint with the CSRF header + JSON body', async () => {
+    let method: string | undefined;
+    let url: string | undefined;
+    let csrf: string | undefined;
+    let contentType: string | undefined;
+    let bodyRaw = '';
+    fake.setHandler((req, res) => {
+      method = req.method;
+      url = req.url;
+      csrf = req.headers['x-gc-request'] as string | undefined;
+      contentType = req.headers['content-type'] as string | undefined;
+      req.on('data', (c) => (bodyRaw += c));
+      req.on('end', () => {
+        res.statusCode = 200;
+        res.setHeader('content-type', 'application/json');
+        res.end(JSON.stringify({ status: 'ok' }));
+      });
+    });
+    const gc = new GcClient({ baseUrl: fake.baseUrl, cityName: 'test-city', defaultTimeoutMs: 5_000 });
+
+    await gc.updateBead('td-wisp-abc123', { status: 'in_progress', assignee: 'stephanie' });
+
+    assert.equal(method, 'POST');
+    assert.equal(url, '/v0/city/test-city/bead/td-wisp-abc123/update');
+    assert.ok(csrf && csrf.length > 0, 'X-GC-Request header must be present');
+    assert.match(contentType ?? '', /application\/json/);
+    assert.deepEqual(JSON.parse(bodyRaw), {
+      status: 'in_progress',
+      assignee: 'stephanie',
+    });
+  });
+
+  test('URL-encodes the bead id in the path', async () => {
+    let url: string | undefined;
+    fake.setHandler((req, res) => {
+      url = req.url;
+      req.on('data', () => {});
+      req.on('end', () => {
+        res.statusCode = 200;
+        res.setHeader('content-type', 'application/json');
+        res.end(JSON.stringify({ status: 'ok' }));
+      });
+    });
+    const gc = new GcClient({ baseUrl: fake.baseUrl, cityName: 'test-city', defaultTimeoutMs: 5_000 });
+    await gc.updateBead('gc-1/2', { status: 'in_progress' });
+    assert.equal(url, '/v0/city/test-city/bead/gc-1%2F2/update');
+  });
+
+  test('non-2xx throws a redacted error (status only, no topology)', async () => {
+    fake.setHandler((_req, res) => {
+      res.statusCode = 502;
+      res.end('boom');
+    });
+    const gc = new GcClient({ baseUrl: fake.baseUrl, cityName: 'secret-city', defaultTimeoutMs: 5_000 });
+    let err: unknown;
+    try {
+      await gc.updateBead('td-wisp-abc123', { status: 'in_progress' });
+    } catch (e) {
+      err = e;
+    }
+    assert.ok(err instanceof Error, 'expected an Error rejection');
+    const msg = (err as Error).message;
+    assert.match(msg, /502/);
+    assert.doesNotMatch(msg, /secret-city/, `message leaked city name: ${msg}`);
+    assert.doesNotMatch(msg, /127\.0\.0\.1/, `message leaked loopback address: ${msg}`);
+  });
+});
+
+// gascity-dashboard-mq2: GcClient.sendMail POSTs to /mail in place of the
+// `gc mail send` CLI subprocess. The supervisor returns 201 with the created
+// Message; the caller reads `id` off the response.
+describe('GcClient.sendMail', () => {
+  let fake: Fake;
+  beforeEach(async () => {
+    fake = await startFake();
+  });
+  afterEach(async () => {
+    await fake.close();
+  });
+
+  test('POSTs to the city mail endpoint with the CSRF header + JSON body, parses the 201 Message', async () => {
+    let method: string | undefined;
+    let url: string | undefined;
+    let csrf: string | undefined;
+    let contentType: string | undefined;
+    let bodyRaw = '';
+    fake.setHandler((req, res) => {
+      method = req.method;
+      url = req.url;
+      csrf = req.headers['x-gc-request'] as string | undefined;
+      contentType = req.headers['content-type'] as string | undefined;
+      req.on('data', (c) => (bodyRaw += c));
+      req.on('end', () => {
+        // Supervisor returns 201 Created on mail send.
+        res.statusCode = 201;
+        res.setHeader('content-type', 'application/json');
+        res.end(
+          JSON.stringify({
+            id: 'td-wisp-xyz789',
+            from: 'human',
+            to: 'mayor',
+            subject: 'status',
+            body: 'all green',
+            created_at: '2026-05-26T00:00:00Z',
+            read: false,
+          }),
+        );
+      });
+    });
+    const gc = new GcClient({ baseUrl: fake.baseUrl, cityName: 'test-city', defaultTimeoutMs: 5_000 });
+
+    const out = await gc.sendMail({ to: 'mayor', subject: 'status', body: 'all green', from: 'human' });
+
+    assert.equal(method, 'POST');
+    assert.equal(url, '/v0/city/test-city/mail');
+    assert.ok(csrf && csrf.length > 0, 'X-GC-Request header must be present');
+    assert.match(contentType ?? '', /application\/json/);
+    assert.deepEqual(JSON.parse(bodyRaw), {
+      to: 'mayor',
+      subject: 'status',
+      body: 'all green',
+      from: 'human',
+    });
+    assert.equal(out.id, 'td-wisp-xyz789');
+  });
+
+  test('non-2xx throws a redacted error (status only, no topology)', async () => {
+    fake.setHandler((_req, res) => {
+      res.statusCode = 502;
+      res.end('boom');
+    });
+    const gc = new GcClient({ baseUrl: fake.baseUrl, cityName: 'secret-city', defaultTimeoutMs: 5_000 });
+    let err: unknown;
+    try {
+      await gc.sendMail({ to: 'mayor', subject: 'x', body: 'y', from: 'human' });
+    } catch (e) {
+      err = e;
+    }
+    assert.ok(err instanceof Error, 'expected an Error rejection');
+    const msg = (err as Error).message;
+    assert.match(msg, /502/);
+    assert.doesNotMatch(msg, /secret-city/, `message leaked city name: ${msg}`);
+    assert.doesNotMatch(msg, /127\.0\.0\.1/, `message leaked loopback address: ${msg}`);
+  });
+});
