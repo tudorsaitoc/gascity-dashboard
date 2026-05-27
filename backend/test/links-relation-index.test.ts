@@ -53,6 +53,62 @@ describe('buildRelationIndex (R1)', () => {
     assert.deepEqual(index.beadsForSession.get('sess-abc'), ['sess-bead']);
   });
 
+  test('PR refs resolve from the deployed molecule evidence.* namespace', () => {
+    // The real shapes the deployed molecule formulas write (mol-pr-from-issue,
+    // mol-pr-iterate) — NOT pr_review.*, which is a different workflow family.
+    const beads: GcBead[] = [
+      // mol-pr-from-issue step 8: evidence.pr_url (+ artifact_path).
+      bead('from-issue', {
+        'evidence.pr_url': 'https://github.com/gastownhall/gascity/pull/742',
+        'evidence.artifact_path': 'github-pr:gastownhall/gascity/742',
+      }),
+      // mol-pr-iterate step 3: evidence.pr_number only.
+      bead('iterate', { 'evidence.pr_number': '42' }),
+      // artifact_path alone (no pr_url / pr_number) still yields the number.
+      bead('artifact-only', {
+        'evidence.artifact_path': 'github-pr:gastownhall/gascity/123',
+      }),
+    ];
+    const index = buildRelationIndex(beads, [], 'ds-research');
+
+    // evidence.pr_url + matching artifact_path → number 742, url preserved.
+    assert.deepEqual(index.beadsForPr.get('742'), ['from-issue']);
+    assert.equal(
+      index.beads.get('from-issue')?.prUrl,
+      'https://github.com/gastownhall/gascity/pull/742',
+    );
+    // evidence.pr_number → number 42.
+    assert.deepEqual(index.beadsForPr.get('42'), ['iterate']);
+    // evidence.artifact_path github-pr: form → parsed number 123.
+    assert.deepEqual(index.beadsForPr.get('123'), ['artifact-only']);
+    assert.equal(index.beads.get('artifact-only')?.prNumber, '123');
+  });
+
+  test('PR ref priority: evidence.* wins, pr_review.* is fallback', () => {
+    const beads: GcBead[] = [
+      // evidence.pr_number should win over a stale pr_review.pr_number.
+      bead('evidence-wins', {
+        'evidence.pr_number': '500',
+        'pr_review.pr_number': '999',
+      }),
+      // pr_review.* still resolves when no evidence.* key is present (the
+      // other workflow family relies on it).
+      bead('review-fallback', {
+        'pr_review.pr_number': '300',
+        'pr_review.pr_url': 'https://github.com/gastownhall/gascity/pull/300',
+      }),
+    ];
+    const index = buildRelationIndex(beads, [], 'ds-research');
+
+    assert.deepEqual(index.beadsForPr.get('500'), ['evidence-wins']);
+    assert.equal(index.beadsForPr.has('999'), false);
+    assert.deepEqual(index.beadsForPr.get('300'), ['review-fallback']);
+    assert.equal(
+      index.beads.get('review-fallback')?.prUrl,
+      'https://github.com/gastownhall/gascity/pull/300',
+    );
+  });
+
   test('RK1: superseded retry beads are excluded from reverse lookups', () => {
     // Two attempts of the same step in the same molecule: attempt 1 is a
     // dead retry, attempt 2 is live. Both also reference the same PR.
