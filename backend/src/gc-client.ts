@@ -169,7 +169,8 @@ export class GcClient {
   }
 
   /**
-   * POST a JSON body to a city-scoped write endpoint (gascity-dashboard-mq2).
+   * Send a JSON body to a city-scoped write endpoint with the given HTTP
+   * `method` (gascity-dashboard-mq2). Defaults to POST; bead-claim uses PATCH.
    * Deliberately NOT coalesced — single-flight is a read-side optimisation;
    * writes must each hit the supervisor. The `X-GC-Request` header is the
    * supervisor's anti-CSRF presence check (any non-empty value is accepted).
@@ -179,14 +180,15 @@ export class GcClient {
    * measured), far longer than a GET. Same redaction contract as
    * fetchOnce: the thrown message carries only the status, never the URL.
    */
-  private async postJson<T>(
+  private async writeJson<T>(
     suffix: string,
     body: unknown,
     timeoutMs: number,
+    method: 'POST' | 'PATCH' = 'POST',
   ): Promise<T> {
     const url = this.cityPath(suffix);
     const res = await fetch(url, {
-      method: 'POST',
+      method,
       signal: AbortSignal.timeout(timeoutMs),
       headers: {
         Accept: 'application/json',
@@ -208,22 +210,25 @@ export class GcClient {
    * slung-state, in place of the old `^Slung <id>` stdout parse.
    */
   async sling(input: SlingInput): Promise<SlingResponse> {
-    return this.postJson<SlingResponse>('/sling', input, SLING_TIMEOUT_MS);
+    return this.writeJson<SlingResponse>('/sling', input, SLING_TIMEOUT_MS);
   }
 
   /**
-   * `POST /bead/{id}/update` — the bead-CLAIM path (gascity-dashboard-mq2;
-   * replaces `gc bd update --status=in_progress --assignee=stephanie`). The
-   * supervisor returns OKResponseBody{status}; the caller ignores the body
-   * (success = 2xx). Unlike sling, this is a fast metadata write, so it uses
-   * the read default timeout. Bead CLOSE + agent NUDGE stay on the CLI (no
-   * reason field / no HTTP route respectively).
+   * `PATCH /bead/{id}` — the bead-CLAIM path (gascity-dashboard-mq2; replaces
+   * `gc bd update --status=in_progress --assignee=stephanie`). PATCH is the
+   * canonical update verb per the supervisor's api-ops-design.md, which marks
+   * the equivalent `POST /bead/{id}/update` deprecated; both take the same
+   * `BeadUpdateBody`. The supervisor returns OKResponseBody{status}; the caller
+   * ignores the body (success = 2xx). Unlike sling, this is a fast metadata
+   * write, so it uses the read default timeout. Bead CLOSE + agent NUDGE stay
+   * on the CLI (no reason field / no HTTP route respectively).
    */
   async updateBead(id: string, body: BeadUpdateInput): Promise<void> {
-    await this.postJson<{ status?: string }>(
-      `/bead/${encodeURIComponent(id)}/update`,
+    await this.writeJson<{ status?: string }>(
+      `/bead/${encodeURIComponent(id)}`,
       body,
       this.defaultTimeoutMs,
+      'PATCH',
     );
   }
 
@@ -236,7 +241,7 @@ export class GcClient {
    * browser — the browser-facing shape has no `from` slot.
    */
   async sendMail(body: MailSendInput): Promise<MailSendResponse> {
-    return this.postJson<MailSendResponse>('/mail', body, this.defaultTimeoutMs);
+    return this.writeJson<MailSendResponse>('/mail', body, this.defaultTimeoutMs);
   }
 
   async listSessions(signal?: AbortSignal): Promise<GcSessionList> {

@@ -52,7 +52,7 @@ interface BeadsRouterOptions {
   ) => Promise<ExecResult>;
   /**
    * Injected bead-CLAIM runner (gascity-dashboard-mq2). Production wires
-   * `gc.updateBead` (GcClient HTTP `POST /bead/{id}/update`); tests pass a
+   * `gc.updateBead` (GcClient HTTP `PATCH /bead/{id}`); tests pass a
    * stub. Replaces the former `execBeadAction(id, 'claim')` subprocess —
    * the supervisor exposes the write endpoint, so the dashboard adopts it.
    * Mirrors the maintainerRouter.sling DI pattern (gascity-dashboard-mq2).
@@ -172,7 +172,7 @@ export function beadsRouter(
   return router;
 }
 
-// Bead CLAIM over HTTP (gascity-dashboard-mq2): POST /bead/{id}/update with
+// Bead CLAIM over HTTP (gascity-dashboard-mq2): PATCH /bead/{id} with
 // {status:'in_progress', assignee:'stephanie'}, replacing the former
 // `gc bd update` subprocess. Error mapping mirrors the maintainer sling
 // handler: a true client-side timeout → 504, any other upstream failure

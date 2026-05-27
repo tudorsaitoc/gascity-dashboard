@@ -260,7 +260,7 @@ export interface SlingResponse {
 }
 
 /**
- * Body for `POST /v0/city/{city}/bead/{id}/update` (gascity-dashboard-mq2;
+ * Body for `PATCH /v0/city/{city}/bead/{id}` (gascity-dashboard-mq2;
  * replaces the `gc bd update` CLI subprocess on the bead-CLAIM path). Mirrors
  * the supervisor's `BeadUpdateBody` schema. The dashboard's claim action sets
  * `status: 'in_progress'` + `assignee: 'stephanie'`; the rest of the upstream
