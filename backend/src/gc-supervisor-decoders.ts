@@ -66,7 +66,9 @@ const BeadSchema = z.object({
   // both null and missing, then collapse `undefined → null` at the decoder
   // edge so the typed interior (`GcBead.priority: number | null`) never sees
   // an `undefined` it isn't declared to handle. Per CLAUDE.md: "Keep
-  // serialization/deserialization at the edges".
+  // serialization/deserialization at the edges". (Merged from PR #34's
+  // upstream priority-null fix; .transform() is this wave's Phase 4
+  // tightening.)
   priority: z.number().finite().nullish().transform((v) => v ?? null),
   created_at: z.string(),
   description: z.string().optional(),
