@@ -15,7 +15,7 @@ describe('WorkflowDiffPanel', () => {
     expect(screen.getByText(/not a git work tree/i)).toBeTruthy();
   });
 
-  it('labels staged and unstaged diffs and preserves prefix-based color classes', () => {
+  it('labels staged and unstaged diffs and preserves prefix-based structural classes', () => {
     const { container } = render(
       <WorkflowDiffPanel
         diff={{
@@ -48,6 +48,35 @@ describe('WorkflowDiffPanel', () => {
     expect(container.querySelector('.diff-line-add')?.textContent).toContain('+new session');
     expect(container.querySelector('.diff-line-remove')?.textContent).toContain('-old session');
     expect(container.querySelector('.diff-line-hunk')?.textContent).toContain('@@');
+  });
+
+  it('never colors body-type diff lines with the maroon accent (One Mark Rule + Greyscale Test)', () => {
+    const { container } = render(
+      <WorkflowDiffPanel
+        diff={{
+          kind: 'ok',
+          rootPath: '/tmp/rig',
+          status: [' M src/workflow.ts'],
+          changedFiles: [{ path: 'src/workflow.ts', status: 'M', kind: 'code' }],
+          unstagedDiff: [
+            'diff --git a/src/workflow.ts b/src/workflow.ts',
+            '@@ -1,2 +1,2 @@',
+            '-old session one',
+            '-old session two',
+            '+new session one',
+            '+new session two',
+          ].join('\n'),
+          stagedDiff: '',
+          truncated: false,
+        }}
+      />,
+    );
+
+    // The +/- glyph carries the add/remove signal; color must not. No diff
+    // line may carry the maroon accent — multiple remove lines would otherwise
+    // breach the One Mark Rule (at most one maroon per viewport).
+    expect(container.querySelectorAll('.diff-line-remove.text-accent').length).toBe(0);
+    expect(container.querySelectorAll('.text-accent').length).toBe(0);
   });
 });
 
