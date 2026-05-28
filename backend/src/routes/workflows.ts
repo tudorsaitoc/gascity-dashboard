@@ -111,7 +111,17 @@ async function getWorkflowSessions(
 ): Promise<{ sessions: readonly GcSession[]; partial: boolean }> {
   try {
     const list = await gc.listSessions();
-    return { sessions: Array.isArray(list.items) ? list.items : [], partial: false };
+    // izgc F3: decoder collapses items null → []; OR the wire-partial
+    // signal into the route's partial flag so a degraded supervisor read
+    // (one backend down, items=null on the wire) reaches the operator.
+    const partial = list.partial === true || (list.partial_errors?.length ?? 0) > 0;
+    if (partial) {
+      logWarn(
+        LOG_COMPONENT.workflows,
+        `supervisor reported partial session list (${list.partial_errors?.join(', ') ?? 'no detail'}); serving partial`,
+      );
+    }
+    return { sessions: list.items, partial };
   } catch (err) {
     logWarn(LOG_COMPONENT.workflows, `failed to fetch sessions for workflow detail: ${errorMessage(err)}`);
     return { sessions: [], partial: true };

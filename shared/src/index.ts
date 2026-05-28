@@ -73,6 +73,13 @@ export type GcSessionState =
 
 export interface GcSessionList {
   items: GcSession[];
+  /** True when the supervisor reports the list is incomplete (one or more
+   *  backends failed during aggregation). Wire shape is `items: null` +
+   *  `partial: true`; the decoder normalizes items to `[]` so consumers
+   *  always have an array, but the degradation signal survives here. */
+  partial?: boolean;
+  /** Human-readable errors from backends that failed during aggregation. */
+  partial_errors?: readonly string[];
 }
 
 // ── Context-window derivation (wj8) ──────────────────────────────────────
@@ -216,6 +223,13 @@ export interface GcBeadList {
   items: GcBead[];
   /** gc supervisor's own total count for the requested scope (independent of the fetch limit). */
   total?: number;
+  /** True when the supervisor reports the list is incomplete (one or more
+   *  backends failed during aggregation). Wire shape is `items: null` +
+   *  `partial: true`; the decoder normalizes items to `[]` so consumers
+   *  always have an array, but the degradation signal survives here. */
+  partial?: boolean;
+  /** Human-readable errors from backends that failed during aggregation. */
+  partial_errors?: readonly string[];
 }
 
 /** Frontend-side filter contract. v0 hardcodes; ?showAll=1 disables. */
@@ -329,6 +343,12 @@ export interface GcMailItem {
 export interface GcMailList {
   items: GcMailItem[];
   total?: number;
+  /** True when one or more rig providers failed and the list is not
+   *  authoritative. Wire shape is `items: null` + `partial: true`; decoder
+   *  normalizes items to `[]` so consumers always have an array. */
+  partial?: boolean;
+  /** Per-provider errors when partial is true. */
+  partial_errors?: readonly string[];
 }
 
 /** Frontend "viewing as" context state. Default identity is the operator ('stephanie'). */
@@ -420,8 +440,14 @@ export interface SystemHealth {
 
 export interface SupervisorHealth {
   status: string;
-  version: string;
-  city: string;
+  /** Supervisor version. Optional per the supervisor's OpenAPI; present in
+   *  practice today. Absence is itself a wire-drift signal — surface it
+   *  rather than coalescing silently. */
+  version?: string;
+  /** City name. Optional per the supervisor's OpenAPI; present in practice
+   *  today. Absence is itself a wire-drift signal — surface it rather than
+   *  coalescing silently. */
+  city?: string;
   uptime_sec: number;
 }
 
@@ -477,6 +503,13 @@ export interface GcEventList {
   items: GcEvent[];
   /** Cursor to pass back as ?after=<cursor> to resume. */
   next?: number;
+  /** True when the supervisor reports the list is incomplete (one or more
+   *  backends failed during aggregation). Wire shape is `items: null` +
+   *  `partial: true`; decoder normalizes items to `[]` so consumers always
+   *  have an array. */
+  partial?: boolean;
+  /** Human-readable errors from backends that failed during aggregation. */
+  partial_errors?: readonly string[];
 }
 
 // ── Admin-dashboard internal API responses ───────────────────────────────

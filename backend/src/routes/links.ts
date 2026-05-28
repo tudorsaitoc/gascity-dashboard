@@ -98,7 +98,11 @@ interface Sources {
 async function fetchSources(gc: GcClient): Promise<Sources> {
   const supervisorFetchedAt = new Date().toISOString();
   const beadList = await gc.listBeads(undefined, { limit: LINKS_FETCH_LIMIT });
-  const beads = Array.isArray(beadList.items) ? beadList.items : [];
+  // izgc F3: decoder guarantees items is an array (collapses null → []),
+  // and a separate gc-client test asserts non-array shapes still reject —
+  // the prior Array.isArray defensive guard was already dead and the only
+  // safe escape was the cast escape hatch the decoder now closes.
+  const beads = beadList.items;
   let partial = false;
   if (typeof beadList.total === 'number' && beadList.total > beads.length) {
     logWarn(
@@ -107,10 +111,28 @@ async function fetchSources(gc: GcClient): Promise<Sources> {
     );
     partial = true;
   }
+  // izgc F3: supervisor-reported wire-partial on a 200 response (degraded
+  // bead store) — propagate the degradation signal so the operator sees
+  // it even when the local truncation/session-fetch checks above wouldn't
+  // have triggered. Per CLAUDE.md "Don't Swallow Errors".
+  if (beadList.partial === true || (beadList.partial_errors?.length ?? 0) > 0) {
+    logWarn(
+      LOG_COMPONENT.links,
+      `supervisor reported partial bead list (${beadList.partial_errors?.join(', ') ?? 'no detail'}); serving partial`,
+    );
+    partial = true;
+  }
   let sessions: GcSession[] = [];
   try {
     const sessionList = await gc.listSessions();
-    sessions = Array.isArray(sessionList.items) ? sessionList.items : [];
+    sessions = sessionList.items;
+    if (sessionList.partial === true || (sessionList.partial_errors?.length ?? 0) > 0) {
+      logWarn(
+        LOG_COMPONENT.links,
+        `supervisor reported partial session list (${sessionList.partial_errors?.join(', ') ?? 'no detail'}); serving partial`,
+      );
+      partial = true;
+    }
   } catch (err) {
     logWarn(LOG_COMPONENT.links, `session fetch failed; serving partial: ${errorMessage(err)}`);
     partial = true;

@@ -56,8 +56,20 @@ export function HealthPage() {
           <Section title="Supervisor" status={supervisorStatus(health)}>
             {health.supervisor.status === 'available' ? (
               <KvList>
-                <Kv label="City" value={health.supervisor.data.city} />
-                <Kv label="Version" value={health.supervisor.data.version} />
+                {/* izgc F7/F8: city + version are optional per supervisor's
+                    OpenAPI. Absence is itself a wire-drift signal — render
+                    in 'warn' tone rather than coalescing to a glanceable
+                    em-dash, so the operator notices the regression. */}
+                {health.supervisor.data.city !== undefined ? (
+                  <Kv label="City" value={health.supervisor.data.city} />
+                ) : (
+                  <Kv label="City" value="not reported by supervisor" tone="warn" />
+                )}
+                {health.supervisor.data.version !== undefined ? (
+                  <Kv label="Version" value={health.supervisor.data.version} />
+                ) : (
+                  <Kv label="Version" value="not reported by supervisor" tone="warn" />
+                )}
                 <Kv label="Uptime" value={formatDuration(health.supervisor.data.uptime_sec)} />
                 <Kv label="Status" value={health.supervisor.data.status} />
               </KvList>
@@ -245,7 +257,14 @@ function buildSynopsis(h: SystemHealth): string {
   if (h.supervisor.status === 'available') {
     const supervisor = h.supervisor.data;
     const verb = supervisor.status === 'ok' ? 'healthy' : supervisor.status;
-    parts.push(`Supervisor ${verb} on ${supervisor.city}, uptime ${formatDuration(supervisor.uptime_sec)}.`);
+    // izgc F7/F8: city is optional per OpenAPI. Skip the locator clause if
+    // absent rather than rendering "Supervisor healthy on undefined" — the
+    // adjacent Kv block surfaces the absence with a warn tone.
+    if (supervisor.city !== undefined) {
+      parts.push(`Supervisor ${verb} on ${supervisor.city}, uptime ${formatDuration(supervisor.uptime_sec)}.`);
+    } else {
+      parts.push(`Supervisor ${verb}, uptime ${formatDuration(supervisor.uptime_sec)}.`);
+    }
   } else {
     parts.push('Supervisor unreachable.');
   }

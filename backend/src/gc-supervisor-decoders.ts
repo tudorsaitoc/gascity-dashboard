@@ -152,8 +152,12 @@ const FormulaDetailSchema = z.object({
     nodes: z.array(FormulaPreviewNodeSchema).optional(),
     edges: z.array(FormulaPreviewEdgeSchema).optional(),
   }).passthrough().optional(),
-  steps: z.array(FormulaPreviewNodeSchema).optional(),
-  deps: z.array(FormulaPreviewEdgeSchema).optional(),
+  // izgc F5/F6: OpenAPI declares steps/deps as `T[] | null` (required +
+  // nullable). Accept null and missing, then collapse to undefined so the
+  // typed interior (GcFormulaDetail.steps?: T[]) matches Zod output exactly
+  // — bypasses the t5l6 cast-laundering bug without pulling it into scope.
+  steps: z.array(FormulaPreviewNodeSchema).nullish().transform((v) => v ?? undefined),
+  deps: z.array(FormulaPreviewEdgeSchema).nullish().transform((v) => v ?? undefined),
 }).passthrough();
 
 const TranscriptTurnSchema = z.object({
@@ -166,20 +170,47 @@ const TranscriptResponseSchema = z.object({
   template: z.string().optional(),
   provider: z.string().optional(),
   format: z.string().optional(),
-  turns: z.array(TranscriptTurnSchema),
+  // izgc F2: OpenAPI declares turns?: T[] | null (optional AND nullable).
+  // Live raw-format responses already omit the key. Normalize null/missing
+  // to [] at the edge so GcTranscriptResponse.turns stays non-null.
+  turns: z.array(TranscriptTurnSchema).nullish().transform((v) => v ?? []),
 }).passthrough();
 
 const HealthSchema = z.object({
   status: z.string(),
-  version: z.string(),
-  city: z.string(),
+  // izgc F7/F8: OpenAPI declares both city + version optional. Present in
+  // practice today, but typing as required depends on supervisor
+  // implementation details — a refactor could legitimately omit them.
+  // Shared SupervisorHealth surfaces undefined as a warn-toned signal in
+  // the Health UI rather than coalescing silently.
+  version: z.string().optional(),
+  city: z.string().optional(),
   uptime_sec: z.number().finite(),
 }).passthrough();
+
+// izgc F3: every ListBody* envelope in the supervisor's OpenAPI declares
+// `items: T[] | null` for partial/degraded responses, correlated with
+// `partial: true` and `partial_errors`. Build the list-decoder fields once
+// so the four list shapes stay consistent: items collapses null → [], but
+// the partial signal survives on the shared interface so consumers can
+// surface degradation. Per CLAUDE.md "Don't Swallow Errors" + "Keep
+// serialization/deserialization at the edges".
+function listItemsField<T extends z.ZodTypeAny>(itemSchema: T) {
+  return z.array(itemSchema).nullish().transform((v) => v ?? []);
+}
+const PartialField = z.boolean().optional();
+const PartialErrorsField = z.array(z.string())
+  .nullish()
+  .transform((v) => (v ?? undefined));
 
 export const gcSupervisorDecoders = {
   listSessions(value: RawSupervisorSchema['ListBodySessionResponse']): GcSessionList {
     return decodeSupervisorPayload(
-      z.object({ items: z.array(SessionSchema) }).passthrough(),
+      z.object({
+        items: listItemsField(SessionSchema),
+        partial: PartialField,
+        partial_errors: PartialErrorsField,
+      }).passthrough(),
       value,
       'listSessions',
     );
@@ -192,8 +223,10 @@ export const gcSupervisorDecoders = {
   listBeads(value: RawSupervisorSchema['ListBodyBead']): GcBeadList {
     return decodeSupervisorPayload(
       z.object({
-        items: z.array(BeadSchema),
+        items: listItemsField(BeadSchema),
         total: z.number().finite().optional(),
+        partial: PartialField,
+        partial_errors: PartialErrorsField,
       }).passthrough(),
       value,
       'listBeads',
@@ -203,8 +236,10 @@ export const gcSupervisorDecoders = {
   listMail(value: RawSupervisorSchema['MailListBody']): GcMailList {
     return decodeSupervisorPayload(
       z.object({
-        items: z.array(MailItemSchema),
+        items: listItemsField(MailItemSchema),
         total: z.number().finite().optional(),
+        partial: PartialField,
+        partial_errors: PartialErrorsField,
       }).passthrough(),
       value,
       'listMail',
@@ -214,8 +249,10 @@ export const gcSupervisorDecoders = {
   listEvents(value: RawSupervisorSchema['ListBodyWireEvent']): GcEventList {
     return decodeSupervisorPayload(
       z.object({
-        items: z.array(EventSchema),
+        items: listItemsField(EventSchema),
         next: z.number().finite().optional(),
+        partial: PartialField,
+        partial_errors: PartialErrorsField,
       }).passthrough(),
       value,
       'listEvents',

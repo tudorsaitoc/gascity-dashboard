@@ -460,6 +460,201 @@ describe('GcClient error handling', () => {
     assert.equal(out.items[0]?.priority, null);
   });
 
+  // ── gascity-dashboard-izgc ───────────────────────────────────────────────
+  // The supervisor's OpenAPI declares ListBody*.items as `T[] | null` for
+  // partial/degraded responses (one or more backends failed during
+  // aggregation), correlated with `partial: true` and `partial_errors`.
+  // The decoder normalizes items to `[]` so consumers always have an array,
+  // but partial + partial_errors survive on the shared list interface so
+  // the degradation signal is surfaceable. Lessons-learned tests prevent
+  // a future supervisor that emits the wider shape from crashing the dash.
+
+  test('F3: listBeads with items=null + partial=true forwards the degradation signal', async () => {
+    fake.setHandler((_req, res) => {
+      res.statusCode = 200;
+      res.setHeader('content-type', 'application/json');
+      res.end(JSON.stringify({
+        items: null,
+        total: 12,
+        partial: true,
+        partial_errors: ['rig/foo down'],
+      }));
+    });
+    const gc = new GcClient({
+      baseUrl: fake.baseUrl,
+      cityName: 'test',
+      defaultTimeoutMs: 5_000,
+    });
+    const out = await gc.listBeads(undefined, { limit: 10 });
+    assert.deepEqual(out.items, []);
+    assert.equal(out.partial, true);
+    assert.deepEqual(out.partial_errors, ['rig/foo down']);
+    assert.equal(out.total, 12);
+  });
+
+  test('F3: listSessions accepts items=null and normalizes to []', async () => {
+    fake.setHandler((_req, res) => {
+      res.statusCode = 200;
+      res.setHeader('content-type', 'application/json');
+      res.end(JSON.stringify({ items: null, partial: true }));
+    });
+    const gc = new GcClient({
+      baseUrl: fake.baseUrl,
+      cityName: 'test',
+      defaultTimeoutMs: 5_000,
+    });
+    const out = await gc.listSessions();
+    assert.deepEqual(out.items, []);
+    assert.equal(out.partial, true);
+  });
+
+  test('F3: listMail accepts items=null and normalizes to []', async () => {
+    fake.setHandler((_req, res) => {
+      res.statusCode = 200;
+      res.setHeader('content-type', 'application/json');
+      res.end(JSON.stringify({ items: null, partial: true, partial_errors: ['provider/foo timeout'] }));
+    });
+    const gc = new GcClient({
+      baseUrl: fake.baseUrl,
+      cityName: 'test',
+      defaultTimeoutMs: 5_000,
+    });
+    const out = await gc.listMail();
+    assert.deepEqual(out.items, []);
+    assert.equal(out.partial, true);
+    assert.deepEqual(out.partial_errors, ['provider/foo timeout']);
+  });
+
+  test('F3: listEvents accepts items=null and normalizes to []', async () => {
+    fake.setHandler((_req, res) => {
+      res.statusCode = 200;
+      res.setHeader('content-type', 'application/json');
+      res.end(JSON.stringify({ items: null }));
+    });
+    const gc = new GcClient({
+      baseUrl: fake.baseUrl,
+      cityName: 'test',
+      defaultTimeoutMs: 5_000,
+    });
+    const out = await gc.listEvents();
+    assert.deepEqual(out.items, []);
+  });
+
+  test('F3: listBeads with non-array items (e.g. number) still rejects', async () => {
+    // Removing the dead `Array.isArray(items)` guards in routes/* is only
+    // safe if the decoder rejects every non-array shape the supervisor
+    // could plausibly send. null is the new accepted shape; numbers,
+    // strings, objects must still fail loud.
+    fake.setHandler((_req, res) => {
+      res.statusCode = 200;
+      res.setHeader('content-type', 'application/json');
+      res.end(JSON.stringify({ items: 42, total: 1 }));
+    });
+    const gc = new GcClient({
+      baseUrl: fake.baseUrl,
+      cityName: 'test',
+      defaultTimeoutMs: 5_000,
+    });
+    await assert.rejects(
+      () => gc.listBeads(undefined, { limit: 10 }),
+      /invalid gc supervisor listBeads payload/i,
+    );
+  });
+
+  test('F2: fetchTranscript with turns=null normalizes to [] (raw format degradation)', async () => {
+    fake.setHandler((_req, res) => {
+      res.statusCode = 200;
+      res.setHeader('content-type', 'application/json');
+      res.end(JSON.stringify({
+        id: 'gc-session-1',
+        template: 'claude-haiku-4-5',
+        provider: 'claude',
+        format: 'raw',
+        turns: null,
+      }));
+    });
+    const gc = new GcClient({
+      baseUrl: fake.baseUrl,
+      cityName: 'test',
+      defaultTimeoutMs: 5_000,
+    });
+    const out = await gc.fetchTranscript('gc-session-1');
+    assert.deepEqual(out.turns, []);
+    assert.equal(out.format, 'raw');
+  });
+
+  test('F2: fetchTranscript with turns omitted normalizes to []', async () => {
+    fake.setHandler((_req, res) => {
+      res.statusCode = 200;
+      res.setHeader('content-type', 'application/json');
+      // raw format is the live data near-miss: the supervisor returns
+      // {id, template, provider, format, messages} with NO turns key.
+      res.end(JSON.stringify({
+        id: 'gc-session-2',
+        template: 'codex-1',
+        provider: 'codex',
+        format: 'raw',
+      }));
+    });
+    const gc = new GcClient({
+      baseUrl: fake.baseUrl,
+      cityName: 'test',
+      defaultTimeoutMs: 5_000,
+    });
+    const out = await gc.fetchTranscript('gc-session-2');
+    assert.deepEqual(out.turns, []);
+  });
+
+  test('F5: getFormulaDetail with steps=null decodes', async () => {
+    fake.setHandler((_req, res) => {
+      res.statusCode = 200;
+      res.setHeader('content-type', 'application/json');
+      res.end(JSON.stringify({ name: 'mol-demo', steps: null, deps: [] }));
+    });
+    const gc = new GcClient({
+      baseUrl: fake.baseUrl,
+      cityName: 'test',
+      defaultTimeoutMs: 5_000,
+    });
+    const out = await gc.getFormulaDetail('mol-demo', { scopeKind: 'rig', scopeRef: 'demo' }, 'plan');
+    assert.equal(out.steps, undefined);
+    assert.deepEqual(out.deps, []);
+  });
+
+  test('F6: getFormulaDetail with deps=null decodes', async () => {
+    fake.setHandler((_req, res) => {
+      res.statusCode = 200;
+      res.setHeader('content-type', 'application/json');
+      res.end(JSON.stringify({ name: 'mol-demo', steps: [], deps: null }));
+    });
+    const gc = new GcClient({
+      baseUrl: fake.baseUrl,
+      cityName: 'test',
+      defaultTimeoutMs: 5_000,
+    });
+    const out = await gc.getFormulaDetail('mol-demo', { scopeKind: 'rig', scopeRef: 'demo' }, 'plan');
+    assert.deepEqual(out.steps, []);
+    assert.equal(out.deps, undefined);
+  });
+
+  test('F7/F8: health with city + version absent decodes (wire-drift, surfaceable in UI)', async () => {
+    fake.setHandler((_req, res) => {
+      res.statusCode = 200;
+      res.setHeader('content-type', 'application/json');
+      res.end(JSON.stringify({ status: 'ok', uptime_sec: 12345 }));
+    });
+    const gc = new GcClient({
+      baseUrl: fake.baseUrl,
+      cityName: 'test',
+      defaultTimeoutMs: 5_000,
+    });
+    const out = await gc.health();
+    assert.equal(out.status, 'ok');
+    assert.equal(out.uptime_sec, 12345);
+    assert.equal(out.city, undefined);
+    assert.equal(out.version, undefined);
+  });
+
   test('rejects malformed mail list payloads at the supervisor boundary', async () => {
     fake.setHandler((_req, res) => {
       res.statusCode = 200;
@@ -543,11 +738,15 @@ describe('GcClient error handling', () => {
     );
   });
 
-  test('rejects transcript payloads without turns at the supervisor boundary', async () => {
+  test('rejects transcript payloads with malformed turn shape at the supervisor boundary', async () => {
+    // F2 widens absent/null turns to [] (per OpenAPI: turns?: T[] | null),
+    // so the prior test that asserted absent-turns failed is obsolete. The
+    // decoder must still reject genuinely malformed turns — wrong type
+    // inside the array, etc.
     fake.setHandler((_req, res) => {
       res.statusCode = 200;
       res.setHeader('content-type', 'application/json');
-      res.end(JSON.stringify({ id: 'gc-session-1' }));
+      res.end(JSON.stringify({ id: 'gc-session-1', turns: [{ role: 123 }] }));
     });
     const gc = new GcClient({
       baseUrl: fake.baseUrl,
