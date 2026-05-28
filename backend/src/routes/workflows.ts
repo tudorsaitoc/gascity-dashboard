@@ -10,6 +10,7 @@ import type {
 import { SCOPE_REF_RE } from 'gas-city-dashboard-shared';
 import { GcClient } from '../gc-client.js';
 import { BEAD_ID_RE } from '../lib/beadId.js';
+import { HTTP_STATUS } from '../lib/http-status.js';
 import { meta, nonEmpty } from '../workflows/bead-fields.js';
 import { enrichWorkflowRun, UnsupportedWorkflowError } from '../workflows/enrich.js';
 import { readWorkflowGitDiff } from '../workflows/diff.js';
@@ -242,7 +243,7 @@ function writeWorkflowError(
   fallbackMessage: string,
 ): void {
   if (err instanceof UnsupportedWorkflowError) {
-    res.status(422).json({ error: err.message, kind: 'unsupported' });
+    res.status(HTTP_STATUS.unprocessableContent).json({ error: err.message, kind: 'unsupported' });
     return;
   }
   writeRouteError(res, routeUpstreamError(err, {

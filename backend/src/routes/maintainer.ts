@@ -27,6 +27,7 @@ import {
   writeSlungEntry,
 } from '../maintainer/slung-state.js';
 import { addSseClient, notifyRefresh, removeSseClient } from '../maintainer/sse.js';
+import { HTTP_STATUS } from '../lib/http-status.js';
 import { writeExecError } from '../lib/sanitise-error.js';
 import { asyncRoute } from '../middleware/async-route.js';
 import { LOG_COMPONENT, errorMessage, logWarn } from '../logging.js';
@@ -371,7 +372,7 @@ export function maintainerRouter({
     }
     const cached = await readCache(cachePath);
     if (cached.status === 'missing') {
-      res.status(404).json({ error: 'no triage cache yet', kind: 'not_found' });
+      res.status(HTTP_STATUS.notFound).json({ error: 'no triage cache yet', kind: 'not_found' });
       return;
     }
     // The same ContributorStat is sliced onto every item the author owns
@@ -379,7 +380,7 @@ export function maintainerRouter({
     // Avoids a second source of truth.
     const stat = findContributor(cached.envelope, login);
     if (stat === null) {
-      res.status(404).json({ error: 'contributor not in current envelope', kind: 'not_found' });
+      res.status(HTTP_STATUS.notFound).json({ error: 'contributor not in current envelope', kind: 'not_found' });
       return;
     }
     void recordAudit({

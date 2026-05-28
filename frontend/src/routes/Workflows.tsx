@@ -1,5 +1,9 @@
 import { useCallback, useRef, useState } from 'react';
-import type { DashboardSnapshot, SourceStatus } from 'gas-city-dashboard-shared';
+import {
+  GC_EVENT_PREFIX,
+  type DashboardSnapshot,
+  type SourceStatus,
+} from 'gas-city-dashboard-shared';
 import { api } from '../api/client';
 import { Button } from '../components/Button';
 import { PageHeader } from '../components/PageHeader';
@@ -73,7 +77,7 @@ export function WorkflowsPage() {
     });
   }, [refresh]);
 
-  const sseState = useGcEventRefresh(['bead.'], onSseMatch);
+  const sseState = useGcEventRefresh([GC_EVENT_PREFIX.bead], onSseMatch);
 
   const synopsis = workflowSynopsis(data);
 

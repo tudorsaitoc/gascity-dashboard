@@ -1,5 +1,6 @@
 import { Router } from 'express';
 import type { ClientErrorReport } from 'gas-city-dashboard-shared';
+import { HTTP_STATUS } from '../lib/http-status.js';
 import type { LogComponent } from '../logging.js';
 import { LOG_COMPONENT, logWarn } from '../logging.js';
 import {
@@ -28,7 +29,7 @@ export function clientErrorsRouter(opts: ClientErrorsRouterOptions = {}): Router
     try {
       const { component, operation, message } = parsed.event;
       log(LOG_COMPONENT.client, `${component} ${operation}: ${message}`);
-      res.status(202).json({ ok: true });
+      res.status(HTTP_STATUS.accepted).json({ ok: true });
     } catch (err) {
       writeRouteError(res, routeInternalError(err, {
         component: LOG_COMPONENT.client,

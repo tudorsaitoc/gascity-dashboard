@@ -1,4 +1,11 @@
-import { useCallback, useEffect, useState, type Dispatch, type SetStateAction } from 'react';
+import {
+  useCallback,
+  useEffect,
+  useRef,
+  useState,
+  type Dispatch,
+  type SetStateAction,
+} from 'react';
 import { errorMessage, type MaintainerTriage, type TriageItem } from 'gas-city-dashboard-shared';
 import { api } from '../api/client';
 import { setCached } from '../api/cache';
@@ -17,14 +24,36 @@ export const MAINTAINER_CACHE_KEY = 'maintainer-triage';
 const COMPONENT = 'MaintainerPage';
 const TRIAGE_TARGET_LABEL = 'triage agent';
 const DRAFT_TARGET_LABEL = 'draft agent';
+const MAINTAINER_EVENT_COALESCE_MS = 2_500;
 
 type RefreshFn = () => Promise<void>;
 
 export function useMaintainerEventRefresh(refresh: RefreshFn): void {
+  const refreshRef = useRef(refresh);
+  refreshRef.current = refresh;
+
   useEffect(() => {
     const es = new EventSource('/api/maintainer/events');
+    let lastFireAt = 0;
+    let coalesceTimer: ReturnType<typeof setTimeout> | null = null;
+    const fireRefresh = () => {
+      lastFireAt = Date.now();
+      void refreshRef.current();
+    };
     const onRefresh = () => {
-      void refresh();
+      const elapsed = Date.now() - lastFireAt;
+      if (elapsed >= MAINTAINER_EVENT_COALESCE_MS) {
+        if (coalesceTimer !== null) {
+          clearTimeout(coalesceTimer);
+          coalesceTimer = null;
+        }
+        fireRefresh();
+      } else if (coalesceTimer === null) {
+        coalesceTimer = setTimeout(() => {
+          coalesceTimer = null;
+          fireRefresh();
+        }, MAINTAINER_EVENT_COALESCE_MS - elapsed);
+      }
     };
     es.addEventListener('refreshed', onRefresh);
     es.onerror = () => {
@@ -37,9 +66,10 @@ export function useMaintainerEventRefresh(refresh: RefreshFn): void {
     return () => {
       es.removeEventListener('refreshed', onRefresh);
       es.onerror = null;
+      if (coalesceTimer !== null) clearTimeout(coalesceTimer);
       es.close();
     };
-  }, [refresh]);
+  }, []);
 }
 
 export interface MaintainerRefreshAction {

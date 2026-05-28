@@ -1,5 +1,6 @@
 import type { ApiError } from 'gas-city-dashboard-shared';
 import { toWireInternal500 } from './lib/sanitise-error.js';
+import { HTTP_STATUS } from './lib/http-status.js';
 import type { LogComponent } from './logging.js';
 import { errorMessage, logError, logWarn } from './logging.js';
 
@@ -15,7 +16,7 @@ interface JsonResponse {
 }
 
 export function routeValidationError(error: string): RouteErrorWire {
-  return { status: 400, body: { error, kind: 'validation' } };
+  return { status: HTTP_STATUS.badRequest, body: { error, kind: 'validation' } };
 }
 
 export interface RouteUpstreamErrorOptions {
@@ -41,7 +42,7 @@ export function routeUpstreamError(
 ): RouteErrorWire {
   if (options.isTimeout(err)) {
     return {
-      status: 504,
+      status: HTTP_STATUS.gatewayTimeout,
       body: {
         error: options.timeoutError ?? 'gc supervisor did not respond in time',
         kind: 'upstream-timeout',
@@ -52,7 +53,7 @@ export function routeUpstreamError(
   const message = errorMessage(err);
   if (options.notFound !== undefined && /\b404\b/.test(message)) {
     return {
-      status: 404,
+      status: HTTP_STATUS.notFound,
       body: {
         error: options.notFound.error,
         kind: options.notFound.kind,
@@ -63,7 +64,7 @@ export function routeUpstreamError(
   const log = options.log ?? logWarn;
   log(options.component, `${options.operation}: ${message}`);
   const wire = toWireInternal500(err, {
-    status: 502,
+    status: HTTP_STATUS.badGateway,
     error: options.responseError,
     kind: 'upstream',
   });
@@ -78,7 +79,7 @@ export function routeInternalError(
   const log = options.log ?? logError;
   log(options.component, `${options.operation}: ${message}`);
   const wire = toWireInternal500(err, {
-    status: 500,
+    status: HTTP_STATUS.internalServerError,
     error: options.responseError,
     kind: 'internal',
   });

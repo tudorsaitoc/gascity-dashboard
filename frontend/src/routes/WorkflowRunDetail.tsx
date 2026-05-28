@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { Link, useParams, useSearchParams } from 'react-router-dom';
-import { SCOPE_REF_RE } from 'gas-city-dashboard-shared';
+import { GC_EVENT_PREFIX, SCOPE_REF_RE } from 'gas-city-dashboard-shared';
 import type {
   WorkflowRunDetail as WorkflowRunDetailData,
   WorkflowRunProgress,
@@ -13,9 +13,16 @@ import { RelatedEntities } from '../components/RelatedEntities';
 import { BeadDetailModal } from '../components/BeadDetailModal';
 import { WorkflowRunDiagram } from '../components/workflow/WorkflowRunDiagram';
 import { WorkflowRunTabs } from '../components/workflow/WorkflowRunTabs';
+import { useGcEventRefresh } from '../hooks/useGcEvents';
 import { useWorkflowNodeSelection } from '../hooks/useWorkflowNodeSelection';
 import { useWorkflowRunDetail } from '../hooks/useWorkflowRunDetail';
 import { useEntityLinks } from '../hooks/useEntityLinks';
+
+const WORKFLOW_DETAIL_EVENT_PREFIXES = [
+  GC_EVENT_PREFIX.bead,
+  GC_EVENT_PREFIX.session,
+] as const;
+const NO_EVENT_PREFIXES: readonly string[] = [];
 
 export function WorkflowRunDetailPage() {
   const { workflowId } = useParams<{ workflowId: string }>();
@@ -34,6 +41,10 @@ export function WorkflowRunDetailPage() {
     routeError ? undefined : workflowId,
     scope?.scopeKind,
     scope?.scopeRef,
+  );
+  useGcEventRefresh(
+    routeError ? NO_EVENT_PREFIXES : WORKFLOW_DETAIL_EVENT_PREFIXES,
+    () => void refresh(),
   );
   const pageError = routeError ?? error;
   const { selectedNodeId, selectedNode, toggleNode } = useWorkflowNodeSelection(

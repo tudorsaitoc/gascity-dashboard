@@ -3,12 +3,13 @@ import { MemoryRouter, Route, Routes, useNavigate } from 'react-router-dom';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { WorkflowRunDetailPage } from './WorkflowRunDetail';
 import { invalidate } from '../api/cache';
-import type {
-  TranscriptResult,
-  TranscriptTurn,
-  WorkflowDiffResponse,
-  WorkflowRunDetail,
-  WorkflowScopeKind,
+import {
+  GC_EVENT_PREFIX,
+  type TranscriptResult,
+  type TranscriptTurn,
+  type WorkflowDiffResponse,
+  type WorkflowRunDetail,
+  type WorkflowScopeKind,
 } from 'gas-city-dashboard-shared';
 import rawWorkflowRunDetailFixture from '../test/fixtures/workflow-run-detail.json';
 
@@ -166,6 +167,23 @@ describe('WorkflowRunDetailPage', () => {
     await screen.findByText(/checking graph\.v2 node grouping/i);
   });
 
+  it('refreshes the whole run projection when matching city events arrive', async () => {
+    renderPage();
+    await screen.findByRole('heading', { name: /adopt pr #42/i });
+    const cityStream = requireCityEventSource();
+
+    currentDetail = {
+      ...detail,
+      title: 'Adopt PR #42 refreshed',
+      snapshotVersion: 12,
+      snapshotEventSeq: { kind: 'known', seq: 92 },
+    };
+    cityStream.dispatch('event', { type: `${GC_EVENT_PREFIX.bead}updated` });
+
+    await screen.findByRole('heading', { name: /adopt pr #42 refreshed/i });
+    expect(screen.getByText(/v12 · seq 92/i)).toBeTruthy();
+  });
+
   it('rejects a half-specified scope query without loading the workflow', async () => {
     // Only scope_kind, no scope_ref. The backend rejects this as a 400, so the
     // frontend must fail closed too — silently dropping the scope would load the
@@ -224,7 +242,8 @@ describe('WorkflowRunDetailPage', () => {
     expect(screen.queryByRole('button', { name: /old-only review/i })).toBeNull();
     await screen.findByText(/historical-only/i);
     await screen.findByText(/found two issues/i);
-    expect(eventSources).toHaveLength(0);
+    expect(requireCityEventSource()).toBeTruthy();
+    expect(sessionEventSources()).toHaveLength(0);
   });
 
   it('streams named turn events for an active selected node', async () => {
@@ -238,21 +257,20 @@ describe('WorkflowRunDetailPage', () => {
     expect(screen.getByText(/^tool result$/i)).toBeTruthy();
     expect(screen.getByText(/^final$/i)).toBeTruthy();
 
-    expect(eventSources).toHaveLength(1);
-    await screen.findByText(/connecting/i);
-    eventSources[0]?.open();
+    await waitFor(() => expect(sessionEventSources()).toHaveLength(1));
+    const stream = sessionEventSources()[0];
+    stream?.open();
     await screen.findByText(/^live$/i);
 
-    eventSources[0]?.dispatch('turn', {
+    stream?.dispatch('turn', {
       role: 'assistant',
       text: 'streaming progress on iteration 2',
     });
 
     await screen.findByText(/streaming progress on iteration 2/i);
 
-    eventSources[0]?.fail(FakeEventSource.CONNECTING);
-    await screen.findByText(/connecting/i);
-    eventSources[0]?.dispatch('turn', {
+    stream?.fail(FakeEventSource.CONNECTING);
+    stream?.dispatch('turn', {
       role: 'assistant',
       text: 'stream kept its listener after a transient error',
     });
@@ -265,11 +283,12 @@ describe('WorkflowRunDetailPage', () => {
     await screen.findByRole('heading', { name: /adopt pr #42/i });
     fireEvent.click(screen.getByRole('button', { name: reviewPipelineName }));
     await screen.findByText(/checking graph\.v2 node grouping/i);
-    await waitFor(() => expect(eventSources).toHaveLength(1));
+    await waitFor(() => expect(sessionEventSources()).toHaveLength(1));
 
-    eventSources[0]?.open();
+    const stream = sessionEventSources()[0];
+    stream?.open();
     await screen.findByText(/^live$/i);
-    eventSources[0]?.dispatch('turn', {
+    stream?.dispatch('turn', {
       session_id: 'gc-session-review-i2',
       template: 'workflows.codex',
       provider: 'codex',
@@ -293,8 +312,8 @@ describe('WorkflowRunDetailPage', () => {
     await screen.findByRole('heading', { name: /adopt pr #42/i });
     fireEvent.click(screen.getByRole('button', { name: reviewPipelineName }));
     await screen.findByText(/checking graph\.v2 node grouping/i);
-    await waitFor(() => expect(eventSources).toHaveLength(1));
-    const firstStream = eventSources[0];
+    await waitFor(() => expect(sessionEventSources()).toHaveLength(1));
+    const firstStream = sessionEventSources()[0];
     expect(firstStream?.closed).toBe(false);
 
     fireEvent.click(screen.getByRole('button', { name: applyFixesName }));
@@ -303,8 +322,8 @@ describe('WorkflowRunDetailPage', () => {
 
     fireEvent.click(screen.getByRole('button', { name: reviewPipelineName }));
     await screen.findByText(/checking graph\.v2 node grouping/i);
-    await waitFor(() => expect(eventSources).toHaveLength(2));
-    const secondStream = eventSources[1];
+    await waitFor(() => expect(sessionEventSources()).toHaveLength(2));
+    const secondStream = sessionEventSources()[1];
     expect(secondStream?.closed).toBe(false);
 
     fireEvent.click(screen.getByRole('tab', { name: /diff/i }));
@@ -426,6 +445,16 @@ function jsonResponse(payload: unknown): Response {
 
 function nodePressed(name: RegExp): string | null {
   return screen.getByRole('button', { name }).getAttribute('aria-pressed');
+}
+
+function requireCityEventSource(): FakeEventSource {
+  const source = eventSources.find((eventSource) => eventSource.url === '/api/events/stream');
+  if (source === undefined) throw new Error('expected city event source');
+  return source;
+}
+
+function sessionEventSources(): FakeEventSource[] {
+  return eventSources.filter((eventSource) => eventSource.url.startsWith('/api/sessions/'));
 }
 
 function withoutNode(detailValue: WorkflowRunDetail, nodeId: string): WorkflowRunDetail {

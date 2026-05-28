@@ -66,7 +66,7 @@ export async function writeSlungEntry(
     current[key] = entry;
     await persistAtomic(statePath, current);
   });
-  writeChain = next.catch(() => undefined);
+  keepWriteChainAlive(next, 'write');
   await next;
 }
 
@@ -86,8 +86,14 @@ export async function purgeSlungKeys(
     }
     if (mutated) await persistAtomic(statePath, current);
   });
-  writeChain = next.catch(() => undefined);
+  keepWriteChainAlive(next, 'purge');
   await next;
+}
+
+function keepWriteChainAlive(next: Promise<void>, operation: 'write' | 'purge'): void {
+  writeChain = next.catch((err: unknown) => {
+    logWarn(LOG_COMPONENT.maintainer, `slung-state ${operation} failed: ${errorMessage(err)}`);
+  });
 }
 
 async function persistAtomic(statePath: string, state: SlungStateMap): Promise<void> {

@@ -35,6 +35,11 @@ export function useGcEventRefresh(
   const coalesceTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
+    if (prefixes.length === 0) {
+      setState('closed');
+      return;
+    }
+
     let es: EventSource | null = null;
     let cancelled = false;
     let retryTimer: ReturnType<typeof setTimeout> | null = null;

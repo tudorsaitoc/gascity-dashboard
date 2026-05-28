@@ -1,9 +1,10 @@
 import { act, cleanup, render, screen, waitFor } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi, type Mock } from 'vitest';
-import type {
-  DashboardSnapshot,
-  SourceStatus,
-  WorkflowLane,
+import {
+  GC_EVENT_PREFIX,
+  type DashboardSnapshot,
+  type SourceStatus,
+  type WorkflowLane,
 } from 'gas-city-dashboard-shared';
 import { api } from '../api/client';
 import { invalidateKey } from '../api/cache';
@@ -17,7 +18,7 @@ import { MemoryRouter } from 'react-router-dom';
 // client's bypass-TTL refresh path.
 //
 // What's pinned here:
-//   - useGcEventRefresh is called with ['bead.'] and a function.
+//   - useGcEventRefresh is called with GC_EVENT_PREFIX.bead and a function.
 //   - <SseIndicator state={...} /> renders inside PageHeader meta.
 //   - The manual Refresh button calls api.snapshotRefresh(['workflows']),
 //     NOT api.snapshot() — fixes the pre-existing bug where the button
@@ -198,7 +199,7 @@ describe('WorkflowsPage — SSE wiring (gascity-dashboard-bqn)', () => {
   it('subscribes to useGcEventRefresh with [bead.] prefix', async () => {
     mount();
     await waitForMount();
-    expect(lastHookCall.prefixes).toEqual(['bead.']);
+    expect(lastHookCall.prefixes).toEqual([GC_EVENT_PREFIX.bead]);
     expect(typeof lastHookCall.onMatch).toBe('function');
   });
 

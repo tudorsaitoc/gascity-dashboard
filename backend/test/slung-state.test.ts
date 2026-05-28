@@ -186,6 +186,38 @@ describe('writeSlungEntry', () => {
     const state = await readSlungState(statePath);
     assert.equal(state['pr:1']?.bead_id, null);
   });
+
+  test('logs write-chain failures and allows the next write to continue', async () => {
+    const warnings: string[] = [];
+    const originalWarn = console.warn;
+    console.warn = (message?: unknown, ...optionalParams: unknown[]) => {
+      warnings.push([message, ...optionalParams].map(String).join(' '));
+    };
+    const badParent = path.join(tmpDir, 'not-a-directory');
+    await fs.writeFile(badParent, 'blocks mkdir', 'utf-8');
+    try {
+      await assert.rejects(
+        writeSlungEntry(path.join(badParent, 'slung-state.json'), slungKey('pr', 99), {
+          slung_at: '2026-05-24T12:00:00.000Z',
+          target: 'chief-of-staff',
+          bead_id: 'gastown-bad',
+          resolved_session_name: null,
+        }),
+      );
+      await writeSlungEntry(statePath, slungKey('pr', 100), {
+        slung_at: '2026-05-24T12:01:00.000Z',
+        target: 'chief-of-staff',
+        bead_id: 'gastown-good',
+        resolved_session_name: null,
+      });
+    } finally {
+      console.warn = originalWarn;
+    }
+
+    assert.match(warnings.join('\n'), /slung-state write failed/);
+    const state = await readSlungState(statePath);
+    assert.equal(state['pr:100']?.bead_id, 'gastown-good');
+  });
 });
 
 describe('purgeSlungKeys', () => {

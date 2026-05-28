@@ -5,6 +5,7 @@ import { parseRef } from '../links/node-ref.js';
 import { buildRelationIndex } from '../links/relation-index.js';
 import { buildLinkView } from '../links/build-link-view.js';
 import { ResolutionRollup } from '../links/instrumentation.js';
+import { HTTP_STATUS } from '../lib/http-status.js';
 import { LOG_COMPONENT, errorMessage, logWarn } from '../logging.js';
 import { routeUpstreamError, writeRouteError } from '../route-errors.js';
 
@@ -44,7 +45,7 @@ export function linksRouter(gc: GcClient, opts: LinksRouterOptions = {}): Router
   router.get('/:ref', async (req, res) => {
     const parsed = parseRef(req.params.ref);
     if (!parsed.ok) {
-      res.status(400).json({ error: parsed.error, kind: 'validation' });
+      res.status(HTTP_STATUS.badRequest).json({ error: parsed.error, kind: 'validation' });
       return;
     }
 

@@ -6,6 +6,7 @@ import {
   type BeadUpdateInput,
 } from 'gas-city-dashboard-shared';
 import { GcClient } from '../gc-client.js';
+import { HTTP_STATUS } from '../lib/http-status.js';
 import {
   execBeadAction as defaultExecBeadAction,
   ExecError,
@@ -145,7 +146,7 @@ export function beadsRouter(
           logWarn(LOG_COMPONENT.beads, `/api/beads/:id list fallback failed: ${errorMessage(fallbackErr)}`);
           // fall through to the 404 below
         }
-        res.status(404).json({ error: 'bead not found', kind: 'not_found' });
+        res.status(HTTP_STATUS.notFound).json({ error: 'bead not found', kind: 'not_found' });
         return;
       }
       // gascity-dashboard-ayr: same redaction rationale as the list-beads
@@ -189,7 +190,7 @@ async function runBeadClaim(
   updateBead: NonNullable<BeadsRouterOptions['updateBead']>,
 ): Promise<void> {
   if (!BEAD_ID_RE.test(beadId)) {
-    res.status(400).json({ error: 'invalid bead id', kind: 'validation' });
+    res.status(HTTP_STATUS.badRequest).json({ error: 'invalid bead id', kind: 'validation' });
     return;
   }
   const startedAt = Date.now();
@@ -255,7 +256,7 @@ async function runBeadAction(
         LOG_COMPONENT.beads,
         `runBeadAction ${action} non-zero exit ${result.exitCode}: ${result.stderr}`,
       );
-      res.status(502).json({
+      res.status(HTTP_STATUS.badGateway).json({
         error: `gc command failed with exit ${result.exitCode}`,
         kind: 'upstream',
         details: { name: 'NonZeroExit' },

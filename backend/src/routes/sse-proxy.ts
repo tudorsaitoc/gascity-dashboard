@@ -1,4 +1,5 @@
 import type { Request, Response } from 'express';
+import { HTTP_STATUS } from '../lib/http-status.js';
 import { LOG_COMPONENT, errorMessage, logWarn } from '../logging.js';
 
 // Shared backend-side SSE proxy. The browser opens an EventSource against
@@ -63,7 +64,7 @@ export async function proxySupervisorSse(
       return;
     }
     if (!res.headersSent && !res.writableEnded) {
-      res.status(502).json({ error: opts.unreachableMessage, kind: 'upstream' });
+      res.status(HTTP_STATUS.badGateway).json({ error: opts.unreachableMessage, kind: 'upstream' });
     }
     return;
   }
@@ -121,7 +122,7 @@ export async function proxySupervisorSse(
 }
 
 function openSseResponse(res: Response): void {
-  res.status(200);
+  res.status(HTTP_STATUS.ok);
   res.setHeader('Content-Type', 'text/event-stream');
   res.setHeader('Cache-Control', 'no-cache, no-transform');
   res.setHeader('Connection', 'keep-alive');
@@ -143,7 +144,7 @@ function writeUpstreamFailure(res: Response, error: string): void {
     }
     return;
   }
-  res.status(502).json({ error, kind: 'upstream' });
+  res.status(HTTP_STATUS.badGateway).json({ error, kind: 'upstream' });
 }
 
 async function cancelUpstreamBody(upstreamRes: globalThis.Response): Promise<void> {

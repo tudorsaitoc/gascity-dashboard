@@ -105,6 +105,59 @@ describe('useAbortableVisibleRefresh', () => {
     } satisfies AbortableVisibleRefreshState<string>);
   });
 
+  it('backs off after load failures and resets after a successful retry', async () => {
+    vi.useFakeTimers();
+    vi.spyOn(document, 'hidden', 'get').mockReturnValue(false);
+    const first = deferred<string>();
+    const second = deferred<string>();
+    const load = vi.fn(() => (load.mock.calls.length === 1 ? first.promise : second.promise));
+
+    const { result } = renderHook(() =>
+      useAbortableVisibleRefresh({
+        enabled: true,
+        intervalMs: 1_000,
+        initialBackoffMs: 2_000,
+        maxBackoffMs: 2_000,
+        load,
+      }),
+    );
+
+    await act(async () => {
+      first.reject(new Error('network down'));
+      try {
+        await first.promise;
+      } catch {
+        // Promise rejection is the hook input under test.
+      }
+    });
+    await flush();
+    expect(result.current).toEqual({
+      status: 'failed',
+      error: 'network down',
+    } satisfies AbortableVisibleRefreshState<string>);
+
+    await act(async () => {
+      vi.advanceTimersByTime(1_000);
+    });
+    expect(load).toHaveBeenCalledTimes(1);
+
+    await act(async () => {
+      vi.advanceTimersByTime(1_000);
+    });
+    expect(load).toHaveBeenCalledTimes(2);
+
+    await act(async () => {
+      second.resolve('ready');
+      await second.promise;
+    });
+    expect(result.current).toEqual({
+      status: 'ready',
+      data: 'ready',
+      refreshing: false,
+      error: '',
+    } satisfies AbortableVisibleRefreshState<string>);
+  });
+
   it('does not tick while hidden and aborts on unmount', async () => {
     vi.useFakeTimers();
     const hiddenSpy = vi.spyOn(document, 'hidden', 'get').mockReturnValue(true);

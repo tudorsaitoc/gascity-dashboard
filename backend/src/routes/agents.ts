@@ -5,6 +5,7 @@ import {
 } from '../exec.js';
 import type { ExecResult } from '../exec.js';
 import { recordAudit } from '../audit.js';
+import { HTTP_STATUS } from '../lib/http-status.js';
 import { writeExecError } from '../lib/sanitise-error.js';
 import { LOG_COMPONENT, logWarn } from '../logging.js';
 import { routeInternalError, writeRouteError } from '../route-errors.js';
@@ -84,12 +85,12 @@ export function agentsRouter(opts: AgentsRouterOptions | string = {}): Router {
           `/api/agents/${alias}/prime non-zero exit ${result.exitCode}: ${stderr}`,
         );
         if (notFound) {
-          res.status(404).json({
+          res.status(HTTP_STATUS.notFound).json({
             error: 'agent not configured',
             kind: 'not_found',
           });
         } else {
-          res.status(502).json({
+          res.status(HTTP_STATUS.badGateway).json({
             error: `gc prime failed with exit ${result.exitCode}`,
             kind: 'upstream',
             details: { name: 'NonZeroExit' },

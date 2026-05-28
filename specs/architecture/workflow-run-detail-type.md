@@ -262,13 +262,12 @@ There are two independent stream paths today:
    turns or replaces the snapshot when the stream sends a full transcript. This
    updates the selected-node transcript panel only.
 
-Current implementation note: the Workflows list subscribes to the city event
-stream. The Workflow Run Detail page currently relies on initial load and
-manual refresh for the graph/detail projection, while active selected sessions
-can stream transcript content. The ideal architecture is for the detail page to
-also subscribe to relevant `bead.*` and `session.*` events, treat them as
-invalidation signals, and refetch the whole `WorkflowRunDetail` projection
-through the same backend route.
+Current implementation note: the Workflows list subscribes to `bead.*` city
+events, and the Workflow Run Detail page subscribes to both `bead.*` and
+`session.*` city events. Both paths treat those events as invalidation
+signals and refetch whole backend-owned projections. Active selected sessions
+also open their own transcript stream; that stream updates only the transcript
+panel, not the graph projection.
 
 ## Current Implementation Against The Ideal
 
@@ -288,14 +287,16 @@ Implemented:
 - progress counts in `WorkflowRunProgress`
 - session link resolution from bead metadata and current session summaries
 - streamable session marking for current running instances
+- city-event invalidation on the detail page for `bead.*` and `session.*`
+  changes, using whole-projection refresh rather than client-side mutation
 - current working-tree diff from the execution folder
 - route validation for workflow id and scope query pairs
 - deterministic browser harness for the detail route
+- generated OpenAPI path/query/response types plus `openapi-fetch` for
+  supervisor workflow endpoint calls
 
 Partially implemented:
 
-- Whole-projection refresh exists, but the detail page does not yet wire global
-  city events to automatic detail refresh.
 - Formula detail/preview improves ordering, but the dashboard still carries a
   local TypeScript approximation of workflow presentation semantics that should
   eventually be owned by Gas City or shared with Gasworks.
@@ -307,9 +308,9 @@ Partially implemented:
 
 Not implemented:
 
-- Generated supervisor client from OpenAPI for these workflow endpoints.
 - Runtime validation generated from the OpenAPI schema. Current validation is
-  handwritten at the supervisor boundary.
+  handwritten at the supervisor boundary, though it is typed against generated
+  OpenAPI component shapes.
 - Incremental event application to the run projection. This is intentionally
   not a goal until the backend can own the event reducer.
 - Persistent frontend telemetry for failed detail refreshes or malformed stream
@@ -367,10 +368,10 @@ stable backend boundaries:
 
 2. Event freshness on the detail page.
 
-   The current detail page can show live transcript text for a selected running
-   session, but graph status itself does not auto-refresh from city events yet.
-   That can make a running formula detail page appear stale unless the operator
-   refreshes.
+   The detail page now refetches the whole projection when relevant city events
+   arrive. This avoids stale graph status without inventing a browser-side
+   reducer, but it still depends on the backend projection route being fast
+   enough and on SSE delivery staying connected.
 
 3. Session-link ambiguity.
 
@@ -386,19 +387,18 @@ stable backend boundaries:
 
 5. Handwritten supervisor boundary.
 
-   The current boundary is stricter than raw casts, but it is still maintained
-   manually. OpenAPI generation should reduce drift risk.
+   The current boundary uses generated OpenAPI types and `openapi-fetch`, but
+   runtime decoding is still maintained manually. Schema-derived runtime
+   validation would reduce drift risk further.
 
 ## Next Implementation Moves
 
-1. Add city-event invalidation to `WorkflowRunDetailPage` using the existing
-   `useGcEventRefresh()` pattern and the same whole-projection `refresh()`.
-2. Capture real graph.v2 supervisor snapshots for completed, running, blocked,
+1. Capture real graph.v2 supervisor snapshots for completed, running, blocked,
    retried, and looped runs; use them as backend enrichment fixtures.
-3. Add tests that assert every `WorkflowDisplayNode` with a running current
+2. Add tests that assert every `WorkflowDisplayNode` with a running current
    instance either resolves a streamable session or surfaces an explicit
    unresolved-session state.
-4. Move workflow endpoint calls onto the generated supervisor client once the
-   OpenAPI client plan lands.
-5. Push canonical graph presentation semantics down into Gas City or a shared
+3. Replace handwritten supervisor runtime decoders with schema-derived
+   validation while keeping dashboard-owned wire shapes explicit.
+4. Push canonical graph presentation semantics down into Gas City or a shared
    package when the dashboard approximation is stable enough to specify.

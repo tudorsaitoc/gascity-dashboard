@@ -38,6 +38,12 @@ const OSC_RE = /\x1b\][^\x07]*\x07/g;
 const CTRL_RE = /[\x00-\x08\x0b-\x1f\x7f]/g;
 const MAX_CLOSE_REASON_LENGTH = 1024;
 const GIT_LOG_RECENT_LIMIT = '200';
+const BEAD_ACTION_TIMEOUT_MS = 15_000;
+const AGENT_PRIME_TIMEOUT_MS = 10_000;
+const GIT_LOG_TIMEOUT_MS = 10_000;
+const WORKFLOW_GIT_TIMEOUT_MS = 5_000;
+const GH_LIST_TIMEOUT_MS = 30_000;
+const GH_HISTORY_LIST_TIMEOUT_MS = 60_000;
 
 function sanitiseTerminalOutput(raw: string): string {
   return raw
@@ -94,7 +100,7 @@ export async function execBeadAction(
     args.push('nudge', beadId);
     if (cityArg) args.push(cityArg);
   }
-  return runExec('gc', args, 15_000);
+  return runExec('gc', args, BEAD_ACTION_TIMEOUT_MS);
 }
 
 /**
@@ -132,7 +138,7 @@ export async function execAgentPrime(
     args.push(`--city=${cityPath}`);
   }
   args.push(alias);
-  return runExec('gc', args, 10_000);
+  return runExec('gc', args, AGENT_PRIME_TIMEOUT_MS);
 }
 
 // Mail send uses supervisor HTTP with from:'human' pinned server-side.
@@ -184,7 +190,7 @@ export async function execGitLog(view: string): Promise<ExecResult> {
   if (!args) {
     throw new ExecError('unknown git view', 'validation');
   }
-  return runExec('git', ['-C', GIT_REPO_PATH, ...args], 10_000);
+  return runExec('git', ['-C', GIT_REPO_PATH, ...args], GIT_LOG_TIMEOUT_MS);
 }
 
 type WorkflowGitView = 'root' | 'status' | 'diff' | 'diff-cached';
@@ -212,7 +218,7 @@ export async function execWorkflowGit(
   return runExec(
     'git',
     ['-C', cwd, ...args],
-    5_000,
+    WORKFLOW_GIT_TIMEOUT_MS,
     view === 'diff' || view === 'diff-cached' ? MAX_WORKFLOW_DIFF_BYTES : MAX_BYTES,
   );
 }
@@ -276,7 +282,7 @@ export async function execGhIssueList(
       '--limit',
       String(limit),
     ],
-    30_000,
+    GH_LIST_TIMEOUT_MS,
     MAX_BYTES_LARGE,
   );
 }
@@ -312,7 +318,7 @@ export async function execGhIssueListAll(
       '--limit',
       String(limit),
     ],
-    60_000,
+    GH_HISTORY_LIST_TIMEOUT_MS,
     MAX_BYTES_LARGE,
   );
 }
@@ -346,7 +352,7 @@ export async function execGhPrListAll(
       '--limit',
       String(limit),
     ],
-    60_000,
+    GH_HISTORY_LIST_TIMEOUT_MS,
     MAX_BYTES_LARGE,
   );
 }
@@ -378,7 +384,7 @@ export async function execGhPrList(
       '--limit',
       String(limit),
     ],
-    30_000,
+    GH_LIST_TIMEOUT_MS,
     MAX_BYTES_LARGE,
   );
 }

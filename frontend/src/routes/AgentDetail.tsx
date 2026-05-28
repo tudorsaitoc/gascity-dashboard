@@ -1,7 +1,12 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
-import type { GcBead, GcMailItem, GcSession } from 'gas-city-dashboard-shared';
-import { errorMessage } from 'gas-city-dashboard-shared';
+import {
+  GC_EVENT_PREFIX,
+  errorMessage,
+  type GcBead,
+  type GcMailItem,
+  type GcSession,
+} from 'gas-city-dashboard-shared';
 import { api, ApiClientError } from '../api/client';
 import { BeadDetailModal } from '../components/BeadDetailModal';
 import { Button } from '../components/Button';
@@ -102,7 +107,7 @@ export function AgentDetailPage() {
   useVisibleInterval(() => void refreshBeads(), BEADS_REFRESH_MS);
   useVisibleInterval(() => setNow(Date.now()), 5_000);
 
-  useGcEventRefresh(['session.', 'bead.'], () => {
+  useGcEventRefresh([GC_EVENT_PREFIX.session, GC_EVENT_PREFIX.bead], () => {
     void refreshSessions();
     void refreshBeads();
   });

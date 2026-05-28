@@ -1,7 +1,11 @@
 import { useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
-import type { GcSession, GcSessionState } from 'gas-city-dashboard-shared';
-import { effectiveContextPct } from 'gas-city-dashboard-shared';
+import {
+  GC_EVENT_PREFIX,
+  effectiveContextPct,
+  type GcSession,
+  type GcSessionState,
+} from 'gas-city-dashboard-shared';
 import { api } from '../api/client';
 import { Button } from '../components/Button';
 import { FilterChips } from '../components/FilterChips';
@@ -107,7 +111,7 @@ export function AgentsPage() {
 
   useVisibleInterval(() => setNow(Date.now()), 15_000);
 
-  const sseState = useGcEventRefresh(['session.'], () => void refresh());
+  const sseState = useGcEventRefresh([GC_EVENT_PREFIX.session], () => void refresh());
 
   const synopsis = useMemo(() => buildSynopsis(rows), [rows]);
 

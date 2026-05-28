@@ -1,5 +1,5 @@
 import { useCallback, useMemo, useState } from 'react';
-import type { GcBead } from 'gas-city-dashboard-shared';
+import { GC_EVENT_PREFIX, type GcBead } from 'gas-city-dashboard-shared';
 import { api, ApiClientError } from '../api/client';
 import { BeadDetailModal } from '../components/BeadDetailModal';
 import { Button } from '../components/Button';
@@ -63,7 +63,7 @@ export function BeadsPage() {
     chips: BEAD_CHIPS,
   });
 
-  useGcEventRefresh(['bead.'], () => void refresh());
+  useGcEventRefresh([GC_EVENT_PREFIX.bead], () => void refresh());
 
   const runAction = useCallback(
     async (

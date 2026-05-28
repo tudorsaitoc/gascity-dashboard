@@ -1,5 +1,6 @@
 import { act, cleanup, renderHook } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { GC_EVENT_PREFIX } from 'gas-city-dashboard-shared';
 import { useGcEventRefresh } from './useGcEvents';
 
 const eventSources: FakeEventSource[] = [];
@@ -18,7 +19,7 @@ describe('useGcEventRefresh', () => {
 
   it('fires once for a matching named gc event', () => {
     const onMatch = vi.fn();
-    const { result } = renderHook(() => useGcEventRefresh(['bead.'], onMatch));
+    const { result } = renderHook(() => useGcEventRefresh([GC_EVENT_PREFIX.bead], onMatch));
 
     act(() => eventSources[0]?.open());
     expect(result.current).toBe('open');
@@ -31,7 +32,7 @@ describe('useGcEventRefresh', () => {
 
   it('surfaces malformed event payloads as degraded instead of silently swallowing them', () => {
     const onMatch = vi.fn();
-    const { result } = renderHook(() => useGcEventRefresh(['bead.'], onMatch));
+    const { result } = renderHook(() => useGcEventRefresh([GC_EVENT_PREFIX.bead], onMatch));
 
     act(() => eventSources[0]?.open());
     act(() => eventSources[0]?.emitNamed('event', 'not json'));
@@ -44,9 +45,16 @@ describe('useGcEventRefresh', () => {
     vi.unstubAllGlobals();
     vi.stubGlobal('EventSource', undefined);
 
-    const { result } = renderHook(() => useGcEventRefresh(['bead.'], vi.fn()));
+    const { result } = renderHook(() => useGcEventRefresh([GC_EVENT_PREFIX.bead], vi.fn()));
 
     expect(result.current).toBe('closed');
+  });
+
+  it('does not open a city event stream when no prefixes are requested', () => {
+    const { result } = renderHook(() => useGcEventRefresh([], vi.fn()));
+
+    expect(result.current).toBe('closed');
+    expect(eventSources).toHaveLength(0);
   });
 });
 

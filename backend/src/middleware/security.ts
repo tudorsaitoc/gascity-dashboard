@@ -1,4 +1,5 @@
 import type { Request, Response, NextFunction } from 'express';
+import { HTTP_STATUS } from '../lib/http-status.js';
 
 // DNS-rebinding defense + clickjacking defense + content-type lockdown.
 // security_researcher td-wisp-eb0pn — all V0-SHIP-REQUIRED.
@@ -24,7 +25,7 @@ export function hostHeaderAllowlistFactory(extraAllowedHosts: ReadonlyArray<stri
     const host = hostnameOnly(req.headers.host);
     if (host === null || !allowed.has(host)) {
       // 421 Misdirected Request — semantically right for DNS-rebinding.
-      res.status(421).type('text/plain').send('Host not allowed');
+      res.status(HTTP_STATUS.misdirectedRequest).type('text/plain').send('Host not allowed');
       return;
     }
     next();
@@ -51,7 +52,7 @@ export function originCheck(port: number, extraAllowedHosts: ReadonlyArray<strin
     }
     const origin = req.headers.origin;
     if (typeof origin !== 'string' || !allowedOrigins.has(origin)) {
-      res.status(403).type('application/json').send(
+      res.status(HTTP_STATUS.forbidden).type('application/json').send(
         JSON.stringify({ error: 'Origin not allowed', kind: 'origin' }),
       );
       return;

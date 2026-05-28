@@ -48,15 +48,29 @@ async function performRequest<T>(
   if (body !== undefined) init.body = JSON.stringify(body);
   const res = await fetch(url, init);
   if (!res.ok) {
-    let payload: ApiError | null = null;
-    try {
-      payload = (await res.json()) as ApiError;
-    } catch {
-      /* non-JSON error body */
-    }
-    throw new ApiClientError(res.status, payload?.error ?? res.statusText, payload?.kind);
+    const bodyText = await res.text();
+    const payload = parseApiErrorBody(bodyText);
+    const message = payload?.error ?? (bodyText.trim() || res.statusText || `HTTP ${res.status}`);
+    throw new ApiClientError(res.status, message, payload?.kind);
   }
   return (await res.json()) as T;
+}
+
+function parseApiErrorBody(bodyText: string): ApiError | undefined {
+  if (bodyText.trim().length === 0) return undefined;
+  try {
+    const parsed = JSON.parse(bodyText) as unknown;
+    return isApiError(parsed) ? parsed : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
+function isApiError(value: unknown): value is ApiError {
+  if (typeof value !== 'object' || value === null) return false;
+  const record = value as Record<string, unknown>;
+  if (typeof record.error !== 'string') return false;
+  return record.kind === undefined || typeof record.kind === 'string';
 }
 
 // In dev, `tsx watch` restarts the backend on every source edit, which

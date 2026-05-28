@@ -3,6 +3,7 @@ import os from 'node:os';
 import type { SupervisorHealthState, SystemHealth } from 'gas-city-dashboard-shared';
 import { GcClient } from '../gc-client.js';
 import { recordAudit } from '../audit.js';
+import { HTTP_STATUS } from '../lib/http-status.js';
 import { LOG_COMPONENT, errorMessage, logWarn } from '../logging.js';
 
 // Health uses a tighter window than the global GcClient timeout (5s default)
@@ -72,7 +73,7 @@ export function healthRouter(gc: GcClient, opts: HealthRouterOptions = {}): Rout
       // admin + host slices visible. Only the per-request timeout propagates
       // as 504, matching the contract in sessions.ts/beads.ts.
       if (GcClient.isTimeoutError(err)) {
-        res.status(504).json({
+        res.status(HTTP_STATUS.gatewayTimeout).json({
           error: 'gc supervisor did not respond in time',
           kind: 'upstream-timeout',
         });

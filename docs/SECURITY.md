@@ -53,7 +53,7 @@ Every privileged invocation routes through `backend/src/exec.ts`. **No general-p
   - Agent alias: `^[a-z][a-z0-9_./-]{1,63}$`
 - **Spawn options**:
   - `shell: false` — non-negotiable. No `sh -c`, no command injection vectors.
-  - `env: cleanEnv()` — only `PATH=/usr/local/bin:/usr/bin:/bin`, `HOME`, `LANG`. Inherited env stripped.
+  - `env: cleanEnv()` — inherited env stripped. The child receives `PATH` from `ADMIN_PATH` when configured, otherwise a fixed local-safe search path; `HOME`; `LANG=C.UTF-8`; `NO_COLOR=1`; and `GITHUB_TOKEN` only when the dashboard process explicitly has one for `gh` reads.
   - `stdio: ['ignore', 'pipe', 'pipe']` — child can't block on stdin prompts.
 - **Resource limits**: per-exec timeout 10–15 s; output cap 100 KB (truncates + kills child); concurrency cap of 4 parallel via in-process semaphore.
 - **Audit log**: every exec writes a `{type: 'dashboard.exec', endpoint, parsed_args, exit_code, duration_ms}` row to `.gc/events.jsonl` (durable channel; survives dolt-hq corruption).
@@ -72,17 +72,8 @@ The literal arguments never reach a shell; even if they did, `shell: false` woul
 Everything rendered in the UI that originated outside the dashboard (mail bodies, bead descriptions, peek output, agent state strings) is **TEXT, NOT HTML**.
 
 - React's default escaping is the friend. `{content}` not `dangerouslySetInnerHTML`. No `innerHTML`, no `document.write`, no `eval`, no `Function()` anywhere in the frontend.
-- Peek output: server-side strips ANSI/OSC/control characters (`backend/src/exec.ts::sanitiseTerminalOutput`) and passes only safe SGR. Client renders with `ansi_up` (uses CSS classes, not inline styles, courtesy of `use_classes = true`).
+- Peek output: server-side strips ANSI/OSC/control characters (`backend/src/exec.ts::sanitiseTerminalOutput`) and passes only safe SGR. Client converts `ansi_up` output into React nodes before rendering, so transcript colour spans are still escaped component output rather than injected HTML.
 - Mail bodies + bead descriptions render in `<pre>` with full text escaping.
-
-### The one `dangerouslySetInnerHTML` exception
-
-Each transcript turn in `routes/Agents.tsx::TurnBlock` uses `dangerouslySetInnerHTML` to inject the HTML that `ansi_up` produces from the turn's text. This is the canonical pattern for `ansi_up` and is safe for two layered reasons:
-
-1. **Server-side sanitisation runs first** — every turn's text passes through `sanitiseTerminalOutput` before it reaches the browser, which strips OSC sequences, non-SGR CSI sequences, and control characters. The string ansi_up sees contains only printable characters plus safe SGR colour escapes.
-2. **`ansi_up` with `use_classes = true` does not pass through arbitrary HTML** — it HTML-escapes `<`, `>`, `&` from the input and emits only `<span class="ansi-...">` wrappers (no inline styles, no event handlers, no `<script>` / `<iframe>` / `<a>`).
-
-The `eslint-disable react/no-danger` comment at the call site cross-references this exception. **Any other use of `dangerouslySetInnerHTML` in the codebase is a bug — flag at review.**
 
 ### Banner
 

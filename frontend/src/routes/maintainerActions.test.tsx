@@ -73,6 +73,7 @@ describe('useMaintainerEventRefresh', () => {
 
   afterEach(() => {
     vi.unstubAllGlobals();
+    vi.useRealTimers();
   });
 
   it('refreshes on maintainer SSE events and reports stream errors', async () => {
@@ -97,6 +98,30 @@ describe('useMaintainerEventRefresh', () => {
 
     unmount();
     expect(source?.closed).toBe(true);
+  });
+
+  it('coalesces bursts of maintainer SSE refresh events', async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    const refresh = vi.fn(async () => {});
+    renderHook(() => useMaintainerEventRefresh(refresh));
+    const source = FakeEventSource.instances[0];
+
+    act(() => {
+      source?.emit('refreshed');
+      source?.emit('refreshed');
+      source?.emit('refreshed');
+    });
+    expect(refresh).toHaveBeenCalledTimes(1);
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(2_499);
+    });
+    expect(refresh).toHaveBeenCalledTimes(1);
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(1);
+    });
+    expect(refresh).toHaveBeenCalledTimes(2);
   });
 });
 
