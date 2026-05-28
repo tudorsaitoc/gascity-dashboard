@@ -9,8 +9,8 @@
 
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { effectiveContextPct, TRUE_CONTEXT_WINDOWS } from './index.js';
-import type { GcSession } from './index.js';
+import { effectiveContextPct, errorMessage, TRUE_CONTEXT_WINDOWS } from './index.js';
+import type { ClientErrorReport, GcSession, SlingIntent, SlingKind } from './index.js';
 
 function sess(partial: Partial<GcSession>): GcSession {
   return {
@@ -84,7 +84,7 @@ test('missing model falls back to gc-reported value', () => {
 
 test('missing context_window falls back to gc-reported value', () => {
   // Can't compute a scale factor without knowing what gc divided by.
-  // Fail open to the old behavior rather than guessing.
+  // Preserve the reported value rather than guessing.
   const s = sess({
     model: 'claude-opus-4-7',
     context_pct: 89,
@@ -137,4 +137,24 @@ test('TRUE_CONTEXT_WINDOWS includes the deployed Claude models', () => {
   assert.equal(TRUE_CONTEXT_WINDOWS['claude-opus-4-7'], 1_000_000);
   assert.equal(TRUE_CONTEXT_WINDOWS['claude-sonnet-4-5'], 1_000_000);
   assert.equal(TRUE_CONTEXT_WINDOWS['claude-sonnet-4-6'], 1_000_000);
+});
+
+test('errorMessage normalizes unknown error values for shared client/server reporting', () => {
+  assert.equal(errorMessage(new Error('boom')), 'boom');
+  assert.equal(errorMessage('plain failure'), 'plain failure');
+  assert.equal(errorMessage({ status: 500 }), 'unknown error');
+});
+
+test('shared client-error and sling types compile as the cross-workspace contracts', () => {
+  const report: ClientErrorReport = {
+    component: 'AgentDetail',
+    operation: 'refreshBeads',
+    message: 'failed',
+  };
+  const intent: SlingIntent = 'triage';
+  const kind: SlingKind = 'issue';
+
+  assert.equal(report.component, 'AgentDetail');
+  assert.equal(intent, 'triage');
+  assert.equal(kind, 'issue');
 });

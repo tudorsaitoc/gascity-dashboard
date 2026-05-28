@@ -1,12 +1,12 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
+import { errorMessage } from 'gas-city-dashboard-shared';
 import type {
   MaintainerTriage,
   TriageItem,
   TriageTierSection,
 } from 'gas-city-dashboard-shared';
 import { api } from '../api/client';
-import { setCached } from '../api/cache';
 import { Button } from '../components/Button';
 import { PageHeader } from '../components/PageHeader';
 import { SlungSection, TierSection } from '../components/maintainer/TriageSections';
@@ -14,27 +14,22 @@ import { useCachedData } from '../hooks/useCachedData';
 import { useViewingAs } from '../contexts/ViewingAsContext';
 import { readBrowserStorage, writeBrowserStorage } from '../lib/browserStorage';
 import { reportClientError } from '../lib/clientErrorReporting';
+import { formatDate, formatDateTime } from '../lib/format';
 import {
-  buildSlingRequests,
-  dispatchSlings,
   flattenTriageItems,
-  selectionKey,
   toggleSelectionItem,
-  useSlingSuccess,
   type MaintainerSlingIntent,
   type SlingSuccess,
 } from './maintainerSelection';
+import {
+  MAINTAINER_CACHE_KEY,
+  useMaintainerEventRefresh,
+  useMaintainerRefreshAction,
+  useMaintainerSlingAction,
+} from './maintainerActions';
 
 export { SlungLink, TriageScore } from '../components/maintainer/TriageSignals';
 export { IssueRow, SlungSection, TierSection } from '../components/maintainer/TriageSections';
-
-// Display labels for the two operator-facing sling intents
-// (gascity-dashboard-5xw). The actual aliases the backend dispatches
-// to are resolved server-side from MAINTAINER_TRIAGE_TARGET /
-// MAINTAINER_SLING_TARGET; the frontend never sees them. Each label
-// matches its button copy so the success line reads in the same voice.
-const TRIAGE_TARGET_LABEL = 'triage agent';
-const DRAFT_TARGET_LABEL = 'draft agent';
 
 // Triage route — read-only maintainer surface for gastownhall/gascity.
 // Shell + tokens from gascity-dashboard-hq2; live data from
@@ -42,7 +37,6 @@ const DRAFT_TARGET_LABEL = 'draft agent';
 // 7ts (priority tiers), gtr (file clusters + blast radius), alh
 // (contributor trust + ratios), and 98h (semantic weak ties).
 
-const CACHE_KEY = 'maintainer-triage';
 const COLLAPSE_KEY = 'maintainer:collapsed';
 const FOCUS_KEY = 'maintainer:focusBreaking';
 const COMPONENT = 'MaintainerPage';
@@ -178,29 +172,18 @@ function useCollapseState() {
 
 export function MaintainerPage() {
   const { data, loading, error, refresh } = useCachedData<MaintainerTriage>(
-    CACHE_KEY,
+    MAINTAINER_CACHE_KEY,
     () => api.maintainerTriage(),
   );
   const { viewingAs } = useViewingAs();
 
-  const [refreshing, setRefreshing] = useState(false);
-  const [refreshError, setRefreshError] = useState<string | null>(null);
+  useMaintainerEventRefresh(refresh);
+  const { refreshing, refreshError, handleRefresh } = useMaintainerRefreshAction(refresh);
   const collapse = useCollapseState();
   // Bulk-sling selection (gascity-dashboard-0nn). Lives only in component
   // state; refresh / route change clears it. Bulk triage is a 'do it
   // now' operation, not a saved view.
   const [selection, setSelection] = useState<Set<string>>(() => new Set());
-  // Which intent (if any) is currently in flight. null = idle. Drives both
-  // the disabled state on both buttons AND which button's label flips to
-  // 'Sending' — a plain boolean would attach 'Sending' to the wrong button
-  // when the operator clicks the draft action (gascity-dashboard-5xw ts MED-1).
-  const [slinging, setSlinging] = useState<MaintainerSlingIntent | null>(null);
-  const [slingError, setSlingError] = useState<string | null>(null);
-  // Post-sling success acknowledgement (gascity-dashboard-5ly). Hook
-  // owns the auto-clear timer + unmount cleanup so this component just
-  // calls setSuccess on the happy path.
-  const { success: slingSuccess, setSuccess: setSlingSuccess, clearSuccess: clearSlingSuccess } =
-    useSlingSuccess();
   const [focusBreaking, setFocusBreaking] = useState<boolean>(() => {
     return readStorageFlag(FOCUS_KEY);
   });
@@ -241,107 +224,26 @@ export function MaintainerPage() {
     });
   }, []);
 
-  // Live updates: subscribe to /api/maintainer/events. Whenever the
-  // nightly worker (or anyone else's manual refresh) rewrites the
-  // cache, the server fires a 'refreshed' event and we refetch. The
-  // EventSource browser API auto-reconnects with backoff; only the
-  // mount/unmount lifecycle needs manual handling here.
-  useEffect(() => {
-    const es = new EventSource('/api/maintainer/events');
-    const onRefresh = () => {
-      void refresh();
-    };
-    es.addEventListener('refreshed', onRefresh);
-    return () => {
-      es.removeEventListener('refreshed', onRefresh);
-      es.close();
-    };
-  }, [refresh]);
-
-  // POST /maintainer/refresh runs the full gh fetch on the host and
-  // rewrites the JSON cache. This is the dev-time path; the nightly
-  // worker (bead ar9) will replace the manual button as the primary
-  // cache writer.
-  const handleRefresh = useCallback(async () => {
-    setRefreshing(true);
-    setRefreshError(null);
-    try {
-      const fresh = await api.maintainerRefresh();
-      setCached(CACHE_KEY, fresh);
-      await refresh();
-    } catch (err) {
-      setRefreshError(err instanceof Error ? err.message : 'refresh failed');
-    } finally {
-      setRefreshing(false);
-    }
-  }, [refresh]);
-
   const toggleSelection = useCallback((item: { kind: 'pr' | 'issue'; number: number }) => {
     setSelection((prev) => toggleSelectionItem(prev, item));
   }, []);
-
-  const clearSelection = useCallback(() => {
-    setSelection(new Set());
-    setSlingError(null);
-    // Operator's 'Clear' is a deliberate action: drop the success line
-    // too so the bar exits cleanly instead of lingering on a stale ack.
-    clearSlingSuccess();
-  }, [clearSlingSuccess]);
 
   // Flatten once per envelope so the bottom bar can look up html_urls
   // for every selected key in O(N) without rewalking the tier tree on
   // every render.
   const allItems = useMemo(() => (data ? flattenTriageItems(data) : []), [data]);
+  const {
+    slinging,
+    slingError,
+    slingSuccess,
+    handleSend,
+    clearSlingFeedback,
+  } = useMaintainerSlingAction({ selection, allItems, setSelection });
 
-  // Single dispatch path, parameterised on intent (gascity-dashboard-5xw).
-  // intent='triage' → backend resolves to MAINTAINER_TRIAGE_TARGET
-  // (default 'chief-of-staff'); intent='draft' → MAINTAINER_SLING_TARGET
-  // (default 'mayor'). Target omitted from each request so the backend
-  // owns the routing decision.
-  const handleSend = useCallback(async (intent: MaintainerSlingIntent) => {
-    const successLabel =
-      intent === 'triage' ? TRIAGE_TARGET_LABEL : DRAFT_TARGET_LABEL;
-    setSlinging(intent);
-    setSlingError(null);
-    // New dispatch supersedes any prior success line. The TTL would also
-    // clear it eventually, but clearing now avoids a stale 'Slung 3 to X'
-    // lingering next to 'Sending' on the next batch.
-    clearSlingSuccess();
-    try {
-      const requests = buildSlingRequests(selection, allItems, intent);
-      const summary = await dispatchSlings(requests, (req) => api.maintainerSling(req));
-      if (summary.failed === 0) {
-        setSelection(new Set());
-        if (summary.succeeded > 0) {
-          // Abstract label, not the resolved alias: the actual server-side
-          // target is invisible to the frontend and the label matches its
-          // button copy so the success line reads in one voice.
-          setSlingSuccess({ count: summary.succeeded, target: successLabel });
-        }
-      } else {
-        // Keep the failed subset selected so the operator can retry. The
-        // succeeded ones get dropped so the next click doesn't redispatch them.
-        const remaining = new Set<string>();
-        for (const o of summary.outcomes) {
-          if (!o.ok) remaining.add(selectionKey(o.request));
-        }
-        setSelection(remaining);
-        setSlingError(
-          `${summary.failed} of ${summary.outcomes.length} failed: ${summary.outcomes.find((o) => !o.ok)?.error ?? 'unknown error'}`,
-        );
-        // Partial success: surface what landed even though the line
-        // shares space with the error. The operator's next action will
-        // clear both via clearSlingSuccess + setSlingError(null).
-        if (summary.succeeded > 0) {
-          setSlingSuccess({ count: summary.succeeded, target: successLabel });
-        }
-      }
-    } catch (err) {
-      setSlingError(err instanceof Error ? err.message : 'send failed');
-    } finally {
-      setSlinging(null);
-    }
-  }, [selection, allItems, setSlingSuccess, clearSlingSuccess]);
+  const clearSelection = useCallback(() => {
+    setSelection(new Set());
+    clearSlingFeedback();
+  }, [clearSlingFeedback]);
 
   return (
     <section>
@@ -467,16 +369,15 @@ export function SelectionActionBar({
   success: SlingSuccess | null;
 }) {
   const isSending = sending !== null;
-  // Inner container mirrors Layout's main column (max-w-[1280px] + the
-  // same horizontal padding) so the action line sits under the page
-  // content, not above the gutters.
+  // Inner container mirrors Layout's main column so the action line sits
+  // under the page content, not above the gutters.
   return (
     <div
       className="fixed inset-x-0 bottom-0 border-t border-rule bg-surface"
       role="region"
       aria-label="bulk triage actions"
     >
-      <div className="max-w-[1280px] mx-auto px-4 sm:px-6 lg:px-8 py-3 flex items-baseline justify-between gap-6">
+      <div className="max-w-dashboard mx-auto px-4 sm:px-6 lg:px-8 py-3 flex items-baseline justify-between gap-6">
         <div className="flex items-baseline gap-3 text-body text-fg-muted">
           {/*
             Suppress "0 selected" when only the success line is visible
@@ -546,7 +447,7 @@ function Footer({ computedAt }: { computedAt: string | null }) {
   }
   return (
     <p className="mt-16 text-label uppercase tracking-wider text-fg-faint tnum">
-      clusters computed {formatTimestamp(computedAt)} · {formatRelative(computedAt)} ago
+      clusters computed {formatDateTime(computedAt)} · {formatRelative(computedAt)} ago
     </p>
   );
 }
@@ -564,18 +465,6 @@ function buildSynopsis(data: MaintainerTriage): string {
     return `Quiet across ${data.repo}.`;
   }
   return `${data.totals.issues_open} issues, ${data.totals.prs_open} PRs open across ${data.repo}. Awaiting tier classification.`;
-}
-
-function formatDate(d: Date): string {
-  const y = d.getFullYear();
-  const m = String(d.getMonth() + 1).padStart(2, '0');
-  const day = String(d.getDate()).padStart(2, '0');
-  return `${y}-${m}-${day}`;
-}
-
-function formatTimestamp(iso: string): string {
-  const d = new Date(iso);
-  return `${formatDate(d)} ${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
 }
 
 function formatRelative(iso: string): string {
@@ -601,10 +490,4 @@ function reportStorageParseFailure(key: string, err: unknown): void {
     operation: 'localStorage.parse',
     message: `${key}: ${errorMessage(err)}`,
   });
-}
-
-function errorMessage(err: unknown): string {
-  if (err instanceof Error) return err.message;
-  if (typeof err === 'string') return err;
-  return 'unknown error';
 }

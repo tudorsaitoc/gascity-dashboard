@@ -9,9 +9,9 @@ import { resolveSessionForTarget } from 'gas-city-dashboard-shared';
 // role / pool labels — what the operator's deployment names the
 // triage worker. `gc sling` itself resolves this label to an active
 // session inside the supervisor; the dashboard never sees the
-// resolved id from gc. Without this module the dashboard previously
-// pasted the role label into `/agents/<label>`, which 404s because
-// AgentDetail matches strictly against session.session_name / alias / id.
+// resolved id from gc. The dashboard resolves the label before linking to
+// `/agents/<value>` because AgentDetail matches strictly against
+// session.session_name / alias / id.
 //
 // The 4-step matcher (alias / pool / last-segment of alias / last-segment
 // of session_name, active-first) now lives in the shared package

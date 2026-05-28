@@ -18,8 +18,7 @@ import { routeUpstreamError, writeRouteError } from '../route-errors.js';
 // unresolved rows — PG2 safety valve).
 //
 // GET /api/links/_stats — the R11 rollup endpoint (RK4): per-edge-type
-// resolution rates. Out-of-band / future-use (curl-able); no frontend
-// surface consumes it in this PR.
+// resolution rates for operational inspection.
 
 // The supervisor's working set is ~2139 beads (see GcClient.listBeads), so
 // a 2000 limit silently truncates relations. Fetch comfortably above the
@@ -56,9 +55,8 @@ export function linksRouter(gc: GcClient, opts: LinksRouterOptions = {}): Router
       const view = buildLinkView(index, parsed, {
         partial,
         supervisorFetchedAt,
-        // No GitHub source contributes yet (open-only gh fan-out avoided).
-        // The bead→PR/issue numbers resolve to unresolved rows; their
-        // fetchedAt stays null until a real GitHub join lands (R8/OQ#2).
+        // No GitHub source contributes to this view. The bead→PR/issue
+        // numbers resolve to unresolved rows, with fetchedAt left absent.
         githubFetchedAt: null,
         ...(opts.now !== undefined ? { now: opts.now } : {}),
         recorder: rollup.recorder(),

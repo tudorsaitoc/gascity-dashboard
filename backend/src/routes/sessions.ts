@@ -4,6 +4,7 @@ import { GcClient } from '../gc-client.js';
 import { sanitiseTerminalOutput } from '../exec.js';
 import { recordAudit } from '../audit.js';
 import { SESSION_ID_RE } from '../lib/sessionId.js';
+import { raceWithTimeout } from '../lib/race-with-timeout.js';
 import { LOG_COMPONENT } from '../logging.js';
 import {
   routeUpstreamError,
@@ -54,39 +55,6 @@ export interface SessionsRouterOptions {
   sessionsTimeoutMs?: number;
 }
 
-/**
- * Races a promise against a TimeoutError-named rejection so the route can
- * surface a 504 (via GcClient.isTimeoutError) when the underlying GcClient
- * call would otherwise sit on a generous default timeout. The underlying
- * fetch is NOT cancelled (gc-client's awaitWithSignal would convert a
- * caller-supplied AbortSignal into AbortError, which the 504 path doesn't
- * recognise); it's left to settle on its own timer. Node releases the
- * socket on completion, and single-flight coalescing means concurrent
- * callers (e.g. the snapshot collector) still benefit from the same fetch.
- */
-export function raceWithTimeout<T>(p: Promise<T>, ms: number): Promise<T> {
-  return new Promise<T>((resolve, reject) => {
-    const timer = setTimeout(() => {
-      const err = new Error(`sessions route timed out after ${ms}ms`);
-      err.name = 'TimeoutError';
-      reject(err);
-    }, ms);
-    // Match the rest of the backend (worker.ts, dolt.ts, server.ts): an
-    // unref'd timer doesn't block graceful shutdown on SIGTERM.
-    timer.unref();
-    p.then(
-      (value) => {
-        clearTimeout(timer);
-        resolve(value);
-      },
-      (err) => {
-        clearTimeout(timer);
-        reject(err);
-      },
-    );
-  });
-}
-
 export function sessionsRouter(
   gc: GcClient,
   opts: SessionsRouterOptions = {},
@@ -96,7 +64,7 @@ export function sessionsRouter(
 
   router.get('/', async (_req, res) => {
     try {
-      const { items } = await raceWithTimeout(gc.listSessions(), sessionsTimeoutMs);
+      const { items } = await raceWithTimeout(gc.listSessions(), sessionsTimeoutMs, 'sessions route');
       res.json({ items });
     } catch (err) {
       writeRouteError(res, routeUpstreamError(err, {

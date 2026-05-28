@@ -32,11 +32,9 @@ export type LinkNodeType =
  * Provenance tier of an edge, mirroring GitHub's own structured-vs-prose
  * distinction:
  *   - 'supervisor': authoritative bead metadata (parent, molecule, etc.).
- *   - 'external':   structured third-party field (e.g. a future
- *                   closingIssuesReferences swap — R8).
- *   - 'derived':    a value parsed from prose (the `Fixes #N` regex, the
- *                   one ZFC violation; quarantined here so the later swap
- *                   to 'external' is an additive flip).
+ *   - 'external':   structured third-party field.
+ *   - 'derived':    a value parsed from prose (the `Fixes #N` regex),
+ *                   quarantined from authoritative fields.
  */
 export type LinkProvenance = 'supervisor' | 'external' | 'derived';
 
@@ -99,8 +97,8 @@ export interface LinkEdge {
 
 /**
  * The per-edge-type resolution outcome rollup (R11). Has a named consumer:
- * the Health/Activity register surfaces these rates so deferred link
- * directions are promoted on measured hit-rate, not speculation (RK4).
+ * the Health/Activity register surfaces these rates so candidate link
+ * directions are evaluated on measured hit-rate, not speculation (RK4).
  * Arithmetic aggregation only — no semantic judgement.
  */
 export interface LinkResolutionStat {
@@ -138,8 +136,8 @@ export interface EntityLinkView {
 /**
  * Build the namespaced, globally-unique node key (RK1 / OQ#1). Bead IDs
  * are unique within a single city today, but keying on
- * `<type>:<scope>:<ref>` future-proofs against rig-scoped collisions where
- * the same bare ID can recur across scopes.
+ * `<type>:<scope>:<ref>` prevents rig-scoped collisions where the same
+ * bare ID can recur across scopes.
  *
  * The PRD specifies `scope_kind:scope_ref:id` to avoid cross-scope
  * collisions. `scope` MUST therefore already encode the bead's scope KIND

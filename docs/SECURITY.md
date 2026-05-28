@@ -6,7 +6,7 @@ The product runs on the operator's host, on `127.0.0.1`, with no auth. That is *
 
 ## Network posture
 
-- **Bind 127.0.0.1 only.** Not `0.0.0.0`. Enforced in `backend/src/server.ts` via `app.listen(port, '127.0.0.1', …)`. The systemd unit further restricts via `RestrictAddressFamilies=AF_UNIX AF_INET`.
+- **Bind 127.0.0.1 only.** Not `0.0.0.0`. Enforced by `backend/src/config.ts`: `HOST` is ignored unless it is already `127.0.0.1`, and `backend/src/server.ts` binds `config.bindHost`. The systemd unit further restricts via `RestrictAddressFamilies=AF_UNIX AF_INET`.
 - **Host header allowlist** (DNS rebinding defense). `middleware/security.ts::hostHeaderAllowlist`. Allowed: `127.0.0.1`, `localhost` (with optional port). Anything else → **HTTP 421 Misdirected Request**.
 - **Origin header check** on state-changing endpoints. Must be `http://127.0.0.1:<port>` or `http://localhost:<port>`. Anything else → **HTTP 403**.
 - **IPv6 posture**: Node's `app.listen('127.0.0.1', …)` binds IPv4 only, so `::1` is naturally refused.
@@ -28,7 +28,7 @@ curl -sX POST -H 'Origin: http://evil.com' http://127.0.0.1:8081/api/sessions/td
 
 ## CSRF
 
-Double-submit cookie pattern (`middleware/csrf.ts`). Token generated per boot, surfaced as a `thriva_admin_csrf` cookie (`SameSite=Strict`, non-HttpOnly), echoed by the frontend as `X-CSRF-Token` on every POST/PATCH/DELETE.
+Double-submit cookie pattern (`middleware/csrf.ts`). Token generated per boot, surfaced as a `gascity_admin_csrf` cookie (`SameSite=Strict`, non-HttpOnly), echoed by the frontend as `X-CSRF-Token` on every POST/PATCH/DELETE.
 
 Why not `csurf`: the canonical package is deprecated; rolling a minimal double-submit pattern is reasonable here, and the Host + Origin checks do the heavy lifting. CSRF is the third belt.
 

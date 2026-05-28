@@ -8,7 +8,7 @@ import {
 } from '../exec.js';
 import type { ExecResult } from '../exec.js';
 import { recordAudit } from '../audit.js';
-import { toWireExecError } from '../lib/sanitise-error.js';
+import { writeExecError } from '../lib/sanitise-error.js';
 import { LOG_COMPONENT, errorMessage, logWarn } from '../logging.js';
 import {
   routeInternalError,
@@ -60,8 +60,8 @@ interface BeadsRouterOptions {
   /**
    * Injected bead-CLAIM runner (gascity-dashboard-mq2). Production wires
    * `gc.updateBead` (GcClient HTTP `PATCH /bead/{id}`); tests pass a
-   * stub. Replaces the former `execBeadAction(id, 'claim')` subprocess —
-   * the supervisor exposes the write endpoint, so the dashboard adopts it.
+   * stub. The supervisor exposes the write endpoint, so the dashboard
+   * adopts it directly.
    * Mirrors the maintainerRouter.sling DI pattern (gascity-dashboard-mq2).
    */
   updateBead?: (id: string, body: BeadUpdateInput) => Promise<void>;
@@ -174,12 +174,11 @@ export function beadsRouter(
 }
 
 // Bead CLAIM over HTTP (gascity-dashboard-mq2): PATCH /bead/{id} with
-// {status:'in_progress', assignee:'stephanie'}, replacing the former
-// `gc bd update` subprocess. Error mapping mirrors the maintainer sling
-// handler: a true client-side timeout → 504, any other upstream failure
-// (non-2xx from the supervisor, network error) → 502, with the same
-// toWireInternal500 redaction (only details.name on the wire — the raw
-// message can embed the supervisor URL / host).
+// {status:'in_progress', assignee:'stephanie'}. Error mapping mirrors the
+// maintainer sling handler: a true client-side timeout → 504, any other
+// upstream failure (non-2xx from the supervisor, network error) → 502,
+// with the same toWireInternal500 redaction (only details.name on the wire —
+// the raw message can embed the supervisor URL / host).
 async function runBeadClaim(
   beadId: string,
   res: Response,
@@ -262,18 +261,7 @@ async function runBeadAction(
     res.json({ ok: true, stdout: result.stdout.slice(0, 4096) });
   } catch (err) {
     if (err instanceof ExecError) {
-      const status = err.kind === 'validation' ? 400 : err.kind === 'timeout' ? 504 : 500;
-      // gascity-dashboard-473: the 'spawn' kind wraps node's child_process
-      // "spawn <abs-path> ENOENT" which exposes the operator's binary
-      // layout. validation/timeout carry pre-authored safe strings by
-      // ExecError construction (see backend/src/exec.ts), so they pass
-      // through. journalctl retains the full message via the source-side
-      // ExecError instantiation.
-      if (err.kind === 'spawn') {
-        logWarn(LOG_COMPONENT.beads, `runBeadAction spawn failed: ${err.message}`);
-      }
-      const wire = toWireExecError(err, status);
-      res.status(wire.status).json(wire.body);
+      writeExecError(res, err, LOG_COMPONENT.beads, 'runBeadAction');
       return;
     }
     writeRouteError(res, routeInternalError(err, {

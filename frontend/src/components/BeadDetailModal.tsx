@@ -3,8 +3,10 @@ import type { GcBead } from 'gas-city-dashboard-shared';
 import { api, ApiClientError } from '../api/client';
 import { Modal } from './Modal';
 import { StatusBadge, type StatusTone } from './StatusBadge';
+import { Field } from './Field';
 import { RelatedEntities } from './RelatedEntities';
 import { useEntityLinks } from '../hooks/useEntityLinks';
+import { formatDateTime } from '../lib/format';
 
 // Click-to-read modal for a single bead. Used from the Beads list
 // rows and the AgentDetail assigned-beads list. Pure read view;
@@ -234,16 +236,16 @@ function BeadBody({ bead }: { bead: GcBead }) {
         <Field label="Assignee">{bead.assignee || '·'}</Field>
         <Field label="Owner">{bead.owner || '·'}</Field>
         <Field label="Created">
-          <span className="tnum">{formatDate(bead.created_at)}</span>
+          <span className="tnum">{formatDateTime(bead.created_at)}</span>
         </Field>
         {bead.updated_at && (
           <Field label="Updated">
-            <span className="tnum">{formatDate(bead.updated_at)}</span>
+            <span className="tnum">{formatDateTime(bead.updated_at)}</span>
           </Field>
         )}
         {bead.closed_at && (
           <Field label="Closed">
-            <span className="tnum">{formatDate(bead.closed_at)}</span>
+            <span className="tnum">{formatDateTime(bead.closed_at)}</span>
           </Field>
         )}
         {typeof bead.dependency_count === 'number' && bead.dependency_count > 0 && (
@@ -329,15 +331,6 @@ function BeadBody({ bead }: { bead: GcBead }) {
   );
 }
 
-function Field({ label, children }: { label: string; children: React.ReactNode }) {
-  return (
-    <div>
-      <dt className="text-label uppercase tracking-wider text-fg-faint mb-1">{label}</dt>
-      <dd className="text-body text-fg">{children}</dd>
-    </div>
-  );
-}
-
 function statusTone(status: string): StatusTone {
   switch (status) {
     case 'closed':
@@ -351,16 +344,4 @@ function statusTone(status: string): StatusTone {
     default:
       return 'warn';
   }
-}
-
-function formatDate(iso: string): string {
-  const ms = Date.parse(iso);
-  if (!Number.isFinite(ms)) return iso;
-  return new Date(ms).toLocaleString(undefined, {
-    year: 'numeric',
-    month: 'short',
-    day: 'numeric',
-    hour: '2-digit',
-    minute: '2-digit',
-  });
 }

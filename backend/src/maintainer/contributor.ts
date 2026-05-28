@@ -8,6 +8,7 @@ import {
   execGhPrListAll,
   ExecError,
 } from '../exec.js';
+import { parseJsonArray } from '../lib/parse-json.js';
 
 // Contributor stats + trust tier classifier (gascity-dashboard-alh).
 //
@@ -76,26 +77,10 @@ export async function computeContributorStats(
     );
   }
 
-  const issues = parseList(issuesRaw.stdout, 'gh issue list (all)');
-  const prs = parseList(prsRaw.stdout, 'gh pr list (all)');
+  const issues = parseJsonArray<GhListItem>(issuesRaw.stdout, 'gh issue list (all)');
+  const prs = parseJsonArray<GhListItem>(prsRaw.stdout, 'gh pr list (all)');
 
   return tally(issues, prs);
-}
-
-function parseList(stdout: string, source: string): GhListItem[] {
-  if (stdout.trim().length === 0) return [];
-  try {
-    const parsed = JSON.parse(stdout) as unknown;
-    if (!Array.isArray(parsed)) {
-      throw new Error(`${source} did not return an array`);
-    }
-    return parsed as GhListItem[];
-  } catch (err) {
-    throw new ExecError(
-      `${source} returned unparseable JSON: ${(err as Error).message}`,
-      'spawn',
-    );
-  }
 }
 
 function tally(issues: GhListItem[], prs: GhListItem[]): Map<string, ContributorStat> {

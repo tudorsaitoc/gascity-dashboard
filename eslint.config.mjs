@@ -17,10 +17,7 @@ const typedConfigs = [
 const typeAwareSourceFiles = [
   'backend/src/**/*.ts',
   'frontend/src/**/*.{ts,tsx}',
-  'shared/src/index.ts',
-  'shared/src/snapshot/**/*.ts',
-  'shared/src/workflow-detail.ts',
-  'shared/src/workflow-snapshot.ts',
+  'shared/src/**/*.ts',
 ];
 
 export default tseslint.config(
@@ -80,6 +77,7 @@ export default tseslint.config(
   },
   {
     files: typeAwareSourceFiles,
+    ignores: ['shared/src/**/*.test.ts'],
     languageOptions: {
       ecmaVersion: 'latest',
       sourceType: 'module',
@@ -108,6 +106,7 @@ export default tseslint.config(
           attributes: false,
         },
       }],
+      '@typescript-eslint/switch-exhaustiveness-check': 'error',
       '@typescript-eslint/restrict-template-expressions': ['error', {
         allowBoolean: true,
         allowNumber: true,

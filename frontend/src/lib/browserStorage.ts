@@ -1,3 +1,4 @@
+import { errorMessage } from 'gas-city-dashboard-shared';
 import { reportClientError } from './clientErrorReporting';
 
 export type BrowserStorageArea = 'localStorage' | 'sessionStorage';
@@ -70,10 +71,4 @@ function storageUnavailable(
     message: `${key}: ${error}`,
   });
   return { status: 'unavailable', error };
-}
-
-function errorMessage(err: unknown): string {
-  if (err instanceof Error) return err.message;
-  if (typeof err === 'string') return err;
-  return 'unknown error';
 }

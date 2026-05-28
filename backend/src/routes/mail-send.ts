@@ -25,10 +25,10 @@ interface MailSendRouterOptions {
   /**
    * Injected mail-send runner (gascity-dashboard-mq2). Production wires a
    * closure over `gc.sendMail` that pins `from:'human'` (see server.ts);
-   * tests pass a stub. Replaces the former `execMailSend` subprocess DI —
-   * the supervisor exposes `POST /mail`. The structural-separation
-   * guarantee of this file is preserved: the fn's only inputs are
-   * to/subject/body, so this handler has no `from`/`viewing_as` slot.
+   * tests pass a stub. The supervisor exposes `POST /mail`. The
+   * structural-separation guarantee of this file is preserved: the fn's only
+   * inputs are to/subject/body, so this handler has no `from`/`viewing_as`
+   * slot.
    * Returns the supervisor's Message; the route surfaces only `id`.
    */
   sendMail: (
@@ -72,9 +72,8 @@ export function mailSendRouter(opts: MailSendRouterOptions): Router {
         parsed_args: { to, subject_len: String(subject.length), body_len: String(text.length) },
         duration_ms: Date.now() - startedAt,
       });
-      // The supervisor returns the created Message; `id` replaces the old
-      // `Sent <id>` stdout parse. Typed string, but guard against an empty
-      // value so the client's `message_id?: string` stays meaningful.
+      // The supervisor returns the created Message. Guard against an empty
+      // id so the client's `message_id?: string` stays meaningful.
       res.json({ ok: true, message_id: result.id.length > 0 ? result.id : undefined });
     } catch (err) {
       // gascity-dashboard-mq2: mail send is now an HTTP POST to the

@@ -6,6 +6,7 @@
 #   - typecheck across all three workspaces (shared, backend, frontend)
 #   - typecheck of test files too (catches type drift the runtime tests miss)
 #   - generated gc supervisor OpenAPI client drift check
+#   - shared tests (node --test via tsx)
 #   - backend tests (node --test via tsx loader)
 #   - frontend tests (vitest in jsdom)
 #
@@ -14,8 +15,8 @@
 #   - npm audit / dependency scans
 #
 # The job is single + sequential. Split into a matrix later if the wall-clock
-# time becomes a problem; for the current size (~160 backend tests +
-# ~140 frontend tests) it runs comfortably under two minutes.
+# time becomes a problem; for the current size it runs comfortably under
+# two minutes.
 
 name: CI
 
@@ -67,6 +68,9 @@ jobs:
       # subsequent typecheck steps see real symbols, not unresolved modules.
       - name: Build shared
         run: npm run build:shared
+
+      - name: Shared tests
+        run: npm --workspace shared test
 
       - name: Typecheck (src)
         run: npm run typecheck

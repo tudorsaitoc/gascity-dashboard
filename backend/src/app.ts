@@ -10,9 +10,12 @@ import {
   originCheck,
   securityHeaders,
 } from './middleware/security.js';
+import { requestLog } from './middleware/request-log.js';
+import { apiErrorHandler } from './middleware/api-error-handler.js';
 import { csrfIssueCookie, csrfValidate, getCsrfToken } from './middleware/csrf.js';
 import { GcClient } from './gc-client.js';
-import { sessionsRouter, raceWithTimeout } from './routes/sessions.js';
+import { raceWithTimeout } from './lib/race-with-timeout.js';
+import { sessionsRouter } from './routes/sessions.js';
 import { sessionStreamRouter } from './routes/session-stream.js';
 import { agentsRouter } from './routes/agents.js';
 import { beadsRouter } from './routes/beads.js';
@@ -54,6 +57,7 @@ export interface DashboardApp {
 export function createDashboardApp(config: AdminConfig): DashboardApp {
   const app = express();
   app.disable('x-powered-by');
+  app.use(requestLog());
   app.use(express.json({ limit: '64kb' }));
 
   app.use(hostHeaderAllowlistFactory(config.extraAllowedHosts));
@@ -120,7 +124,7 @@ export function createDashboardApp(config: AdminConfig): DashboardApp {
       triageTarget: config.maintainerTriageTarget,
       sling: (input) => gc.sling(input),
       listSessions: async () => {
-        const { items } = await raceWithTimeout(gc.listSessions(), 3_000);
+        const { items } = await raceWithTimeout(gc.listSessions(), 3_000, 'maintainer sessions lookup');
         return items;
       },
     }),
@@ -136,6 +140,7 @@ export function createDashboardApp(config: AdminConfig): DashboardApp {
   app.use('/api/sessions', sessionStreamRouter({ gc }));
   app.use('/api', writeRouter);
   app.use('/api/events', eventsRouter({ gc }));
+  app.use(apiErrorHandler());
 
   const refresherState: RefresherServerState =
     config.maintainerRefreshIntervalMs > 0

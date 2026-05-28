@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import type { TriageItem } from 'gas-city-dashboard-shared';
+import type { SlingIntent, SlingKind, TriageItem } from 'gas-city-dashboard-shared';
 import { selectionKey, type SelectionKey } from '../components/maintainer/selectionKey';
 export { selectionKey, type SelectionKey } from '../components/maintainer/selectionKey';
 
@@ -14,10 +14,10 @@ export { selectionKey, type SelectionKey } from '../components/maintainer/select
  *  (populates triage_assessment); `'draft'` asks an agent to write a PR for
  *  an issue lacking one. The backend's third intent `'review'` is not
  *  surfaced here — merging via GitHub is the operator's review workflow. */
-export type MaintainerSlingIntent = 'triage' | 'draft';
+export type MaintainerSlingIntent = Exclude<SlingIntent, 'review'>;
 
 export interface SlingRequest {
-  readonly kind: 'pr' | 'issue';
+  readonly kind: SlingKind;
   readonly number: number;
   readonly html_url: string;
   readonly intent: MaintainerSlingIntent;
@@ -181,9 +181,7 @@ export interface SlingSuccessApi {
 
 /**
  * Hook that owns the post-sling success line shown in the bulk-triage
- * action bar. The bar was previously silent on success — the operator
- * only saw it disappear, which is too quiet for a dispatch that just
- * sent N items to an agent. This hook holds:
+ * action bar. This hook holds:
  *
  *   - The current success line (or null)
  *   - The auto-clear timer

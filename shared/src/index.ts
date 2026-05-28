@@ -20,6 +20,21 @@ export type IsoTimestamp = string;
 export type BeadId = string;
 export type SessionId = string;
 
+export interface ClientErrorReport {
+  readonly component: string;
+  readonly operation: string;
+  readonly message: string;
+}
+
+export type SlingIntent = 'review' | 'draft' | 'triage';
+export type SlingKind = 'pr' | 'issue';
+
+export function errorMessage(error: unknown): string {
+  if (error instanceof Error) return error.message;
+  if (typeof error === 'string') return error;
+  return 'unknown error';
+}
+
 // ── Sessions ──────────────────────────────────────────────────────────────
 
 export interface GcSession {
@@ -529,18 +544,13 @@ export type TriageItemStatus =
  * `vetted_score` lives on the SAME numeric scale as `TriageItem.triage_score`
  * so comparators sort correctly when a tier mixes vetted + unvetted items.
  *
- * `source` is `'agent'` for the only path that lands in this bead. The
- * `'manual'` arm is reserved for a future maintainer ack path; no manual
- * signal lands today.
+ * `source` records whether the assessment came from an agent-applied label set
+ * or an operator acknowledgement.
  *
- * `notes` is currently always empty string. When the gh ingest path wires
- * it up (see ParseTriageAssessmentOptions.notes), the contents will be
- * extracted from PR/issue comment bodies, which are third-party-author
- * controllable on incoming PRs. Treat as untrusted: any consumer MUST
- * render it as plain text (React auto-escapes), never via
- * `dangerouslySetInnerHTML`, and never as unescaped markdown or HTML.
- * The ingest-side bead must also length-cap and strip control chars at
- * parse time. See gascity-dashboard-8h3 for the contract.
+ * `notes` is third-party-author controllable when present. Treat it as
+ * untrusted: consumers MUST render it as plain text, never via
+ * `dangerouslySetInnerHTML`, markdown, or HTML. The ingest side must
+ * length-cap and strip control chars before this field is populated.
  */
 export interface TriageAssessment {
   vetted_score: number;

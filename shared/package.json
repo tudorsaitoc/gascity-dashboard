@@ -13,7 +13,8 @@
   },
   "scripts": {
     "build": "tsc",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "test": "tsx --test src/index.test.ts src/session-resolve.test.ts"
   },
   "devDependencies": {
     "typescript": "^5.6.3"

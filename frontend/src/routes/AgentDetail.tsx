@@ -1,20 +1,25 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
-import type { GcBead, GcMailItem, GcSession, GcSessionState } from 'gas-city-dashboard-shared';
-import { effectiveContextPct } from 'gas-city-dashboard-shared';
+import type { GcBead, GcMailItem, GcSession } from 'gas-city-dashboard-shared';
+import { errorMessage } from 'gas-city-dashboard-shared';
 import { api, ApiClientError } from '../api/client';
 import { BeadDetailModal } from '../components/BeadDetailModal';
 import { Button } from '../components/Button';
 import { PageHeader } from '../components/PageHeader';
-import { LiveSessionPeek, isSessionStreamable } from '../components/LiveSessionPeek';
-import { StatusBadge, type StatusTone } from '../components/StatusBadge';
+import { StatusBadge } from '../components/StatusBadge';
 import { RelatedEntities } from '../components/RelatedEntities';
+import { AgentBeadsAssigned } from '../components/agent/AgentBeadsAssigned';
+import { AgentChatThread } from '../components/agent/AgentChatThread';
+import { AgentDirectives, type AgentDirectivesError } from '../components/agent/AgentDirectives';
+import { AgentLivePeek } from '../components/agent/AgentLivePeek';
+import { AgentMetadata } from '../components/agent/AgentMetadata';
 import { useViewingAs } from '../contexts/ViewingAsContext';
 import { useAbortableVisibleRefresh } from '../hooks/useAbortableVisibleRefresh';
 import { useGcEventRefresh } from '../hooks/useGcEvents';
 import { useEntityLinks } from '../hooks/useEntityLinks';
-import { formatRelative } from '../hooks/time';
 import { useVisibleInterval } from '../hooks/useVisibleInterval';
+import { reportClientError } from '../lib/clientErrorReporting';
+import { stateTone } from './Agents';
 
 // Read-only drilldown for a single agent. Route: /agents/:slug where
 // slug resolves against session_name, alias, then id (see sessionSlug).
@@ -25,17 +30,13 @@ import { useVisibleInterval } from '../hooks/useVisibleInterval';
 //   - Beads assigned to this agent (filtered from /api/beads)
 //   - Live peek panel (live SSE stream for active sessions; snapshot otherwise)
 //
-// Deferred (read-only scope): nudge button, directives panel. Send half
-// of the chat thread (compose form) is filed separately. Directives
-// needs a new backend endpoint.
+// Read-only scope: nudge actions, chat compose, and directive edits stay
+// out of this route until the backend exposes explicit write endpoints.
 
-const SESSIONS_REFRESH_MS = 15_000;
-const BEADS_REFRESH_MS = 30_000;
+const SESSIONS_REFRESH_MS = 60_000;
+const BEADS_REFRESH_MS = 60_000;
 const CHAT_REFRESH_MS = 10_000;
 const CHAT_MAX_MESSAGES = 200;
-const PROMPT_INJECTION_NOTICE =
-  'Content is agent-generated and may contain misleading instructions.';
-
 export function AgentDetailPage() {
   const { slug = '' } = useParams<{ slug: string }>();
   const navigate = useNavigate();
@@ -51,17 +52,18 @@ export function AgentDetailPage() {
 
   const [directivesPrompt, setDirectivesPrompt] = useState<string | null>(null);
   const [directivesLoading, setDirectivesLoading] = useState(false);
-  const [directivesError, setDirectivesError] = useState<{
-    status?: number;
-    kind?: string;
-    message: string;
-  } | null>(null);
+  const [directivesError, setDirectivesError] = useState<AgentDirectivesError | null>(null);
   const [directivesAliasFetched, setDirectivesAliasFetched] = useState<string | null>(null);
 
   const decoded = useMemo(() => {
     try {
       return decodeURIComponent(slug);
-    } catch {
+    } catch (err) {
+      void reportClientError({
+        component: 'AgentDetail',
+        operation: 'decodeSlug',
+        message: errorMessage(err),
+      });
       return slug;
     }
   }, [slug]);
@@ -80,8 +82,12 @@ export function AgentDetailPage() {
     try {
       const { items } = await api.listBeads(true);
       setBeads(items);
-    } catch {
-      // Beads panel surfaces its own loading state; don't blank the page.
+    } catch (err) {
+      void reportClientError({
+        component: 'AgentDetail',
+        operation: 'refreshBeads',
+        message: errorMessage(err),
+      });
     }
   }, []);
 
@@ -90,6 +96,8 @@ export function AgentDetailPage() {
     void refreshBeads();
   }, [refreshSessions, refreshBeads]);
 
+  // SSE is the primary freshness channel; these intervals are fallback
+  // guards for dropped or unavailable event streams.
   useVisibleInterval(() => void refreshSessions(), SESSIONS_REFRESH_MS);
   useVisibleInterval(() => void refreshBeads(), BEADS_REFRESH_MS);
   useVisibleInterval(() => setNow(Date.now()), 5_000);
@@ -334,9 +342,9 @@ export function AgentDetailPage() {
         </p>
       )}
 
-      <Metadata session={session} now={now} />
+      <AgentMetadata session={session} now={now} />
 
-      <BeadsAssigned
+      <AgentBeadsAssigned
         beads={assignedBeads}
         loading={beads === null}
         onSelect={(b) => {
@@ -353,22 +361,10 @@ export function AgentDetailPage() {
         onOpenBead={openBead}
       />
 
-      <section>
-        <header className="flex items-baseline justify-between mb-4">
-          <h2 className="text-label uppercase tracking-wider text-fg-faint">
-            Live peek
-          </h2>
-        </header>
-        <LiveSessionPeek
-          sessionId={session.id}
-          stream={isSessionStreamable(session)}
-          showBadge
-          showCaption
-        />
-      </section>
+      <AgentLivePeek session={session} />
 
       {primeAlias !== null && (
-        <Directives
+        <AgentDirectives
           alias={primeAlias}
           prompt={directivesPrompt}
           loading={directivesLoading}
@@ -377,7 +373,7 @@ export function AgentDetailPage() {
         />
       )}
 
-      <ChatThread
+      <AgentChatThread
         messages={chatMessages}
         loading={chatLoading}
         error={chatError}
@@ -395,250 +391,8 @@ export function AgentDetailPage() {
   );
 }
 
-function Metadata({ session, now }: { session: GcSession; now: number }) {
-  const pct = effectiveContextPct(session);
-  const items: ReadonlyArray<{ label: string; value: React.ReactNode }> = [
-    { label: 'Rig', value: session.rig ?? '·' },
-    { label: 'Pool', value: session.pool ?? '·' },
-    { label: 'Provider', value: session.provider ?? '·' },
-    { label: 'Model', value: session.model ?? '·' },
-    {
-      label: 'Context',
-      value:
-        typeof pct === 'number' ? (
-          <span
-            className={`tnum ${
-              pct >= 95 ? 'text-accent' : pct >= 80 ? 'text-warn' : 'text-fg'
-            }`}
-          >
-            {pct}%
-          </span>
-        ) : (
-          '·'
-        ),
-    },
-    { label: 'Attached', value: session.attached ? 'yes' : 'no' },
-    {
-      label: 'Created',
-      value: <span className="tnum">{formatRelative(session.created_at, now)}</span>,
-    },
-    {
-      label: 'Last active',
-      value: <span className="tnum">{formatRelative(session.last_active, now)}</span>,
-    },
-  ];
-
-  return (
-    <dl className="grid grid-cols-2 sm:grid-cols-4 gap-x-8 gap-y-5 mb-12">
-      {items.map((it) => (
-        <div key={it.label}>
-          <dt className="text-label uppercase tracking-wider text-fg-faint mb-1">
-            {it.label}
-          </dt>
-          <dd className="text-body text-fg">{it.value}</dd>
-        </div>
-      ))}
-    </dl>
-  );
-}
-
-function BeadsAssigned({
-  beads,
-  loading,
-  onSelect,
-}: {
-  beads: ReadonlyArray<GcBead>;
-  loading: boolean;
-  onSelect: (bead: GcBead) => void;
-}) {
-  return (
-    <section className="mb-12">
-      <header className="flex items-baseline justify-between mb-4">
-        <h2 className="text-label uppercase tracking-wider text-fg-faint">
-          Beads assigned
-        </h2>
-        <span className="text-label uppercase tracking-wider text-fg-faint tnum">
-          {loading ? '·' : beads.length}
-        </span>
-      </header>
-      {loading ? (
-        <p className="text-body text-fg-muted italic">Loading beads.</p>
-      ) : beads.length === 0 ? (
-        <p className="text-body text-fg-muted italic">No beads assigned to this agent.</p>
-      ) : (
-        <ul className="space-y-2">
-          {beads.map((b) => (
-            <li key={b.id} className="flex items-baseline gap-3 min-w-0">
-              <span className="text-label uppercase tracking-wider text-fg-faint tnum shrink-0">
-                {b.id}
-              </span>
-              <button
-                type="button"
-                onClick={() => onSelect(b)}
-                className="text-body text-fg hover:text-accent truncate min-w-0 text-left focus-mark"
-                title={`Open ${b.id}`}
-              >
-                {b.title}
-              </button>
-              <span className="text-label uppercase tracking-wider text-fg-faint shrink-0">
-                {b.status}
-              </span>
-            </li>
-          ))}
-        </ul>
-      )}
-    </section>
-  );
-}
-
-function ChatThread({
-  messages,
-  loading,
-  error,
-  now,
-}: {
-  messages: ReadonlyArray<GcMailItem>;
-  loading: boolean;
-  error: string | null;
-  now: number;
-}) {
-  return (
-    <section className="mt-12">
-      <header className="flex items-baseline justify-between mb-4">
-        <h2 className="text-label uppercase tracking-wider text-fg-faint">
-          Chat thread
-        </h2>
-        <span className="text-label uppercase tracking-wider text-fg-faint tnum">
-          {loading ? '·' : messages.length}
-        </span>
-      </header>
-      <p className="text-label uppercase tracking-wider text-fg-faint mb-4">
-        <span className="text-accent">▲ {PROMPT_INJECTION_NOTICE}</span>
-      </p>
-      {loading ? (
-        <p className="text-body text-fg-muted italic">Loading messages.</p>
-      ) : error !== null ? (
-        <p className="text-body text-accent" role="alert">
-          {error}
-        </p>
-      ) : messages.length === 0 ? (
-        <p className="text-body text-fg-muted italic">
-          No messages between operator and this agent.
-        </p>
-      ) : (
-        <ul className="space-y-6">
-          {messages.map((m) => (
-            <li key={m.id} className="space-y-2 pb-4 border-b border-rule last:border-0">
-              <header className="flex items-baseline justify-between gap-3">
-                <div className="text-label uppercase tracking-wider text-fg-muted truncate">
-                  <span className="text-fg font-medium">{m.from}</span>
-                  <span className="mx-1.5 text-fg-faint">→</span>
-                  <span>{m.to}</span>
-                </div>
-                <span className="text-label uppercase tracking-wider text-fg-faint tnum shrink-0">
-                  {formatRelative(m.created_at, now)}
-                </span>
-              </header>
-              {m.subject && (
-                <p className="text-body font-medium text-fg">{m.subject}</p>
-              )}
-              <pre className="text-body whitespace-pre-wrap leading-relaxed text-fg overflow-x-auto">
-                {m.body}
-              </pre>
-            </li>
-          ))}
-        </ul>
-      )}
-    </section>
-  );
-}
-
-function Directives({
-  alias,
-  prompt,
-  loading,
-  error,
-  onRefresh,
-}: {
-  alias: string;
-  prompt: string | null;
-  loading: boolean;
-  error: { status?: number; kind?: string; message: string } | null;
-  onRefresh: () => void;
-}) {
-  const isNotFound = error?.status === 404 || error?.kind === 'not_found';
-  const charsLabel =
-    prompt !== null
-      ? `${prompt.length.toLocaleString()} chars`
-      : loading
-        ? 'loading'
-        : error !== null
-          ? '—'
-          : '·';
-
-  return (
-    <section className="mt-12">
-      <header className="flex items-baseline justify-between mb-4">
-        <h2 className="text-label uppercase tracking-wider text-fg-faint">
-          Directives
-        </h2>
-        <div className="flex items-baseline gap-3">
-          <span className="text-label uppercase tracking-wider text-fg-faint tnum">
-            {charsLabel}
-          </span>
-          <Button size="sm" tone="quiet" onClick={onRefresh} disabled={loading}>
-            {loading ? 'Refreshing' : 'Refresh'}
-          </Button>
-        </div>
-      </header>
-      {loading && prompt === null && error === null ? (
-        <p className="text-body text-fg-muted italic">Loading directives.</p>
-      ) : isNotFound ? (
-        <p className="text-body text-warn">
-          Agent <code className="text-fg">{alias}</code> has no entry in city
-          config.
-        </p>
-      ) : error !== null ? (
-        <p className="text-body text-accent" role="alert">
-          {error.status ? `${error.status} ` : ''}
-          {error.message}
-        </p>
-      ) : prompt !== null ? (
-        <pre
-          className="text-body whitespace-pre-wrap leading-relaxed text-fg overflow-x-auto max-h-[60vh] overflow-y-auto"
-        >
-          {prompt}
-        </pre>
-      ) : null}
-    </section>
-  );
-}
-
 function formatApiError(err: unknown): string {
   if (err instanceof ApiClientError) return `${err.status} ${err.message}`;
   if (err instanceof Error) return err.message;
   return 'mail failed';
-}
-
-function stateTone(state: GcSessionState): StatusTone {
-  switch (state) {
-    case 'active':
-    case 'running':
-      return 'ok';
-    case 'rate-limited':
-    case 'rate_limited':
-    case 'waiting':
-      return 'warn';
-    case 'failed':
-    case 'closed':
-    case 'errored':
-    case 'stuck':
-      return 'stuck';
-    case 'asleep':
-    case 'idle':
-    case 'creating':
-    case 'detached':
-    default:
-      return 'neutral';
-  }
 }

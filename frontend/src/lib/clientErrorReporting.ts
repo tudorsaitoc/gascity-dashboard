@@ -1,10 +1,6 @@
+import type { ClientErrorReport } from 'gas-city-dashboard-shared';
+import { errorMessage } from 'gas-city-dashboard-shared';
 import { readCsrfToken } from '../api/csrf';
-
-export interface ClientErrorReport {
-  readonly component: string;
-  readonly operation: string;
-  readonly message: string;
-}
 
 export type ClientErrorReportResult =
   | { status: 'reported' }
@@ -35,10 +31,4 @@ export async function reportClientError(
   } catch (err) {
     return { status: 'failed', error: errorMessage(err) };
   }
-}
-
-function errorMessage(err: unknown): string {
-  if (err instanceof Error) return err.message;
-  if (typeof err === 'string') return err;
-  return 'unknown error';
 }

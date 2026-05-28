@@ -2,7 +2,7 @@ import { test, describe } from 'node:test';
 import assert from 'node:assert/strict';
 import type { SourceAvailableState, SourceState } from 'gas-city-dashboard-shared';
 
-import { SourceCache, errorMessage } from '../src/snapshot/cache.js';
+import { SourceCache } from '../src/snapshot/cache.js';
 
 // Read-side cache primitive ported from demo-dash for the snapshot series
 // (gascity-dashboard-glw). Six required cases per the bead SCOPE:
@@ -311,18 +311,6 @@ function assertSourceAvailable<T>(
 ): asserts state is SourceAvailableState<T> {
   assert.notEqual(state.status, 'error');
 }
-
-describe('errorMessage', () => {
-  test('returns message for Error instances', () => {
-    assert.equal(errorMessage(new Error('boom')), 'boom');
-  });
-
-  test('falls back to String() for non-Error values', () => {
-    assert.equal(errorMessage('plain string'), 'plain string');
-    assert.equal(errorMessage(42), '42');
-    assert.equal(errorMessage(null), 'null');
-  });
-});
 
 describe('SourceCache error sanitization (gascity-dashboard-fhj, gascity-dashboard-4r5)', () => {
   // The wire-shape SourceState.error is served to the browser via

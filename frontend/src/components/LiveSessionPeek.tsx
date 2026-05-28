@@ -1,5 +1,5 @@
 import type { GcSession } from 'gas-city-dashboard-shared';
-import { SessionPeekContent, formatPeekChars } from './SessionPeek';
+import { SessionPeekContent } from './SessionPeek';
 import { StatusBadge, type StatusTone } from './StatusBadge';
 import {
   useSessionStream,
@@ -7,6 +7,7 @@ import {
   type SessionStreamProgress,
 } from '../hooks/useSessionStream';
 import { formatRelative } from '../hooks/time';
+import { formatHumanSize } from '../lib/format';
 
 // Composes the session transcript snapshot with a live SSE tail. Owns the
 // "fetch snapshot, then stream turns, show a connection badge" pattern so
@@ -48,7 +49,7 @@ export function LiveSessionPeek({
   const captionParts: string[] = [];
   if (showCaption && result) {
     captionParts.push(`${result.turns.length} turn(s)`);
-    captionParts.push(formatPeekChars(result.total_chars));
+    captionParts.push(formatHumanSize(result.total_chars, 'chars'));
     captionParts.push(`captured ${formatRelative(result.captured_at, Date.now())}`);
   }
 

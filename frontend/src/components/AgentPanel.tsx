@@ -25,8 +25,7 @@ export function AgentPanel({
 }) {
   // Left-side identity panel. Starts collapsed to a thin rail showing only
   // who you're reading as; expands to a searchable, tier-grouped agent
-  // list. Replaces the old <select> dropdown so the operator can type to
-  // find an inbox instead of scrolling a long option list.
+  // list so the operator can type to find an inbox.
   //
   // Collapse/search state is local: the panel owns its own UI affordances;
   // the page only owns the load-bearing `value`/`onChange` identity state.
@@ -181,7 +180,7 @@ export function AgentPanel({
             gascity-dashboard-5gg: split the message into two branches.
             When the visible list collapses to ONLY the operator entry
             (both fetches failed, or the mail corpus is genuinely empty),
-            the old "showing mail-derived aliases only" copy is
+            the narrower "showing mail-derived aliases only" copy is
             misleading because no mail-derived aliases are actually
             present. Use the broader "agent list and mail history both
             unavailable" copy in that case. */}

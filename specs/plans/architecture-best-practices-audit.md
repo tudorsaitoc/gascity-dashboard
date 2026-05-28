@@ -2422,7 +2422,7 @@ not merely the last touched module.
    whether workflow-run detail should become the primary organizing surface
    with the other pages acting as drill-in support views.
 
-## Completion Audit
+## Historical Completion Audit (Superseded)
 
 - Branch requirement: satisfied. Current branch is
   `csells/architecture-best-practices-audit`.
@@ -2434,8 +2434,130 @@ not merely the last touched module.
   frontend, shared, CI, tests, and scripts.
 - Iterate and reassess requirement: satisfied. The plan records 35 fix passes
   with reassessment tables after each material update.
-- 100/100 requirement: satisfied. The final whole-codebase reassessment scores
-  all 25 items at 100 with no remaining gap before 100.
-- Verification requirement: satisfied. Current checkpoint includes typecheck,
-  lint, OpenAPI drift check, backend tests, frontend tests, focused supervisor
-  tests, and the workflow-detail browser harness.
+- Earlier 100/100 assertion: superseded by the Thirty-Sixth pass below. The
+  current objective is defensible 80+ after validating Codex and Claude
+  feedback; the newer table is the authoritative current assessment.
+- Historical verification checkpoint: superseded by the Thirty-Sixth pass
+  below, which re-ran the full current static, test, build, and browser gates.
+
+## Thirty-Sixth Pass: Objective Revalidation Against Codex And Claude Feedback
+
+This pass revalidated the current branch against the explicit
+`tmp/arch-best-practices-01.txt` objective rather than relying on the earlier
+100/100 conclusion above. The current objective is stricter about evidence:
+validate the Codex and Claude feedback, apply it where appropriate, then update
+the assessment until every `AGENTS.md` architecture best-practice item is at
+least 80. The current evidence supports 80+ across the board, but the scores
+below intentionally avoid claiming perfect architecture where meaningful
+residual tradeoffs remain.
+
+Additional cleanup in this pass:
+
+- Pruned source comments that described future/deferred link and maintainer
+  behavior instead of active constraints.
+- Kept comments that explain active invariants: loopback-only security, route
+  error isolation, snapshot failure isolation, timer lifecycle, and current
+  race-prevention mechanics.
+- Re-ran the complete static, unit, integration, build, and browser harness
+  set after the latest changes.
+
+Changed-file groups that matter for this objective:
+
+- Shared contracts: `shared/src/index.ts`, `shared/src/index.test.ts`,
+  `shared/package.json`.
+- Backend error/DRY/observability: `backend/src/lib/sanitise-error.ts`,
+  `backend/src/lib/parse-json.ts`, `backend/src/lib/race-with-timeout.ts`,
+  `backend/src/middleware/async-route.ts`,
+  `backend/src/middleware/api-error-handler.ts`,
+  `backend/src/middleware/request-log.ts`, route call sites, and request/error
+  tests.
+- Backend lifecycle/statelessness: `backend/src/app.ts`,
+  `backend/src/config.ts`, `backend/src/snapshot/service.ts`,
+  `backend/src/snapshot/cache.ts`, `backend/src/snapshot/collectors/resources.ts`,
+  and the lifecycle/failure-isolation tests.
+- Frontend DRY/error/SRP: `frontend/src/components/ErrorBoundary.tsx`,
+  `frontend/src/components/Field.tsx`, `frontend/src/components/agent/*`,
+  `frontend/src/components/mail/*`, `frontend/src/lib/constants.ts`,
+  `frontend/src/lib/format.ts`, `frontend/src/routes/maintainerActions.ts`,
+  and their tests.
+- Static gates and docs: `eslint.config.mjs`, `.github/workflows/ci.yml`,
+  `frontend/tailwind.config.js`, `scripts/snap.mjs`,
+  `docs/ARCHITECTURE.md`, `docs/SECURITY.md`.
+
+### Objective Feedback Closure
+
+| Feedback area | Current status | Evidence |
+| --- | --- | --- |
+| DRY duplication | Closed to 80+ | Shared `errorMessage`, client error and sling types, prompt notice, date/size formatting, Field component, parse JSON array, route exec error writer, and timeout helper now have single owners. |
+| Don't swallow errors | Closed to 80+ | Async route wrapper + centralized API error middleware, request logging, client error reporting, ErrorBoundary, resource fallback logging, AgentDetail bead/slug failure reporting, and maintainer SSE/action failure reporting are in place and tested. |
+| Scalability/statelessness | Closed to 80+ | Runtime services are built through `createDashboardApp`, timers have start/stop lifecycle, snapshot state is per service instance, `HOST` is hard-guarded to loopback, and `docs/ARCHITECTURE.md` lists process-local state and migration paths. |
+| No comments for removed functionality | Closed to 80+ | Historical/future/deferred comments in touched source were removed or rewritten as current design rationale. Remaining marker hits are active vocabulary, generated types, fixtures, tests, UI copy, or current invariant comments. |
+| SRP | Closed to 80+ | Agent detail display pieces, mail modal/message rendering, maintainer SSE/refresh/sling state, and common route utilities now sit in focused modules. `backend/src/routes/maintainer.ts` and workflow collectors remain large but have clearer helper boundaries and tests. |
+| Observability/testability | Closed to 80+ | Request logs, browser client-error logs, async route sanitizer tests, resource fallback logging tests, config guard tests, snapshot per-instance tests, shared tests in CI, and browser route harnesses are present. |
+| Async notifications | Closed to 80+ | Maintainer SSE has error reporting, workflow/event browser harnesses are isolated per route, and polling paths are either SSE-backed fallbacks or intentionally visibility-gated polling. |
+| Centralized constants | Closed to 80+ | Exec limits, CSRF max-age, dashboard max width, and size thresholds now have named constants. |
+| ESLint/static hardening | Closed to 80+ | ESLint runs with `--max-warnings=0`, shared source glob is type-aware, and `@typescript-eslint/switch-exhaustiveness-check` is enabled. |
+| Shared wire types | Closed to 80+ | `ClientErrorReport`, `SlingIntent`, `SlingKind`, and shared error normalization are exported from `gas-city-dashboard-shared` and used by backend/frontend callers. |
+
+### Current Score Reassessment
+
+| AGENTS.md item | Current score | Evidence | Remaining tradeoff |
+| --- | ---: | --- | --- |
+| TDD | 90 | Red/green coverage was added for async route rejection, loopback bind hard-guard, snapshot per-instance state, resources logging, ErrorBoundary, AgentDetail bead refresh reporting, maintainer actions, shared helpers, and formatting. | Some purely mechanical extractions were guarded by existing tests rather than new red tests. |
+| Consider First Principles | 88 | The implementation now treats external supervisor data, browser errors, and local process state as explicit boundaries instead of hidden assumptions. | The app still carries several ambient dashboard surfaces; product scope, not architecture, decides whether they all remain. |
+| Leverage Types | 92 | Shared wire contracts, strict TypeScript, type-aware lint, discriminated API response shapes, and generated OpenAPI types are used at boundaries. | Some browser and optional UI states still use absent-value unions where selection or DOM APIs require them. |
+| DRY | 88 | The duplicated frontend helpers, backend route catch arms, JSON parsing, timeout helper, semantic constants, and shared types now have central owners. | Large workflow and maintainer modules still contain repeated policy-like shape in places where extraction would need a separate focused pass. |
+| Separation of Concerns | 87 | App assembly, middleware, route error mapping, supervisor client access, formatting, error reporting, and maintainer actions are separated. | `backend/src/snapshot/collectors/workflows.ts` remains broad because it owns a broad projection. |
+| Single Responsibility Principle | 84 | The largest frontend route responsibilities were split into display components and action hooks; backend maintainer storage/SSE/slung-state helpers are isolated. | `backend/src/routes/maintainer.ts` and workflow collection still have multiple reasons to change, though no longer below the 80 bar. |
+| Clear Abstractions & Contracts | 88 | Shared contracts, route error helpers, middleware wrappers, and focused hooks make inputs and failure states clearer. | Some route factories still expose broad option objects. |
+| Low Coupling, High Cohesion | 87 | Shared package owns common wire contracts, route middleware owns cross-cutting behavior, and UI components consume focused hooks/helpers. | Workflow projection still couples several supervisor facts by necessity. |
+| Scalability & Statelessness | 84 | Local single-node design is explicit, loopback-only bind is enforced, runtime timers are start/stop managed, and per-instance state tests pass. | This remains intentionally single-process; horizontal scaling would require replacing process-local caches/SSE/timers. |
+| Observability & Testability | 89 | Request logs, centralized server/client error reporting, resource fallback logs, async route sanitizer tests, and browser API-failure harnesses are in place. | Logs remain text-based component logs rather than structured tracing. |
+| KISS | 86 | The fixes use small utilities, hooks, and middleware instead of new frameworks. | More extraction would risk indirection unless tied to specific future changes. |
+| YAGNI | 86 | No distributed infrastructure, query library, logging stack, or product behavior was added to satisfy architecture scores. | The architecture doc records migration options without implementing them. |
+| Don't Swallow Errors | 87 | Previously silent or weakly visible failures now log, report, or surface user-visible degraded states; tests cover key paths. | A few deliberate degraded modes still return safe fallback values after logging. |
+| No Placeholder Code | 88 | New modules are mounted and tested; fixture and generated artifacts serve active test/runtime paths. | Fixture data remains test/demo infrastructure, not product data. |
+| No Comments for Removed Functionality | 85 | Obvious future/deferred/history comments in touched source were removed or rewritten as current rationale. | Some ticket IDs and current-invariant comments remain; they should be reviewed opportunistically when those modules are next touched. |
+| Layered Architecture | 88 | Serialization/deserialization, route adapters, service construction, shared contracts, and UI rendering have clearer layers. | Backend workflow projection is still a dense domain-adapter layer. |
+| Use Non-Nullable Variables | 84 | Required data failures increasingly throw or use explicit error states rather than null/empty coercion. | Some absent UI states still use null for selection/error/DOM concepts; converting all of those needs a separate state-modeling pass. |
+| Use Async Notifications | 84 | SSE-backed paths are retained, maintainer SSE errors are visible, browser harnesses validate event streams, and intervals are fallback/visibility-gated where retained. | Health and other ambient views still poll because no richer supervisor notification source exists for those facts. |
+| Eliminate Race Conditions | 87 | Single-flight requests, route refresh guards, abortable visible refresh, serialized slung-state writes, lifecycle-managed timers, and snapshot isolation are tested. | Multi-process races remain outside the local-only product model. |
+| Write for Maintainability | 89 | Common utilities, focused hooks/components, stricter CI, and architecture docs reduce future change cost. | The workflow collector should only be split further when a concrete change reason appears. |
+| Arrange Project Idiomatically | 90 | Workspace scripts, shared package tests, Express middleware, React hooks/components, Tailwind config, and generated OpenAPI checks sit in expected locations. | None blocking the 80+ target. |
+| Keep Serialization/Deserialization At The Edges | 90 | Supervisor client, route payloads, cache JSON, client-error reports, and UI-facing shared types are centralized at edges. | Some legacy route shapes still sanitize manually instead of through generated schemas. |
+| Prefer Well-Known, High Quality OSS Libraries | 88 | Existing React/Express/Vite/Vitest/OpenAPI tooling is preserved; generated OpenAPI client checks are enforced. | Runtime validation library adoption is not expanded in this branch beyond existing project choices. |
+| Treat Static Warnings And Info As Errors | 93 | `npm run lint` uses `--max-warnings=0`, typecheck includes test projects, and OpenAPI drift check/build/tests all pass. | Static gates do not replace browser journey tests, which remain script-based. |
+| Use Centralized Semantic Constant Values | 87 | Exec limits, CSRF max-age, layout width, prompt notice, size thresholds, and date formatting are centralized. | Some route-local literals remain appropriate because they are route-specific labels. |
+
+### Verification For This Pass
+
+- `npm run typecheck`: passed.
+- `npm run lint`: passed with `--max-warnings=0`.
+- `npm run openapi:gc-supervisor:check`: passed.
+- `npm run build`: passed.
+- `npm --workspace shared test`: 23 tests passed.
+- `npm --workspace backend test`: 553 tests passed.
+- `npm --workspace frontend test`: 269 tests passed.
+- `node scripts/snap-workflow-detail.mjs --test`: passed in light and dark,
+  including workflow detail load, diff states, node selection, historical
+  iteration tabs, transcript peek, and session stream paths.
+- `node scripts/snap.mjs --test`: passed for Agents, Beads, Workflows, Mail,
+  Activity, Health, and Triage in light and dark. Each recorded `/api/*`
+  request returned 200.
+- Visual inspection: `/tmp/cp-snaps/light-workflow-detail.png`,
+  `/tmp/cp-snaps/light-beads.png`, `/tmp/cp-snaps/light-maintainer.png`, and
+  `/tmp/cp-snaps/dark-maintainer.png` were inspected after the browser runs.
+
+### Current Residual Risks
+
+1. The app is still deliberately local and single-process. That is aligned with
+   the product contract, but multi-node operation would require externalizing
+   process-local caches, timers, and SSE client state.
+2. Some UI absent states still use null because React selection, DOM refs, and
+   absent error/success state are modeled that way today. The current branch
+   prevents required data from being silently coerced to null, which is the
+   important 80+ bar; a full no-null UI-state refactor is separate work.
+3. `backend/src/snapshot/collectors/workflows.ts` remains large. It is covered
+   by focused workflow tests and has clearer helper boundaries, but further
+   splitting should be driven by a concrete workflow projection change rather
+   than line-count pressure.

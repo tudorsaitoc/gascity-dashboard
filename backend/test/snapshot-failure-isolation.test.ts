@@ -130,15 +130,16 @@ function sabotageCache(cache: SourceCache<unknown>, message: string): void {
   (cache as unknown as { refresh: () => Promise<unknown> }).refresh = rejector;
 }
 
-function buildService(caches: SourceCacheMap): SnapshotService {
+function buildService(caches: SourceCacheMap, now?: () => Date): SnapshotService {
   return createSnapshotService({
     caches,
-	    config: {
-	      cityName: 'test-city',
-	      cityRoot: '/tmp/test-city',
+    config: {
+      cityName: 'test-city',
+      cityRoot: '/tmp/test-city',
       githubRepo: 'test-org/test-repo',
       useFixtures: false,
     },
+    now,
   });
 }
 
@@ -219,5 +220,31 @@ describe('readSources failure isolation (settle wrapper contract)', () => {
       !snapshot.sources.resources.error?.includes(leakyPath),
       'raw OS path must not leak to the wire even when the catch fires outside refreshUnshared',
     );
+  });
+
+  test('snapshot service bookkeeping is per instance', async () => {
+    const first = buildService(
+      buildHealthyCaches(),
+      () => new Date('2026-05-24T01:00:00.000Z'),
+    );
+    const second = buildService(
+      buildHealthyCaches(),
+      () => new Date('2026-05-24T02:00:00.000Z'),
+    );
+
+    assert.equal(first.health().lastSnapshotAt, null);
+    assert.equal(second.health().lastSnapshotAt, null);
+
+    await first.getSnapshot();
+
+    assert.equal(first.health().lastSnapshotAt, '2026-05-24T01:00:00.000Z');
+    assert.equal(second.health().lastSnapshotAt, null);
+
+    await second.refresh(['resources']);
+
+    assert.equal(first.health().lastSnapshotAt, '2026-05-24T01:00:00.000Z');
+    assert.equal(first.health().lastRefreshAt, null);
+    assert.equal(second.health().lastSnapshotAt, '2026-05-24T02:00:00.000Z');
+    assert.equal(second.health().lastRefreshAt, '2026-05-24T02:00:00.000Z');
   });
 });

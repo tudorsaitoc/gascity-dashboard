@@ -8,7 +8,7 @@ import {
   useState,
   type ReactNode,
 } from 'react';
-import type { ViewingAs } from 'gas-city-dashboard-shared';
+import { errorMessage, type ViewingAs } from 'gas-city-dashboard-shared';
 import { api } from '../api/client';
 import { prioritizeAliases, type AliasBucket } from '../hooks/aliasPriority';
 import {
@@ -16,6 +16,7 @@ import {
   removeBrowserStorage,
   writeBrowserStorage,
 } from '../lib/browserStorage';
+import { reportClientError } from '../lib/clientErrorReporting';
 
 // Identity-switching for mail:
 //
@@ -49,11 +50,9 @@ const OPERATOR_WIRE = 'human';
 const ALIAS_RE = /^[a-z][a-z0-9_./-]{1,63}$/i;
 
 // Bounded retry schedule for /api/sessions (gascity-dashboard-5gg).
-// A transient 504 on first page load used to latch sessionsUnavailable
-// permanently because loadAliases() is one-shot. Schedule three retries
-// with growing backoff so a recovering supervisor flips the footnote
-// off; after the third failure the flag stays sticky (matching the old
-// terminal behaviour).
+// A transient 504 on first page load sets sessionsUnavailable, then three
+// retries with growing backoff can clear it if the supervisor recovers.
+// After the third failure the degraded state stays sticky by design.
 const SESSIONS_RETRY_DELAYS_MS: ReadonlyArray<number> = [30_000, 90_000, 270_000];
 
 interface ViewingAsContextValue {
@@ -151,7 +150,12 @@ export function ViewingAsProvider({ children }: { children: ReactNode }) {
       // it back so the Mail footnote disappears (gascity-dashboard-5gg).
       setSessionsUnavailable(false);
       return true;
-    } catch {
+    } catch (err) {
+      void reportClientError({
+        component: COMPONENT,
+        operation: 'loadAliases.sessions',
+        message: errorMessage(err),
+      });
       return false;
     }
   }, []);
@@ -174,11 +178,12 @@ export function ViewingAsProvider({ children }: { children: ReactNode }) {
             if (!mountedRef.current) return;
             if (!ok) scheduleSessionsRetry(attemptIndex + 1);
           })
-          .catch(() => {
-            // attemptSessionsFetch swallows its own rejections, but guard
-            // the .then() callback so a synchronous throw inside
-            // scheduleSessionsRetry can't surface as an unhandled
-            // promise rejection.
+          .catch((err) => {
+            void reportClientError({
+              component: COMPONENT,
+              operation: 'loadAliases.sessionsRetry',
+              message: errorMessage(err),
+            });
           });
       }, delay);
     },
@@ -245,8 +250,12 @@ export function ViewingAsProvider({ children }: { children: ReactNode }) {
         }
         setMailFromOrTo(out);
       })
-      .catch(() => {
-        /* mail corpus unavailable — falls back to sessions + operator */
+      .catch((err) => {
+        void reportClientError({
+          component: COMPONENT,
+          operation: 'loadAliases.mail',
+          message: errorMessage(err),
+        });
       })
       .finally(settleOne);
   }, [attemptSessionsFetch, scheduleSessionsRetry]);

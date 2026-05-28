@@ -36,14 +36,11 @@ import {
 export const SESSIONS_CACHE_TTL_MS = 45 * 1000;
 
 // SnapshotService — gascity-dashboard-8nj. Composes the active SourceCaches
-// behind one aggregate getSnapshot()/refresh() façade. Ported from
-// demo-dash src/server/snapshot.ts; differences from the upstream port:
-//   - Uses GcClient (HTTP) for city sessions, not the gc/bd subprocess
-//     CLIs (dkb Q1 — HTTP is the canonical contract here).
-//   - Deferred demo-dash sources stay out of the runtime contract until they
-//     have real collectors and visible dashboard product surface.
-//   - workflows runs the real lane builder (gascity-dashboard-0t6) over
-//     gc.listBeads({ limit }) with the co-located workflowBeadFilter.
+// behind one aggregate getSnapshot()/refresh() facade. Runtime collectors use
+// GcClient HTTP calls as the canonical supervisor contract. Only sources with
+// visible dashboard product surface participate in the snapshot contract.
+// Workflows runs the lane builder over gc.listBeads({ limit }) with the
+// co-located workflowBeadFilter.
 
 export const SOURCE_NAMES = [
   'city',

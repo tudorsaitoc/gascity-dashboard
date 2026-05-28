@@ -90,6 +90,36 @@ systemd is boring, well-understood, and `journalctl`-debuggable. `ExecStartPre` 
               └── spawn() → `gc` CLI            — whitelisted writes
 ```
 
+## Stateful Components
+
+This dashboard is a single-node, loopback-only operator tool. Horizontal
+scaling is outside the current product model, but the stateful parts are
+deliberately isolated so a future multi-instance design has clear seams:
+
+- `backend/src/snapshot/cache.ts` owns `SourceCache` instances for the ambient
+  snapshot. Multi-instance deployment would move cache state to Redis or another
+  shared cache with per-source TTLs.
+- `backend/src/maintainer/sse.ts` owns the in-process `Set` of connected
+  maintainer SSE clients. Multi-instance deployment would use a shared event
+  broker so every browser sees refresh events regardless of which process holds
+  its connection.
+- `backend/src/exec-core.ts` owns the subprocess semaphore that caps privileged
+  command concurrency. Multi-instance deployment would need a distributed lock
+  or queue if the cap is meant to apply across processes.
+- `backend/src/maintainer/slung-state.ts` serializes writes through a module
+  write chain around one JSON file. Multi-instance deployment would replace it
+  with a transactional store or a lock-backed file writer.
+- `backend/src/gc-client.ts` owns an in-flight request map for request
+  deduplication inside one Node process. Multi-instance deployment would either
+  accept per-process dedupe or move that cache behind a shared supervisor-aware
+  gateway.
+- `backend/src/middleware/csrf.ts` owns the boot-scoped double-submit token.
+  Multi-instance deployment would need shared token material or sticky sessions.
+
+Timers are lifecycle-managed through the `DashboardRuntime` returned by
+`createDashboardApp()`: the dolt-noms sampler and maintainer refresher start
+and stop with the process wrapper instead of hidden module startup.
+
 ## Trust boundaries
 
 - **Browser ↔ backend**: same-origin, Host-allowlist, Origin check, CSP, CSRF on writes. See `SECURITY.md`.

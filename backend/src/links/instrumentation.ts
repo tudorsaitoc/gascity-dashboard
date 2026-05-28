@@ -3,21 +3,14 @@ import type { LinkResolutionStat } from 'gas-city-dashboard-shared';
 // R11 — resolution instrumentation (RK4).
 //
 // Every link-view build records per-edge-type resolution outcomes into a
-// process-level rollup, exposed by the GET /api/links/_stats endpoint, so
-// deferred link directions (rich GitHub→bead, more surfaces) can be
-// promoted on measured hit-rate, not speculation. No frontend surface
-// consumes this endpoint in this PR — it is an out-of-band / future-use
-// endpoint (curl-able, or for a later Activity/Health register tile). A
-// nonzero n-candidates rate on an AUTHORITATIVE direction (parent/molecule)
-// is a correctness alarm — it means the namespaced key failed to keep
-// distinct-scope beads apart.
+// process-level rollup exposed by GET /api/links/_stats. A nonzero
+// n-candidates rate on an authoritative direction (parent/molecule) is a
+// correctness alarm: the namespaced key failed to keep distinct-scope beads
+// apart.
 //
-// Promote / kill thresholds (reviewed quarterly by the dashboard owner):
+// Link-quality thresholds:
 //   - Promote rich GitHub→bead join when bead→PR resolution to a PRESENT
 //     entity exceeds 40% over a 30-day window (PG2 threshold).
-//   - Sunset condition: if the RelatedEntities section sees fewer
-//     interactions than the three pre-existing inline links over 30 days,
-//     remove it (tracked outside this counter, by the owner).
 //
 // This is deterministic arithmetic aggregation only — ZFC-clean.
 

@@ -3,8 +3,8 @@ import type { GitCommit, GitView } from 'gas-city-dashboard-shared';
 import { execGitLog as defaultExecGitLog, ExecError } from '../exec.js';
 import type { ExecResult } from '../exec.js';
 import { recordAudit } from '../audit.js';
-import { toWireExecError } from '../lib/sanitise-error.js';
-import { LOG_COMPONENT, logWarn } from '../logging.js';
+import { writeExecError } from '../lib/sanitise-error.js';
+import { LOG_COMPONENT } from '../logging.js';
 import { routeInternalError, writeRouteError } from '../route-errors.js';
 
 // Hardcoded enum of `git log` invocations. Anything outside this set is
@@ -49,18 +49,7 @@ export function gitRouter(opts: GitRouterOptions = {}): Router {
       res.json({ view, items });
     } catch (err) {
       if (err instanceof ExecError) {
-        // gascity-dashboard-473: spawn-arm host path redaction. The
-        // 'spawn' kind wraps node's "spawn <abs-path> ENOENT" exposing
-        // the operator's binary layout; validation/timeout carry safe
-        // pre-authored strings by ExecError construction. /commits has
-        // no validation kind in practice (view is enum-validated above),
-        // so the per-kind branch is here for completeness with the
-        // sibling routes in this directory.
-        if (err.kind === 'spawn') {
-          logWarn(LOG_COMPONENT.git, `/api/git/commits spawn failed: ${err.message}`);
-        }
-        const wire = toWireExecError(err, err.kind === 'timeout' ? 504 : 500);
-        res.status(wire.status).json(wire.body);
+        writeExecError(res, err, LOG_COMPONENT.git, '/api/git/commits');
         return;
       }
       writeRouteError(res, routeInternalError(err, {

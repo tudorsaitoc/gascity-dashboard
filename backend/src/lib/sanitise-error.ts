@@ -1,9 +1,9 @@
 import type { ExecError } from '../exec.js';
+import type { LogComponent } from '../logging.js';
+import { logWarn } from '../logging.js';
 
-// gascity-dashboard-uza: the two error-redaction shapes that wave-473 +
-// ayr/sr6 spread across ~12 catch arms in the route files
-// (agents, beads, git, mail-send, maintainer). Extracted here as pure
-// functions so the wire contract is unit-testable without an Express
+// Centralized error-redaction shapes shared by route catch arms. Keeping
+// them here makes the wire contract unit-testable without an Express
 // Response or a spawned subprocess.
 //
 // Why pure (no Response coupling): the redaction decision — "which bytes
@@ -36,6 +36,38 @@ export function toWireExecError(
   return { status, body: { error, kind: err.kind } };
 }
 
+interface JsonResponse {
+  status(status: number): {
+    json(body: { error: string; kind: ExecError['kind'] }): unknown;
+  };
+}
+
+interface WriteExecErrorOptions {
+  fallbackStatus?: number;
+  log?: (component: LogComponent, message: string) => void;
+}
+
+export function writeExecError(
+  res: JsonResponse,
+  err: ExecError,
+  component: LogComponent,
+  endpoint: string,
+  options: WriteExecErrorOptions = {},
+): void {
+  const status =
+    err.kind === 'validation'
+      ? 400
+      : err.kind === 'timeout'
+        ? 504
+        : options.fallbackStatus ?? 500;
+  if (err.kind === 'spawn') {
+    const log = options.log ?? logWarn;
+    log(component, `${endpoint} spawn failed: ${err.message}`);
+  }
+  const wire = toWireExecError(err, status);
+  res.status(wire.status).json(wire.body);
+}
+
 interface Internal500Options {
   status: number;
   error: string;
@@ -54,9 +86,8 @@ interface Internal500Options {
  * `err` is typed `unknown` and narrowed with `instanceof Error` rather than
  * an unchecked `(err as Error)` cast (strict useUnknownInCatchVariables), so
  * a thrown non-Error value degrades to 'Error' rather than throwing. A real
- * Error with an empty `name` ('') also degrades to 'Error': the older
- * `?? 'Error'` only coalesced null/undefined and let an empty class name slip
- * onto the wire as an empty string.
+ * Error with an empty `name` ('') also degrades to 'Error' so the wire
+ * details name is always useful.
  */
 export function toWireInternal500(
   err: unknown,

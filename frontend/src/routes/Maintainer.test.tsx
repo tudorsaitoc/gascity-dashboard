@@ -47,11 +47,11 @@ function renderBar(props: Partial<React.ComponentProps<typeof SelectionActionBar
   );
 }
 
-// @ts-expect-error draft dispatch is part of the current action-bar contract, not a legacy optional path.
+// @ts-expect-error draft dispatch is required by the current action-bar contract.
 const missingDraftDispatchProps: React.ComponentProps<typeof SelectionActionBar> = { count: 1, onSend: () => {}, onClear: () => {}, sending: null, error: null, success: null };
 void missingDraftDispatchProps;
 
-// @ts-expect-error sending must name the active intent; booleans were the removed single-intent contract.
+// @ts-expect-error sending must name the active intent, not collapse to a boolean.
 const booleanSendingProps: React.ComponentProps<typeof SelectionActionBar> = { count: 1, onSend: () => {}, onSendDraft: () => {}, onClear: () => {}, sending: true, error: null, success: null };
 void booleanSendingProps;
 

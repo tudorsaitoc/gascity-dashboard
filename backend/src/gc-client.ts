@@ -44,8 +44,8 @@ const DEFAULT_TIMEOUT_MS = (() => {
 })();
 
 // Sling does real work upstream (creates a bead, attaches a wisp, dispatches
-// to a rig — ~30s measured on this deployment). 60s gives ~2x headroom,
-// matching the old execGcSling subprocess timeout (gascity-dashboard-mq2).
+// to a rig, roughly 30s measured on this deployment). 60s gives the request
+// enough headroom while still bounding a hung supervisor.
 const SLING_TIMEOUT_MS = 60_000;
 
 const SUPERVISOR_PATHS = {
@@ -260,19 +260,17 @@ export class GcClient {
 
   /**
    * `POST /sling` — auto-creates a bead from `input.bead` text and routes it
-   * to `input.target` (gascity-dashboard-mq2; replaces the `gc sling` CLI
-   * subprocess). The caller reads `root_bead_id` off the response to record
-   * slung-state, in place of the old `^Slung <id>` stdout parse.
+   * to `input.target`. The caller reads `root_bead_id` off the response to
+   * record slung-state.
    */
   async sling(input: SlingInput): Promise<SlingResponse> {
     return this.writeJson<SlingResponse>('/sling', input, SLING_TIMEOUT_MS);
   }
 
   /**
-   * `PATCH /bead/{id}` — the bead-CLAIM path (gascity-dashboard-mq2; replaces
-   * `gc bd update --status=in_progress --assignee=stephanie`). PATCH is the
-   * canonical update verb per the supervisor's api-ops-design.md, which marks
-   * the equivalent `POST /bead/{id}/update` deprecated; both take the same
+   * `PATCH /bead/{id}` — the bead-CLAIM path. PATCH is the canonical update
+   * verb per the supervisor's api-ops-design.md; both PATCH and the
+   * supervisor's update action take the same
    * `BeadUpdateBody`. The supervisor returns OKResponseBody{status}; the caller
    * ignores the body (success = 2xx). Unlike sling, this is a fast metadata
    * write, so it uses the read default timeout. Bead CLOSE + agent NUDGE stay
@@ -288,12 +286,10 @@ export class GcClient {
   }
 
   /**
-   * `POST /mail` — operator mail send (gascity-dashboard-mq2; replaces
-   * `gc mail send ... --from human`). The supervisor returns 201 with the
-   * created Message; the caller reads `id` off the response in place of the
-   * old stdout `Sent <id>` parse. Fast write, so it uses the read default
-   * timeout. `from` is pinned to 'human' by the caller (server.ts), never the
-   * browser — the browser-facing shape has no `from` slot.
+   * `POST /mail` — operator mail send. The supervisor returns 201 with the
+   * created Message; the caller reads `id` off the response. Fast write, so it
+   * uses the read default timeout. `from` is pinned to 'human' by the caller,
+   * never the browser; the browser-facing shape has no `from` slot.
    */
   async sendMail(body: MailSendInput): Promise<MailSendResponse> {
     return this.writeJson<MailSendResponse>('/mail', body, this.defaultTimeoutMs);

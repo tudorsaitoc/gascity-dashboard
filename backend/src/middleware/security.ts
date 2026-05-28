@@ -61,9 +61,8 @@ export function originCheck(port: number, extraAllowedHosts: ReadonlyArray<strin
 }
 
 export function securityHeaders(extraConnectSrc: ReadonlyArray<string> = []) {
-  // SSE flows same-origin via /api/events/stream (gascity-dashboard-iew),
-  // so 'self' covers EventSource. extraConnectSrc is kept for any future
-  // cross-origin needs.
+  // SSE flows same-origin via /api/events/stream, so 'self' covers EventSource.
+  // Extra connect-src values are explicit config, not a wildcard escape hatch.
   const connectSrc = ["'self'", ...extraConnectSrc].join(' ');
   const csp = [
     "default-src 'self'",

@@ -6,10 +6,8 @@ import { LOG_COMPONENT, errorMessage, logWarn } from '../logging.js';
 
 const DEFAULT_LOG_PATH = process.env.HOME ? `${process.env.HOME}/.dev-deploy-log` : '.dev-deploy-log';
 const DEFAULT_MARKER_PATH = process.env.HOME ? `${process.env.HOME}/.dev-deploy-FAILED` : '.dev-deploy-FAILED';
-// td-7t24i6 scope expansion: builds list was already capped here, but at
-// 200 records that's ~30 days at typical dev-deploy cadence — fine for the
-// "recent activity" use case. Documented so the cap is intentional and not
-// the same undercount bug.
+// Recent activity only. At typical dev-deploy cadence, 200 records covers
+// roughly a month without turning this ambient route into a log browser.
 const MAX_RECORDS = 200;
 
 // Format of the lines we parse — written by the deploy script:

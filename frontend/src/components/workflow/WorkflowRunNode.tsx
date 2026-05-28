@@ -107,8 +107,6 @@ function shapeClassFor(constructKind: WorkflowConstructKind): string {
     case 'spec':
     case 'control':
       return 'workflow-node-shape-control';
-    default:
-      return 'workflow-node-shape-step';
   }
 }
 
@@ -124,7 +122,8 @@ function statusClassFor(status: WorkflowNodeStatus): string {
     case 'completed':
     case 'done':
       return 'text-fg-muted';
-    default:
+    case 'pending':
+    case 'skipped':
       return 'text-fg-faint';
   }
 }
@@ -142,7 +141,8 @@ function statusGlyph(status: WorkflowNodeStatus): string {
       return '!';
     case 'skipped':
       return '∅';
-    default:
+    case 'pending':
+    case 'ready':
       return '·';
   }
 }

@@ -1,7 +1,7 @@
 // Snap and regression-test the Peek modal.
 //
 // Two modes:
-//   node scripts/snap-peek.mjs           # snap-only (legacy: PNGs to /tmp/cp-snaps)
+//   node scripts/snap-peek.mjs           # snap-only, PNGs to /tmp/cp-snaps
 //   node scripts/snap-peek.mjs --test    # snap + assert; non-zero exit on regression
 //
 // What it asserts in --test mode:
@@ -57,10 +57,10 @@ function parseAlpha(color) {
       const raw = alphaMatch[1];
       return raw.endsWith('%') ? Number(raw.slice(0, -1)) / 100 : Number(raw);
     }
-    // Legacy comma syntax for rgba/hsla: rgba(r, g, b, a)
-    const legacyAlpha = args.match(/,\s*([\d.]+%?)\s*$/);
-    if (legacyAlpha && /^(rgba|hsla)$/.test(fnMatch[1]) && args.split(',').length === 4) {
-      const raw = legacyAlpha[1];
+    // Comma syntax for rgba/hsla: rgba(r, g, b, a)
+    const commaAlpha = args.match(/,\s*([\d.]+%?)\s*$/);
+    if (commaAlpha && /^(rgba|hsla)$/.test(fnMatch[1]) && args.split(',').length === 4) {
+      const raw = commaAlpha[1];
       return raw.endsWith('%') ? Number(raw.slice(0, -1)) / 100 : Number(raw);
     }
     return 1; // function-form with no alpha tail is opaque

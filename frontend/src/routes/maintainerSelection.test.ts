@@ -60,7 +60,7 @@ describe('selectionKey', () => {
 });
 
 describe('toggleSelectionItem', () => {
-  it('adds an item when not previously selected', () => {
+  it('adds an item when not already selected', () => {
     const next = toggleSelectionItem(new Set(), { kind: 'pr', number: 1 });
     expect(next.has('pr:1')).toBe(true);
     expect(next.size).toBe(1);
@@ -343,10 +343,9 @@ describe('dispatchSlings', () => {
 });
 
 // gascity-dashboard-5ly: post-sling success acknowledgement. After a
-// successful dispatch (failed === 0), the action bar showed nothing —
-// silent on success. The hook holds {count, target} until the operator
-// takes their next action or SLING_SUCCESS_TTL_MS elapses, whichever
-// comes first.
+// successful dispatch (failed === 0), the hook holds {count, target}
+// until the operator takes their next action or SLING_SUCCESS_TTL_MS
+// elapses, whichever comes first.
 describe('useSlingSuccess', () => {
   beforeEach(() => {
     vi.useFakeTimers();
@@ -439,11 +438,10 @@ describe('useSlingSuccess', () => {
   });
 
   it('clears the timer on unmount so a stale setSuccess does not fire on an unmounted component', () => {
-    // React 18 removed the "setState on unmounted component" warning, so
-    // asserting only that advancing timers doesn't throw would silently
-    // pass if cleanup were broken. Spy on setTimeout/clearTimeout instead
-    // so the assertion is a direct check on the cleanup contract, not on
-    // React's error surface.
+    // Asserting only that advancing timers doesn't throw would silently pass
+    // if cleanup were broken. Spy on setTimeout/clearTimeout instead so the
+    // assertion is a direct check on the cleanup contract, not on React's
+    // error surface.
     const setSpy = vi.spyOn(globalThis, 'setTimeout');
     const clearSpy = vi.spyOn(globalThis, 'clearTimeout');
     try {

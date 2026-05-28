@@ -31,6 +31,11 @@ describe('loadConfig', () => {
     assert.equal(cfg.auditLogPath, '/tmp/dashboard-home/.gc/events.jsonl');
   });
 
+  test('bindHost stays loopback-only even when HOST is set', () => {
+    const cfg = loadConfig({ HOST: '0.0.0.0' });
+    assert.equal(cfg.bindHost, '127.0.0.1');
+  });
+
   test('useFixtures is true when SNAPSHOT_USE_FIXTURES=1', () => {
     const cfg = loadConfig({ SNAPSHOT_USE_FIXTURES: '1' });
     assert.equal(cfg.useFixtures, true);
@@ -62,7 +67,7 @@ describe('loadConfig', () => {
     assert.equal(cfg.maintainerTriageTarget, 'project-lead');
   });
 
-  test('maintainerTriageTarget silently falls back on invalid env (no startup crash)', () => {
+  test('maintainerTriageTarget warns and falls back on invalid env without a startup crash', () => {
     // Same precedent as maintainerSlingTarget: a typo in one optional env
     // should not dark the dashboard.
     const cfg = loadConfig({ MAINTAINER_TRIAGE_TARGET: 'bad alias!!' });

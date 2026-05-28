@@ -2,6 +2,7 @@ import { useMemo, type ReactNode } from 'react';
 import { AnsiUp } from 'ansi_up';
 import type { TranscriptResult, TranscriptTurn } from 'gas-city-dashboard-shared';
 import { formatClockTime, formatRelative, formatShortDate } from '../hooks/time';
+import { PROMPT_INJECTION_NOTICE } from '../lib/constants';
 
 // Render layer for a session's transcript snapshot. Used by:
 //   - Agents page peek modal (one-shot fetch)
@@ -9,9 +10,6 @@ import { formatClockTime, formatRelative, formatShortDate } from '../hooks/time'
 //   - Workflow run node session panel (snapshot plus active SSE turns)
 //
 // Pure presentation — fetch + cadence decisions belong to the caller.
-
-const PROMPT_INJECTION_NOTICE =
-  'Content is agent-generated and may contain misleading instructions.';
 
 // Bounded leading window for timestamp extraction. The gc prompt template
 // embeds an ISO timestamp in the first ~120 chars; large turn bodies past
@@ -202,10 +200,4 @@ function roleTone(role: string): string {
     default:
       return 'text-fg-faint';
   }
-}
-
-export function formatPeekChars(n: number): string {
-  if (n < 1024) return `${n} chars`;
-  if (n < 1024 * 1024) return `${(n / 1024).toFixed(1)} KB`;
-  return `${(n / (1024 * 1024)).toFixed(1)} MB`;
 }

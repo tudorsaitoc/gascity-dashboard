@@ -111,7 +111,17 @@ export function badgeLabelFor(kind: WorkflowConstructKind): string {
       return 'scope check';
     case 'workflow-finalize':
       return 'finalize';
-    default:
+    case 'check-loop':
+    case 'condition':
+    case 'control':
+    case 'expansion':
+    case 'fanout':
+    case 'retry':
+    case 'scope':
+    case 'spec':
+    case 'step':
+    case 'unknown':
+    case 'workflow-root':
       return kind.replace(/-/g, ' ');
   }
 }

@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
+import { errorMessage } from 'gas-city-dashboard-shared';
 import { readBrowserStorage, writeBrowserStorage } from '../lib/browserStorage';
 import { reportClientError } from '../lib/clientErrorReporting';
 
@@ -144,12 +145,6 @@ function reportStorageParseFailure(key: string, err: unknown): void {
     operation: 'localStorage.parse',
     message: `${key}: ${errorMessage(err)}`,
   });
-}
-
-function errorMessage(err: unknown): string {
-  if (err instanceof Error) return err.message;
-  if (typeof err === 'string') return err;
-  return 'unknown error';
 }
 
 const EMPTY_PINNED: ReadonlyArray<string> = [];

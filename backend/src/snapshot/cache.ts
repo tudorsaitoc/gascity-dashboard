@@ -1,7 +1,8 @@
 import type { SourceError, SourceName, SourceState } from 'gas-city-dashboard-shared';
+import { errorMessage } from '../logging.js';
 
-// TTL + single-flight + stale-while-error + fixture-fallback cache.
-// Ported from demo-dash src/server/cache.ts (gascity-dashboard-glw).
+// TTL + single-flight + stale-while-error + fixture-fallback cache
+// (gascity-dashboard-glw).
 //
 // Three invariants downstream beads need to know:
 //
@@ -273,12 +274,4 @@ function sourceError(message: string): SourceError {
 
 function sourceErrorMessage(error: SourceError): string {
   return error.kind === 'message' ? error.message : 'source has not been fetched';
-}
-
-export function errorMessage(error: unknown): string {
-  if (error instanceof Error && error.message) {
-    return error.message;
-  }
-
-  return String(error);
 }

@@ -36,6 +36,8 @@ const CSI_NON_SGR_RE = /\x1b\[[?0-9;]*[a-ln-zA-LN-Z]/g; // CSI but excluding 'm'
 const OSC_RE = /\x1b\][^\x07]*\x07/g;
 // Control chars except \t, \n; everything < 0x20 except those two.
 const CTRL_RE = /[\x00-\x08\x0b-\x1f\x7f]/g;
+const MAX_CLOSE_REASON_LENGTH = 1024;
+const GIT_LOG_RECENT_LIMIT = '200';
 
 function sanitiseTerminalOutput(raw: string): string {
   return raw
@@ -46,17 +48,10 @@ function sanitiseTerminalOutput(raw: string): string {
 
 // ── Public exec wrappers — each one is a named, whitelisted call. ──────
 //
-// Note: peek used to be a shell-exec wrapper here. Architect addendum
-// td-wisp-ijk7g (mechanic td-wisp-e1v14) confirmed peek is served by
-// `gc supervisor`'s HTTP API as a structured transcript — see
-// `routes/sessions.ts` + `gc-client.ts::fetchTranscript`.
-
-// Bead CLOSE + agent NUDGE only. CLAIM moved to GcClient.updateBead (HTTP
-// PATCH /bead/{id}) under gascity-dashboard-mq2 — the supervisor
-// exposes that write endpoint. CLOSE stays here because the HTTP
-// `/bead/{id}/close` endpoint has no reason field and the dashboard's
-// close-reason UI would silently lose it; NUDGE stays because no HTTP route
-// exists for it (it's the CLI nudgequeue subsystem).
+// Bead CLOSE + agent NUDGE only. The dashboard uses supervisor HTTP for
+// claim writes, but close still needs the CLI because the HTTP close route
+// does not accept the operator's reason field. Nudge is also CLI-backed
+// because the supervisor has no HTTP route for the nudge queue.
 export async function execBeadAction(
   beadId: string,
   action: 'close' | 'nudge',
@@ -83,7 +78,11 @@ export async function execBeadAction(
   if (action === 'close') {
     args.push('close', beadId);
     if (cityArg) args.push(cityArg);
-    if (typeof reason === 'string' && reason.length > 0 && reason.length <= 1024) {
+    if (
+      typeof reason === 'string' &&
+      reason.length > 0 &&
+      reason.length <= MAX_CLOSE_REASON_LENGTH
+    ) {
       args.push('--reason', reason);
     }
   } else if (action === 'nudge') {
@@ -136,34 +135,29 @@ export async function execAgentPrime(
   return runExec('gc', args, 10_000);
 }
 
-// Mail send moved to GcClient.sendMail (HTTP POST /mail with from:'human')
-// under gascity-dashboard-mq2 — the supervisor exposes that write endpoint.
-// The physical-separation guarantee (no `from`/`as` slot reaching the
-// browser) now lives in the browser-facing MailComposeRequest shape +
-// server.ts pinning from:'human'; the route file mail-send.ts still has no
-// identity parameter in its handler.
+// Mail send uses supervisor HTTP with from:'human' pinned server-side.
+// The browser-facing MailComposeRequest carries no `from` or `as` slot,
+// preserving the impersonation boundary in the route contract.
 
 // Hardcoded enum of `git log` invocations. Each view's args live entirely
 // in this file — the operator cannot pass arbitrary git arguments to the
 // server. The caller can only pick a view *name* (validated upstream).
-// td-7t24i6 scope expansion: git log views previously capped at -n 50 in
-// recent-main / recent-all, same undercount risk. Recent-main bumped to
-// 200 (matches main's typical commit frequency * ~2 weeks); recent-all
-// bumped to 200 too. The since= variants are time-windowed, not count-
-// windowed, so no explicit cap needed — git's default for those is fine.
+// Recent views use an explicit count cap sized for roughly two weeks of
+// active main-branch commits. The since= variants are time-windowed, not
+// count-windowed, so git's default result count is the correct limit there.
 const GIT_LOG_VIEWS: Record<string, string[]> = {
   'recent-main': [
     'log',
     '--pretty=format:%H%x09%h%x09%an%x09%aI%x09%D%x09%s',
     '-n',
-    '200',
+    GIT_LOG_RECENT_LIMIT,
     'origin/main',
   ],
   'recent-all': [
     'log',
     '--pretty=format:%H%x09%h%x09%an%x09%aI%x09%D%x09%s',
     '-n',
-    '200',
+    GIT_LOG_RECENT_LIMIT,
     '--branches',
     '--remotes',
   ],

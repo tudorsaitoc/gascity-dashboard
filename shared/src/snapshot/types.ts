@@ -1,9 +1,9 @@
 // Read-side telemetry envelope shared across the snapshot series
-// (gascity-dashboard-37u). Ported from demo-dash src/shared/types.ts.
+// (gascity-dashboard-37u).
 //
 // The SourceName union enumerates the sources this dashboard actually serves.
-// Deferred demo-dash sources stay out of the runtime contract until they have
-// real collectors and visible product surface.
+// Sources stay out of the runtime contract until they have real collectors and
+// visible product surface.
 
 export type SourceName =
   | 'city'

@@ -7,6 +7,7 @@ import type {
   TriageTierSection,
 } from 'gas-city-dashboard-shared';
 import { execGhIssueList, execGhPrList, ExecError } from '../exec.js';
+import { parseJsonArray } from '../lib/parse-json.js';
 import { classifyItem } from './classifier.js';
 import { computeContributorStats } from './contributor.js';
 import { buildClusters, inheritIssueFiles } from './blast-radius.js';
@@ -149,22 +150,6 @@ export async function fetchTriage(repo: string): Promise<MaintainerTriage> {
   }
 
   return composeEnvelope(repo, [...issueItems, ...prItems]);
-}
-
-function parseJsonArray<T>(stdout: string, source: string): T[] {
-  if (stdout.trim().length === 0) return [];
-  try {
-    const parsed = JSON.parse(stdout) as unknown;
-    if (!Array.isArray(parsed)) {
-      throw new Error(`${source} did not return an array`);
-    }
-    return parsed as T[];
-  } catch (err) {
-    throw new ExecError(
-      `${source} returned unparseable JSON: ${(err as Error).message}`,
-      'spawn',
-    );
-  }
 }
 
 function mapIssue(it: GhIssue): TriageItem {
@@ -358,13 +343,12 @@ export function computeHasInFlightPr(items: TriageItem[]): void {
  *      `linked_numbers` is excluded from the candidate set. The mark
  *      stays on the PR (or falls to the next non-blocked candidate
  *      if the PR is not the top scorer).
- *   2. The legacy parent-transfer from PR → parent issue only fires
- *      when the parent issue has NO in-flight PR (i.e. the winning PR
- *      is merged / closed, so the eye should fall back to the still-open
- *      problem). An issue with an in-flight PR never receives the mark,
- *      regardless of which item won — this is the direction-correct
- *      forward-defense against an isMarkCandidate that marks issues
- *      directly (gascity-dashboard-443).
+ *   2. Parent-transfer from PR → parent issue only fires when the parent
+ *      issue has NO in-flight PR (i.e. the winning PR is merged / closed,
+ *      so the eye should fall back to the still-open problem). An issue
+ *      with an in-flight PR never receives the mark, regardless of which
+ *      item won — this is the direction-correct forward-defense against
+ *      an isMarkCandidate that marks issues directly (gascity-dashboard-443).
  *
  * Extracted from composeEnvelope so the GET overlay (gascity-dashboard-9qs)
  * can re-run the winnow after splicing slung-state onto items at serve
@@ -511,8 +495,8 @@ function composeEnvelope(repo: string, items: TriageItem[]): MaintainerTriage {
   });
 
   // computed_at marks the snapshot moment. Set once a classifier (or
-  // any future enrichment pass) has run. Until enrichment beads gtr,
-  // alh, 98h all land, this just means tiers + scores are populated.
+  // computed_at marks the snapshot moment once classifiers and enrichers have
+  // populated tiers, scores, and clusters.
   return {
     computed_at: new Date().toISOString(),
     repo,

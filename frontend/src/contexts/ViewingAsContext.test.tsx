@@ -2,6 +2,7 @@ import { act, cleanup, render } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi, type Mock } from 'vitest';
 import { useEffect } from 'react';
 import { api } from '../api/client';
+import { reportClientError } from '../lib/clientErrorReporting';
 import { ViewingAsProvider, useViewingAs } from './ViewingAsContext';
 
 // gascity-dashboard-5gg: bounded retry for /api/sessions in the alias
@@ -28,8 +29,13 @@ vi.mock('../api/client', () => ({
   ApiClientError: class extends Error {},
 }));
 
+vi.mock('../lib/clientErrorReporting', () => ({
+  reportClientError: vi.fn(),
+}));
+
 const mockListSessions = api.listSessions as Mock;
 const mockListMail = api.listMail as Mock;
+const mockReportClientError = reportClientError as Mock;
 
 interface Probe {
   sessionsUnavailable: boolean;
@@ -61,6 +67,7 @@ beforeEach(() => {
   vi.useFakeTimers();
   mockListSessions.mockReset();
   mockListMail.mockReset();
+  mockReportClientError.mockReset();
   // Mail fetch is uninteresting for these tests; resolve to empty.
   mockListMail.mockResolvedValue({ items: [] });
 });
@@ -81,6 +88,11 @@ describe('ViewingAsProvider — bounded sessions retry', () => {
     );
     await flushPromises();
     expect(states.at(-1)?.sessionsUnavailable).toBe(true);
+    expect(mockReportClientError).toHaveBeenCalledWith({
+      component: 'ViewingAsContext',
+      operation: 'loadAliases.sessions',
+      message: 'upstream 504',
+    });
   });
 
   it('does not retry before the 30s mark', async () => {
@@ -249,6 +261,11 @@ describe('ViewingAsProvider — loadAliases initial flag transitions', () => {
     await flushPromises();
 
     expect(states.at(-1)?.sessionsUnavailable).toBe(false);
+    expect(mockReportClientError).toHaveBeenCalledWith({
+      component: 'ViewingAsContext',
+      operation: 'loadAliases.mail',
+      message: 'mail corpus 500',
+    });
     // Mail failure must not schedule a sessions retry either.
     await act(async () => {
       vi.advanceTimersByTime(60_000);

@@ -21,9 +21,7 @@ export async function loadFixtureSnapshot(): Promise<DashboardSnapshot> {
 
 /**
  * Returns a loader function suitable for SourceCacheOptions.loadFixture.
- * All current served sources have populated fixture data. If a future source
- * is added, the typed fixture snapshot must carry that source's data before it
- * can be bound here.
+ * Every served source must have typed fixture data before it can be bound here.
  */
 export function fixtureSourceLoader<K extends SourceName>(
   source: K,

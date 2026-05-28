@@ -14,8 +14,7 @@ import { LOG_COMPONENT, errorMessage, logWarn } from '../../logging.js';
 
 // Host-process resource sampler — gascity-dashboard-8nj. Pure node:os +
 // /proc/meminfo; no upstream coupling, so this source never has a
-// 'supervisor unreachable' failure mode. Ported from
-// demo-dash src/server/collectors/resources.ts.
+// 'supervisor unreachable' failure mode.
 
 export const RESOURCE_CACHE_TTL_MS = 30 * 1000;
 
@@ -153,7 +152,8 @@ export function parseMeminfo(content: string): MeminfoSummary | null {
 async function readMeminfo(path: string): Promise<MeminfoSummary | null> {
   try {
     return parseMeminfo(await readFile(path, 'utf8'));
-  } catch {
+  } catch (err) {
+    logWarn(LOG_COMPONENT.snapshot, `resources.meminfo read failed: ${errorMessage(err)}`);
     return null;
   }
 }
@@ -161,7 +161,8 @@ async function readMeminfo(path: string): Promise<MeminfoSummary | null> {
 function defaultVcpuCount(): number {
   try {
     return availableParallelism();
-  } catch {
+  } catch (err) {
+    logWarn(LOG_COMPONENT.snapshot, `resources.availableParallelism failed: ${errorMessage(err)}`);
     return cpus().length;
   }
 }

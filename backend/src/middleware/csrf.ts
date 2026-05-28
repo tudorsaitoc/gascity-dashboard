@@ -13,6 +13,7 @@ import type { Request, Response, NextFunction } from 'express';
 
 const TOKEN_HEADER = 'x-csrf-token';
 const COOKIE_NAME = 'gascity_admin_csrf';
+const CSRF_COOKIE_MAX_AGE_S = 86_400;
 
 let bootToken: string | null = null;
 
@@ -34,7 +35,7 @@ export function csrfIssueCookie(req: Request, res: Response, next: NextFunction)
   if (req.method === 'GET' || req.method === 'HEAD') {
     res.setHeader(
       'Set-Cookie',
-      `${COOKIE_NAME}=${getCsrfToken()}; Path=/; SameSite=Strict; Max-Age=86400`,
+      `${COOKIE_NAME}=${getCsrfToken()}; Path=/; SameSite=Strict; Max-Age=${CSRF_COOKIE_MAX_AGE_S}`,
     );
   }
   next();

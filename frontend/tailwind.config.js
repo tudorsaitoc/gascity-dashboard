@@ -64,6 +64,7 @@ export default {
         lg: '8px',
       },
       maxWidth: {
+        dashboard: '1280px',
         prose: '70ch',
         reading: '65ch',
       },

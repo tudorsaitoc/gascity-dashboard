@@ -2,7 +2,8 @@ import { test, describe } from 'node:test';
 import assert from 'node:assert/strict';
 
 import { ExecError } from '../src/exec.js';
-import { toWireExecError, toWireInternal500 } from '../src/lib/sanitise-error.js';
+import { toWireExecError, toWireInternal500, writeExecError } from '../src/lib/sanitise-error.js';
+import { LOG_COMPONENT } from '../src/logging.js';
 
 // gascity-dashboard-uza: pure-function coverage for the two redaction
 // helpers extracted from the ~12 inline sites across the route files.
@@ -69,6 +70,73 @@ describe('toWireExecError — spawn redaction', () => {
     const err = new ExecError('spawn /x ENOENT', 'spawn');
     const { body } = toWireExecError(err, 500);
     assert.equal('details' in body, false);
+  });
+});
+
+describe('writeExecError — Express response adapter', () => {
+  test('maps ExecError kinds, logs spawn details, and writes the redacted body', () => {
+    const writes: Array<{ status: number; body: unknown }> = [];
+    const logs: string[] = [];
+    const res = {
+      status(status: number) {
+        return {
+          json(body: unknown) {
+            writes.push({ status, body });
+          },
+        };
+      },
+    };
+
+    writeExecError(
+      res,
+      new ExecError('spawn failed: spawn /private/bin/gc ENOENT', 'spawn'),
+      LOG_COMPONENT.agents,
+      '/api/agents/mayor/prime',
+      { log: (component, message) => logs.push(`${component}:${message}`) },
+    );
+
+    assert.deepEqual(writes, [
+      {
+        status: 500,
+        body: {
+          error: 'subprocess could not be started',
+          kind: 'spawn',
+        },
+      },
+    ]);
+    assert.equal(logs.length, 1);
+    assert.match(logs[0] ?? '', /spawn failed/);
+  });
+
+  test('lets upstream routes preserve their non-timeout fallback status', () => {
+    const writes: Array<{ status: number; body: unknown }> = [];
+    const res = {
+      status(status: number) {
+        return {
+          json(body: unknown) {
+            writes.push({ status, body });
+          },
+        };
+      },
+    };
+
+    writeExecError(
+      res,
+      new ExecError('spawn failed: spawn /private/bin/gh ENOENT', 'spawn'),
+      LOG_COMPONENT.maintainer,
+      '/api/maintainer/refresh',
+      { fallbackStatus: 502, log: () => undefined },
+    );
+
+    assert.deepEqual(writes, [
+      {
+        status: 502,
+        body: {
+          error: 'subprocess could not be started',
+          kind: 'spawn',
+        },
+      },
+    ]);
   });
 });
 

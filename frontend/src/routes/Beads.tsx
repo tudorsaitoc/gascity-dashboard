@@ -14,6 +14,7 @@ import { useCachedData } from '../hooks/useCachedData';
 import { useGcEventRefresh } from '../hooks/useGcEvents';
 import { useListFilters, type FilterChip } from '../hooks/useListFilters';
 import { beadProject } from '../hooks/projectOf';
+import { formatDateTime } from '../lib/format';
 
 const BEAD_CHIPS: ReadonlyArray<FilterChip<GcBead>> = [
   { id: 'open', label: 'open', match: (b) => b.status === 'open' },
@@ -179,7 +180,7 @@ export function BeadsPage() {
       sortable: true,
       sortValue: (r) => r.updated_at ?? r.created_at,
       render: (r) => (
-        <span className="text-fg-muted tnum">{formatDate(r.updated_at ?? r.created_at)}</span>
+        <span className="text-fg-muted tnum">{formatBeadTimestamp(r.updated_at ?? r.created_at)}</span>
       ),
       className: 'w-28',
     },
@@ -414,14 +415,6 @@ function buildSynopsis(filtered: ReadonlyArray<GcBead>, totalShown: number, labe
   return s;
 }
 
-function formatDate(iso: string | undefined): string {
-  if (!iso) return '·';
-  const ms = Date.parse(iso);
-  if (!Number.isFinite(ms)) return '·';
-  return new Date(ms).toLocaleString(undefined, {
-    month: 'short',
-    day: 'numeric',
-    hour: 'numeric',
-    minute: '2-digit',
-  });
+function formatBeadTimestamp(timestamp: string | undefined): string {
+  return timestamp ? formatDateTime(timestamp) : '·';
 }

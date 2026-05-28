@@ -1,21 +1,17 @@
 // Pure phase-classification rules for the workflows collector
-// (gascity-dashboard-0t6). Ported from demo-dash
-// src/server/collectors/workflows.ts (the embedded mapWorkflowPhase logic
-// plus its review-round and text-scan helpers). Extracted into its own
-// module so the rules can be tested independently of the lane builder and
-// the transport layer.
+// (gascity-dashboard-0t6). Kept in their own module so the rules can be
+// tested independently of the lane builder and the transport layer.
 //
 // All exports here are deterministic functions over WorkflowIssue values;
 // no IO, no global state. The companion test file pins the upstream
 // classifier behavior so the React translation of WorkflowMap inherits a
 // consistent phase grammar.
 //
-// Divergence from demo-dash: GcBead has no first-class `parent` field, so
-// `WorkflowIssue.parent` is populated by the adapter (in workflows.ts)
-// from metadata['gc.parent_bead_id'] when present. When that metadata
-// key is absent (the common case until upstream surfaces it), parent
-// keyword scans simply don't fire and classification falls back to title
-// + description + metadata text scans.
+// GcBead has no first-class `parent` field, so `WorkflowIssue.parent` is
+// populated by the adapter (in workflows.ts) from metadata['gc.parent_bead_id']
+// when present. When that metadata key is absent, parent keyword scans simply
+// don't fire and classification falls back to title + description + metadata
+// text scans.
 
 import type {
   WorkflowPhase as SharedWorkflowPhase,

@@ -30,10 +30,9 @@ const THEMES = ['light', 'dark'];
 // route silently reverts to the short wait.
 const SSE_ROUTES = new Set(['agents', 'workflows']);
 
-// Post-mount settle waits (ms). Verified 2026-05-25: a 5000ms wait lands the
-// SseIndicator on 'live' in both themes for /agents and /workflows, whereas the
-// old fixed 900ms screenshotted them stuck in 'connecting' (amber). Non-SSE
-// routes keep the short wait so the common case isn't slowed.
+// Post-mount settle waits (ms). SSE routes need enough time for the
+// SseIndicator to reach 'live'; non-SSE routes keep the short wait so the
+// common case is not slowed.
 const DEFAULT_WAIT_MS = 900;
 const SSE_WAIT_MS = 5_000;
 
@@ -88,34 +87,34 @@ try {
         ],
       },
     });
-    const page = await ctx.newPage();
-    const apiCalls = [];
-    const apiFailures = [];
-    page.on('response', (response) => {
-      const url = new URL(response.url());
-      if (url.pathname.startsWith('/api/')) {
-        apiCalls.push({
-          url: url.toString(),
-          method: response.request().method(),
-          status: response.status(),
-        });
-      }
-    });
-    page.on('requestfailed', (request) => {
-      const url = new URL(request.url());
-      if (url.pathname.startsWith('/api/')) {
-        apiFailures.push({
-          url: url.toString(),
-          method: request.method(),
-          failure: request.failure()?.errorText ?? 'request failed',
-        });
-      }
-    });
 
     for (const r of wantRoutes) {
-      const beforeCalls = apiCalls.length;
-      const beforeFailures = apiFailures.length;
       const result = { theme: t, route: r, path: null, errors: [], apiCalls: [], apiFailures: [] };
+      const page = await ctx.newPage();
+      const apiCalls = [];
+      const apiFailures = [];
+      const onResponse = (response) => {
+        const url = new URL(response.url());
+        if (url.pathname.startsWith('/api/')) {
+          apiCalls.push({
+            url: url.toString(),
+            method: response.request().method(),
+            status: response.status(),
+          });
+        }
+      };
+      const onRequestFailed = (request) => {
+        const url = new URL(request.url());
+        if (url.pathname.startsWith('/api/')) {
+          apiFailures.push({
+            url: url.toString(),
+            method: request.method(),
+            failure: request.failure()?.errorText ?? 'request failed',
+          });
+        }
+      };
+      page.on('response', onResponse);
+      page.on('requestfailed', onRequestFailed);
       const url = `${BASE}/${r}`;
       try {
         await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 15_000 });
@@ -131,12 +130,15 @@ try {
       } catch (err) {
         result.errors.push(err instanceof Error ? err.message : String(err));
       }
-      result.apiCalls = apiCalls.slice(beforeCalls);
-      result.apiFailures = apiFailures.slice(beforeFailures);
+      result.apiCalls = apiCalls.slice();
+      result.apiFailures = apiFailures.slice();
       if (TEST_MODE) {
         recordApiFailures(result);
       }
       results.push(result);
+      page.off('response', onResponse);
+      page.off('requestfailed', onRequestFailed);
+      await page.close().catch(() => {});
     }
     await ctx.close();
   }

@@ -17,17 +17,12 @@ import {
   type WorkflowIssue,
 } from './phaseMapping.js';
 
-// Workflows collector — gascity-dashboard-0t6. Ported from demo-dash
-// src/server/collectors/workflows.ts (the lane builder, run-count
-// aggregation, formula stage progression, and recent-change ordering).
+// Workflows collector — gascity-dashboard-0t6. Owns lane building, run-count
+// aggregation, formula stage progression, and recent-change ordering.
 //
-// Transport divergence from demo-dash: gc supervisor's HTTP API
-// (GcClient.listBeads) returns the unified bead set for the configured
-// city; no rig-vs-city split is exposed through HTTP. demo-dash's two
-// subprocess calls (city + rig bd directories) merged by workflow_root_id
-// were a CLI-side workaround for the subprocess transport — not load-bearing
-// for the gascity dashboard. A single `gc.listBeads({ limit })` is the
-// canonical contract here (dkb Q1).
+// The gc supervisor HTTP API (GcClient.listBeads) returns the unified bead set
+// for the configured city. A single `gc.listBeads({ limit })` is the canonical
+// contract here (dkb Q1).
 //
 // Filter divergence from /api/beads (plan review C1): the workflows
 // collector keeps the gc:* label exclusion but ALSO admits issue_type
@@ -163,7 +158,7 @@ function runCounts(lanes: WorkflowLane[], visible: number): WorkflowRunCounts {
       case 'bugfix':
         counts.bugfix += 1;
         break;
-      default:
+      case 'other':
         counts.other += 1;
         break;
     }

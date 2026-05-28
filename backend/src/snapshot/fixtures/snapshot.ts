@@ -37,13 +37,12 @@ export const fixtureSessions: GcSessionList = {
 
 // Committed sample data for SNAPSHOT_USE_FIXTURES=1 runtime mode. This is
 // what the dashboard serves when the supervisor / upstream sources are
-// unreachable. NOT test fixtures — tests use injected mocks. Adapted from
-// demo-dash src/fixtures/snapshot.json with operator-specific names and
-// paths replaced by generic placeholders.
+// unreachable. NOT test fixtures — tests use injected mocks. Operator-specific
+// names and paths are replaced by generic placeholders.
 //
 // City / workflows / resources are the snapshot sources this dashboard serves.
-// Deferred demo-dash sources are intentionally absent from the runtime
-// contract until they have real collectors and visible product surface.
+// Sources stay out of the runtime contract until they have real collectors and
+// visible product surface.
 
 export const fixtureSnapshot = {
   generatedAt: '2026-05-22T22:00:00.000Z',

@@ -1,0 +1,125 @@
+import { useCallback, useEffect, useState } from 'react';
+import { api, ApiClientError } from '../../api/client';
+import { OPERATOR_ALIAS, useViewingAs } from '../../contexts/ViewingAsContext';
+import { displayLabel } from '../../hooks/aliasPriority';
+import { Button } from '../Button';
+import { Field } from '../Field';
+import { Modal } from '../Modal';
+import { StatusBadge } from '../StatusBadge';
+
+interface ComposeModalProps {
+  open: boolean;
+  onClose: () => void;
+  onSent: () => void;
+}
+
+export function ComposeModal({ open, onClose, onSent }: ComposeModalProps) {
+  const { viewingAs } = useViewingAs();
+  const [to, setTo] = useState('');
+  const [subject, setSubject] = useState('');
+  const [body, setBody] = useState('');
+  const [sending, setSending] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!open) {
+      setTo('');
+      setSubject('');
+      setBody('');
+      setError(null);
+    }
+  }, [open]);
+
+  const onSend = useCallback(async () => {
+    setSending(true);
+    setError(null);
+    try {
+      await api.sendMail({ to, subject, body });
+      onSent();
+    } catch (err) {
+      const msg =
+        err instanceof ApiClientError
+          ? `${err.status} ${err.message}`
+          : err instanceof Error
+            ? err.message
+            : 'send failed';
+      setError(msg);
+    } finally {
+      setSending(false);
+    }
+  }, [body, onSent, subject, to]);
+
+  const canSend = viewingAs.isOperator && to.length > 0 && subject.length > 0 && body.length > 0 && !sending;
+
+  return (
+    <Modal
+      open={open}
+      onClose={onClose}
+      title="New message"
+      caption="Sends from the operator. Reading-as has no effect on the sender."
+      widthClass="max-w-2xl"
+      footer={
+        <>
+          <Button tone="quiet" size="sm" onClick={onClose}>
+            Cancel
+          </Button>
+          <Button tone="accent" size="sm" disabled={!canSend} onClick={() => void onSend()}>
+            {sending ? 'Sending' : 'Send'}
+          </Button>
+        </>
+      }
+    >
+      <div className="space-y-4">
+        <Field label="From" variant="form">
+          <input
+            type="text"
+            value={
+              viewingAs.isOperator
+                ? displayLabel(OPERATOR_ALIAS, OPERATOR_ALIAS)
+                : `${displayLabel(OPERATOR_ALIAS, OPERATOR_ALIAS)} (reading-as does not change sender)`
+            }
+            disabled
+            className="w-full bg-transparent border-0 border-b border-rule pb-1 text-body text-fg-muted italic"
+          />
+        </Field>
+        <Field label="To (alias)" variant="form">
+          <input
+            type="text"
+            autoFocus
+            value={to}
+            onChange={(e) => setTo(e.target.value)}
+            placeholder="mayor, mechanic, scix-worker, …"
+            className="w-full bg-transparent border-0 border-b border-rule pb-1 text-body text-fg placeholder:text-fg-faint focus:border-accent focus:outline-none transition-colors"
+          />
+        </Field>
+        <Field label="Subject" variant="form">
+          <input
+            type="text"
+            value={subject}
+            onChange={(e) => setSubject(e.target.value)}
+            maxLength={200}
+            className="w-full bg-transparent border-0 border-b border-rule pb-1 text-body text-fg focus:border-accent focus:outline-none transition-colors"
+          />
+        </Field>
+        <Field label="Body" variant="form">
+          <textarea
+            value={body}
+            onChange={(e) => setBody(e.target.value)}
+            rows={10}
+            maxLength={16 * 1024}
+            className="w-full bg-surface-tint border border-rule rounded-sm px-3 py-2 text-body text-fg focus:border-accent focus:outline-none focus:ring-1 focus:ring-accent/40 resize-y"
+          />
+        </Field>
+        {!viewingAs.isOperator && (
+          <StatusBadge
+            tone="warn"
+            label={`Reading as ${displayLabel(viewingAs.alias, OPERATOR_ALIAS)}. Sends from this modal are structurally locked to the operator regardless.`}
+          />
+        )}
+        {error && (
+          <StatusBadge tone="stuck" label={error} />
+        )}
+      </div>
+    </Modal>
+  );
+}

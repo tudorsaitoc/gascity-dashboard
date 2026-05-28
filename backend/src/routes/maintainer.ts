@@ -5,6 +5,8 @@ import type {
   GcSession,
   MaintainerTriage,
   SlingInput,
+  SlingIntent,
+  SlingKind,
   SlingResponse,
   TriageItem,
 } from 'gas-city-dashboard-shared';
@@ -25,7 +27,8 @@ import {
   writeSlungEntry,
 } from '../maintainer/slung-state.js';
 import { addSseClient, notifyRefresh, removeSseClient } from '../maintainer/sse.js';
-import { toWireExecError } from '../lib/sanitise-error.js';
+import { writeExecError } from '../lib/sanitise-error.js';
+import { asyncRoute } from '../middleware/async-route.js';
 import { LOG_COMPONENT, errorMessage, logWarn } from '../logging.js';
 import {
   routeInternalError,
@@ -38,44 +41,37 @@ const GH_LOGIN_RE = /^[A-Za-z0-9][A-Za-z0-9-]{0,38}$/;
 const GH_URL_RE = /^https:\/\/github\.com\/[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+\/(issues|pull)\/\d+$/;
 const MAX_URL_LEN = 2_048;
 
-type SlingIntent = 'review' | 'draft' | 'triage';
-type SlingKind = 'pr' | 'issue';
-
-// /api/maintainer routes — read the cached triage envelope or refresh it
-// from `gh`. The refresh is on-demand for dev; the nightly worker (bead
-// ar9) will eventually drive cache writes on its own cadence.
+// /api/maintainer routes — read the cached triage envelope, refresh it from
+// `gh`, stream cache-refresh events, and dispatch selected rows via gc sling.
 
 interface MaintainerRouterOptions {
   repo: string;
   cachePath: string;
   /**
    * Path to the active-sling-state JSON map (gascity-dashboard-9qs).
-   * Defaults to a sibling of cachePath when omitted so callers that
-   * predate this option don't need to thread a separate config.
+   * Defaults to a sibling of cachePath so one state directory owns the
+   * maintainer envelope and sling-state sidecar.
    */
   slungStatePath?: string;
   /** Default `gc sling` target when the request omits one. From config. */
   slingTarget: string;
   /**
    * Override `gc sling` target when intent='triage' and the request
-   * omits an explicit target. Defaults to slingTarget when unset so a
-   * caller that doesn't pass this option keeps the original
-   * single-target behaviour. From config.maintainerTriageTarget.
+   * omits an explicit target. Defaults to slingTarget when unset.
+   * From config.maintainerTriageTarget.
    */
   triageTarget?: string;
   /**
    * Injected sling runner (gascity-dashboard-mq2). Production wires
-   * `gc.sling` (GcClient HTTP POST /sling); tests pass a stub. Replaces the
-   * former `execGcSling` subprocess DI — the supervisor exposes the write
-   * endpoint directly, so the route no longer shells the gc CLI, parses
-   * stdout, or threads `--city` (the city is in the request URL path).
+   * `gc.sling` (GcClient HTTP POST /sling); tests pass a stub. The
+   * supervisor exposes the write endpoint directly, and the city is in the
+   * request URL path.
    */
   sling: (input: SlingInput) => Promise<SlingResponse>;
   /**
    * Injected triage fetcher used by POST /refresh. Defaults to the
    * real `fetchTriage` from ../maintainer/triage. Tests pass a stub to
-   * exercise failure-redaction contracts without spawning gh. Mirrors
-   * the execGcSling DI pattern already established here.
+   * exercise failure-redaction contracts without spawning gh.
    */
   fetchTriage?: (repo: string) => Promise<MaintainerTriage>;
   /**
@@ -104,7 +100,7 @@ export function maintainerRouter({
 }: MaintainerRouterOptions): Router {
   const router = Router();
 
-  router.get('/triage', async (_req, res) => {
+  router.get('/triage', asyncRoute(async (_req, res) => {
     let cache: CacheReadResult;
     try {
       cache = await readCache(cachePath);
@@ -123,8 +119,8 @@ export function maintainerRouter({
       // from the persisted slung-state file, then re-run isMarkCandidate +
       // selectOneMark over the modified candidate set so the maroon ●
       // reflects the latest slings without waiting for the worker tick
-      // (6h default). Vetted items force slung=null (the agent already
-      // delivered; slung was the placeholder while waiting).
+      // (6h default). Vetted items force slung=null because their agent
+      // work is already delivered.
       await applySlungOverlay(cached, slungStatePath);
       await recordAudit({
         type: 'dashboard.fetch',
@@ -159,9 +155,9 @@ export function maintainerRouter({
       duration_ms: 0,
     });
     res.json(empty);
-  });
+  }));
 
-  router.post('/refresh', async (_req, res) => {
+  router.post('/refresh', asyncRoute(async (_req, res) => {
     const start = Date.now();
     try {
       const envelope = await fetchTriage(repo);
@@ -179,18 +175,9 @@ export function maintainerRouter({
       res.json(envelope);
     } catch (err) {
       if (err instanceof ExecError) {
-        const status =
-          err.kind === 'validation' ? 400 : err.kind === 'timeout' ? 504 : 502;
-        // gascity-dashboard-473: the 'spawn' kind wraps node's
-        // child_process "spawn <abs-path> ENOENT" which exposes the
-        // operator's PATH layout. validation/timeout carry pre-authored
-        // safe strings by ExecError construction (see backend/src/exec.ts),
-        // so they pass through.
-        if (err.kind === 'spawn') {
-          logWarn(LOG_COMPONENT.maintainer, `/api/maintainer/refresh spawn failed: ${err.message}`);
-        }
-        const wire = toWireExecError(err, status);
-        res.status(wire.status).json(wire.body);
+        writeExecError(res, err, LOG_COMPONENT.maintainer, '/api/maintainer/refresh', {
+          fallbackStatus: 502,
+        });
         return;
       }
       writeRouteError(res, routeUpstreamError(err, {
@@ -200,7 +187,7 @@ export function maintainerRouter({
         isTimeout: () => false,
       }));
     }
-  });
+  }));
 
   router.get('/events', (req, res) => {
     // SSE stream — fires a 'refreshed' event each time the cache is
@@ -211,7 +198,7 @@ export function maintainerRouter({
     req.on('close', () => removeSseClient(res));
   });
 
-  router.post('/sling', async (req, res) => {
+  router.post('/sling', asyncRoute(async (req, res) => {
     const body = req.body as {
       kind?: unknown;
       number?: unknown;
@@ -278,10 +265,9 @@ export function maintainerRouter({
     const startedAt = Date.now();
     try {
       const result = await sling({ target, bead: beadText });
-      // root_bead_id is the routed bead the supervisor created — the JSON
-      // replacement for the old `^Slung <id>` stdout parse. `bead` is a
-      // fallback if a future supervisor omits root_bead_id; null when
-      // neither is present (slung-state tolerates a null bead_id).
+      // root_bead_id is the routed bead the supervisor created. `bead` is
+      // accepted only as the supervisor's secondary response field; null
+      // means the sling succeeded without a surfaced bead id.
       const beadId = result.root_bead_id ?? result.bead ?? null;
       void recordAudit({
         type: 'dashboard.sling',
@@ -375,10 +361,10 @@ export function maintainerRouter({
         isTimeout: GcClient.isTimeoutError,
       }));
     }
-  });
+  }));
 
-  router.get('/contributor/:login', async (req, res) => {
-    const login = req.params.login;
+  router.get('/contributor/:login', asyncRoute(async (req, res) => {
+    const login = typeof req.params.login === 'string' ? req.params.login : '';
     if (!GH_LOGIN_RE.test(login)) {
       writeRouteError(res, routeValidationError('invalid login'));
       return;
@@ -403,7 +389,7 @@ export function maintainerRouter({
       duration_ms: 0,
     });
     res.json(stat);
-  });
+  }));
 
   return router;
 }
@@ -487,10 +473,8 @@ async function resolveTargetSafely(
     return resolveTargetToSession(target, sessions);
   } catch (err) {
     // Supervisor unreachable / 5xx / timeout — log and degrade. The
-    // sling itself still routed (gc sling is a separate subprocess
-    // path; we got here because exitCode === 0). The operator just
-    // won't get a clickable link on this entry until the next
-    // successful sling refreshes the resolution.
+    // sling itself still routed successfully. The operator just won't get
+    // a clickable link on this entry until a later resolution succeeds.
     logWarn(
       LOG_COMPONENT.maintainer,
       `sling target resolution failed (sling succeeded, link will surface 'no session for role' error): ${errorMessage(err)}`,
@@ -512,8 +496,8 @@ async function resolveTargetSafely(
  *   3. Re-run selectOneMark across all items so the maroon ● lands
  *      on the next non-slung candidate.
  *
- * readSlungState swallows its own IO + parse errors and returns {},
- * so a corrupt slung-state file can't 502 the route.
+ * readSlungState logs IO + parse errors and returns {}, so a corrupt
+ * slung-state file can't 502 the route.
  */
 async function applySlungOverlay(
   envelope: MaintainerTriage,
