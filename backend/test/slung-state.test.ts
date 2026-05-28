@@ -73,7 +73,16 @@ describe('readSlungState', () => {
     assert.deepEqual(state, {});
   });
 
-  test('returns empty map when an entry omits resolved_session_name', async () => {
+  // gascity-dashboard-oc4l: a slung-state.json written before
+  // gascity-dashboard-55b (which introduced resolved_session_name
+  // persistence) does NOT carry that field. The read path must accept
+  // those legacy entries and normalize the absent field to `null` so the
+  // wire contract (SlungState.resolved_session_name: string | null) holds
+  // for downstream consumers (frontend SlungLink checks === null
+  // explicitly). Without this tolerance the entire map is silently
+  // discarded on the first read after an operator upgrade, losing all
+  // in-flight slung items.
+  test('preserves an entry that omits resolved_session_name and normalizes the field to null', async () => {
     await fs.writeFile(
       statePath,
       JSON.stringify({
@@ -81,6 +90,34 @@ describe('readSlungState', () => {
           slung_at: '2026-05-24T12:00:00.000Z',
           target: 'chief-of-staff',
           bead_id: null,
+        },
+      }),
+      'utf-8',
+    );
+
+    const state = await readSlungState(statePath);
+    assert.equal(Object.keys(state).length, 1);
+    assert.deepEqual(state['pr:1'], {
+      slung_at: '2026-05-24T12:00:00.000Z',
+      target: 'chief-of-staff',
+      bead_id: null,
+      resolved_session_name: null,
+    });
+  });
+
+  test('returns empty map when an entry has resolved_session_name of the wrong type', async () => {
+    // Regression guard: legacy tolerance is for ABSENT only. A present
+    // field that is neither null nor string is still a shape violation
+    // and rejects the whole map (preserves the strict wire-shape check
+    // for non-migration cases).
+    await fs.writeFile(
+      statePath,
+      JSON.stringify({
+        'pr:1': {
+          slung_at: '2026-05-24T12:00:00.000Z',
+          target: 'chief-of-staff',
+          bead_id: null,
+          resolved_session_name: 42,
         },
       }),
       'utf-8',

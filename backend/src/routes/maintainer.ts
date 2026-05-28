@@ -383,7 +383,23 @@ export function maintainerRouter({
       writeRouteError(res, routeValidationError('invalid login'));
       return;
     }
-    const cached = await readCache(cachePath);
+    // readCache throws on parse/shape-check failure (PR #31 contract).
+    // Express 4 does NOT auto-catch async rejections in route handlers —
+    // an uncaught rejection here would hang the request indefinitely
+    // (gascity-dashboard-n8q3). Mirror the /triage handler's pattern
+    // above: catch -> route through the centralised internal-error
+    // helper so the operator gets a clean 500 + a log line.
+    let cached: CacheReadResult;
+    try {
+      cached = await readCache(cachePath);
+    } catch (err) {
+      writeRouteError(res, routeInternalError(err, {
+        component: LOG_COMPONENT.maintainer,
+        operation: 'GET /api/maintainer/contributor/:login cache read failed',
+        responseError: 'maintainer contributor cache unavailable',
+      }));
+      return;
+    }
     if (cached.status === 'missing') {
       res.status(404).json({ error: 'no triage cache yet', kind: 'not_found' });
       return;

@@ -40,7 +40,7 @@ export async function readSlungState(statePath: string): Promise<SlungStateMap> 
       logWarn(LOG_COMPONENT.maintainer, `slung-state at ${statePath} failed shape check; ignoring`);
       return {};
     }
-    return parsed;
+    return normalizeLegacyEntries(parsed, statePath);
   } catch (err) {
     if ((err as NodeJS.ErrnoException).code === 'ENOENT') return {};
     logWarn(LOG_COMPONENT.maintainer, `slung-state read failed: ${errorMessage(err)}`);
@@ -105,9 +105,15 @@ function isValidStateMap(v: unknown): v is SlungStateMap {
     if (typeof e.slung_at !== 'string') return false;
     if (typeof e.target !== 'string') return false;
     if (e.bead_id !== null && typeof e.bead_id !== 'string') return false;
-    // Current writers always persist the field. Missing means this is not the
-    // slung-state shape the dashboard renders.
+    // gascity-dashboard-oc4l: resolved_session_name is OPTIONAL on disk.
+    // Pre-55b entries (written before gascity-dashboard-55b added
+    // resolved_session_name persistence) don't carry the field;
+    // normalizeLegacyEntries() coerces absent -> null at the read edge so
+    // downstream consumers see the strict wire shape (string | null).
+    // Reject only when the field is present AND neither null nor string —
+    // that's a real shape violation, not a legacy file.
     if (
+      e.resolved_session_name !== undefined &&
       e.resolved_session_name !== null &&
       typeof e.resolved_session_name !== 'string'
     ) {
@@ -115,4 +121,34 @@ function isValidStateMap(v: unknown): v is SlungStateMap {
     }
   }
   return true;
+}
+
+/**
+ * Coerce absent `resolved_session_name` to `null` so the returned map matches
+ * the strict wire shape (SlungState.resolved_session_name is `string | null`,
+ * non-optional). Logs once per read when any legacy entries were migrated so
+ * the upgrade condition is operationally visible, not silent. Pre-55b entries
+ * are the only legitimate source of an absent field; once all deployed
+ * operators have rotated past gascity-dashboard-55b, this migration and the
+ * `!== undefined` guard above can be removed (follow-up bead).
+ */
+function normalizeLegacyEntries(map: SlungStateMap, statePath: string): SlungStateMap {
+  const normalized: SlungStateMap = {};
+  let migrated = 0;
+  for (const [key, entry] of Object.entries(map)) {
+    if (entry.resolved_session_name === undefined) {
+      normalized[key] = { ...entry, resolved_session_name: null };
+      migrated += 1;
+    } else {
+      normalized[key] = entry;
+    }
+  }
+  if (migrated > 0) {
+    logWarn(
+      LOG_COMPONENT.maintainer,
+      `slung-state at ${statePath}: normalized ${migrated} pre-55b entr${migrated === 1 ? 'y' : 'ies'} ` +
+        `with absent resolved_session_name (gascity-dashboard-55b migration)`,
+    );
+  }
+  return normalized;
 }

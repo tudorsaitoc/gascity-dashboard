@@ -943,6 +943,67 @@ describe('GET /api/maintainer/triage — slung overlay', { concurrency: false },
   });
 });
 
+// ── GET /api/maintainer/contributor/:login — corrupt-cache regression
+//    (gascity-dashboard-n8q3) ─────────────────────────────────────────
+//
+// PR #31 changed readCache from "returns CacheReadResult | null" to
+// "returns CacheReadResult or THROWS on parse/shape failure". The /triage
+// handler was updated with try/catch + routeInternalError; this contributor
+// handler was missed. Express 4 does NOT auto-catch async rejections in
+// route handlers, so the unhandled rejection bypasses error middleware and
+// the request HANGS with no response. This regression pins the fixed
+// behaviour: a corrupt cache returns a clean 500 mirroring /triage's
+// envelope, and a missing cache (the supported "no cache yet" case)
+// continues to return a 404.
+
+describe('GET /api/maintainer/contributor/:login — corrupt cache', { concurrency: false }, () => {
+  let h: AppHandle;
+  afterEach(async () => {
+    if (h !== undefined) await h.close();
+  });
+
+  test('corrupt cache returns a clean 500, not a hung request', async () => {
+    h = await buildApp();
+    await fs.writeFile(
+      path.join(path.dirname(h.auditPath), 'cache.json'),
+      '{not-json',
+      'utf-8',
+    );
+
+    // AbortController guards the test runner against the pre-fix bug
+    // where the request hangs indefinitely (the whole point of this
+    // regression). A 2s ceiling is comfortably above the route's
+    // measured latency on the corrupt-cache branch (single sync fs read
+    // + sync JSON.parse throw + writeRouteError) and well under the
+    // test runner's default timeout.
+    const ctrl = new AbortController();
+    const timer = setTimeout(() => ctrl.abort(), 2_000);
+    try {
+      const res = await fetch(`${h.url}/api/maintainer/contributor/octocat`, {
+        signal: ctrl.signal,
+      });
+      assert.equal(res.status, 500);
+      const body = (await res.json()) as { error?: string; kind?: string };
+      assert.equal(body.kind, 'internal');
+      assert.equal(body.error, 'maintainer contributor cache unavailable');
+    } finally {
+      clearTimeout(timer);
+    }
+  });
+
+  test('missing cache still returns 404 (not_found), not 500', async () => {
+    // Pins that the missing-cache path stays the spec'd 404 and the
+    // corrupt-cache fix didn't accidentally collapse "missing" into
+    // "error". The status discriminant in CacheReadResult is the
+    // contract between readCache and its callers.
+    h = await buildApp();
+    const res = await fetch(`${h.url}/api/maintainer/contributor/octocat`);
+    assert.equal(res.status, 404);
+    const body = (await res.json()) as { error?: string; kind?: string };
+    assert.equal(body.kind, 'not_found');
+  });
+});
+
 // ── Sling target role resolution (gascity-dashboard-55b) ────────────
 //
 // Sling POST resolves the configured target role to a concrete

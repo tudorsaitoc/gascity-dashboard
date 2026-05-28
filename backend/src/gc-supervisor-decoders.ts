@@ -54,10 +54,15 @@ const BeadSchema = z.object({
   title: z.string(),
   status: z.string(),
   issue_type: z.string(),
-  // The supervisor sends priority: null for non-engineering beads (messages,
-  // sessions, etc.) and the OpenAPI spec declares it optional. Accept both
-  // null and missing — the dashboard's downstream consumers must handle it.
-  priority: z.number().finite().nullish(),
+  // The supervisor's OpenAPI spec declares priority optional and in practice
+  // sends `null` for non-engineering beads (messages, sessions, …). Accept
+  // both null and missing, then collapse `undefined → null` at the decoder
+  // edge so the typed interior (`GcBead.priority: number | null`) never sees
+  // an `undefined` it isn't declared to handle. Per CLAUDE.md: "Keep
+  // serialization/deserialization at the edges". (Merged from PR #34's
+  // upstream priority-null fix; .transform() is this wave's Phase 4
+  // tightening.)
+  priority: z.number().finite().nullish().transform((v) => v ?? null),
   created_at: z.string(),
   description: z.string().optional(),
   owner: z.string().optional(),

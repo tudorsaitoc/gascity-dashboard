@@ -417,6 +417,49 @@ describe('GcClient error handling', () => {
     );
   });
 
+  // gascity-dashboard-9n06: the supervisor's OpenAPI spec declares
+  // `priority?: number` (optional) and in practice sends `priority: null`
+  // for ~977/1000 beads (sessions, messages, etc. — issue types where
+  // priority is meaningless). The decoder must accept both null and
+  // missing, otherwise PR #31's Zod safeParse fails the whole bead list
+  // and the workflows view shows "live data unavailable".
+  test('accepts bead list payloads where priority is null', async () => {
+    const beadWithNullPriority = { ...validBead('td-msg-1'), priority: null };
+    fake.setHandler((_req, res) => {
+      res.statusCode = 200;
+      res.setHeader('content-type', 'application/json');
+      res.end(JSON.stringify({ items: [beadWithNullPriority], total: 1 }));
+    });
+    const gc = new GcClient({
+      baseUrl: fake.baseUrl,
+      cityName: 'test',
+      defaultTimeoutMs: 5_000,
+    });
+    const out = await gc.listBeads(undefined, { limit: 10 });
+    assert.equal(out.items.length, 1);
+    assert.equal(out.items[0]?.priority, null);
+  });
+
+  test('accepts bead list payloads where priority is omitted', async () => {
+    const { priority: _omit, ...beadWithoutPriority } = validBead('td-msg-2');
+    fake.setHandler((_req, res) => {
+      res.statusCode = 200;
+      res.setHeader('content-type', 'application/json');
+      res.end(JSON.stringify({ items: [beadWithoutPriority], total: 1 }));
+    });
+    const gc = new GcClient({
+      baseUrl: fake.baseUrl,
+      cityName: 'test',
+      defaultTimeoutMs: 5_000,
+    });
+    const out = await gc.listBeads(undefined, { limit: 10 });
+    assert.equal(out.items.length, 1);
+    // The decoder collapses omitted/undefined priority to `null` so the
+    // typed interior (`GcBead.priority: number | null`) is never violated
+    // at runtime — keeps `=== null` checks in the frontend reliable.
+    assert.equal(out.items[0]?.priority, null);
+  });
+
   test('rejects malformed mail list payloads at the supervisor boundary', async () => {
     fake.setHandler((_req, res) => {
       res.statusCode = 200;
