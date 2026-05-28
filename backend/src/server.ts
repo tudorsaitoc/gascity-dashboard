@@ -173,10 +173,10 @@ function main(): void {
     cityName: config.cityName,
   }));
 
-  // Start the dolt-noms 10-min sampler. The actual metric source is
-  // pending mechanic surgical-ask; the sampler is wired so the ring
-  // buffer starts filling the moment the source lands.
-  startDoltNomsSampler();
+  // Start the dolt-noms 10-min sampler. Source is the supervisor's
+  // store_health.size_bytes (GET /v0/city/{name}/status), read via the
+  // typed GcClient (gascity-dashboard-x82).
+  startDoltNomsSampler(() => gc.getStatus());
 
   // Start the maintainer triage refresher (gascity-dashboard-ar9).
   // Set MAINTAINER_REFRESH_INTERVAL_MS=0 to disable.

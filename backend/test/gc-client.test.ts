@@ -271,6 +271,67 @@ describe('GcClient error handling', () => {
   });
 });
 
+// gascity-dashboard-x82: GcClient.getStatus GETs /v0/city/{name}/status,
+// the source of store_health.size_bytes for the dolt-noms trend sampler.
+describe('GcClient.getStatus', () => {
+  let fake: Fake;
+  beforeEach(async () => {
+    fake = await startFake();
+  });
+  afterEach(async () => {
+    await fake.close();
+  });
+
+  test('GETs the city status endpoint and parses store_health', async () => {
+    let method: string | undefined;
+    let url: string | undefined;
+    fake.setHandler((req, res) => {
+      method = req.method;
+      url = req.url;
+      res.statusCode = 200;
+      res.setHeader('content-type', 'application/json');
+      res.end(
+        JSON.stringify({
+          store_health: {
+            size_bytes: 123_456,
+            live_rows: 2139,
+            ratio_mb_per_row: 0.05,
+            last_gc_at: '2026-05-26T00:00:00Z',
+          },
+        }),
+      );
+    });
+    const gc = new GcClient({ baseUrl: fake.baseUrl, cityName: 'test-city', defaultTimeoutMs: 5_000 });
+
+    const out = await gc.getStatus();
+
+    assert.equal(method, 'GET');
+    assert.equal(url, '/v0/city/test-city/status');
+    assert.equal(out.store_health?.size_bytes, 123_456);
+    assert.equal(out.store_health?.live_rows, 2139);
+  });
+
+  test('non-2xx throws a redacted error (status only, no topology)', async () => {
+    fake.setHandler((_req, res) => {
+      res.statusCode = 503;
+      res.end('upstream down');
+    });
+    const gc = new GcClient({ baseUrl: fake.baseUrl, cityName: 'secret-city', defaultTimeoutMs: 5_000 });
+    let err: unknown;
+    try {
+      await gc.getStatus();
+    } catch (e) {
+      err = e;
+    }
+    assert.ok(err instanceof Error, 'expected an Error rejection');
+    const msg = (err as Error).message;
+    assert.match(msg, /503/);
+    assert.match(msg, /gc supervisor returned/);
+    assert.doesNotMatch(msg, /secret-city/, `message leaked city name: ${msg}`);
+    assert.doesNotMatch(msg, /127\.0\.0\.1/, `message leaked loopback address: ${msg}`);
+  });
+});
+
 // gascity-dashboard-mq2: GcClient.sling POSTs to the supervisor's write
 // endpoint in place of the `gc sling` CLI subprocess.
 describe('GcClient.sling', () => {

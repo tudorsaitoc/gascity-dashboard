@@ -421,6 +421,26 @@ export interface SupervisorHealth {
   uptime_sec: number;
 }
 
+/**
+ * Dolt store on-disk health, as reported under `store_health` by the
+ * supervisor's `GET /v0/city/{name}/status`. `size_bytes` is the
+ * dolt-noms on-disk size the dashboard samples for its trend; the other
+ * fields are surfaced for completeness (single source of truth) but are
+ * not consumed dashboard-side yet. The whole block is optional because a
+ * degraded supervisor may omit it.
+ */
+export interface StatusStoreHealth {
+  size_bytes: number;
+  live_rows?: number;
+  ratio_mb_per_row?: number;
+  last_gc_at?: IsoTimestamp;
+}
+
+/** `GET /v0/city/{name}/status` — only the fields the dashboard reads. */
+export interface GcStatus {
+  store_health?: StatusStoreHealth;
+}
+
 export interface DoltNomsSample {
   ts: IsoTimestamp;
   bytes: number;

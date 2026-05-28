@@ -6,6 +6,7 @@ import type {
   GcEventList,
   GcFormulaDetail,
   GcWorkflowSnapshot,
+  GcStatus,
   SlingInput,
   SlingResponse,
   BeadUpdateInput,
@@ -246,6 +247,15 @@ export class GcClient {
 
   async listSessions(signal?: AbortSignal): Promise<GcSessionList> {
     return this.getJson<GcSessionList>(this.cityPath('/sessions'), signal);
+  }
+
+  /**
+   * `GET /v0/city/{name}/status` — supervisor city status. The dashboard
+   * reads `store_health.size_bytes` off this for the dolt-noms on-disk size
+   * trend (gascity-dashboard-x82).
+   */
+  async getStatus(signal?: AbortSignal): Promise<GcStatus> {
+    return this.getJson<GcStatus>(this.cityPath('/status'), signal);
   }
 
   async getBead(id: string, signal?: AbortSignal): Promise<GcBead> {
