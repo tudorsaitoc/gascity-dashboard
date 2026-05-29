@@ -138,6 +138,14 @@ const FormulaPreviewEdgeSchema = z.object({
   kind: z.string().optional(),
 }).passthrough();
 
+// Supervisor's OpenAPI declares LogicalNode and ScopeGroup as
+// `{additionalProperties: false, type: 'object'}` — always-empty objects.
+// Shared types them as `Record<string, never>[]`; mirroring with an empty
+// Zod object preserves the SSOT contract. (Previously used
+// UnknownRecordSchema, which accepted any keys and laundered the
+// mismatch via the t5l6 decoder cast.)
+const EmptyObjectSchema = z.object({});
+
 const WorkflowSnapshotSchema = z.object({
   workflow_id: z.string(),
   root_bead_id: z.string(),
@@ -151,9 +159,9 @@ const WorkflowSnapshotSchema = z.object({
   stores_scanned: z.array(z.string()).nullable(),
   beads: z.array(WorkflowBeadSchema).nullable(),
   deps: z.array(WorkflowDepSchema).nullable(),
-  logical_nodes: z.array(UnknownRecordSchema).nullable(),
+  logical_nodes: z.array(EmptyObjectSchema).nullable(),
   logical_edges: z.array(WorkflowDepSchema).nullable(),
-  scope_groups: z.array(UnknownRecordSchema).nullable(),
+  scope_groups: z.array(EmptyObjectSchema).nullable(),
 }).passthrough();
 
 const FormulaDetailSchema = z.object({
@@ -323,8 +331,16 @@ export const gcSupervisorDecoders = {
   },
 } as const;
 
+// gascity-dashboard-t5l6: `z.ZodType<SchemaOutputFor<NoInfer<Decoded>>>`
+// (not the bare `z.ZodType`) is load-bearing. It ties the Zod schema's
+// output to the caller-declared `Decoded` so tsc rejects schemas whose
+// parsed shape diverges from the shared SSOT type — see SchemaOutputFor
+// + NoInfer below for the mechanics. The previous `as Decoded` cast
+// laundered any schema into any return type, silently defeating the
+// wire-shape contract. Verified by
+// backend/test/gc-supervisor-decoders-types.test.ts.
 function decodeSupervisorPayload<Decoded>(
-  schema: z.ZodType,
+  schema: z.ZodType<SchemaOutputFor<NoInfer<Decoded>>>,
   value: unknown,
   payload: string,
 ): Decoded {
@@ -332,8 +348,40 @@ function decodeSupervisorPayload<Decoded>(
   if (!parsed.success) {
     throw invalid(payload, parsed.error);
   }
+  // `parsed.data` is `SchemaOutputFor<Decoded>` — structurally identical
+  // to `Decoded` at runtime but TS-noisier on optional fields (see
+  // SchemaOutputFor comment). Narrow, documented cast — not the
+  // unconstrained `as Decoded` laundering removed by t5l6.
   return parsed.data as Decoded;
 }
+
+// Maps a shared SSOT type into the structural shape a Zod schema is
+// expected to emit. For every property:
+//   - required `foo: T`  → required `foo: SchemaOutputFor<T>`
+//   - optional `foo?: T` → optional `foo?: SchemaOutputFor<T> | undefined`
+// (the second form is what Zod's `.optional()` produces under the
+// project's `exactOptionalPropertyTypes: true` — Zod's runtime emission
+// matches `foo?: T` exactly, but its TS-level output type is noisier).
+// Recurses through array element types so nested shared interfaces (e.g.
+// `GcBeadList.items: GcBead[]`) are loosened consistently. Paired with
+// `NoInfer<Decoded>` in `decodeSupervisorPayload` so `Decoded` binds from
+// the caller's return-type context, not from the schema parameter.
+type SchemaOutputFor<T> =
+  T extends readonly (infer U)[]
+    ? SchemaOutputFor<U>[]
+    : T extends object
+      ?
+          & { [K in RequiredKeysOf<T>]: SchemaOutputFor<T[K]> }
+          & { [K in OptionalKeysOf<T>]?: SchemaOutputFor<T[K]> | undefined }
+      : T;
+
+type RequiredKeysOf<T> = {
+  [K in keyof T]-?: {} extends Pick<T, K> ? never : K;
+}[keyof T];
+
+type OptionalKeysOf<T> = {
+  [K in keyof T]-?: {} extends Pick<T, K> ? K : never;
+}[keyof T];
 
 function invalid(payload: string, error: z.ZodError): Error {
   const issue = error.issues[0];
