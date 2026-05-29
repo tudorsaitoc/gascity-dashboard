@@ -232,7 +232,7 @@ function workflowLane(
 ): WorkflowLane {
   const phase = mapWorkflowPhase(issues);
   const updatedAt = latestUpdatedAt(issues);
-  const formula = workflowFormula(issues);
+  const formula = workflowFormula(rootId, issues);
   const formulaName = workflowFormulaName(formula);
   const stages = stageProgress(phase, formulaName, issues);
   const foundStageIndex = stages.findIndex((s) => s.status === 'active');
@@ -784,15 +784,42 @@ function compareLanes(a: WorkflowLane, b: WorkflowLane): number {
   return bTime - aTime || a.id.localeCompare(b.id);
 }
 
-function workflowFormula(issues: WorkflowIssue[]): WorkflowLane['formula'] {
-  const name =
+// gascity-dashboard-3vaz (follow-up to e7hj): the title-startswith-'mol-'
+// fallback only fires when the root bead is a fully-instantiated runnable
+// graph.v2 root (has both gc.formula_contract='graph.v2' and gc.run_target).
+// Uses the same gc.formula_contract+gc.run_target guard as
+// resolveWorkflowFormulaName and reads from the SAME source (the root
+// bead's own title) — a child-task title that happens to start with 'mol-'
+// must never displace the root's identity on the lane card. The 'mol-'
+// prefix is the lane builder's additional conservative gate: the run-detail
+// page surfaces title-fallback in a warn tone (e7hj), but WorkflowLaneFormula
+// has no `source` discriminant so the lane card needs a tighter constraint
+// to avoid an operator-edited descriptive title leaking as a canonical
+// formula name. Phase 4 review finding (wave-3vaz-4lzn-e0hh-aqf8): prior
+// implementation scanned `issues.map(...).find(...)` for any 'mol-' title,
+// which would silently pick a child bead's title when the root's title
+// didn't match — caught by the multi-issue regression test below.
+function workflowFormula(
+  rootId: string,
+  issues: WorkflowIssue[],
+): WorkflowLane['formula'] {
+  const explicit =
     metadataString(issues, 'pr_review.workflow_formula') ||
-    metadataString(issues, 'gc.formula') ||
-    issues.map((i) => i.title).find((t) => t.startsWith('mol-')) ||
-    null;
-  return name === null
-    ? { status: 'unavailable', error: 'workflow formula unavailable' }
-    : { status: 'known', name };
+    metadataString(issues, 'gc.formula');
+  if (explicit) return { status: 'known', name: explicit };
+
+  const root = issues.find((i) => i.id === rootId);
+  if (
+    stringValue(root?.metadata?.['gc.formula_contract']) === 'graph.v2' &&
+    stringValue(root?.metadata?.['gc.run_target']).length > 0
+  ) {
+    const rootTitle = root?.title.trim();
+    if (rootTitle && rootTitle.startsWith('mol-')) {
+      return { status: 'known', name: rootTitle };
+    }
+  }
+
+  return { status: 'unavailable', error: 'workflow formula unavailable' };
 }
 
 function workflowFormulaName(formula: WorkflowLane['formula']): string | null {

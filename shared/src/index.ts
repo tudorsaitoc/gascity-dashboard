@@ -528,8 +528,7 @@ export interface GcFormulaRun {
   status: string;
   /** Formula name (e.g. `'mol-focus-review'`). */
   title: string;
-  /** `'city'` | `'rig'` | string. */
-  scope_kind: string;
+  scope_kind: 'city' | 'rig' | (string & {});
   scope_ref: string;
   /** Absolute workspace path the formula is operating on. */
   target: string;

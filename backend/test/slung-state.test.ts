@@ -105,6 +105,50 @@ describe('readSlungState', () => {
     });
   });
 
+  // gascity-dashboard-aqf8: a real upgrade-window file can mix legacy
+  // entries (written before gascity-dashboard-55b added
+  // resolved_session_name persistence) with modern entries written after
+  // the upgrade. Normalization must coerce the legacy absent field to
+  // null AND preserve the modern entry untouched in the same read pass.
+  // Type boundary refactor (Partial<SlungState> intermediate) verifies
+  // mixed maps still narrow correctly back to the strict wire shape.
+  test('normalizes legacy and modern entries together in a mixed map', async () => {
+    await fs.writeFile(
+      statePath,
+      JSON.stringify({
+        // legacy: pre-55b file omits resolved_session_name entirely
+        'pr:1': {
+          slung_at: '2026-05-24T12:00:00.000Z',
+          target: 'chief-of-staff',
+          bead_id: 'gastown-legacy',
+        },
+        // modern: post-55b file carries the resolved session id
+        'issue:2': {
+          slung_at: '2026-05-24T12:05:00.000Z',
+          target: 'project-lead',
+          bead_id: 'gastown-modern',
+          resolved_session_name: 'project-lead-session',
+        },
+      }),
+      'utf-8',
+    );
+
+    const state = await readSlungState(statePath);
+    assert.equal(Object.keys(state).length, 2);
+    assert.deepEqual(state['pr:1'], {
+      slung_at: '2026-05-24T12:00:00.000Z',
+      target: 'chief-of-staff',
+      bead_id: 'gastown-legacy',
+      resolved_session_name: null,
+    });
+    assert.deepEqual(state['issue:2'], {
+      slung_at: '2026-05-24T12:05:00.000Z',
+      target: 'project-lead',
+      bead_id: 'gastown-modern',
+      resolved_session_name: 'project-lead-session',
+    });
+  });
+
   test('returns empty map when an entry has resolved_session_name of the wrong type', async () => {
     // Regression guard: legacy tolerance is for ABSENT only. A present
     // field that is neither null nor string is still a shape violation

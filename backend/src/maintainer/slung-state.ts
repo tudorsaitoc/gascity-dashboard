@@ -24,6 +24,26 @@ import { LOG_COMPONENT, errorMessage, logWarn } from '../logging.js';
 export type SlungStateMap = Record<string, SlungState>;
 
 /**
+ * Intermediate shape used between `isValidStateMap` and
+ * `normalizeLegacyEntries`. A parsed-but-not-yet-coerced entry: the
+ * structural fields the validator confirms (`slung_at`, `target`, `bead_id`)
+ * are required and well-typed; `resolved_session_name` is the one field
+ * allowed to be absent on pre-55b legacy files (gascity-dashboard-oc4l).
+ *
+ * Modelling it as a `Partial`-of-the-legacy-field rather than reusing the
+ * strict `SlungState` makes the runtime `=== undefined` check in the
+ * normalizer type-honest — TypeScript can see the field is statically
+ * possibly-undefined here, instead of inspecting a field declared
+ * non-optional `string | null`. Local to this module; do not export.
+ * Once all deployed operators have rotated past gascity-dashboard-55b, the
+ * legacy migration (and this alias) can be retired together.
+ */
+type PrenormalizedSlungEntry = Omit<SlungState, 'resolved_session_name'> & {
+  resolved_session_name?: SlungState['resolved_session_name'];
+};
+type PrenormalizedSlungStateMap = Record<string, PrenormalizedSlungEntry>;
+
+/**
  * Stable key for a TriageItem in the slung-state map.
  * Use this rather than concatenating inline so the format stays
  * consistent across read, write, and purge call sites.
@@ -97,7 +117,7 @@ async function persistAtomic(statePath: string, state: SlungStateMap): Promise<v
   await fs.rename(tmp, statePath);
 }
 
-function isValidStateMap(v: unknown): v is SlungStateMap {
+function isValidStateMap(v: unknown): v is PrenormalizedSlungStateMap {
   if (typeof v !== 'object' || v === null || Array.isArray(v)) return false;
   for (const entry of Object.values(v)) {
     if (typeof entry !== 'object' || entry === null) return false;
@@ -131,17 +151,24 @@ function isValidStateMap(v: unknown): v is SlungStateMap {
  * are the only legitimate source of an absent field; once all deployed
  * operators have rotated past gascity-dashboard-55b, this migration and the
  * `!== undefined` guard above can be removed (follow-up bead).
+ *
+ * See the `PrenormalizedSlungEntry` type definition above for the rationale
+ * of the input shape and the `??` coercion semantics.
  */
-function normalizeLegacyEntries(map: SlungStateMap, statePath: string): SlungStateMap {
+function normalizeLegacyEntries(
+  map: PrenormalizedSlungStateMap,
+  statePath: string,
+): SlungStateMap {
   const normalized: SlungStateMap = {};
   let migrated = 0;
   for (const [key, entry] of Object.entries(map)) {
-    if (entry.resolved_session_name === undefined) {
-      normalized[key] = { ...entry, resolved_session_name: null };
-      migrated += 1;
-    } else {
-      normalized[key] = entry;
-    }
+    if (entry.resolved_session_name === undefined) migrated += 1;
+    normalized[key] = {
+      slung_at: entry.slung_at,
+      target: entry.target,
+      bead_id: entry.bead_id,
+      resolved_session_name: entry.resolved_session_name ?? null,
+    };
   }
   if (migrated > 0) {
     logWarn(
