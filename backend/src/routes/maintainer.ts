@@ -152,7 +152,7 @@ export function maintainerRouter({
       ],
       totals: { issues_open: 0, prs_open: 0 },
     };
-    void recordAudit({
+    await recordAudit({
       type: 'dashboard.fetch',
       endpoint: 'GET /api/maintainer/triage',
       parsed_args: { repo, source: 'empty', items: '0' },
@@ -283,7 +283,7 @@ export function maintainerRouter({
       // fallback if a future supervisor omits root_bead_id; null when
       // neither is present (slung-state tolerates a null bead_id).
       const beadId = result.root_bead_id ?? result.bead ?? null;
-      void recordAudit({
+      await recordAudit({
         type: 'dashboard.sling',
         endpoint: 'POST /api/maintainer/sling',
         parsed_args: {
@@ -349,7 +349,7 @@ export function maintainerRouter({
       // create an asymmetric forensic record where the most-interesting
       // failure mode (the supervisor hung) leaves no trace in events.jsonl.
       const isTimeout = GcClient.isTimeoutError(err);
-      void recordAudit({
+      await recordAudit({
         type: 'dashboard.sling',
         endpoint: 'POST /api/maintainer/sling',
         parsed_args: {
@@ -412,7 +412,7 @@ export function maintainerRouter({
       res.status(404).json({ error: 'contributor not in current envelope', kind: 'not_found' });
       return;
     }
-    void recordAudit({
+    await recordAudit({
       type: 'dashboard.fetch',
       endpoint: 'GET /api/maintainer/contributor/:login',
       parsed_args: { login },

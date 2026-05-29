@@ -58,7 +58,7 @@ export function agentsRouter(opts: AgentsRouterOptions | string = {}): Router {
       const exitOk = result.exitCode === 0;
       const stderr = result.stderr.slice(0, 1024);
       const notFound = !exitOk && /not found in city config|no agent/i.test(stderr);
-      void recordAudit({
+      await recordAudit({
         type: 'dashboard.fetch',
         endpoint: 'GET /api/agents/:alias/prime',
         parsed_args: {
@@ -115,7 +115,7 @@ export function agentsRouter(opts: AgentsRouterOptions | string = {}): Router {
       if (err instanceof ExecError) {
         const status =
           err.kind === 'validation' ? 400 : err.kind === 'timeout' ? 504 : 500;
-        void recordAudit({
+        await recordAudit({
           type: 'dashboard.fetch',
           endpoint: 'GET /api/agents/:alias/prime',
           parsed_args: { agent: alias, error_kind: err.kind },
@@ -130,7 +130,7 @@ export function agentsRouter(opts: AgentsRouterOptions | string = {}): Router {
         res.status(wire.status).json(wire.body);
         return;
       }
-      void recordAudit({
+      await recordAudit({
         type: 'dashboard.fetch',
         endpoint: 'GET /api/agents/:alias/prime',
         parsed_args: { agent: alias, error_kind: 'unknown' },

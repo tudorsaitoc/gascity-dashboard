@@ -78,7 +78,7 @@ export function mailRouter(gc: GcClient): Router {
         total: filtered.length,
         upstream_total: rawItems.length,
       });
-      void recordAudit({
+      await recordAudit({
         type: 'dashboard.fetch',
         endpoint: 'GET /api/mail',
         viewing_as: alias,
@@ -124,7 +124,7 @@ export function mailRouter(gc: GcClient): Router {
       });
       res.setHeader('Cache-Control', 'no-store');
       res.json({ items: deduped });
-      void recordAudit({
+      await recordAudit({
         type: 'dashboard.fetch',
         endpoint: 'GET /api/mail/threads/:id',
         viewing_as: alias,
