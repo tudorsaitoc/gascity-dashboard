@@ -192,7 +192,10 @@ async function runBeadClaim(
   const startedAt = Date.now();
   try {
     await updateBead(beadId, { status: 'in_progress', assignee: 'stephanie' });
-    void recordAudit({
+    // qhr9: await ensures the audit row is durable before the response
+    // returns. recordAudit() catches its own fs.appendFile failures (see
+    // audit.ts), so awaiting cannot propagate an error into the handler.
+    await recordAudit({
       type: 'dashboard.exec',
       endpoint: 'POST /api/beads/:id/claim',
       parsed_args: { bead_id: beadId },
@@ -201,7 +204,7 @@ async function runBeadClaim(
     res.json({ ok: true });
   } catch (err) {
     const isTimeout = GcClient.isTimeoutError(err);
-    void recordAudit({
+    await recordAudit({
       type: 'dashboard.exec',
       endpoint: 'POST /api/beads/:id/claim',
       parsed_args: {
@@ -234,7 +237,7 @@ async function runBeadAction(
   }
   try {
     const result = await execBeadAction(beadId, action, reason, cityPath);
-    void recordAudit({
+    await recordAudit({
       type: 'dashboard.exec',
       endpoint: `POST /api/beads/:id/${action}`,
       parsed_args: { bead_id: beadId, ...(reason ? { reason } : {}) },
