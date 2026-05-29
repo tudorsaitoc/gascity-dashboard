@@ -155,11 +155,11 @@ function detailWithNodes(nodeIds: string[]): WorkflowRunDetail {
     executionPath: { kind: 'known', path: '/tmp/rig' },
     snapshotVersion: 1,
     snapshotEventSeq: { kind: 'known', seq: 1 },
-    partial: false,
+    completeness: { kind: 'complete' },
     progress: {
       snapshotVersion: 1,
       snapshotEventSeq: { kind: 'known', seq: 1 },
-      partial: false,
+      snapshotPartial: false,
       totalNodeCount: nodeIds.length,
       visibleNodeCount: nodeIds.length,
       edgeCount: 0,

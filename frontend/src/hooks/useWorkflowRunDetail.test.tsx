@@ -31,11 +31,8 @@ describe('useWorkflowRunDetail', () => {
   it('does not fetch or report when no workflow id is available', async () => {
     const { result } = renderHook(() => useWorkflowRunDetail(undefined));
 
-    await waitFor(() => expect(result.current.loading).toBe(false));
+    await waitFor(() => expect(result.current.kind).toBe('idle'));
 
-    expect(result.current.detail).toBeNull();
-    expect(result.current.diff).toBeNull();
-    expect(result.current.error).toBeNull();
     expect(mockWorkflowRun).not.toHaveBeenCalled();
     expect(mockWorkflowDiff).not.toHaveBeenCalled();
     expect(mockReportClientError).not.toHaveBeenCalled();
@@ -47,7 +44,10 @@ describe('useWorkflowRunDetail', () => {
 
     const { result } = renderHook(() => useWorkflowRunDetail('wf-1'));
 
-    await waitFor(() => expect(result.current.error).toBe('detail unavailable'));
+    await waitFor(() => expect(result.current).toMatchObject({
+      kind: 'failed',
+      error: 'detail unavailable',
+    }));
 
     expect(mockReportClientError).toHaveBeenCalledWith({
       component: 'workflow-run-detail',
@@ -62,13 +62,12 @@ describe('useWorkflowRunDetail', () => {
 
     const { result } = renderHook(() => useWorkflowRunDetail('wf-1'));
 
-    await waitFor(() => expect(result.current.detail?.workflowId).toBe('wf-1'));
+    await waitFor(() => expect(result.current.kind).toBe('ready'));
 
-    expect(result.current.error).toBeNull();
-    expect(result.current.diff).toMatchObject({
-      kind: 'error',
-      error: 'git unavailable',
-    });
+    if (result.current.kind !== 'ready') throw new Error('workflow detail did not load');
+    expect(result.current.detail.workflowId).toBe('wf-1');
+    expect(result.current.refreshState).toEqual({ kind: 'idle' });
+    expect(result.current.diff).toMatchObject({ kind: 'error', error: 'git unavailable' });
     expect(mockReportClientError).toHaveBeenCalledWith({
       component: 'workflow-run-detail',
       operation: 'load diff',
@@ -90,11 +89,11 @@ function detail(): WorkflowRunDetail {
     executionPath: { kind: 'unavailable', reason: 'missing_cwd_and_rig_root' },
     snapshotVersion: 1,
     snapshotEventSeq: { kind: 'known', seq: 1 },
-    partial: false,
+    completeness: { kind: 'complete' },
     progress: {
       snapshotVersion: 1,
       snapshotEventSeq: { kind: 'known', seq: 1 },
-      partial: false,
+      snapshotPartial: false,
       totalNodeCount: 0,
       visibleNodeCount: 0,
       edgeCount: 0,

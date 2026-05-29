@@ -221,7 +221,7 @@ async function runTheme(browser, theme) {
       waitUntil: 'domcontentloaded',
       timeout: 5_000,
     });
-    await page.getByText(/partial snapshot/i).waitFor({ timeout: 5_000 });
+    await page.getByText(/partial workflow data/i).waitFor({ timeout: 5_000 });
 
     await page.goto(`${BASE}/workflows/gc-adopt-pr-active?node=old-only-review`, {
       waitUntil: 'domcontentloaded',
@@ -338,7 +338,14 @@ async function installApiFixtureRoutes(context) {
     }
     const payload = route.request().url().includes('/diff')
       ? fixture.diff
-      : { ...fixture.detail, workflowId: 'gc-adopt-pr-partial', partial: true };
+      : {
+          ...fixture.detail,
+          workflowId: 'gc-adopt-pr-partial',
+          completeness: {
+            kind: 'partial',
+            reasons: ['supervisor_snapshot_partial'],
+          },
+        };
     await route.fulfill({
       status: 200,
       contentType: 'application/json',

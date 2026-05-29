@@ -2561,3 +2561,71 @@ Changed-file groups that matter for this objective:
    by focused workflow tests and has clearer helper boundaries, but further
    splitting should be driven by a concrete workflow projection change rather
    than line-count pressure.
+
+## Thirty-Seventh Pass: `arch-best-practices-02` Revalidation
+
+This pass revalidated the follow-up feedback in
+`tmp/arch-best-practices-02.txt` against the current
+`csells/workflow-detail-architecture-followup` worktree instead of assuming the
+older scorecard text was still accurate.
+
+Findings addressed in this pass:
+
+- The security-doc findings about `dangerouslySetInnerHTML` and exec
+  environment shape were already resolved in `docs/SECURITY.md`.
+- The stale `exec.ts` shorthand saying the child received no inherited
+  `PATH`/`HOME`/`LANG` was rewritten to match the current `exec-core` behavior:
+  the inherited environment is stripped, then the allowed values are assigned
+  intentionally.
+- The workflow-run detail architecture spec no longer describes runtime
+  supervisor decoding as handwritten-only. Current code uses generated OpenAPI
+  path/query/response types, `openapi-fetch`, and generated runtime schema
+  validation for the supervisor payloads consumed through `GcClient`.
+- The spec now names incremental event mutation and durable product metrics as
+  intentionally outside the current dashboard-owned target, not unfinished
+  requirements for the workflow-run detail page.
+- The maintainer SSE client set now lives behind an injectable
+  `MaintainerSseHub`, and `createDashboardApp` passes one shared hub to the
+  maintainer router and worker. Tests prove separate hub instances do not share
+  clients and stale clients are dropped after failed writes.
+- `exec-core` concurrency state now lives behind `createExecRunner()`. The
+  exported production `runExec()` still uses the default runner, while tests and
+  future app-owned wiring can create isolated runners with independent
+  semaphore state.
+
+Current conclusion:
+
+- The actionable `arch-best-practices-02` items that overlap this branch's
+  workflow-run detail and supervisor-boundary scope are closed or captured as
+  explicit future/product decisions.
+- Remaining large-module and product-scope tradeoffs stay documented as
+  residual risks. They should not be hidden behind score inflation, but they no
+  longer block the workflow-run detail architecture pass.
+
+### Completion Audit For Active Goal
+
+Objective:
+
+> validate, consolidate and address this feedback as appropriate:
+> `tmp/arch-best-practices-02.txt`; also implement the remaining parts of
+> `specs/architecture/workflow-run-detail-type.md`.
+
+Requirement evidence:
+
+| Requirement | Current evidence | Status |
+| --- | --- | --- |
+| Validate the `arch-best-practices-02` feedback against current code | This section re-read the feedback against the current worktree and distinguishes already-resolved items, newly-addressed items, and future/product tradeoffs. | Complete |
+| Consolidate the feedback into tracked repo documentation | The Thirty-Seventh Pass and this completion audit live in `specs/plans/architecture-best-practices-audit.md`. | Complete |
+| Address stale security/architecture docs | `docs/SECURITY.md` already matches current ANSI-to-React rendering and exec env behavior; `backend/src/exec.ts` and `specs/architecture/workflow-run-detail-type.md` were updated where stale wording remained. | Complete |
+| Address process-global scalability feedback where appropriate | `MaintainerSseHub` owns maintainer SSE clients per app instance, and `createExecRunner()` owns exec concurrency per runner. Focused tests cover both. | Complete |
+| Implement dashboard-owned workflow-run detail architecture | `WorkflowRunDetail` remains the browser contract; `RunningFormulaRun` remains the backend aggregate; generated OpenAPI path/query/runtime validation, current git diff, session streamability, loop/retry instances, graph.v2-only handling, and event invalidation are implemented and tested. | Complete |
+| Classify non-dashboard-owned workflow-run target-state gaps | Rig-store per-bead freshness, canonical Gas City/shared graph semantics, incremental projection mutation, durable product metrics, and upstream schema drift are documented as external constraints or future implementation moves, not hidden TODOs. | Complete |
+
+Verification evidence:
+
+- `node --import tsx --test backend/test/maintainer-sse.test.ts backend/test/exec-core.test.ts backend/test/worker.test.ts backend/test/maintainer-sling.test.ts`: passed, 54 tests.
+- `npm run openapi:gc-supervisor:check && npm --workspace backend test && npm run typecheck && npm run lint`: passed, including 562 backend tests.
+- `npm --workspace frontend test`: passed, 285 frontend tests.
+- `npm --workspace frontend run build`: passed.
+- `node scripts/snap-workflow-detail.mjs --test`: passed in light and dark, including workflow detail load, diff rendering, node selection, historical iteration tabs, transcript peek, session stream paths, partial snapshots, unsupported graph states, and diff edge states.
+- `git diff --check`: passed.

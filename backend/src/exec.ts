@@ -23,7 +23,8 @@ export type { ExecResult };
 // Per security_researcher td-wisp-eb0pn:
 //   - ENUM whitelist of allowed commands.
 //   - shell:false (non-negotiable).
-//   - Clean env — no inherited PATH/HOME/LANG.
+//   - Clean env — no inherited environment; PATH/HOME/LANG are assigned
+//     intentionally by exec-core.
 //   - Timeout (10-30s) + output cap (100KB).
 //   - Concurrency cap (semaphore).
 //   - Bead-id / agent-alias param schemas enforced.

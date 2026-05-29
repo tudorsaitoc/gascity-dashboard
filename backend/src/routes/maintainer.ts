@@ -26,7 +26,7 @@ import {
   slungKey,
   writeSlungEntry,
 } from '../maintainer/slung-state.js';
-import { addSseClient, notifyRefresh, removeSseClient } from '../maintainer/sse.js';
+import { MaintainerSseHub } from '../maintainer/sse.js';
 import { HTTP_STATUS } from '../lib/http-status.js';
 import { writeExecError } from '../lib/sanitise-error.js';
 import { asyncRoute } from '../middleware/async-route.js';
@@ -87,6 +87,11 @@ interface MaintainerRouterOptions {
    * instead of a clickable link.
    */
   listSessions?: () => Promise<readonly GcSession[]>;
+  /**
+   * Per-app SSE client hub. Injected so tests and app instances do not share
+   * process-global EventSource clients.
+   */
+  sseHub?: MaintainerSseHub;
 }
 
 export function maintainerRouter({
@@ -98,6 +103,7 @@ export function maintainerRouter({
   sling,
   fetchTriage = defaultFetchTriage,
   listSessions,
+  sseHub = new MaintainerSseHub(),
 }: MaintainerRouterOptions): Router {
   const router = Router();
 
@@ -163,7 +169,7 @@ export function maintainerRouter({
     try {
       const envelope = await fetchTriage(repo);
       await writeCache(cachePath, envelope);
-      notifyRefresh(envelope);
+      sseHub.notifyRefresh(envelope);
       await recordAudit({
         type: 'dashboard.fetch',
         endpoint: 'POST /api/maintainer/refresh',
@@ -195,8 +201,8 @@ export function maintainerRouter({
     // rewritten (manual button or nightly worker). Frontend refetches
     // /triage on receipt. csrfValidate exempts GET, so this still
     // lives in the same writeRouter as the rest of /api/maintainer.
-    addSseClient(res);
-    req.on('close', () => removeSseClient(res));
+    sseHub.addClient(res);
+    req.on('close', () => sseHub.removeClient(res));
   });
 
   router.post('/sling', asyncRoute(async (req, res) => {
@@ -321,7 +327,7 @@ export function maintainerRouter({
       // (it just triggers a refetch), so we stamp a minimal meta —
       // computed_at: null signals "this is a serve-time refresh, not
       // a re-compose" without lying about the cache's freshness.
-      notifyRefresh({ computed_at: null, repo });
+      sseHub.notifyRefresh({ computed_at: null, repo });
       // Wire/disk asymmetry on bead_id: persisted as null on disk
       // (isValidStateMap accepts null), returned to the client as
       // omitted-field via `?? undefined` so the response matches the

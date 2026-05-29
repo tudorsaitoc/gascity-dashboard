@@ -7,7 +7,7 @@ import type { WorkflowNodeGroup } from './execution-instances.js';
 
 export function orderWorkflowNodeGroups(
   groups: readonly WorkflowNodeGroup[],
-  formulaDetail: GcFormulaDetail | null | undefined,
+  formulaDetail: GcFormulaDetail | undefined,
   rootBeadId: string,
 ): WorkflowNodeGroup[] {
   const rankByAlias = formulaRankByAlias(formulaDetail);
@@ -24,7 +24,7 @@ export function orderWorkflowNodeGroups(
 }
 
 function formulaRankByAlias(
-  formulaDetail: GcFormulaDetail | null | undefined,
+  formulaDetail: GcFormulaDetail | undefined,
 ): Map<string, number> {
   const steps = formulaDetail?.preview?.nodes ?? formulaDetail?.steps ?? [];
   const ranks = new Map<string, number>();

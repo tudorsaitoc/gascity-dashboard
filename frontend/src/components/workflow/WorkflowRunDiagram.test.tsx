@@ -52,7 +52,7 @@ function detailWithInterleavedLaneNodes(): WorkflowRunDetail {
     executionPath: { kind: 'unavailable', reason: 'missing_cwd_and_rig_root' },
     snapshotVersion: 1,
     snapshotEventSeq: { kind: 'known', seq: 1 },
-    partial: false,
+    completeness: { kind: 'complete' },
     progress: progress(4, 4, { ready: 4 }),
     nodes: [
       node('root', 'Root'),
@@ -82,7 +82,7 @@ function detailWithHistoricalOnlyNode(): WorkflowRunDetail {
     executionPath: { kind: 'unavailable', reason: 'missing_cwd_and_rig_root' },
     snapshotVersion: 1,
     snapshotEventSeq: { kind: 'known', seq: 1 },
-    partial: false,
+    completeness: { kind: 'complete' },
     progress: progress(2, 1, { active: 1 }, { active: 1, completed: 1 }, 2),
     nodes: [
       {
@@ -177,7 +177,7 @@ function progress(
   return {
     snapshotVersion: 1,
     snapshotEventSeq: { kind: 'known', seq: 1 },
-    partial: false,
+    snapshotPartial: false,
     totalNodeCount,
     visibleNodeCount,
     edgeCount: 0,

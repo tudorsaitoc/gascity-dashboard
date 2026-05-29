@@ -9,17 +9,39 @@ import { reportClientError } from '../lib/clientErrorReporting';
 import { useCachedData } from './useCachedData';
 
 interface WorkflowRunDetailState {
-  detail: WorkflowRunDetail | null;
-  diff: WorkflowDiffResponse | null;
-  loading: boolean;
-  error: string | null;
+  kind: 'idle' | 'loading' | 'ready' | 'failed';
+  refresh: () => Promise<void>;
 }
+
+type WorkflowRunRefreshState =
+  | { kind: 'idle' }
+  | { kind: 'refreshing' }
+  | { kind: 'failed'; error: string };
+
+type WorkflowRunDetailPayload =
+  | { kind: 'unrequested' }
+  | {
+      kind: 'loaded';
+      detail: WorkflowRunDetail;
+      diff: WorkflowDiffResponse;
+    };
+
+export type WorkflowRunDetailLoadState =
+  | (WorkflowRunDetailState & { kind: 'idle' })
+  | (WorkflowRunDetailState & { kind: 'loading' })
+  | (WorkflowRunDetailState & {
+      kind: 'ready';
+      detail: WorkflowRunDetail;
+      diff: WorkflowDiffResponse;
+      refreshState: WorkflowRunRefreshState;
+    })
+  | (WorkflowRunDetailState & { kind: 'failed'; error: string });
 
 export function useWorkflowRunDetail(
   workflowId: string | undefined,
   scopeKind?: WorkflowScopeKind,
   scopeRef?: string,
-): WorkflowRunDetailState & { refresh: () => Promise<void> } {
+): WorkflowRunDetailLoadState {
   const key = workflowRunDetailCacheKey(workflowId, scopeKind, scopeRef);
   const { data, loading, error, refresh } = useCachedData(
     key,
@@ -31,21 +53,26 @@ export function useWorkflowRunDetail(
     },
   );
 
-  return {
-    detail: workflowId ? data?.detail ?? null : null,
-    diff: workflowId ? data?.diff ?? null : null,
-    loading: workflowId ? loading : false,
-    error: workflowId ? error : null,
-    refresh: workflowId ? refresh : noopRefresh,
-  };
+  if (workflowId === undefined) return { kind: 'idle', refresh: noopRefresh };
+  if (data?.kind === 'loaded') {
+    return {
+      kind: 'ready',
+      detail: data.detail,
+      diff: data.diff,
+      refresh,
+      refreshState: refreshState(loading, error),
+    };
+  }
+  if (error !== null) return { kind: 'failed', error, refresh };
+  return { kind: 'loading', refresh };
 }
 
 async function loadWorkflowRunDetail(
   workflowId: string | undefined,
   scopeKind?: WorkflowScopeKind,
   scopeRef?: string,
-): Promise<Pick<WorkflowRunDetailState, 'detail' | 'diff'>> {
-  if (!workflowId) return { detail: null, diff: null };
+): Promise<WorkflowRunDetailPayload> {
+  if (!workflowId) return { kind: 'unrequested' };
   const params: { scopeKind?: WorkflowScopeKind; scopeRef?: string } = {};
   if (scopeKind !== undefined) params.scopeKind = scopeKind;
   if (scopeRef !== undefined) params.scopeRef = scopeRef;
@@ -65,10 +92,18 @@ async function loadWorkflowRunDetail(
       } satisfies WorkflowDiffResponse;
     }),
   ]);
-  return { detail, diff };
+  return { kind: 'loaded', detail, diff };
 }
 
 async function noopRefresh(): Promise<void> {}
+
+function refreshState(
+  loading: boolean,
+  error: string | null,
+): WorkflowRunRefreshState {
+  if (error !== null) return { kind: 'failed', error };
+  return loading ? { kind: 'refreshing' } : { kind: 'idle' };
+}
 
 function reportWorkflowDetailError(
   operation: string,

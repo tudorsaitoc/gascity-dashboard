@@ -689,7 +689,7 @@ describe('POST /api/maintainer/sling — slung-state persistence', { concurrency
     assert.equal(stream.status, 200);
     assert.equal(stream.headers.get('content-type'), 'text/event-stream');
 
-    // Sling. The route's notifyRefresh() should push to all open clients.
+    // Sling. The route's SSE hub should push to all open clients.
     const slingRes = await postJson(`${h.url}/api/maintainer/sling`, {
       kind: 'pr',
       number: 47,

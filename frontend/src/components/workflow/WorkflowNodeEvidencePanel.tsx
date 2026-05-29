@@ -4,7 +4,7 @@ import { WorkflowNodeSessionPanel } from './WorkflowNodeSessionPanel';
 
 interface WorkflowNodeEvidencePanelProps {
   tab: 'diff' | 'session';
-  diff: WorkflowDiffResponse | null;
+  diff: WorkflowDiffResponse;
   selectedNode: WorkflowDisplayNode | null;
 }
 

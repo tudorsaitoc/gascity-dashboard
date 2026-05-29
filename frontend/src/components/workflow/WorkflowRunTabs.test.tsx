@@ -1,5 +1,5 @@
 import { cleanup, render, screen } from '@testing-library/react';
-import type { WorkflowDisplayNode } from 'gas-city-dashboard-shared';
+import type { WorkflowDiffResponse, WorkflowDisplayNode } from 'gas-city-dashboard-shared';
 import { afterEach, describe, expect, it } from 'vitest';
 import { WorkflowRunTabs } from './WorkflowRunTabs';
 
@@ -7,7 +7,7 @@ afterEach(() => cleanup());
 
 describe('WorkflowRunTabs', () => {
   it('keeps the Session tab available so selected nodes can explain unresolved sessions', () => {
-    render(<WorkflowRunTabs diff={null} selectedNode={nodeWithoutSession()} />);
+    render(<WorkflowRunTabs diff={emptyDiff()} selectedNode={nodeWithoutSession()} />);
 
     const sessionTab = screen.getByRole('tab', { name: 'Session' });
     expect(sessionTab.hasAttribute('disabled')).toBe(false);
@@ -15,7 +15,7 @@ describe('WorkflowRunTabs', () => {
   });
 
   it('keeps Session available before selection so the panel can prompt for a node', () => {
-    render(<WorkflowRunTabs diff={null} selectedNode={null} />);
+    render(<WorkflowRunTabs diff={emptyDiff()} selectedNode={null} />);
 
     const sessionTab = screen.getByRole('tab', { name: 'Session' });
     expect(sessionTab.hasAttribute('disabled')).toBe(false);
@@ -52,5 +52,17 @@ function nodeWithoutSession(): WorkflowDisplayNode {
       },
     ],
     controlBadges: [],
+  };
+}
+
+function emptyDiff(): WorkflowDiffResponse {
+  return {
+    kind: 'ok',
+    rootPath: { kind: 'known', path: '/tmp/run' },
+    status: [],
+    changedFiles: [],
+    unstagedDiff: '',
+    stagedDiff: '',
+    truncated: false,
   };
 }

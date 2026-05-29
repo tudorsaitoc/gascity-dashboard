@@ -3,6 +3,8 @@ import type {
   GcFormulaDetail,
   GcWorkflowBead,
   GcWorkflowSnapshot,
+  WorkflowRunCompleteness,
+  WorkflowRunPartialReason,
   WorkflowRunDetail,
   WorkflowScopeKind,
 } from 'gas-city-dashboard-shared';
@@ -13,7 +15,8 @@ import type { RunningFormulaRunInput } from './formula-run.js';
 interface EnrichOptions {
   rigRoot?: string;
   sessions?: readonly GcSession[];
-  formulaDetail?: GcFormulaDetail | null;
+  formulaDetail?: GcFormulaDetail;
+  formulaDetailUnavailable?: boolean;
 }
 
 export class UnsupportedWorkflowError extends Error {
@@ -66,8 +69,14 @@ export function enrichWorkflowRun(
   if (opts.rigRoot !== undefined) runInput.rigRoot = opts.rigRoot;
   if (opts.sessions !== undefined) runInput.sessions = opts.sessions;
   if (opts.formulaDetail !== undefined) runInput.formulaDetail = opts.formulaDetail;
+  if (opts.formulaDetailUnavailable !== undefined) {
+    runInput.formulaDetailUnavailable = opts.formulaDetailUnavailable;
+  }
 
   const formulaRun = buildRunningFormulaRun(runInput);
+  const partialReasons: WorkflowRunPartialReason[] = raw.partial
+    ? ['supervisor_snapshot_partial']
+    : [];
 
   return {
     workflowId,
@@ -81,12 +90,21 @@ export function enrichWorkflowRun(
     executionPath: formulaRun.executionPath,
     snapshotVersion: raw.snapshot_version,
     snapshotEventSeq: formulaRun.progress.snapshotEventSeq,
-    partial: raw.partial,
+    completeness: workflowRunCompleteness(partialReasons),
     progress: formulaRun.progress,
     nodes: formulaRun.nodes,
     edges: formulaRun.edges,
     lanes: formulaRun.lanes,
   };
+}
+
+export function workflowRunCompleteness(
+  reasons: readonly WorkflowRunPartialReason[],
+): WorkflowRunCompleteness {
+  const uniqueReasons = [...new Set(reasons)];
+  return uniqueReasons.length === 0
+    ? { kind: 'complete' }
+    : { kind: 'partial', reasons: uniqueReasons };
 }
 
 function isGraphV2(raw: GcWorkflowSnapshot): boolean {

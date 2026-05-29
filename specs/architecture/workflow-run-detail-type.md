@@ -91,13 +91,26 @@ interface WorkflowRunDetail {
   executionPath: WorkflowExecutionPath;
   snapshotVersion: number;
   snapshotEventSeq: WorkflowSnapshotSequence;
-  partial: boolean;
+  completeness: WorkflowRunCompleteness;
   progress: WorkflowRunProgress;
   nodes: WorkflowDisplayNode[];
   edges: WorkflowDisplayEdge[];
   lanes: WorkflowDisplayLane[];
 }
 ```
+
+`WorkflowRunCompleteness` is the explicit degraded-state contract:
+
+```ts
+type WorkflowRunCompleteness =
+  | { kind: "complete" }
+  | { kind: "partial"; reasons: WorkflowRunPartialReason[] };
+```
+
+Current partial reasons are supervisor snapshot incompleteness, failed runtime
+bead refresh, failed session list load, and unavailable formula detail. This is
+separate from `WorkflowRunProgress.snapshotPartial`, which records only the
+supervisor snapshot flag.
 
 `WorkflowDisplayNode` is the semantic construct rendered in the graph:
 
@@ -217,6 +230,12 @@ The graph is intentionally simple on the left:
 This means a loop produces a subtle stacked visual indication in the graph, but
 history navigation happens on the right where transcripts live.
 
+Deep links may still target a historical-only semantic node by `?node=...` so a
+saved transcript URL can open directly to its evidence. That does not make the
+node selectable on the left: `visibleInGraph === false` still prevents graph
+rendering, and normal click selection remains limited to current/latest graph
+nodes.
+
 ## UI Consumption
 
 `useWorkflowRunDetail()` loads:
@@ -229,9 +248,14 @@ history navigation happens on the right where transcripts live.
 - header title and status synopsis from `detail.title` and `detail.progress`
 - metadata from `detail.formula`, `detail.rootBeadId`, `detail.scopeKind`,
   `detail.scopeRef`, and `detail.resolvedRootStore`
-- partial warning from `detail.partial`
+- partial warning from `detail.completeness`
 - left graph from `detail.nodes` and `detail.edges`
 - right tabs from `diff` and `selectedNode`
+
+`useWorkflowRunDetail()` exposes a tagged load state: idle, loading, ready, or
+failed. A ready state contains a non-null detail and diff response; background
+refresh state is tagged separately so a stale visible detail can report refresh
+failures without collapsing into a nullable detail/diff pair.
 
 `useWorkflowNodeSelection()` owns the zero-or-one selected semantic node. A
 click selects a node; clicking the selected node clears selection. The selected
@@ -290,6 +314,10 @@ Implemented:
 - city-event invalidation on the detail page for `bead.*` and `session.*`
   changes, using whole-projection refresh rather than client-side mutation
 - current working-tree diff from the execution folder
+- explicit workflow completeness with partial reasons instead of a generic
+  `partial` boolean
+- tagged workflow-detail load state in React, with non-null ready detail and
+  diff values
 - route validation for workflow id and scope query pairs
 - deterministic browser harness for the detail route
 - generated OpenAPI path/query/response types plus `openapi-fetch` for
@@ -306,7 +334,7 @@ Implemented:
 - tests asserting that current running execution instances either have an
   attached streamable session or expose `session_unresolved`
 
-Partially implemented:
+External constraints and future ownership:
 
 - Formula detail/preview improves ordering, but the dashboard still carries a
   local TypeScript approximation of workflow presentation semantics that should
@@ -317,7 +345,36 @@ Partially implemented:
 - Session resolution uses current session summaries plus bead metadata. It can
   still fail when supervisor metadata does not expose a stable session id/name.
 
-Not implemented:
+## Gas City And Shared Change Tracker
+
+These are the changes outside this repository that would move the architecture
+from dashboard-owned approximation to the target boundary:
+
+1. **Canonical graph.v2 presentation package.** Gas City or a shared package
+   should own semantic node ids, construct kinds, external display names,
+   hidden-control collapsing, control badge targeting, loop/retry grouping,
+   visible graph nodes, logical edges, scope groups, and compiled display order.
+   The dashboard should consume that shape instead of deriving it from bead
+   metadata in TypeScript.
+2. **Stable execution instance identity.** Supervisor workflow snapshots should
+   expose concrete execution instance ids, semantic node ids, loop iteration,
+   retry attempt, current/historical flags, and the session id/name attached to
+   each running or completed execution instance.
+3. **Scoped runtime bead reads or fresh scoped snapshots.** The supervisor
+   should expose rig-store bead reads or guarantee that scoped workflow
+   snapshots include current runtime status for non-city stores.
+4. **Formula detail completeness.** The formula detail API should expose the
+   compiled graph.v2 preview, construct metadata, and display order without
+   requiring the dashboard to infer a target from root-bead metadata.
+5. **OpenAPI schema alignment.** The supervisor OpenAPI schema should match
+   observed payloads, especially nullable `Bead.priority`, so dashboard schema
+   overlays can be removed.
+6. **Projection invalidation keys.** City events should include enough workflow
+   identity/scope information to invalidate the exact run projection without
+   broad route refreshes. Full incremental graph patches remain out of scope
+   until a backend-owned reducer exists.
+
+Intentionally outside the current dashboard-owned implementation target:
 
 - Incremental event application to the run projection. This is intentionally
   not a goal until the backend can own the event reducer.
@@ -359,7 +416,8 @@ stable backend boundaries:
 - `visibleInGraph === false` means a node can exist for transcript/history
   purposes but should not render in the left graph.
 - A streamable session must be attached, running, and current, not historical.
-- `partial === true` means the view is degraded and should say so.
+- `WorkflowRunDetail.completeness.kind === "partial"` means the view is
+  degraded and should say why.
 - Diff state is evidence for the execution folder, not part of formula graph
   state.
 - City SSE events invalidate cached views; they do not directly mutate
@@ -393,17 +451,19 @@ stable backend boundaries:
    through the city bead endpoint. The embedded workflow snapshot needs to be
    fresh enough or the supervisor needs an API for scoped runtime bead reads.
 
-5. Handwritten supervisor boundary.
+5. Supervisor schema drift.
 
-   The current boundary uses generated OpenAPI types and `openapi-fetch`, but
-   runtime decoding is still maintained manually. Schema-derived runtime
-   validation would reduce drift risk further.
+   The current boundary uses generated OpenAPI types, `openapi-fetch`, and
+   generated runtime schema validation for the supervisor payloads read through
+   `GcClient`. The remaining drift risk is schema accuracy, such as the
+   dashboard's explicit nullable `Bead.priority` overlay until the upstream
+   OpenAPI schema matches observed supervisor output.
 
-## Next Implementation Moves
+## Future Implementation Moves
 
 1. Capture real graph.v2 supervisor snapshots for completed, running, blocked,
    retried, and looped runs; use them as backend enrichment fixtures.
-2. Remove the generated-schema `Bead.priority` nullable overlay once the
+2. Replace local graph.v2 presentation derivation with the canonical Gas City or
+   shared package once available.
+3. Remove the generated-schema `Bead.priority` nullable overlay once the
    upstream supervisor OpenAPI schema matches the observed wire shape.
-3. Push canonical graph presentation semantics down into Gas City or a shared
-   package when the dashboard approximation is stable enough to specify.

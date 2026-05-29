@@ -355,11 +355,17 @@ describe('WorkflowRunDetailPage', () => {
   });
 
   it('surfaces a partial workflow snapshot on the detail page', async () => {
-    currentDetail = { ...detail, partial: true };
+    currentDetail = {
+      ...detail,
+      completeness: {
+        kind: 'partial',
+        reasons: ['supervisor_snapshot_partial'],
+      },
+    };
     renderPage();
 
     await screen.findByRole('heading', { name: /adopt pr #42/i });
-    expect(screen.getByText(/partial snapshot/i)).toBeTruthy();
+    expect(screen.getByText(/partial workflow data/i)).toBeTruthy();
   });
 
   it('shows no-graph and selected-node-without-session empty states', async () => {

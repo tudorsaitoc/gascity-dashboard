@@ -35,6 +35,7 @@ import {
   createMaintainerRefresher,
   type MaintainerRefresher,
 } from './maintainer/worker.js';
+import { MaintainerSseHub } from './maintainer/sse.js';
 import { createSnapshotService } from './snapshot/service.js';
 import { LOG_COMPONENT, logInfo } from './logging.js';
 
@@ -114,6 +115,7 @@ export function createDashboardApp(config: AdminConfig): DashboardApp {
     path.dirname(config.maintainerCachePath),
     'slung-state.json',
   );
+  const maintainerSseHub = new MaintainerSseHub();
   writeRouter.use(
     '/maintainer',
     maintainerRouter({
@@ -127,6 +129,7 @@ export function createDashboardApp(config: AdminConfig): DashboardApp {
         const { items } = await raceWithTimeout(gc.listSessions(), 3_000, 'maintainer sessions lookup');
         return items;
       },
+      sseHub: maintainerSseHub,
     }),
   );
 
@@ -151,6 +154,7 @@ export function createDashboardApp(config: AdminConfig): DashboardApp {
             cachePath: config.maintainerCachePath,
             slungStatePath: maintainerSlungStatePath,
             intervalMs: config.maintainerRefreshIntervalMs,
+            sseHub: maintainerSseHub,
           }),
         }
       : { status: 'disabled' };

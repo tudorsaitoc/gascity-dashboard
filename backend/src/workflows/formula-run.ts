@@ -44,7 +44,8 @@ export interface RunningFormulaRunInput {
   beads: GcWorkflowBead[];
   rigRoot?: string;
   sessions?: readonly GcSession[];
-  formulaDetail?: GcFormulaDetail | null;
+  formulaDetail?: GcFormulaDetail;
+  formulaDetailUnavailable?: boolean;
 }
 
 /**
@@ -112,7 +113,11 @@ export function buildRunningFormulaRun(
   const edges = buildWorkflowDisplayEdges(input.raw, physicalToSemantic, rawNodes);
   const nodes = applyDisplayNodeStates(rawNodes, edges);
   const progress = buildWorkflowRunProgress(input.raw, nodes, edges);
-  const formula = workflowFormulaState(input.root, input.formulaDetail);
+  const formula = workflowFormulaState(
+    input.root,
+    input.formulaDetail,
+    input.formulaDetailUnavailable === true,
+  );
   const executionPath = resolveWorkflowExecutionPath(
     input.root,
     input.beads,
@@ -152,13 +157,14 @@ function workflowFormula(root: GcWorkflowBead): string | null {
 
 function workflowFormulaState(
   root: GcWorkflowBead | undefined,
-  formulaDetail: GcFormulaDetail | null | undefined,
+  formulaDetail: GcFormulaDetail | undefined,
+  formulaDetailUnavailable: boolean,
 ): WorkflowFormula {
   const name = root ? workflowFormula(root) ?? formulaDetail?.name : formulaDetail?.name;
   if (name) return { kind: 'known', name };
   return {
     kind: 'unavailable',
-    reason: formulaDetail === null ? 'formula_detail_unavailable' : 'missing_formula_metadata',
+    reason: formulaDetailUnavailable ? 'formula_detail_unavailable' : 'missing_formula_metadata',
   };
 }
 
@@ -189,7 +195,7 @@ function buildWorkflowRunProgress(
   return {
     snapshotVersion: raw.snapshot_version,
     snapshotEventSeq: workflowSnapshotSequence(raw.snapshot_event_seq),
-    partial: raw.partial,
+    snapshotPartial: raw.partial,
     totalNodeCount: nodes.length,
     visibleNodeCount: visibleNodes.length,
     edgeCount: edges.length,

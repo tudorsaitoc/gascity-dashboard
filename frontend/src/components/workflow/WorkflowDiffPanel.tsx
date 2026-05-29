@@ -1,13 +1,10 @@
 import type { WorkflowDiffResponse } from 'gas-city-dashboard-shared';
 
 interface WorkflowDiffPanelProps {
-  diff: WorkflowDiffResponse | null;
+  diff: WorkflowDiffResponse;
 }
 
 export function WorkflowDiffPanel({ diff }: WorkflowDiffPanelProps) {
-  if (!diff) {
-    return <p className="text-body text-fg-muted italic">Loading current working tree diff.</p>;
-  }
   if (diff.kind === 'path_unknown') {
     return <p className="text-body text-fg-muted italic">Execution folder is unknown for this run.</p>;
   }

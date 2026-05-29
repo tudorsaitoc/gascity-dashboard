@@ -5,6 +5,7 @@ import type {
   WorkflowRunDetail as WorkflowRunDetailData,
   WorkflowRunProgress,
   WorkflowNodeStatus,
+  WorkflowRunPartialReason,
   WorkflowScopeKind,
 } from 'gas-city-dashboard-shared';
 import { Button } from '../components/Button';
@@ -37,16 +38,27 @@ export function WorkflowRunDetailPage() {
     scope?.scopeRef ?? '',
     initialNodeId ?? '',
   ].join('\u0000');
-  const { detail, diff, loading, error, refresh } = useWorkflowRunDetail(
+  const runDetail = useWorkflowRunDetail(
     routeError ? undefined : workflowId,
     scope?.scopeKind,
     scope?.scopeRef,
   );
+  const readyRun = runDetail.kind === 'ready' ? runDetail : null;
+  const detail = readyRun?.detail ?? null;
+  const loading =
+    runDetail.kind === 'loading' ||
+    (readyRun !== null && readyRun.refreshState.kind === 'refreshing');
+  const loadError =
+    runDetail.kind === 'failed'
+      ? runDetail.error
+      : readyRun !== null && readyRun.refreshState.kind === 'failed'
+        ? readyRun.refreshState.error
+        : null;
   useGcEventRefresh(
     routeError ? NO_EVENT_PREFIXES : WORKFLOW_DETAIL_EVENT_PREFIXES,
-    () => void refresh(),
+    () => void runDetail.refresh(),
   );
-  const pageError = routeError ?? error;
+  const pageError = routeError ?? loadError;
   const { selectedNodeId, selectedNode, toggleNode } = useWorkflowNodeSelection(
     detail,
     initialNodeId,
@@ -98,7 +110,7 @@ export function WorkflowRunDetailPage() {
                 {snapshotLabel(detail)}
               </span>
             )}
-            <Button size="sm" onClick={() => void refresh()} disabled={loading || Boolean(routeError)}>
+            <Button size="sm" onClick={() => void runDetail.refresh()} disabled={loading || Boolean(routeError)}>
               {loading ? 'Refreshing' : 'Refresh'}
             </Button>
           </>
@@ -109,21 +121,21 @@ export function WorkflowRunDetailPage() {
         <p className="text-body text-fg-muted italic">Loading workflow run.</p>
       ) : pageError && !detail ? (
         <p className="text-body text-accent" role="alert">{pageError}</p>
-      ) : detail ? (
+      ) : readyRun ? (
         <>
-          <RunMetadata detail={detail} />
-          {detail.partial && (
+          <RunMetadata detail={readyRun.detail} />
+          {readyRun.detail.completeness.kind === 'partial' && (
             <p className="mt-5 text-label uppercase tracking-wider text-warn" role="status">
-              Partial snapshot. Some workflow nodes or sessions may still be loading from the supervisor.
+              Partial workflow data: {partialReasonsLabel(readyRun.detail.completeness.reasons)}.
             </p>
           )}
           <div className="mt-8 grid gap-10 lg:grid-cols-[minmax(0,0.95fr)_minmax(22rem,1.05fr)]">
             <WorkflowRunDiagram
-              detail={detail}
+              detail={readyRun.detail}
               selectedNodeId={selectedNodeId}
               onToggleNode={toggleNode}
             />
-            <WorkflowRunTabs diff={diff} selectedNode={selectedNode} />
+            <WorkflowRunTabs diff={readyRun.diff} selectedNode={selectedNode} />
           </div>
           <RelatedEntities
             view={links.view}
@@ -178,6 +190,23 @@ function snapshotLabel(
 
 function formulaLabel(formula: WorkflowRunDetailData['formula']): string {
   return formula.kind === 'known' ? formula.name : `unavailable (${formula.reason})`;
+}
+
+function partialReasonsLabel(reasons: readonly WorkflowRunPartialReason[]): string {
+  return reasons.map(partialReasonLabel).join(', ');
+}
+
+function partialReasonLabel(reason: WorkflowRunPartialReason): string {
+  switch (reason) {
+    case 'supervisor_snapshot_partial':
+      return 'supervisor snapshot is partial';
+    case 'runtime_bead_read_failed':
+      return 'runtime bead refresh failed';
+    case 'session_list_failed':
+      return 'session list failed';
+    case 'formula_detail_unavailable':
+      return 'formula detail is unavailable';
+  }
 }
 
 type ScopeParseResult =

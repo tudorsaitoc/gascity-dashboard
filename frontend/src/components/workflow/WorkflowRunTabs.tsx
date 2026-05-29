@@ -4,7 +4,7 @@ import type { WorkflowDisplayNode, WorkflowDiffResponse } from 'gas-city-dashboa
 import { WorkflowNodeEvidencePanel } from './WorkflowNodeEvidencePanel';
 
 interface WorkflowRunTabsProps {
-  diff: WorkflowDiffResponse | null;
+  diff: WorkflowDiffResponse;
   selectedNode: WorkflowDisplayNode | null;
 }
 

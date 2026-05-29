@@ -128,7 +128,7 @@ export interface WorkflowDisplayLane {
 export interface WorkflowRunProgress {
   snapshotVersion: number;
   snapshotEventSeq: WorkflowSnapshotSequence;
-  partial: boolean;
+  snapshotPartial: boolean;
   totalNodeCount: number;
   visibleNodeCount: number;
   edgeCount: number;
@@ -139,6 +139,16 @@ export interface WorkflowRunProgress {
   statusCounts: Partial<Record<WorkflowNodeStatus, number>>;
   allStatusCounts: Partial<Record<WorkflowNodeStatus, number>>;
 }
+
+export type WorkflowRunPartialReason =
+  | 'supervisor_snapshot_partial'
+  | 'runtime_bead_read_failed'
+  | 'session_list_failed'
+  | 'formula_detail_unavailable';
+
+export type WorkflowRunCompleteness =
+  | { kind: 'complete' }
+  | { kind: 'partial'; reasons: WorkflowRunPartialReason[] };
 
 export interface WorkflowRunDetail {
   workflowId: string;
@@ -152,7 +162,7 @@ export interface WorkflowRunDetail {
   executionPath: WorkflowExecutionPath;
   snapshotVersion: number;
   snapshotEventSeq: WorkflowSnapshotSequence;
-  partial: boolean;
+  completeness: WorkflowRunCompleteness;
   progress: WorkflowRunProgress;
   nodes: WorkflowDisplayNode[];
   edges: WorkflowDisplayEdge[];

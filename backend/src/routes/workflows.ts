@@ -5,6 +5,7 @@ import type {
   GcSession,
   GcFormulaDetail,
   GcWorkflowSnapshot,
+  WorkflowRunPartialReason,
   WorkflowScopeKind,
 } from 'gas-city-dashboard-shared';
 import { SCOPE_REF_RE } from 'gas-city-dashboard-shared';
@@ -12,7 +13,11 @@ import { GcClient } from '../gc-client.js';
 import { BEAD_ID_RE } from '../lib/beadId.js';
 import { HTTP_STATUS } from '../lib/http-status.js';
 import { meta, nonEmpty } from '../workflows/bead-fields.js';
-import { enrichWorkflowRun, UnsupportedWorkflowError } from '../workflows/enrich.js';
+import {
+  enrichWorkflowRun,
+  UnsupportedWorkflowError,
+  workflowRunCompleteness,
+} from '../workflows/enrich.js';
 import { readWorkflowGitDiff } from '../workflows/diff.js';
 import { mergeWorkflowRuntimeState } from '../workflows/runtime-state.js';
 import { LOG_COMPONENT, errorMessage, logWarn } from '../logging.js';
@@ -44,7 +49,7 @@ export function workflowsRouter(
         parsed.workflowId,
         parsed.scope ?? defaultWorkflowScope(gc.cityName),
       );
-      const detail = enrichWorkflowRun(raw, enrichOptions(opts));
+      const detail = enrichWorkflowRun(raw, baseEnrichOptions(opts));
       const diff = await readWorkflowGitDiff(detail.executionPath);
       res.json(diff);
     } catch (err) {
@@ -64,22 +69,26 @@ export function workflowsRouter(
         parsed.workflowId,
         parsed.scope ?? defaultWorkflowScope(gc.cityName),
       );
-      const { sessions, partial: sessionsPartial } = await getWorkflowSessions(gc);
-      const formulaDetail = await getWorkflowFormulaDetail(
+      const sessionsLookup = await getWorkflowSessions(gc);
+      const formulaDetailLookup = await getWorkflowFormulaDetail(
         gc,
         raw,
         parsed.scope ?? defaultWorkflowScope(gc.cityName),
       );
-      const detail = enrichWorkflowRun(raw, enrichOptions(opts, sessions, formulaDetail));
-      // Top-level `partial` is the authoritative "this view is degraded" signal:
-      // it unions supervisor-snapshot incompleteness (detail.progress.partial)
-      // with dashboard-side enrichment gaps (failed runtime bead reads or a
-      // failed sessions fetch). Unioning progress.partial here guarantees the
-      // two flags never disagree in the dangerous direction (top=false while
-      // progress=true).
-      const partial =
-        runtimePartial || sessionsPartial || detail.progress.partial;
-      res.json(partial ? { ...detail, partial: true } : detail);
+      const detail = enrichWorkflowRun(raw, enrichOptions(
+        opts,
+        sessionsLookup,
+        formulaDetailLookup,
+      ));
+      const completeness = workflowRunCompleteness([
+        ...workflowPartialReasons(detail.completeness),
+        ...(runtimePartial ? ['runtime_bead_read_failed' as const] : []),
+        ...(sessionsLookup.kind === 'unavailable' ? ['session_list_failed' as const] : []),
+        ...(formulaDetailLookup.kind === 'unavailable'
+          ? ['formula_detail_unavailable' as const]
+          : []),
+      ]);
+      res.json({ ...detail, completeness });
     } catch (err) {
       writeWorkflowError(res, err, 'failed to fetch workflow');
     }
@@ -92,30 +101,31 @@ async function getWorkflowFormulaDetail(
   gc: GcClient,
   raw: GcWorkflowSnapshot,
   scope: { scopeKind: WorkflowScopeKind; scopeRef: string },
-): Promise<GcFormulaDetail | null> {
+): Promise<WorkflowFormulaDetailLookup> {
   const root = raw.beads?.find((bead) => nonEmpty(bead.id) === raw.root_bead_id);
   const formula = root ? meta(root, 'gc.formula') : undefined;
   const target = root
     ? meta(root, 'gc.run_target') ?? meta(root, 'gc.routed_to') ?? nonEmpty(root.assignee)
     : undefined;
-  if (!formula || !target) return null;
+  if (!formula) return { kind: 'unavailable', reason: 'missing_formula_metadata' };
+  if (!target) return { kind: 'unavailable', reason: 'missing_run_target' };
   try {
-    return await gc.getFormulaDetail(formula, scope, target);
+    return { kind: 'available', detail: await gc.getFormulaDetail(formula, scope, target) };
   } catch (err) {
     logWarn(LOG_COMPONENT.workflows, `failed to fetch formula detail for ${formula}: ${errorMessage(err)}`);
-    return null;
+    return { kind: 'unavailable', reason: 'fetch_failed' };
   }
 }
 
 async function getWorkflowSessions(
   gc: GcClient,
-): Promise<{ sessions: readonly GcSession[]; partial: boolean }> {
+): Promise<WorkflowSessionsLookup> {
   try {
     const list = await gc.listSessions();
-    return { sessions: Array.isArray(list.items) ? list.items : [], partial: false };
+    return { kind: 'available', sessions: Array.isArray(list.items) ? list.items : [] };
   } catch (err) {
     logWarn(LOG_COMPONENT.workflows, `failed to fetch sessions for workflow detail: ${errorMessage(err)}`);
-    return { sessions: [], partial: true };
+    return { kind: 'unavailable', sessions: [] };
   }
 }
 
@@ -221,20 +231,46 @@ function defaultWorkflowScope(cityName: string): { scopeKind: WorkflowScopeKind;
   return { scopeKind: 'city', scopeRef: cityName };
 }
 
+function baseEnrichOptions(opts: WorkflowsRouterOptions): { rigRoot?: string } {
+  return {
+    ...(opts.rigRoot !== undefined ? { rigRoot: opts.rigRoot } : {}),
+  };
+}
+
 function enrichOptions(
   opts: WorkflowsRouterOptions,
-  sessions?: readonly GcSession[],
-  formulaDetail?: GcFormulaDetail | null,
+  sessions: WorkflowSessionsLookup,
+  formulaDetail: WorkflowFormulaDetailLookup,
 ): {
   rigRoot?: string;
-  sessions?: readonly GcSession[];
-  formulaDetail?: GcFormulaDetail | null;
+  sessions: readonly GcSession[];
+  formulaDetail?: GcFormulaDetail;
+  formulaDetailUnavailable?: boolean;
 } {
   return {
     ...(opts.rigRoot !== undefined ? { rigRoot: opts.rigRoot } : {}),
-    ...(sessions !== undefined ? { sessions } : {}),
-    ...(formulaDetail !== undefined ? { formulaDetail } : {}),
+    sessions: sessions.sessions,
+    ...(formulaDetail.kind === 'available'
+      ? { formulaDetail: formulaDetail.detail }
+      : { formulaDetailUnavailable: true }),
   };
+}
+
+type WorkflowFormulaDetailLookup =
+  | { kind: 'available'; detail: GcFormulaDetail }
+  | {
+      kind: 'unavailable';
+      reason: 'missing_formula_metadata' | 'missing_run_target' | 'fetch_failed';
+    };
+
+type WorkflowSessionsLookup =
+  | { kind: 'available'; sessions: readonly GcSession[] }
+  | { kind: 'unavailable'; sessions: readonly GcSession[] };
+
+function workflowPartialReasons(
+  completeness: ReturnType<typeof workflowRunCompleteness>,
+): WorkflowRunPartialReason[] {
+  return completeness.kind === 'partial' ? completeness.reasons : [];
 }
 
 function writeWorkflowError(

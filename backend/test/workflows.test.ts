@@ -231,6 +231,23 @@ function respondMissingFormulaDetail(
   return true;
 }
 
+function respondFormulaDetail(
+  req: http.IncomingMessage,
+  res: http.ServerResponse,
+): boolean {
+  if (!req.url?.startsWith('/v0/city/racoon-city/formulas/mol-adopt-pr-v2?')) return false;
+  respondJson(res, {
+    name: 'mol-adopt-pr-v2',
+    description: 'Adopt PR',
+    version: 'test',
+    var_defs: [],
+    steps: [],
+    deps: [],
+    preview: { nodes: [], edges: [] },
+  });
+  return true;
+}
+
 describe('workflows detail route', () => {
   let fake: FakeSupervisor;
 
@@ -245,7 +262,7 @@ describe('workflows detail route', () => {
   test('returns graph.v2 display nodes without exposing internal ralph terminology', async () => {
     fake.setHandler((req, res) => {
       res.setHeader('content-type', 'application/json');
-      if (respondMissingFormulaDetail(req, res)) return;
+      if (respondFormulaDetail(req, res)) return;
       if (req.url === '/v0/city/racoon-city/sessions') {
         res.end(JSON.stringify({ items: [], total: 0 }));
         return;
@@ -711,7 +728,7 @@ describe('workflows detail route', () => {
       assert.deepEqual(body.progress, {
         snapshotVersion: 7,
         snapshotEventSeq: { kind: 'known', seq: 42 },
-        partial: false,
+        snapshotPartial: false,
         totalNodeCount: 3,
         visibleNodeCount: 3,
         edgeCount: 1,
@@ -752,7 +769,7 @@ describe('workflows detail route', () => {
     ) ?? [];
     fake.setHandler((req, res) => {
       res.setHeader('content-type', 'application/json');
-      if (respondMissingFormulaDetail(req, res)) return;
+      if (respondFormulaDetail(req, res)) return;
       if (req.url === '/v0/city/racoon-city/sessions') {
         res.end(JSON.stringify({ items: [], total: 0 }));
         return;
@@ -773,7 +790,7 @@ describe('workflows detail route', () => {
       // Not degraded: the embedded rows are the intended source for a
       // non-city-store run, so the route must not raise the partial badge
       // (the snapshot's own partial:false flows through unchanged).
-      assert.notEqual(body.partial, true);
+      assert.equal(body.completeness?.kind, 'complete');
       // Crucially, the route must not have attempted ANY /bead read.
       assert.equal(
         fake.requests.some((request) => request.startsWith('/v0/city/racoon-city/bead/')),
@@ -820,7 +837,10 @@ describe('workflows detail route', () => {
       const res = await fetch(`${url}/api/workflows/gc-root`);
       assert.equal(res.status, 200);
       const body = await res.json();
-      assert.equal(body.partial, true);
+      assert.deepEqual(body.completeness, {
+        kind: 'partial',
+        reasons: ['runtime_bead_read_failed', 'formula_detail_unavailable'],
+      });
       // The refresh was attempted for city-store beads.
       assert.ok(
         fake.requests.some((request) => request.startsWith('/v0/city/racoon-city/bead/')),

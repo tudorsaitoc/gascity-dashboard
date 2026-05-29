@@ -20,14 +20,16 @@
       "kind": "known",
       "seq": 91
     },
-    "partial": false,
+    "completeness": {
+      "kind": "complete"
+    },
     "progress": {
       "snapshotVersion": 11,
       "snapshotEventSeq": {
         "kind": "known",
         "seq": 91
       },
-      "partial": false,
+      "snapshotPartial": false,
       "totalNodeCount": 7,
       "visibleNodeCount": 6,
       "edgeCount": 4,

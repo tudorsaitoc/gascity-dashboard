@@ -3,7 +3,7 @@ import { ExecError } from '../exec.js';
 import { fetchTriage as defaultFetchTriage, collectItems } from './triage.js';
 import { writeCache } from './storage.js';
 import { purgeSlungKeys, slungKey } from './slung-state.js';
-import { notifyRefresh, sendHeartbeat } from './sse.js';
+import { MaintainerSseHub } from './sse.js';
 import { LOG_COMPONENT, logError, logInfo, logWarn } from '../logging.js';
 
 // Nightly enrichment worker (gascity-dashboard-ar9). In-process setInterval
@@ -79,12 +79,19 @@ export interface WorkerOptions {
    * pattern in routes/maintainer.ts.
    */
   fetchTriage?: (repo: string) => Promise<MaintainerTriage>;
+  /**
+   * Per-app SSE hub. Production passes the same instance used by the router;
+   * tests can omit it when they only care about cache writes.
+   */
+  sseHub?: MaintainerSseHub;
 }
 
 export function createMaintainerRefresher(
   opts: WorkerOptions,
   runtime: RefresherRuntime = nodeRuntime,
 ): MaintainerRefresher {
+  const sseHub = opts.sseHub ?? new MaintainerSseHub();
+  const workerOptions = opts.sseHub === undefined ? { ...opts, sseHub } : opts;
   let startupTimer: TimerState = idleTimer();
   let refreshTimer: TimerState = idleTimer();
   let heartbeatTimer: TimerState = idleTimer();
@@ -95,7 +102,7 @@ export function createMaintainerRefresher(
       logWarn(LOG_COMPONENT.maintainer, 'refresh skipped because the previous run is still active');
       return;
     }
-    const promise = runRefresh(opts).finally(() => {
+    const promise = runRefresh(workerOptions).finally(() => {
       if (refreshState.status === 'running' && refreshState.promise === promise) {
         refreshState = idleRefresh();
       }
@@ -123,7 +130,7 @@ export function createMaintainerRefresher(
 
       heartbeatTimer = {
         status: 'scheduled',
-        timer: runtime.setInterval(sendHeartbeat, runtime.heartbeatIntervalMs),
+        timer: runtime.setInterval(() => sseHub.sendHeartbeat(), runtime.heartbeatIntervalMs),
       };
       heartbeatTimer.timer.unref();
 
@@ -179,7 +186,7 @@ export async function runRefresh(opts: WorkerOptions): Promise<void> {
         `slung-state purge failed (refresh succeeded): ${purgeErr instanceof Error ? purgeErr.message : 'unknown error'}`,
       );
     }
-    notifyRefresh(envelope);
+    opts.sseHub?.notifyRefresh(envelope);
     const issues = envelope.totals.issues_open;
     const prs = envelope.totals.prs_open;
     logInfo(LOG_COMPONENT.maintainer, `refresh ok: ${issues} issues, ${prs} PRs in ${Date.now() - start}ms`);
