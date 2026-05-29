@@ -114,21 +114,15 @@ export function beadsRouter(
       const bead = await gc.getBead(id);
       res.json(bead);
     } catch (err) {
-      if (GcClient.isTimeoutError(err)) {
-        writeRouteError(res, routeUpstreamError(err, {
-          component: LOG_COMPONENT.beads,
-          operation: '/api/beads/:id failed',
-          responseError: 'failed to fetch bead',
-          isTimeout: GcClient.isTimeoutError,
-        }));
-        return;
-      }
       const msg = (err as Error).message;
       // Supervisor quirk: workflow/orchestration beads (gc-NNNN ids) are
       // returned by /beads but 404 on /bead/{id}. Fall back to a list scan
       // so the modal works on every bead the user can see in any list.
       // The list call is coalesced by GcClient.getJson, so concurrent
       // fallbacks share one upstream request.
+      //
+      // Note: timeout-vs-other-upstream-failure routing is handled
+      // exclusively by routeUpstreamError via its isTimeout option below.
       if (/\b404\b/.test(msg)) {
         try {
           const list = await gc.listBeads(undefined, { limit: 2000 });

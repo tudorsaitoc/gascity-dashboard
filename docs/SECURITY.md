@@ -28,7 +28,7 @@ curl -sX POST -H 'Origin: http://evil.com' http://127.0.0.1:8081/api/sessions/td
 
 ## CSRF
 
-Double-submit cookie pattern (`middleware/csrf.ts`). Token generated per boot, surfaced as a `thriva_admin_csrf` cookie (`SameSite=Strict`, non-HttpOnly), echoed by the frontend as `X-CSRF-Token` on every POST/PATCH/DELETE.
+Double-submit cookie pattern (`middleware/csrf.ts`). Token generated per boot, surfaced as a `gascity_admin_csrf` cookie (`SameSite=Strict`, non-HttpOnly), echoed by the frontend as `X-CSRF-Token` on every POST/PATCH/DELETE. The validator covers every state-changing route — including `POST /api/client-errors` (browser-side error telemetry), the bead write paths (`/api/beads/:id/{claim,close,nudge}`), and the mail send + maintainer sling paths.
 
 Why not `csurf`: the canonical package is deprecated; rolling a minimal double-submit pattern is reasonable here, and the Host + Origin checks do the heavy lifting. CSRF is the third belt.
 

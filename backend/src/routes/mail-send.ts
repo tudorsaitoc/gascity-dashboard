@@ -64,7 +64,7 @@ export function mailSendRouter(opts: MailSendRouterOptions): Router {
     const startedAt = Date.now();
     try {
       const result = await sendMail(to, subject, text);
-      void recordAudit({
+      await recordAudit({
         type: 'dashboard.send_mail',
         endpoint: 'POST /api/mail-send',
         // viewing_as deliberately NOT recorded here — sender is always the
@@ -86,7 +86,7 @@ export function mailSendRouter(opts: MailSendRouterOptions): Router {
       // details.name reaches the wire, mirroring the maintainer sling +
       // sr6 redaction (gascity-dashboard-473/ayr).
       const isTimeout = GcClient.isTimeoutError(err);
-      void recordAudit({
+      await recordAudit({
         type: 'dashboard.send_mail',
         endpoint: 'POST /api/mail-send',
         parsed_args: {

@@ -5,6 +5,33 @@ export const MAX_BYTES_LARGE = 2 * 1024 * 1024;
 export const MAX_WORKFLOW_DIFF_BYTES = 512 * 1024;
 const MAX_CONCURRENT = 4;
 
+// Agent alias / `gc sling` target validator.
+//
+// The char class deliberately permits `/` and `.` because gc treats the
+// target as a *qualified name*, not a flat alias. Per gascity upstream
+// (internal/config/config.go::QualifiedName / ParseQualifiedName), the
+// canonical forms are:
+//   - "mayor"                            (flat alias)
+//   - "gastown.mayor"                    (binding-qualified alias)
+//   - "hello-world/polecat"              (rig-qualified alias)
+//   - "hello-world/gastown.polecat"      (rig + binding qualified)
+//
+// gc's ParseQualifiedName splits on the LAST `/` and looks the result up
+// in the city config — the target is never resolved as a filesystem path.
+// Pathological inputs like "a/../b" pass this regex but fail at gc's
+// config lookup with `target_resolve_failed`; there is no path traversal
+// surface because nothing on gc's side `open()`s the target string.
+//
+// Combined with the `shell: false` discipline in runExec (so values
+// are positional argv, never interpolated into a shell string) and the
+// 64-char length cap, the practical attack surface for this regex is
+// limited to "submit a syntactically valid qualified name that doesn't
+// resolve" — which is indistinguishable from a typo.
+//
+// Audited under gascity-dashboard-uyo (Phase 4 security-reviewer
+// follow-up to wave-8nj). Do NOT tighten without first checking that
+// no env (MAINTAINER_SLING_TARGET / MAINTAINER_TRIAGE_TARGET) or
+// request payload uses the rig-qualified form.
 export const AGENT_ALIAS_RE = /^[a-z][a-z0-9_./-]{1,63}$/i;
 
 export interface ExecResult {

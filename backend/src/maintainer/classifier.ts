@@ -71,7 +71,16 @@ function classifyTier(item: TriageItem): TriageTier {
  * Everything else (open / approved / needs_review) qualifies because
  * gh's reviewDecision is null on most PRs in this workflow — open
  * effectively means "in the review queue, not blocked."
- * composeEnvelope keeps only the top-1 such candidate by score.
+ *
+ * Page-level uniqueness contract: this predicate identifies *candidates*
+ * per item, not the winner. selectOneMark (backend/src/maintainer/triage.ts)
+ * scans the flat list and clears `is_marked` on every non-top-scorer so at
+ * most one item per envelope carries the maroon mark. The frontend renderer
+ * (TriageSections.tsx IssueRow + PrRow) emits the mark per-row based on
+ * `item.is_marked` and trusts this backend invariant — it does NOT enforce
+ * uniqueness itself. Any change that lets two candidates survive
+ * selectOneMark would silently render two maroon marks on the page; keep
+ * the winnow + the predicate change in the same commit if you touch either.
  */
 export function isMarkCandidate(item: TriageItem, tier: TriageTier): boolean {
   if (item.kind !== 'pr') return false;

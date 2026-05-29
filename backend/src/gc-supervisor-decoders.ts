@@ -421,5 +421,12 @@ function zodExpected(issue: ZodIssue): string {
     if ('input' in issue && issue.input === undefined) return 'present';
     return String(issue.expected);
   }
-  return issue.message;
+  // Fallback for non-invalid_type issues (invalid_value, invalid_format,
+  // too_small, etc.). Zod's built-in `issue.message` may embed the received
+  // value (e.g. invalid_value in Zod 4 includes the input). Even though
+  // toWireInternal500 strips the message to details.name before serving, the
+  // server-side log line still carries supervisor data through this path —
+  // return a fixed shape keyed on the discriminator code instead so the log
+  // is value-free by construction.
+  return `valid (${issue.code})`;
 }

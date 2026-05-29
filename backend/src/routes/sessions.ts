@@ -125,7 +125,7 @@ export function sessionsRouter(
     try {
       const raw = await gc.fetchTranscript(id);
       const result = buildTranscriptResult(id, raw.turns, raw);
-      void recordAudit({
+      await recordAudit({
         type: 'dashboard.fetch',
         endpoint: 'POST /api/sessions/:id/peek',
         parsed_args: { session_id: id },

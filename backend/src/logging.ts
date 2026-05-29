@@ -62,5 +62,5 @@ function writeLog(level: LogLevel, component: LogComponent, message: string): vo
     console.warn(line);
     return;
   }
-  console.log(line);
+  console.info(line);
 }

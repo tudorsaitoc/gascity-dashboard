@@ -59,14 +59,18 @@ jobs:
       - name: Install
         run: npm ci
 
-      - name: Check generated gc supervisor client
-        run: npm run openapi:gc-supervisor:check
-
       # backend and frontend both type-import from gas-city-dashboard-shared,
       # which only resolves to its dist/ output. Build it first so the
       # subsequent typecheck steps see real symbols, not unresolved modules.
       - name: Build shared
         run: npm run build:shared
+
+      # Run the openapi drift check AFTER build:shared. The check itself uses
+      # only the openapi-typescript CLI + a temp-file diff today, but staging
+      # it post-build keeps future extensions of the generator safe (e.g. if
+      # the generator ever imports shared types to derive endpoint shapes).
+      - name: Check generated gc supervisor client
+        run: npm run openapi:gc-supervisor:check
 
       - name: Typecheck (src)
         run: npm run typecheck

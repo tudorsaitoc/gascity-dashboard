@@ -382,6 +382,12 @@ export class GcClient {
     signal?: AbortSignal,
     params?: { box?: 'inbox' | 'sent'; alias?: string; limit?: number },
   ): Promise<GcMailList> {
+    // td-h3n2ar: the supervisor's `/mail` endpoint silently ignores `box`
+    // and `alias` query params today. We still accept them in the method
+    // signature (and key the operation cache by them) so callers don't
+    // need to change when a future supervisor version starts honoring the
+    // filter upstream — the no-op today is harmless. The actual
+    // sender/recipient filter happens in routes/mail.ts::filterByBox.
     const query: { limit?: number } = {};
     if (params?.limit !== undefined) query.limit = params.limit;
     return this.getOperation(

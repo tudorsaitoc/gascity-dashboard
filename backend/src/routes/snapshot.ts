@@ -54,7 +54,7 @@ export function snapshotRouter(service: SnapshotService): Router {
     try {
       const snapshot = await service.refresh(validation.sources);
       const durationMs = Date.now() - startedAt;
-      void recordAudit({
+      await recordAudit({
         type: 'dashboard.fetch',
         endpoint: 'POST /api/snapshot/refresh',
         parsed_args: validation.sources

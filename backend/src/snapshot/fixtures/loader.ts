@@ -30,10 +30,19 @@ export function fixtureSourceLoader<K extends SourceName>(
 ): () => Promise<SourceDataMap[K]> {
   return async () => {
     const state = fixtureSnapshot.sources[source];
-    // Cast is unavoidable: tsc cannot narrow a generic index access
-    // (sources[source].data) back to SourceDataMap[K]. Soundness rests on the
-    // fixtureSnapshot annotation — if its shape drifts, the typed-const compile
-    // gate catches it first.
+    // Soundness of the `data` access: fixtureSnapshot is declared with
+    // `satisfies DashboardSnapshot`, and every fixture source is
+    // constructed with `status: 'fixture'` (see snapshot.ts) — never
+    // 'error'. tsc narrows the union to SourceAvailableState<T> for every
+    // K via the satisfies-derived literal type, so `state.data` is
+    // statically present. A future fixture that introduces a status:'error'
+    // entry would break this access at compile time before it could ship
+    // — the typed-const gate is the runtime guard equivalent.
+    //
+    // The `as SourceDataMap[K]` cast is still required because tsc cannot
+    // narrow a *generic* index access (sources[source].data) back to
+    // SourceDataMap[K], even though the concrete-key access above is
+    // narrowed. Soundness rests on the same satisfies annotation.
     return state.data as SourceDataMap[K];
   };
 }

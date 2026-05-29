@@ -39,7 +39,7 @@ export function gitRouter(opts: GitRouterOptions = {}): Router {
     try {
       const result = await execGitLog(view);
       const items = parseGitLog(result.stdout);
-      void recordAudit({
+      await recordAudit({
         type: 'dashboard.exec',
         endpoint: 'GET /api/git/commits',
         parsed_args: { view },
