@@ -361,6 +361,113 @@ describe('buildWorkflowSummary', () => {
     });
   });
 
+  // gascity-dashboard-d3xp: rig-stored workflow roots surfaced by the
+  // /formulas/feed discovery path (ej9y) typically do NOT carry
+  // gc.scope_kind / gc.scope_ref in their bead metadata. Before d3xp the
+  // lane fell back to scope=unavailable, the frontend deep-link dropped
+  // its scope qs, and the backend route silently filled in
+  // defaultWorkflowScope(cityName) — masking a 404 for any non-city
+  // run. The feed's own scope_kind/scope_ref is the authoritative
+  // supervisor query scope for the run, so plumb it through the lane
+  // builder when bead metadata is absent.
+  test('d3xp: enriches lane scope from feed when rig-discovered bead has no explicit scope metadata', () => {
+    const summary = buildWorkflowSummary(
+      [
+        issue({
+          id: 'rig-root',
+          title: 'mol-focus-review',
+          issue_type: 'task',
+          status: 'in_progress',
+          metadata: {
+            ...graphWorkflowMetadata(),
+            // Note: NO gc.scope_kind / gc.scope_ref — this is the
+            // ej9y-surfaced shape on real ds-research rig stores.
+            'gc.root_store_ref': 'rig:gascity',
+          },
+        }),
+      ],
+      new Map([
+        [
+          'rig-root',
+          { scopeKind: 'rig', scopeRef: 'gascity', rootStoreRef: 'rig:gascity' },
+        ],
+      ]),
+    );
+
+    const lane = summary.lanes[0]!;
+    assert.deepEqual(lane.scope, {
+      status: 'available',
+      kind: 'rig',
+      ref: 'gascity',
+      rootStoreRef: 'rig:gascity',
+    });
+  });
+
+  test('d3xp: bead metadata wins over feed scope when both are present (sd9 invariant)', () => {
+    // Bead-supplied gc.scope_kind/gc.scope_ref is the strongest signal —
+    // the supervisor stamped it on the bead at workflow-root creation.
+    // If the feed disagrees, the bead is authoritative. (Mostly defensive:
+    // we expect feed + bead to agree in practice.)
+    const summary = buildWorkflowSummary(
+      [
+        issue({
+          id: 'conflict-root',
+          title: 'mol-with-conflicting-feed',
+          issue_type: 'task',
+          status: 'in_progress',
+          metadata: {
+            ...graphWorkflowMetadata(),
+            'gc.scope_kind': 'city',
+            'gc.scope_ref': 'racoon-city',
+            'gc.root_store_ref': 'city:racoon-city',
+          },
+        }),
+      ],
+      new Map([
+        [
+          'conflict-root',
+          { scopeKind: 'rig', scopeRef: 'wrong-rig', rootStoreRef: 'rig:wrong-rig' },
+        ],
+      ]),
+    );
+
+    const lane = summary.lanes[0]!;
+    assert.deepEqual(lane.scope, {
+      status: 'available',
+      kind: 'city',
+      ref: 'racoon-city',
+      rootStoreRef: 'city:racoon-city',
+    });
+  });
+
+  test('d3xp: lane scope stays unavailable when bead metadata AND feed map both lack scope', () => {
+    // No silent fallback — if neither source has scope, the lane carries
+    // 'unavailable' so the deep-link drops the qs and the route falls
+    // through to defaultWorkflowScope. (This is the pre-d3xp behavior;
+    // d3xp only adds the FEED source, it does not weaken the rule.)
+    const summary = buildWorkflowSummary(
+      [
+        issue({
+          id: 'ghost-root',
+          title: 'mol-ghost',
+          issue_type: 'task',
+          status: 'in_progress',
+          metadata: {
+            ...graphWorkflowMetadata(),
+            'gc.root_store_ref': 'rig:ghost',
+          },
+        }),
+      ],
+      new Map(),
+    );
+
+    const lane = summary.lanes[0]!;
+    assert.deepEqual(lane.scope, {
+      status: 'unavailable',
+      error: 'workflow scope metadata unavailable',
+    });
+  });
+
   test('groups workflow roots and molecule children (M4-c)', () => {
     // Multi-step bead group keyed on molecule id → exactly one lane.
     const summary = buildWorkflowSummary([
@@ -1139,5 +1246,85 @@ describe('createWorkflowsSourceCache', () => {
       ['shared'],
       `per-rig listBeads must fire exactly once for shared; saw ${JSON.stringify(rigQueryCalls)}`,
     );
+  });
+
+  // gascity-dashboard-d3xp: end-to-end — a rig-stored workflow root bead
+  // that the per-rig listBeads sweep brings in WITHOUT gc.scope_kind /
+  // gc.scope_ref must still produce a scope=available lane, sourced from
+  // the /formulas/feed GcFormulaRun fields. Otherwise the lane deep-link
+  // drops the qs and the backend silently substitutes
+  // defaultWorkflowScope(cityName), 404ing or loading the wrong data for
+  // any rig-scoped run.
+  test('d3xp: lane gets scope=available from feed when rig-stored bead lacks gc.scope_kind metadata', async () => {
+    const cache = createWorkflowsSourceCache({
+      gc: {
+        listBeads: async (_signal: AbortSignal | undefined, rawParams: unknown) => {
+          const params = (rawParams ?? {}) as { rig?: string; type?: string; all?: boolean; limit?: number };
+          if (params.rig === undefined && params.type === undefined && params.all !== true) {
+            return { items: [], total: 0 };
+          }
+          if (params.rig === 'gascity' && params.type === 'task' && params.all === true) {
+            return {
+              items: [
+                gcBead({
+                  id: 'rig-only-root',
+                  title: 'mol-focus-review',
+                  status: 'in_progress',
+                  issue_type: 'task',
+                  // The exact ej9y-surfaced shape: graph.v2 root, rig
+                  // root_store_ref, but NO gc.scope_kind/gc.scope_ref on
+                  // the bead. Before d3xp this produced a scope=unavailable
+                  // lane and a 404-or-wrong-data deep-link.
+                  metadata: graphWorkflowMetadata({
+                    'gc.root_store_ref': 'rig:gascity',
+                  }),
+                }),
+              ],
+              total: 1,
+            };
+          }
+          if (params.type === 'molecule' && params.all === true) {
+            return { items: [], total: 0 };
+          }
+          assert.fail(`unexpected listBeads params: ${JSON.stringify(params)}`);
+        },
+        listFormulaRuns: async () => ({
+          items: [
+            {
+              id: 'rig-only-root',
+              type: 'formula',
+              status: 'pending',
+              title: 'mol-focus-review',
+              // Feed gives us the authoritative supervisor query scope
+              // for this run — rig:gascity, NOT city:ds-research.
+              scope_kind: 'rig',
+              scope_ref: 'gascity',
+              target: '/home/ds/gascity/polecat',
+              started_at: '2026-05-28T00:00:00Z',
+              updated_at: '2026-05-28T00:00:00Z',
+              workflow_id: 'rig-only-root',
+              root_bead_id: 'rig-only-root',
+              root_store_ref: 'rig:gascity',
+              run_detail_available: true,
+            },
+          ],
+        }),
+        cityName: 'ds-research',
+      } as never,
+      limit: 1000,
+    });
+
+    const result = await cache.get();
+    assert.equal(result.status, 'fresh');
+    if (result.status === 'fresh') {
+      const lane = result.data.lanes.find((l) => l.id === 'rig-only-root');
+      assert.ok(lane, `expected rig-only-root lane; got ${JSON.stringify(result.data.lanes.map((l) => l.id))}`);
+      assert.deepEqual(lane.scope, {
+        status: 'available',
+        kind: 'rig',
+        ref: 'gascity',
+        rootStoreRef: 'rig:gascity',
+      });
+    }
   });
 });

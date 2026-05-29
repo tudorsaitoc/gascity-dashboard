@@ -111,7 +111,25 @@ export function fromGcBead(bead: GcBead): WorkflowIssue {
 
 // ── Lane builder ──────────────────────────────────────────────────────────
 
-export function buildWorkflowSummary(issues: WorkflowIssue[]): WorkflowSummary {
+/**
+ * Per-root supervisor query scope sourced from /v0/city/<city>/formulas/feed.
+ * gascity-dashboard-d3xp: a rig-stored workflow root surfaced by the ej9y
+ * feed-discovery path typically does NOT carry gc.scope_kind/gc.scope_ref
+ * in its bead metadata, but the feed's own scope_kind/scope_ref IS the
+ * supervisor's authoritative query scope for the run. This map carries
+ * that authority to the lane builder so the deep-link qs is correct.
+ */
+export interface WorkflowFeedScope {
+  scopeKind: 'city' | 'rig';
+  scopeRef: string;
+  rootStoreRef: string;
+}
+export type WorkflowFeedScopeMap = ReadonlyMap<string, WorkflowFeedScope>;
+
+export function buildWorkflowSummary(
+  issues: WorkflowIssue[],
+  feedScopes: WorkflowFeedScopeMap = new Map(),
+): WorkflowSummary {
   const groups = new Map<string, WorkflowIssue[]>();
 
   for (const i of issues) {
@@ -126,7 +144,7 @@ export function buildWorkflowSummary(issues: WorkflowIssue[]): WorkflowSummary {
   );
   const laneIssues = workflowGroups.flatMap(([, groupIssues]) => groupIssues);
   const sortedLanes = workflowGroups
-    .map(([rootId, groupIssues]) => workflowLane(rootId, groupIssues))
+    .map(([rootId, groupIssues]) => workflowLane(rootId, groupIssues, feedScopes))
     .sort(compareLanes);
 
   // gascity-dashboard-yh5i: split by phase so the /workflows view can
@@ -206,7 +224,11 @@ function runKind(
   return 'other';
 }
 
-function workflowLane(rootId: string, issues: WorkflowIssue[]): WorkflowLane {
+function workflowLane(
+  rootId: string,
+  issues: WorkflowIssue[],
+  feedScopes: WorkflowFeedScopeMap,
+): WorkflowLane {
   const phase = mapWorkflowPhase(issues);
   const updatedAt = latestUpdatedAt(issues);
   const formula = workflowFormula(issues);
@@ -237,7 +259,7 @@ function workflowLane(rootId: string, issues: WorkflowIssue[]): WorkflowLane {
     formulaStages.length > 0 &&
     progress.status === 'active_step' &&
     formulaStages.some((s) => s.steps.includes(progress.stepId));
-  const scope = workflowScope(rootId, issues);
+  const scope = workflowScope(rootId, issues, feedScopes);
 
   const lane: WorkflowLane = {
     id: rootId,
@@ -282,6 +304,7 @@ function workflowRootId(issue: WorkflowIssue): string {
 function workflowScope(
   rootId: string,
   issues: WorkflowIssue[],
+  feedScopes: WorkflowFeedScopeMap,
 ): WorkflowScopeInfo {
   const root = issues.find((i) => i.id === rootId);
   const ordered = root
@@ -290,14 +313,22 @@ function workflowScope(
   const rootStoreRef = metadataString(ordered, 'gc.root_store_ref');
   const rootScopeKind = stringValue(root?.metadata?.['gc.scope_kind']);
   const rootScopeRef = stringValue(root?.metadata?.['gc.scope_ref']);
-  // The query scope (scopeKind/scopeRef) drives the run-detail deep-link, so it
-  // must come ONLY from explicit gc.scope_kind / gc.scope_ref. root_store_ref is
-  // a STORAGE location, not a query scope: deriving the scope from it produces a
-  // deep-link the supervisor's /workflow/{id} endpoint 404s for rig-store-backed
-  // workflows, whose root id actually resolves under the city (gascity-dashboard-sd9).
-  // When explicit scope metadata is absent, leave the scope null so the deep-link
-  // carries no scope and the workflow resolves by id under the city. rootStoreRef
-  // is still surfaced as a display-only field.
+  // The query scope (scopeKind/scopeRef) drives the run-detail deep-link. It
+  // has TWO authoritative sources, in priority order:
+  //   1. Explicit bead metadata gc.scope_kind / gc.scope_ref — stamped by the
+  //      supervisor at workflow-root creation. Strongest signal.
+  //   2. GcFormulaRun.scope_kind / scope_ref from /v0/city/<city>/formulas/feed —
+  //      the supervisor's own query-scope record for the run. Authoritative for
+  //      rig-stored workflow roots surfaced by the ej9y feed-discovery path,
+  //      which typically do NOT carry gc.scope_kind on the bead itself
+  //      (gascity-dashboard-d3xp).
+  // Critically, gc.root_store_ref is NOT a valid scope source: it is a STORAGE
+  // location, not a query scope. Deriving scope from it produced a deep-link
+  // the supervisor's /workflow/{id} endpoint 404s for rig-store-backed workflows
+  // whose run actually resolves under the city (gascity-dashboard-sd9). When
+  // both authoritative sources are absent, leave the scope unavailable so the
+  // deep-link carries no scope and the workflow resolves by id under the city.
+  // rootStoreRef remains a display-only field on available scopes.
   const scopeKind = parseWorkflowScopeKind(rootScopeKind);
   const scopeRef =
     scopeKind !== null
@@ -310,6 +341,16 @@ function workflowScope(
       kind: scopeKind,
       ref: scopeRef,
       rootStoreRef: rootStoreRef || `${scopeKind}:${scopeRef}`,
+    };
+  }
+
+  const feedScope = feedScopes.get(rootId);
+  if (feedScope !== undefined) {
+    return {
+      status: 'available',
+      kind: feedScope.scopeKind,
+      ref: feedScope.scopeRef,
+      rootStoreRef: rootStoreRef || feedScope.rootStoreRef,
     };
   }
 
@@ -878,17 +919,28 @@ function buildDefaultLoad(
   }
   const limit = options.limit ?? WORKFLOWS_FETCH_LIMIT;
   return async () => {
-    const items = await loadWorkflowBeads(gc, limit);
-    const filtered = items.filter(workflowBeadFilter);
+    const { beads, feedScopes } = await loadWorkflowBeads(gc, limit);
+    const filtered = beads.filter(workflowBeadFilter);
     const adapted = filtered.map(fromGcBead);
-    return buildWorkflowSummary(adapted);
+    return buildWorkflowSummary(adapted, feedScopes);
   };
+}
+
+interface LoadedWorkflowBeads {
+  beads: GcBead[];
+  /**
+   * Authoritative per-root supervisor query scope harvested from the
+   * /formulas/feed call alongside the rig-name discovery. Used as a
+   * fallback source for lane scope when bead metadata lacks
+   * gc.scope_kind / gc.scope_ref (gascity-dashboard-d3xp).
+   */
+  feedScopes: WorkflowFeedScopeMap;
 }
 
 async function loadWorkflowBeads(
   gc: GcClient,
   limit: number,
-): Promise<GcBead[]> {
+): Promise<LoadedWorkflowBeads> {
   // gascity-dashboard-ej9y: the city-scoped /v0/city/<city>/beads endpoint
   // does NOT include rig-stored workflow roots, contrary to this
   // collector's older assumption. Bootstrap the rig set from BOTH listBeads
@@ -896,11 +948,11 @@ async function loadWorkflowBeads(
   // maintenance, zeldascension, etc.) are visible to the dashboard. The
   // feed fetch is best-effort: if it fails, the collector falls back to
   // listBeads-only rig discovery rather than failing the whole snapshot.
-  const [active, feedRigNames] = await Promise.all([
+  const [active, feedDiscovery] = await Promise.all([
     gc.listBeads(undefined, { limit }),
-    discoverFeedRigNames(gc),
+    discoverFromFeed(gc),
   ]);
-  const rigNames = unionRigNames(workflowRigNames(active.items), feedRigNames);
+  const rigNames = unionRigNames(workflowRigNames(active.items), feedDiscovery.rigNames);
   const recentLists = await Promise.all([
     ...rigNames.map((rig) =>
       gc.listBeads(undefined, {
@@ -917,30 +969,46 @@ async function loadWorkflowBeads(
     }),
   ]);
 
-  return uniqueBeads([
-    ...active.items,
-    ...recentLists.flatMap((list) => list.items),
-  ]);
+  return {
+    beads: uniqueBeads([
+      ...active.items,
+      ...recentLists.flatMap((list) => list.items),
+    ]),
+    feedScopes: feedDiscovery.scopes,
+  };
+}
+
+interface FeedDiscovery {
+  rigNames: string[];
+  scopes: WorkflowFeedScopeMap;
 }
 
 /**
- * Discover rigs hosting active formula runs via the cross-rig
- * /v0/city/<city>/formulas/feed endpoint. Returns an empty list (not a
- * thrown error) on failure so a degraded feed doesn't black out the
- * entire workflows view — the city listBeads call covers the
- * city-stored runs, and that path remains intact even if the feed is
- * unavailable. A degraded feed is loudly logged so operators can see
- * the soft fallback rather than silently regressing to pre-ej9y
- * behavior (per CLAUDE.md "Don't Swallow Errors" + the wire-partial
- * surfacing pattern PR #36 established).
+ * Discover rigs hosting active formula runs AND harvest the per-run
+ * supervisor query scope via the cross-rig /v0/city/<city>/formulas/feed
+ * endpoint. Returns empty data (not a thrown error) on failure so a
+ * degraded feed doesn't black out the entire workflows view — the city
+ * listBeads call covers the city-stored runs, and that path remains
+ * intact even if the feed is unavailable. A degraded feed is loudly
+ * logged so operators can see the soft fallback rather than silently
+ * regressing to pre-ej9y behavior (per CLAUDE.md "Don't Swallow Errors"
+ * + the wire-partial surfacing pattern PR #36 established).
+ *
+ * gascity-dashboard-d3xp: harvests scope_kind / scope_ref into a
+ * per-root map alongside the rig names. Rig-stored workflow roots
+ * surfaced by this discovery path typically lack gc.scope_kind on the
+ * bead itself; the feed's own scope_kind is the supervisor's
+ * authoritative query scope for the run and feeds the lane scope when
+ * the bead has nothing explicit.
  */
-async function discoverFeedRigNames(gc: GcClient): Promise<string[]> {
+async function discoverFromFeed(gc: GcClient): Promise<FeedDiscovery> {
   try {
     const runs = await gc.listFormulaRuns({
       scopeKind: 'city',
       scopeRef: gc.cityName,
     });
-    const names = new Set<string>();
+    const rigNames = new Set<string>();
+    const scopes = new Map<string, WorkflowFeedScope>();
     for (const run of runs.items) {
       // Filter by type so a future supervisor that broadens the feed
       // (e.g. `'session'` or `'wisp'` items) can't accidentally inject
@@ -951,16 +1019,25 @@ async function discoverFeedRigNames(gc: GcClient): Promise<string[]> {
       const storeRef = run.root_store_ref ?? null;
       const rig = scopeRefFromStoreRef(storeRef);
       if (rig !== null && scopeKindFromStoreRef(storeRef) === 'rig') {
-        names.add(rig);
+        rigNames.add(rig);
+      }
+      const rootId = run.root_bead_id ?? run.workflow_id ?? null;
+      const scopeKind = parseWorkflowScopeKind(run.scope_kind);
+      if (rootId !== null && scopeKind !== null && run.scope_ref.length > 0) {
+        scopes.set(rootId, {
+          scopeKind,
+          scopeRef: run.scope_ref,
+          rootStoreRef: storeRef ?? `${scopeKind}:${run.scope_ref}`,
+        });
       }
     }
-    return [...names];
+    return { rigNames: [...rigNames], scopes };
   } catch (err) {
     logWarn(
       LOG_COMPONENT.snapshot,
       `feed-based rig discovery failed: ${errorMessage(err)}; falling back to listBeads-only discovery`,
     );
-    return [];
+    return { rigNames: [], scopes: new Map() };
   }
 }
 
