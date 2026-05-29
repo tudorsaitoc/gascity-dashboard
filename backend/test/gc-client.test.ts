@@ -710,6 +710,84 @@ describe('GcClient error handling', () => {
     assert.equal(out.version, undefined);
   });
 
+  // gascity-dashboard-ej9y: /v0/city/<city>/formulas/feed surfaces cross-rig
+  // formula runs (rig-stored workflow roots that listBeads doesn't return).
+  // The workflows snapshot collector uses this to bootstrap its rig set.
+
+  test('ej9y: listFormulaRuns decodes a populated feed', async () => {
+    fake.setHandler((_req, res) => {
+      res.statusCode = 200;
+      res.setHeader('content-type', 'application/json');
+      res.end(JSON.stringify({
+        items: [
+          {
+            id: 'gc-0ioyjp',
+            type: 'formula',
+            status: 'pending',
+            title: 'mol-focus-review',
+            scope_kind: 'city',
+            scope_ref: 'ds-research',
+            target: '/home/ds/gascity/polecat',
+            started_at: '2026-05-28T23:24:42Z',
+            updated_at: '2026-05-28T23:24:42Z',
+            workflow_id: 'gc-0ioyjp',
+            root_bead_id: 'gc-0ioyjp',
+            root_store_ref: 'rig:gascity',
+            run_detail_available: true,
+          },
+        ],
+      }));
+    });
+    const gc = new GcClient({
+      baseUrl: fake.baseUrl,
+      cityName: 'test',
+      defaultTimeoutMs: 5_000,
+    });
+    const out = await gc.listFormulaRuns({ scopeKind: 'city', scopeRef: 'ds-research' });
+    assert.equal(out.items.length, 1);
+    assert.equal(out.items[0]?.workflow_id, 'gc-0ioyjp');
+    assert.equal(out.items[0]?.root_store_ref, 'rig:gascity');
+    assert.equal(out.items[0]?.target, '/home/ds/gascity/polecat');
+  });
+
+  test('ej9y: listFormulaRuns accepts items=null + partial signal (mirrors izgc F3 pattern)', async () => {
+    fake.setHandler((_req, res) => {
+      res.statusCode = 200;
+      res.setHeader('content-type', 'application/json');
+      res.end(JSON.stringify({
+        items: null,
+        partial: true,
+        partial_errors: ['monitor backend degraded'],
+      }));
+    });
+    const gc = new GcClient({
+      baseUrl: fake.baseUrl,
+      cityName: 'test',
+      defaultTimeoutMs: 5_000,
+    });
+    const out = await gc.listFormulaRuns({ scopeKind: 'city', scopeRef: 'ds-research' });
+    assert.deepEqual(out.items, []);
+    assert.equal(out.partial, true);
+    assert.deepEqual(out.partial_errors, ['monitor backend degraded']);
+  });
+
+  test('ej9y: listFormulaRuns rejects non-array items shape', async () => {
+    fake.setHandler((_req, res) => {
+      res.statusCode = 200;
+      res.setHeader('content-type', 'application/json');
+      res.end(JSON.stringify({ items: 42 }));
+    });
+    const gc = new GcClient({
+      baseUrl: fake.baseUrl,
+      cityName: 'test',
+      defaultTimeoutMs: 5_000,
+    });
+    await assert.rejects(
+      () => gc.listFormulaRuns({ scopeKind: 'city', scopeRef: 'ds-research' }),
+      /invalid gc supervisor listFormulaRuns payload/i,
+    );
+  });
+
   test('rejects malformed mail list payloads at the supervisor boundary', async () => {
     fake.setHandler((_req, res) => {
       res.statusCode = 200;

@@ -777,4 +777,215 @@ describe('createWorkflowsSourceCache', () => {
     assert.equal(result.status, 'fixture');
     assert.deepEqual(result.data, fixtureSummary);
   });
+
+  // gascity-dashboard-ej9y: when city-scoped listBeads returns NO workflow
+  // roots (the supervisor's /v0/city/<city>/beads does not include
+  // rig-stored workflow roots), the collector must still discover rigs to
+  // query via /v0/city/<city>/formulas/feed. Otherwise every rig-stored
+  // workflow (the most common case on real deployments — gascity
+  // maintenance, zeldascension, etc.) is invisible to the dashboard.
+  test('ej9y: bootstraps rig discovery from listFormulaRuns when city listBeads is empty', async () => {
+    const listBeadsCalls: Array<{ rig?: string; type?: string; all?: boolean; limit?: number }> = [];
+    let listFormulaRunsCalls = 0;
+    const cache = createWorkflowsSourceCache({
+      gc: {
+        listBeads: async (_signal: AbortSignal | undefined, rawParams: unknown) => {
+          const params = (rawParams ?? {}) as { rig?: string; type?: string; all?: boolean; limit?: number };
+          listBeadsCalls.push(params);
+          // City-scoped initial query returns NO workflow roots — this is
+          // the exact ej9y trigger condition on live ds-research.
+          if (params.rig === undefined && params.type === undefined && params.all !== true) {
+            return { items: [], total: 0 };
+          }
+          // Per-rig query for the rig that listFormulaRuns surfaced:
+          // returns a full graph.v2 workflow root that the collector
+          // should now be able to build a lane from.
+          if (params.rig === 'gascity' && params.type === 'task' && params.all === true) {
+            return {
+              items: [
+                gcBead({
+                  id: 'gc-0ioyjp',
+                  title: 'mol-focus-review',
+                  status: 'in_progress',
+                  issue_type: 'task',
+                  metadata: graphWorkflowMetadata({
+                    'gc.root_store_ref': 'rig:gascity',
+                    'gc.scope_kind': 'city',
+                    'gc.scope_ref': 'ds-research',
+                    'gc.run_target': '/home/ds/gascity/polecat',
+                  }),
+                }),
+              ],
+              total: 1,
+            };
+          }
+          if (params.type === 'molecule' && params.all === true) {
+            return { items: [], total: 0 };
+          }
+          assert.fail(`unexpected listBeads params: ${JSON.stringify(params)}`);
+        },
+        listFormulaRuns: async (_scope: unknown) => {
+          listFormulaRunsCalls += 1;
+          return {
+            items: [
+              {
+                id: 'gc-0ioyjp',
+                type: 'formula',
+                status: 'pending',
+                title: 'mol-focus-review',
+                scope_kind: 'city',
+                scope_ref: 'ds-research',
+                target: '/home/ds/gascity/polecat',
+                started_at: '2026-05-28T23:24:42Z',
+                updated_at: '2026-05-28T23:24:42Z',
+                workflow_id: 'gc-0ioyjp',
+                root_bead_id: 'gc-0ioyjp',
+                root_store_ref: 'rig:gascity',
+                run_detail_available: true,
+              },
+            ],
+          };
+        },
+        cityName: 'ds-research',
+      } as never,
+      limit: 1000,
+    });
+
+    const result = await cache.get();
+
+    assert.equal(listFormulaRunsCalls, 1, 'collector must call listFormulaRuns once for rig discovery');
+    assert.ok(
+      listBeadsCalls.some((p) => p.rig === 'gascity'),
+      `collector must query rig=gascity after feed-based discovery (saw: ${JSON.stringify(listBeadsCalls)})`,
+    );
+    assert.equal(result.status, 'fresh');
+    if (result.status === 'fresh') {
+      const ids = result.data.lanes.map((lane) => lane.id);
+      assert.ok(
+        ids.includes('gc-0ioyjp'),
+        `expected gc-0ioyjp lane in result; got ${JSON.stringify(ids)}`,
+      );
+    }
+  });
+
+  // ej9y resilience: feed discovery is best-effort. A degraded feed
+  // (network error, supervisor 500, decode failure) must NOT fail the
+  // whole snapshot — the listBeads-only path should still produce its
+  // own lane set, so operators don't silently lose every workflow when
+  // /formulas/feed flaps.
+  test('ej9y: listBeads-only path still works when listFormulaRuns throws', async () => {
+    const cache = createWorkflowsSourceCache({
+      gc: {
+        listBeads: async (_signal: AbortSignal | undefined, rawParams: unknown) => {
+          const params = (rawParams ?? {}) as { rig?: string; type?: string; all?: boolean; limit?: number };
+          if (params.rig === undefined && params.type === undefined && params.all !== true) {
+            return {
+              items: [
+                gcBead({
+                  id: 'city-root',
+                  title: 'mol-city-only',
+                  status: 'in_progress',
+                  issue_type: 'task',
+                  metadata: graphWorkflowMetadata({
+                    'gc.root_store_ref': 'city:test',
+                    'gc.scope_kind': 'city',
+                    'gc.scope_ref': 'test',
+                    'gc.run_target': '/tmp/fixture-target',
+                  }),
+                }),
+              ],
+              total: 1,
+            };
+          }
+          if (params.type === 'molecule' && params.all === true) {
+            return { items: [], total: 0 };
+          }
+          assert.fail(`unexpected listBeads params: ${JSON.stringify(params)}`);
+        },
+        listFormulaRuns: async () => {
+          throw new Error('simulated feed outage');
+        },
+        cityName: 'test',
+      } as never,
+      limit: 1000,
+    });
+
+    const result = await cache.get();
+
+    assert.equal(result.status, 'fresh', 'snapshot must survive feed failure');
+    if (result.status === 'fresh') {
+      const ids = result.data.lanes.map((lane) => lane.id);
+      assert.deepEqual(ids, ['city-root'], 'listBeads-discovered lane should still surface');
+    }
+  });
+
+  // ej9y dedup: when a rig appears in BOTH listBeads-derived rigNames
+  // AND feed-derived rigNames, the per-rig listBeads loop must fire
+  // exactly once for that rig — protects against a future refactor that
+  // replaces unionRigNames with naive concatenation.
+  test('ej9y: deduplicates rig discovered from both listBeads and listFormulaRuns', async () => {
+    const rigQueryCalls: string[] = [];
+    const cache = createWorkflowsSourceCache({
+      gc: {
+        listBeads: async (_signal: AbortSignal | undefined, rawParams: unknown) => {
+          const params = (rawParams ?? {}) as { rig?: string; type?: string; all?: boolean; limit?: number };
+          if (params.rig === undefined && params.type === undefined && params.all !== true) {
+            // City-level result that references rig=shared via gc.root_store_ref.
+            return {
+              items: [
+                gcBead({
+                  id: 'discovered-child',
+                  title: 'open child pointing at rig',
+                  issue_type: 'spec',
+                  metadata: {
+                    'gc.root_bead_id': 'shared-root',
+                    'gc.root_store_ref': 'rig:shared',
+                  },
+                }),
+              ],
+              total: 1,
+            };
+          }
+          if (params.rig !== undefined) {
+            rigQueryCalls.push(params.rig);
+            return { items: [], total: 0 };
+          }
+          if (params.type === 'molecule' && params.all === true) {
+            return { items: [], total: 0 };
+          }
+          assert.fail(`unexpected listBeads params: ${JSON.stringify(params)}`);
+        },
+        listFormulaRuns: async () => ({
+          // Feed-side ALSO returns rig=shared — exercising the union dedup.
+          items: [
+            {
+              id: 'feed-run',
+              type: 'formula',
+              status: 'pending',
+              title: 'mol-other',
+              scope_kind: 'city',
+              scope_ref: 'test',
+              target: '/tmp/feed-target',
+              started_at: '2026-05-28T00:00:00Z',
+              updated_at: '2026-05-28T00:00:00Z',
+              workflow_id: 'feed-run',
+              root_bead_id: 'feed-run',
+              root_store_ref: 'rig:shared',
+              run_detail_available: true,
+            },
+          ],
+        }),
+        cityName: 'test',
+      } as never,
+      limit: 1000,
+    });
+
+    await cache.get();
+
+    assert.deepEqual(
+      rigQueryCalls,
+      ['shared'],
+      `per-rig listBeads must fire exactly once for shared; saw ${JSON.stringify(rigQueryCalls)}`,
+    );
+  });
 });

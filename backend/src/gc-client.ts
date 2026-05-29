@@ -2,6 +2,7 @@ import type {
   GcSessionList,
   GcBead,
   GcBeadList,
+  GcFormulaRunList,
   GcMailList,
   GcEventList,
   GcFormulaDetail,
@@ -54,6 +55,7 @@ const SUPERVISOR_PATHS = {
   events: '/v0/city/{cityName}/events',
   eventsStream: '/v0/city/{cityName}/events/stream',
   formulaDetail: '/v0/city/{cityName}/formulas/{name}',
+  formulasFeed: '/v0/city/{cityName}/formulas/feed',
   health: '/v0/city/{cityName}/health',
   mail: '/v0/city/{cityName}/mail',
   sessionStream: '/v0/city/{cityName}/session/{id}/stream',
@@ -433,6 +435,36 @@ export class GcClient {
           path: { ...this.cityPathParams(), workflow_id: workflowId },
           query,
         },
+        signal: upstreamSignal,
+      }),
+      signal,
+    );
+  }
+
+  /**
+   * Cross-rig discovery of formula runs the supervisor knows about.
+   * Mirrors `GET /v0/city/<city>/formulas/feed`. Returns rig-stored
+   * workflow roots that `listBeads` (city-scoped) does NOT return —
+   * see gascity-dashboard-ej9y. The dashboard's workflows snapshot
+   * collector uses this to bootstrap its rig set for downstream
+   * per-rig listBeads queries.
+   */
+  async listFormulaRuns(
+    scope: { scopeKind: WorkflowScopeKind; scopeRef: string },
+    signal?: AbortSignal,
+  ): Promise<GcFormulaRunList> {
+    const query = {
+      scope_kind: scope.scopeKind,
+      scope_ref: scope.scopeRef,
+    };
+    return this.getOperation(
+      this.operationKey(SUPERVISOR_PATHS.formulasFeed, [
+        scope.scopeKind,
+        scope.scopeRef,
+      ]),
+      gcSupervisorDecoders.listFormulaRuns,
+      (upstreamSignal) => this.supervisor.GET(SUPERVISOR_PATHS.formulasFeed, {
+        params: { path: this.cityPathParams(), query },
         signal: upstreamSignal,
       }),
       signal,

@@ -512,6 +512,54 @@ export interface GcEventList {
   partial_errors?: readonly string[];
 }
 
+/**
+ * One entry from the supervisor's `/v0/city/<city>/formulas/feed` endpoint —
+ * a cross-rig view of every formula run the supervisor knows about, including
+ * runs whose root beads live in rig stores (which `/v0/city/<city>/beads`
+ * does NOT return). The dashboard uses this to discover rig-stored workflow
+ * roots that listBeads alone would miss — see gascity-dashboard-ej9y. The
+ * shape mirrors the supervisor's `MonitorFeedItemResponse`.
+ */
+export interface GcFormulaRun {
+  id: string;
+  /** Always `'formula'` for items in this feed. */
+  type: string;
+  /** Lifecycle status (e.g. `'pending'`, `'done'`). */
+  status: string;
+  /** Formula name (e.g. `'mol-focus-review'`). */
+  title: string;
+  /** `'city'` | `'rig'` | string. */
+  scope_kind: string;
+  scope_ref: string;
+  /** Absolute workspace path the formula is operating on. */
+  target: string;
+  started_at: IsoTimestamp;
+  updated_at: IsoTimestamp;
+  /** Workflow root bead id (when the formula instantiated a workflow). */
+  workflow_id?: string;
+  root_bead_id?: string;
+  /** e.g. `'rig:gascity'` — needed to discover which rig's bead store the
+   *  workflow lives in for downstream listBeads queries. */
+  root_store_ref?: string;
+  attached_bead_id?: string;
+  logical_bead_id?: string;
+  bead_id?: string;
+  store_ref?: string;
+  detail_available?: boolean;
+  run_detail_available?: boolean;
+}
+
+export interface GcFormulaRunList {
+  items: GcFormulaRun[];
+  /** True when the supervisor reports the list is incomplete (one or more
+   *  backends failed during aggregation). Wire shape is `items: null` +
+   *  `partial: true`; decoder normalizes items to `[]` so consumers always
+   *  have an array. */
+  partial?: boolean;
+  /** Human-readable errors from backends that failed during aggregation. */
+  partial_errors?: readonly string[];
+}
+
 // ── Admin-dashboard internal API responses ───────────────────────────────
 
 /** Wrapped error returned by the backend on any 4xx/5xx. */

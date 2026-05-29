@@ -8,6 +8,7 @@ import type {
 } from 'gas-city-dashboard-shared';
 
 import type { GcClient } from '../../gc-client.js';
+import { LOG_COMPONENT, errorMessage, logWarn } from '../../logging.js';
 import { SourceCache } from '../cache.js';
 import {
   mapWorkflowPhase,
@@ -865,8 +866,18 @@ async function loadWorkflowBeads(
   gc: GcClient,
   limit: number,
 ): Promise<GcBead[]> {
-  const active = await gc.listBeads(undefined, { limit });
-  const rigNames = workflowRigNames(active.items);
+  // gascity-dashboard-ej9y: the city-scoped /v0/city/<city>/beads endpoint
+  // does NOT include rig-stored workflow roots, contrary to this
+  // collector's older assumption. Bootstrap the rig set from BOTH listBeads
+  // AND /v0/city/<city>/formulas/feed so rig-stored workflows (gascity
+  // maintenance, zeldascension, etc.) are visible to the dashboard. The
+  // feed fetch is best-effort: if it fails, the collector falls back to
+  // listBeads-only rig discovery rather than failing the whole snapshot.
+  const [active, feedRigNames] = await Promise.all([
+    gc.listBeads(undefined, { limit }),
+    discoverFeedRigNames(gc),
+  ]);
+  const rigNames = unionRigNames(workflowRigNames(active.items), feedRigNames);
   const recentLists = await Promise.all([
     ...rigNames.map((rig) =>
       gc.listBeads(undefined, {
@@ -887,6 +898,62 @@ async function loadWorkflowBeads(
     ...active.items,
     ...recentLists.flatMap((list) => list.items),
   ]);
+}
+
+/**
+ * Discover rigs hosting active formula runs via the cross-rig
+ * /v0/city/<city>/formulas/feed endpoint. Returns an empty list (not a
+ * thrown error) on failure so a degraded feed doesn't black out the
+ * entire workflows view — the city listBeads call covers the
+ * city-stored runs, and that path remains intact even if the feed is
+ * unavailable. A degraded feed is loudly logged so operators can see
+ * the soft fallback rather than silently regressing to pre-ej9y
+ * behavior (per CLAUDE.md "Don't Swallow Errors" + the wire-partial
+ * surfacing pattern PR #36 established).
+ */
+async function discoverFeedRigNames(gc: GcClient): Promise<string[]> {
+  try {
+    const runs = await gc.listFormulaRuns({
+      scopeKind: 'city',
+      scopeRef: gc.cityName,
+    });
+    const names = new Set<string>();
+    for (const run of runs.items) {
+      // Filter by type so a future supervisor that broadens the feed
+      // (e.g. `'session'` or `'wisp'` items) can't accidentally inject
+      // unrelated rigs into the per-rig listBeads fan-out. The
+      // shared JSDoc on GcFormulaRun.type already promises 'formula';
+      // this enforces it at the consumer edge.
+      if (run.type !== 'formula') continue;
+      const storeRef = run.root_store_ref ?? null;
+      const rig = scopeRefFromStoreRef(storeRef);
+      if (rig !== null && scopeKindFromStoreRef(storeRef) === 'rig') {
+        names.add(rig);
+      }
+    }
+    return [...names];
+  } catch (err) {
+    logWarn(
+      LOG_COMPONENT.snapshot,
+      `feed-based rig discovery failed: ${errorMessage(err)}; falling back to listBeads-only discovery`,
+    );
+    return [];
+  }
+}
+
+/**
+ * Merge rig sets from listBeads (city-stored bead provenance) and
+ * /formulas/feed (cross-rig formula-run discovery). UNION (not
+ * intersection or fallback) is correct because the two sources answer
+ * different questions: listBeads finds rigs whose city beads reference
+ * them via gc.root_store_ref; the feed finds rigs hosting active formula
+ * runs regardless of where their beads live. Neither subsumes the other.
+ */
+function unionRigNames(a: readonly string[], b: readonly string[]): string[] {
+  const all = new Set<string>();
+  for (const name of a) all.add(name);
+  for (const name of b) all.add(name);
+  return [...all];
 }
 
 function workflowRigNames(beads: readonly GcBead[]): string[] {

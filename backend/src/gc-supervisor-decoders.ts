@@ -4,6 +4,7 @@ import type {
   GcBeadList,
   GcEventList,
   GcFormulaDetail,
+  GcFormulaRunList,
   GcMailList,
   GcSessionList,
   GcWorkflowSnapshot,
@@ -185,6 +186,31 @@ const TranscriptResponseSchema = z.object({
   turns: z.array(TranscriptTurnSchema).nullish().transform((v) => v ?? []),
 }).passthrough();
 
+// gascity-dashboard-ej9y: one entry from /v0/city/<city>/formulas/feed.
+// Mirrors supervisor `MonitorFeedItemResponse`. Used by the workflows
+// snapshot collector to discover rig-stored workflow roots that the
+// city-scoped listBeads endpoint does NOT return.
+const FormulaRunSchema = z.object({
+  id: z.string(),
+  type: z.string(),
+  status: z.string(),
+  title: z.string(),
+  scope_kind: z.string(),
+  scope_ref: z.string(),
+  target: z.string(),
+  started_at: z.string(),
+  updated_at: z.string(),
+  workflow_id: z.string().optional(),
+  root_bead_id: z.string().optional(),
+  root_store_ref: z.string().optional(),
+  attached_bead_id: z.string().optional(),
+  logical_bead_id: z.string().optional(),
+  bead_id: z.string().optional(),
+  store_ref: z.string().optional(),
+  detail_available: z.boolean().optional(),
+  run_detail_available: z.boolean().optional(),
+}).passthrough();
+
 const HealthSchema = z.object({
   status: z.string(),
   // izgc F7/F8: OpenAPI declares both city + version optional. Present in
@@ -265,6 +291,18 @@ export const gcSupervisorDecoders = {
       }).passthrough(),
       value,
       'listEvents',
+    );
+  },
+
+  listFormulaRuns(value: RawSupervisorSchema['FormulaFeedBody']): GcFormulaRunList {
+    return decodeSupervisorPayload(
+      z.object({
+        items: listItemsField(FormulaRunSchema),
+        partial: PartialField,
+        partial_errors: PartialErrorsField,
+      }).passthrough(),
+      value,
+      'listFormulaRuns',
     );
   },
 
