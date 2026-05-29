@@ -368,6 +368,53 @@ describe('WorkflowRunDetailPage', () => {
     expect(screen.getByText(/no session is attached/i)).toBeTruthy();
   });
 
+  it('renders the formula name in a warn tone with provenance copy when source is title_fallback', async () => {
+    // gascity-dashboard-e7hj: a title-derived formula name is a SILENT
+    // fallback if it's rendered as if it were canonical metadata. The
+    // warn tone + textual aside mirror the Health.tsx "not reported by
+    // supervisor" precedent (PR #36 / dashboard-h1) so the operator
+    // can see the supervisor did not set gc.formula on this root.
+    currentDetail = {
+      ...detail,
+      formula: {
+        kind: 'known',
+        name: 'mol-from-title',
+        source: 'title_fallback',
+      },
+    };
+
+    const { container } = renderPage();
+    await screen.findByRole('heading', { name: /adopt pr #42/i });
+
+    const formulaTerms = Array.from(container.querySelectorAll('dt')).filter(
+      (dt) => dt.textContent?.trim() === 'Formula',
+    );
+    expect(formulaTerms).toHaveLength(1);
+    const formulaValue = formulaTerms[0]?.nextElementSibling as HTMLElement | null;
+    expect(formulaValue).not.toBeNull();
+    expect(formulaValue?.className).toMatch(/text-warn/);
+    expect(formulaValue?.textContent).toContain('mol-from-title');
+    expect(formulaValue?.textContent?.toLowerCase()).toContain('inferred from bead title');
+    expect(formulaValue?.getAttribute('title')?.toLowerCase()).toContain(
+      'supervisor did not set gc.formula',
+    );
+  });
+
+  it('renders the formula name without a warn tone when source is metadata', async () => {
+    const { container } = renderPage();
+    await screen.findByRole('heading', { name: /adopt pr #42/i });
+
+    const formulaTerms = Array.from(container.querySelectorAll('dt')).filter(
+      (dt) => dt.textContent?.trim() === 'Formula',
+    );
+    expect(formulaTerms).toHaveLength(1);
+    const formulaValue = formulaTerms[0]?.nextElementSibling as HTMLElement | null;
+    expect(formulaValue).not.toBeNull();
+    expect(formulaValue?.className).not.toMatch(/text-warn/);
+    expect(formulaValue?.textContent).toBe('mol-adopt-pr-v2');
+    expect(formulaValue?.getAttribute('title')).toBeNull();
+  });
+
   it('shows retry attempt tabs for multiple attempts in the selected execution context', async () => {
     currentDetail = detailWithRebaseAttempts();
     renderPage();

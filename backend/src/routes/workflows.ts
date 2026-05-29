@@ -99,15 +99,18 @@ async function getWorkflowFormulaDetail(
   // workflow roots (which carry the formula name in the title rather than
   // `gc.formula`) would silently fail to fetch the formula detail even
   // when the supervisor has it registered — see gascity-dashboard-sadp.
-  const formula = resolveWorkflowFormulaName(root);
+  // Only the name is needed to fetch the formula detail; the resolver's
+  // provenance discriminator (gascity-dashboard-e7hj) is for the display
+  // path in workflows/formula-run.ts.
+  const resolved = resolveWorkflowFormulaName(root);
   const target = root
     ? meta(root, 'gc.run_target') ?? meta(root, 'gc.routed_to') ?? nonEmpty(root.assignee)
     : undefined;
-  if (!formula || !target) return null;
+  if (!resolved || !target) return null;
   try {
-    return await gc.getFormulaDetail(formula, scope, target);
+    return await gc.getFormulaDetail(resolved.name, scope, target);
   } catch (err) {
-    logWarn(LOG_COMPONENT.workflows, `failed to fetch formula detail for ${formula}: ${errorMessage(err)}`);
+    logWarn(LOG_COMPONENT.workflows, `failed to fetch formula detail for ${resolved.name}: ${errorMessage(err)}`);
     return null;
   }
 }

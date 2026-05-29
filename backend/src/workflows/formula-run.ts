@@ -154,8 +154,18 @@ function workflowFormulaState(
   // resolveWorkflowFormulaName so the route-side formula-detail fetch
   // (routes/workflows.ts) and this presentation-enrichment path share
   // a single source of truth. See gascity-dashboard-sadp.
-  const name = resolveWorkflowFormulaName(root) ?? formulaDetail?.name;
-  if (name) return { kind: 'known', name };
+  //
+  // Three provenance paths populate `source` (gascity-dashboard-e7hj):
+  //   1. resolver returns explicit gc.formula     → source: 'metadata'
+  //   2. resolver returns title fallback           → source: 'title_fallback'
+  //   3. resolver null + formulaDetail.name        → source: 'metadata'
+  //      (the supervisor-owned formula detail is canonical even when the
+  //      root metadata key is absent)
+  const resolved = resolveWorkflowFormulaName(root);
+  if (resolved !== null) return { kind: 'known', name: resolved.name, source: resolved.source };
+  if (formulaDetail?.name) {
+    return { kind: 'known', name: formulaDetail.name, source: 'metadata' };
+  }
   return {
     kind: 'unavailable',
     reason: formulaDetail === null ? 'formula_detail_unavailable' : 'missing_formula_metadata',

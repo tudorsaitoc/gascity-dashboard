@@ -23,15 +23,21 @@ describe('resolveWorkflowFormulaName', () => {
     assert.equal(resolveWorkflowFormulaName(undefined), null);
   });
 
-  test('returns the explicit gc.formula key when present', () => {
+  test('tags the explicit gc.formula key as source: metadata', () => {
     const root = makeRoot(
       { 'gc.kind': 'workflow', 'gc.formula': 'mol-explicit' },
       'descriptive-title-that-should-be-ignored',
     );
-    assert.equal(resolveWorkflowFormulaName(root), 'mol-explicit');
+    assert.deepEqual(resolveWorkflowFormulaName(root), {
+      name: 'mol-explicit',
+      source: 'metadata',
+    });
   });
 
-  test('falls back to title for graph.v2 roots with gc.run_target', () => {
+  test('tags the gated title fallback as source: title_fallback for graph.v2 roots with gc.run_target', () => {
+    // gascity-dashboard-e7hj: title-derived names are NOT canonical
+    // metadata; the source discriminator lets the dashboard render them
+    // in a warn tone instead of silently passing them through.
     const root = makeRoot(
       {
         'gc.kind': 'workflow',
@@ -40,7 +46,10 @@ describe('resolveWorkflowFormulaName', () => {
       },
       'mol-fixture-formula',
     );
-    assert.equal(resolveWorkflowFormulaName(root), 'mol-fixture-formula');
+    assert.deepEqual(resolveWorkflowFormulaName(root), {
+      name: 'mol-fixture-formula',
+      source: 'title_fallback',
+    });
   });
 
   test('does NOT fall back to title for graph.v2 roots without gc.run_target', () => {

@@ -394,6 +394,7 @@ describe('workflow presentation enrichment fixtures', () => {
     assert.deepEqual(detail.formula, {
       kind: 'known',
       name: 'fixture-formula',
+      source: 'title_fallback',
     });
   });
 

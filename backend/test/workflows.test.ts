@@ -258,7 +258,7 @@ describe('workflows detail route', () => {
       assert.equal(res.status, 200);
       const body = await res.json();
       assert.equal(body.workflowId, 'gc-root');
-      assert.deepEqual(body.formula, { kind: 'known', name: 'mol-adopt-pr-v2' });
+      assert.deepEqual(body.formula, { kind: 'known', name: 'mol-adopt-pr-v2', source: 'metadata' });
       assert.equal(body.snapshotVersion, 7);
       assert.ok(
         fake.requests.includes('/v0/city/racoon-city/workflow/gc-root?scope_kind=city&scope_ref=racoon-city'),

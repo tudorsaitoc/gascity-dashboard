@@ -140,7 +140,7 @@ function RunMetadata({
 }) {
   return (
     <dl className="grid gap-x-8 gap-y-3 sm:grid-cols-2 lg:grid-cols-4">
-      <Meta label="Formula" value={formulaLabel(detail.formula)} />
+      <FormulaMeta formula={detail.formula} />
       <Meta label="Root" value={detail.rootBeadId} />
       <Meta label="Scope" value={`${detail.scopeKind}:${detail.scopeRef}`} />
       <Meta label="Store" value={detail.resolvedRootStore || detail.rootStoreRef || 'unknown'} />
@@ -157,16 +157,59 @@ function Meta({ label, value }: { label: string; value: string }) {
   );
 }
 
+const TITLE_FALLBACK_TOOLTIP =
+  'name inferred from bead title — supervisor did not set gc.formula on this graph.v2 root';
+
+/**
+ * Render the formula metadata cell with provenance.
+ *
+ * gascity-dashboard-e7hj: when the backend resolved the formula name via
+ * the gated title fallback (source === 'title_fallback') we surface that
+ * in a warn tone with an explanatory aside, matching the Health.tsx
+ * "not reported by supervisor" precedent (PR #36). Per DESIGN.md's
+ * "States have words" rule the warn tone is paired with a short textual
+ * correlate ("inferred from bead title") and the longer explanation
+ * lives in the native tooltip so the cell stays legible in greyscale.
+ */
+function FormulaMeta({ formula }: { formula: WorkflowRunDetailData['formula'] }) {
+  if (formula.kind !== 'known') {
+    return <Meta label="Formula" value={`unavailable (${formula.reason})`} />;
+  }
+  switch (formula.source) {
+    case 'metadata':
+      return <Meta label="Formula" value={formula.name} />;
+    case 'title_fallback':
+      return (
+        <div>
+          <dt className="text-label uppercase tracking-wider text-fg-faint">Formula</dt>
+          <dd
+            className="text-body text-warn break-all tnum"
+            title={TITLE_FALLBACK_TOOLTIP}
+            aria-label={`${formula.name} (${TITLE_FALLBACK_TOOLTIP})`}
+          >
+            {formula.name}
+            <span className="ml-2 text-label uppercase tracking-wider text-warn">
+              inferred from bead title
+            </span>
+          </dd>
+        </div>
+      );
+    default: {
+      // Exhaustiveness: a new WorkflowFormulaSource variant must declare its
+      // own render path — falling through to a default warn tone would
+      // silently misrepresent its provenance.
+      const _exhaustive: never = formula.source;
+      return _exhaustive;
+    }
+  }
+}
+
 function snapshotLabel(
   detail: WorkflowRunDetailData,
 ): string {
   return detail.snapshotEventSeq.kind === 'known'
     ? `v${detail.snapshotVersion} · seq ${detail.snapshotEventSeq.seq}`
     : `v${detail.snapshotVersion}`;
-}
-
-function formulaLabel(formula: WorkflowRunDetailData['formula']): string {
-  return formula.kind === 'known' ? formula.name : `unavailable (${formula.reason})`;
 }
 
 type ScopeParseResult =

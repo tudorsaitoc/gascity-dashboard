@@ -9,7 +9,8 @@
     "title": "Adopt PR #42",
     "formula": {
       "kind": "known",
-      "name": "mol-adopt-pr-v2"
+      "name": "mol-adopt-pr-v2",
+      "source": "metadata"
     },
     "executionPath": {
       "kind": "known",
