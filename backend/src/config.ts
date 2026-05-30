@@ -117,6 +117,22 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): AdminConfig {
   };
 }
 
+// Module-scope guards so MAINTAINER_REPO deprecation warnings fire at most
+// once per process — protects against config-reload, test-harness re-entry,
+// or any future caller that re-invokes loadConfig. The JSDoc on
+// loadMaintainerModuleConfig promises "warn-once at boot"; without these the
+// inline logWarn() emitted on every call (Phase-4 correctness MEDIUM).
+let warnedLegacyAliasIgnored = false;
+let warnedLegacyAliasUsed = false;
+
+// Test-only reset hook — config.test.ts re-invokes loadConfig under multiple
+// env permutations and needs each permutation to trigger the deprecation
+// warn that its precedence rule expects. Production code never calls this.
+export function __resetMaintainerAliasWarnState(): void {
+  warnedLegacyAliasIgnored = false;
+  warnedLegacyAliasUsed = false;
+}
+
 /**
  * Resolve the maintainer module's config slice from env. Implements the
  * MAINTAINER_REPO → MAINTAINER_GITHUB_REPO migration per audit-C8: the
@@ -130,7 +146,8 @@ function loadMaintainerModuleConfig(env: NodeJS.ProcessEnv): MaintainerModuleCon
   let githubRepo: string;
   if (newRepo !== undefined && newRepo.length > 0) {
     githubRepo = newRepo;
-    if (legacyRepo !== undefined && legacyRepo.length > 0) {
+    if (legacyRepo !== undefined && legacyRepo.length > 0 && !warnedLegacyAliasIgnored) {
+      warnedLegacyAliasIgnored = true;
       logWarn(
         LOG_COMPONENT.admin,
         'MAINTAINER_REPO is deprecated and being ignored; MAINTAINER_GITHUB_REPO takes precedence',
@@ -138,10 +155,13 @@ function loadMaintainerModuleConfig(env: NodeJS.ProcessEnv): MaintainerModuleCon
     }
   } else if (legacyRepo !== undefined && legacyRepo.length > 0) {
     githubRepo = legacyRepo;
-    logWarn(
-      LOG_COMPONENT.admin,
-      'MAINTAINER_REPO is deprecated; rename to MAINTAINER_GITHUB_REPO',
-    );
+    if (!warnedLegacyAliasUsed) {
+      warnedLegacyAliasUsed = true;
+      logWarn(
+        LOG_COMPONENT.admin,
+        'MAINTAINER_REPO is deprecated; rename to MAINTAINER_GITHUB_REPO',
+      );
+    }
   } else {
     githubRepo = 'gastownhall/gascity';
   }

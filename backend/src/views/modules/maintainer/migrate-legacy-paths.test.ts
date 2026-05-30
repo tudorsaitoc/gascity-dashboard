@@ -97,4 +97,21 @@ describe('migrateLegacyMaintainerPaths', () => {
     // File stays where it was — no rename onto itself, no exception.
     assert.equal(await readMaybe(path.join(oldDir, 'maintainer-cache.json')), '{"in-place":true}');
   });
+
+  test('symlink at legacy path is skipped, not relocated (Phase-4 security)', async () => {
+    // Plant a symlink at the legacy location pointing somewhere benign.
+    // The helper must lstat + skip rather than `rename` the symlink (which
+    // would move the LINK, leaving the target in place but the link reborn
+    // under cities/<city>/ — a silent home-tree mutation).
+    const linkTarget = path.join(oldDir, 'innocent.json');
+    await fs.writeFile(linkTarget, '{"benign":true}');
+    await fs.symlink(linkTarget, path.join(oldDir, 'maintainer-cache.json'));
+
+    await migrateLegacyMaintainerPaths(oldDir, newDir);
+
+    // The symlink stays at the legacy location, no new file at the target.
+    const oldLinkStat = await fs.lstat(path.join(oldDir, 'maintainer-cache.json'));
+    assert.ok(oldLinkStat.isSymbolicLink(), 'legacy symlink should still exist');
+    assert.equal(await readMaybe(path.join(newDir, 'maintainer-cache.json')), null);
+  });
 });

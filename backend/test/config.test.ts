@@ -1,7 +1,7 @@
 import { test, describe } from 'node:test';
 import assert from 'node:assert/strict';
 
-import { loadConfig } from '../src/config.js';
+import { loadConfig, __resetMaintainerAliasWarnState } from '../src/config.js';
 
 // loadConfig env-flag coverage. Seeded for gascity-dashboard-hzy's
 // useFixtures gate; new env-driven knobs land here to keep config
@@ -124,5 +124,30 @@ describe('loadConfig', () => {
   test('modules.maintainer.cachePath honours MAINTAINER_CACHE_PATH when set', () => {
     const cfg = loadConfig({ MAINTAINER_CACHE_PATH: '/var/cache/maintainer.json' });
     assert.equal(cfg.modules.maintainer.cachePath, '/var/cache/maintainer.json');
+  });
+});
+
+describe('MAINTAINER_REPO deprecation warning is warn-once per process', () => {
+  // Phase-4 correctness MEDIUM: the unguarded logWarn() fired on every
+  // loadConfig call. The fix is a module-scope guard; this test verifies
+  // the guard exists by counting console output across repeated calls.
+  test('legacy-alias-used warn fires at most once across repeated loadConfig calls', () => {
+    __resetMaintainerAliasWarnState();
+    const calls: string[] = [];
+    const origStderr = process.stderr.write.bind(process.stderr);
+    process.stderr.write = ((chunk: string | Uint8Array): boolean => {
+      const text = typeof chunk === 'string' ? chunk : Buffer.from(chunk).toString('utf8');
+      if (text.includes('MAINTAINER_REPO is deprecated')) calls.push(text);
+      return origStderr(chunk);
+    }) as typeof process.stderr.write;
+    try {
+      loadConfig({ MAINTAINER_REPO: 'legacy/one' });
+      loadConfig({ MAINTAINER_REPO: 'legacy/two' });
+      loadConfig({ MAINTAINER_REPO: 'legacy/three' });
+    } finally {
+      process.stderr.write = origStderr;
+    }
+    assert.equal(calls.length, 1, `expected 1 warn across 3 calls, got ${calls.length}`);
+    __resetMaintainerAliasWarnState();
   });
 });

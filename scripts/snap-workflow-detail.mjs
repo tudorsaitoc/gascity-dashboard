@@ -321,7 +321,6 @@ async function installApiFixtureRoutes(context) {
       body: JSON.stringify({
         cityName: 'racoon-city',
         cityRoot: '/tmp/gascity',
-        githubRepo: 'sjarmak/gascity-dashboard',
         useFixtures: false,
       }),
     });
@@ -529,7 +528,6 @@ function snapshotFixture() {
     config: {
       cityName: 'racoon-city',
       cityRoot: '/tmp/gascity',
-      githubRepo: 'sjarmak/gascity-dashboard',
       useFixtures: false,
     },
     headline: {

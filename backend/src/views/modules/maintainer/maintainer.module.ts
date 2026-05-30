@@ -91,12 +91,12 @@ export const maintainerBackend: BackendModule<MaintainerDeps> = {
     const { cachePath, slungStatePath } = maintainerPaths(ctx, deps);
     // Path-drift migration (audit-C8, Option A): when the operator has NOT
     // pinned a cache path AND legacy files exist at the pre-modular default
-    // (~/.gascity-dashboard/), move them into ctx.cityDataDir before the
-    // router starts reading. Fire-and-forget — the router can handle a
-    // cache-miss while the rename is in flight; the worker rebuilds on its
-    // next refresh.
+    // (~/.gascity-dashboard/), move them into ctx.cityDataDir BEFORE the
+    // router starts reading. Synchronous by design — see migrate-legacy-paths
+    // header comment for why fire-and-forget was rejected (Phase-4 security
+    // MEDIUM: race vs. concurrent router/worker writes).
     if (deps.cachePath === undefined) {
-      void migrateLegacyMaintainerPaths(legacyDefaultDir(), ctx.cityDataDir);
+      migrateLegacyMaintainerPaths(legacyDefaultDir(), ctx.cityDataDir);
     }
     return maintainerRouter({
       repo: deps.repo,
