@@ -25,7 +25,7 @@ beforeEach(() => {
   currentTrend = baseTrend();
   vi.stubGlobal('fetch', vi.fn(async (input: RequestInfo | URL) => {
     const url = String(input);
-    if (url === '/api/system/system') {
+    if (url === '/api/health/system') {
       return jsonResponse(currentHealth);
     }
     if (url === '/api/dolt-noms/trend') {

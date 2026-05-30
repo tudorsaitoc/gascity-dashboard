@@ -104,12 +104,24 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): AdminConfig {
     .split(',')
     .map((s) => s.trim().toLowerCase())
     .filter((s) => s.length > 0);
+  // Validate cityName: it lands in CityContext.cityDataDir as a path segment
+  // (~/.gascity-dashboard/cities/<cityName>/) that modules write to. A
+  // value containing `/`, `..`, or any path separator would let a
+  // misconfigured GC_CITY_NAME escape the cities/ root via path.join's
+  // normalization. Per the modular-dashboard PRD § premortem #5 +
+  // security review.
+  const cityName = env.GC_CITY_NAME ?? 'racoon-city';
+  if (!/^[a-z0-9]([a-z0-9-]*[a-z0-9])?$/i.test(cityName)) {
+    throw new Error(
+      `Invalid GC_CITY_NAME: "${cityName}" — must be alphanumeric with hyphens, no path separators or leading/trailing hyphen`,
+    );
+  }
   return {
     port,
     bindHost: env.HOST ?? '127.0.0.1',
     extraAllowedHosts,
     gcSupervisorUrl: (env.GC_SUPERVISOR_URL ?? 'http://127.0.0.1:8372').replace(/\/+$/, ''),
-    cityName: env.GC_CITY_NAME ?? 'racoon-city',
+    cityName,
     cityPath: env.GC_CITY_PATH ?? '',
     auditLogPath: env.ADMIN_AUDIT_LOG_PATH ?? defaultAuditLogPath(env),
     frontendDistPath: env.ADMIN_FRONTEND_DIST ?? '../frontend/dist',

@@ -1,4 +1,4 @@
-import type { MaintainerTriage } from 'gas-city-dashboard-shared';
+import type { BackgroundWorker, MaintainerTriage } from 'gas-city-dashboard-shared';
 import { ExecError } from '../exec.js';
 import { fetchTriage as defaultFetchTriage, collectItems } from './triage.js';
 import { writeCache } from './storage.js';
@@ -34,10 +34,16 @@ export interface RefresherRuntime {
   clearInterval(timer: RefresherTimer): void;
 }
 
-export interface MaintainerRefresher {
+/** The refresher is both a `BackgroundWorker` (modular-dashboard contract,
+ *  PR-A) and a Maintainer-specific runtime exposing `running` for tests
+ *  and ops introspection. `stop()` returns a Promise per BackgroundWorker;
+ *  no async cleanup is needed today (only synchronous timer clears) so the
+ *  promise resolves immediately. The shape is forward-compatible: if a
+ *  future stop path needs to drain an in-flight refresh, await it inside. */
+export interface MaintainerRefresher extends BackgroundWorker {
   readonly running: boolean;
   start(): void;
-  stop(): void;
+  stop(): Promise<void>;
 }
 
 type TimerState =
@@ -141,7 +147,7 @@ export function createMaintainerRefresher(
 
       logInfo(LOG_COMPONENT.maintainer, `refresher started for ${opts.repo}, interval ${formatInterval(opts.intervalMs)}`);
     },
-    stop() {
+    async stop() {
       startupTimer = clearScheduledTimer(startupTimer, runtime.clearTimeout);
       refreshTimer = clearScheduledTimer(refreshTimer, runtime.clearInterval);
       heartbeatTimer = clearScheduledTimer(heartbeatTimer, runtime.clearInterval);

@@ -2,10 +2,21 @@
 
 ## Adding a new view
 
-1. Add the route component under `frontend/src/routes/MyView.tsx`. Use `PageHeader` for the route opener and `StatusBadge` for any state indicators (see `routes/Health.tsx` for the canonical example).
+PR-A of the modular-dashboard PRD (`docs/PRD-modular-dashboard.md`) introduced a registry-driven path for new views; legacy explicit-wiring still exists for routes that haven't been ported yet. Prefer the registry path for anything new.
+
+### Registry-driven (preferred — PR-A onwards, /health is the worked example)
+
+1. Add the route component under `frontend/src/routes/MyView.tsx`.
+2. Add `frontend/src/views/modules/my-view.module.tsx` exporting a `FrontendViewDescriptor`. See `views/modules/health.module.tsx` — `lazy(() => import(...))` keeps the chunk out of the first-paint bundle.
+3. Register it in `frontend/src/views/registry.ts` by adding to `ALL_VIEWS`.
+4. If the view shows backend data, add `backend/src/views/modules/my-view.module.ts` exporting a `BackendModule<Deps>` and register it in `backend/src/views/registry.ts`. The iterator in `backend/src/app.ts` mounts it at `/api/<module-id>` automatically.
+
+### Legacy (still the path for routes not yet ported)
+
+1. Add the route component under `frontend/src/routes/MyView.tsx`.
 2. Add the route in `frontend/src/App.tsx`.
-3. Add the nav entry in `frontend/src/components/Header.tsx` — append to the `ROUTES` array. The weight-contrast active state is automatic.
-4. If the view shows data the backend has to fetch + process, add a backend route under `backend/src/routes/myview.ts` and register it in `server.ts`.
+3. Add the nav entry in `frontend/src/components/Header.tsx` — append to `EXPLICIT_ROUTES` with an `order` value that interleaves cleanly with the registry-driven entries.
+4. If the view shows data the backend has to fetch + process, add a backend route under `backend/src/routes/myview.ts` and register it in `app.ts`.
 
 ## Adding a backend route
 
@@ -101,3 +112,33 @@ Exit codes:
 
 Without `--test`, the script behaves as a snap-only harness, same as the other
 `scripts/snap*.mjs` files: writes PNGs to `/tmp/cp-snaps/` and exits 0.
+
+## Modular-dashboard CI invariants (PRD §1, §7)
+
+These checks document module-author conventions. PR-A only enforces the
+`as never` ban in CI; the others are documented now so PR-B+ can turn them
+on when `backend/src/views/modules/` becomes the home of more than one
+module.
+
+- **Enforced in PR-A:** `grep -rn 'as never' backend/src/app.ts` returns
+  zero hits. The existential `bind<D>()` wrapper in `backend/src/views/types.ts`
+  is the only sanctioned way to widen module Deps for iteration.
+- **Pending enforcement (PR-C):** every file under
+  `backend/src/views/modules/` reads from `ctx.cityName`/`ctx.cityPath`/
+  `ctx.cityDataDir`, never from the global `config.cityName`/`config.cityPath`:
+  ```
+  grep -rn 'config\.cityName\|config\.cityPath' backend/src/views/modules/
+  # must return zero hits
+  ```
+- **Pending enforcement (PR-C):** no module-level mutable singletons under
+  `backend/src/views/modules/` — these are the SSE-registry / cache-Map
+  patterns that premortem #2 flagged as multi-city-leak hazards:
+  ```
+  grep -rn '^const.*= new Set\|^const.*: Array\|^const.*: Map' backend/src/views/modules/
+  # must return zero hits
+  ```
+- **Audience-hypothesis revisit (PR-A scheduled bead, PRD §7):** a
+  `bd` task is created at PR-A merge with a 6-month target date. If the
+  date passes with no `docs/PLUGIN-API-DEFERRED.md` tombstone AND the bead
+  is still open, `scripts/check-audience-hypothesis-due.sh` exits 1.
+  Not yet wired into CI — re-evaluate at PR-D land time.

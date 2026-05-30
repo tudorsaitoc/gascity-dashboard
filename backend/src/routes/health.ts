@@ -105,7 +105,7 @@ export function healthRouter(gc: GcClient, opts: HealthRouterOptions = {}): Rout
     };
     await recordAudit({
       type: 'dashboard.fetch',
-      endpoint: 'GET /api/system/system',
+      endpoint: 'GET /api/health/system',
       duration_ms: 0,
     });
     res.json(payload);

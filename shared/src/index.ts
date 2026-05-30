@@ -15,6 +15,7 @@ export {
 export * from './workflow-detail.js';
 export type * from './workflow-snapshot.js';
 export * from './links.js';
+export type * from './views.js';
 
 export type IsoTimestamp = string;
 export type BeadId = string;

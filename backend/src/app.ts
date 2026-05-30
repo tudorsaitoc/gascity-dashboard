@@ -1,8 +1,12 @@
 import express, { type Express } from 'express';
 import fs from 'node:fs';
+import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import type { DashboardRuntimeConfig } from 'gas-city-dashboard-shared';
+import type {
+  BackgroundWorker,
+  DashboardRuntimeConfig,
+} from 'gas-city-dashboard-shared';
 
 import type { AdminConfig } from './config.js';
 import {
@@ -22,7 +26,6 @@ import { mailRouter } from './routes/mail.js';
 import { mailSendRouter } from './routes/mail-send.js';
 import { gitRouter } from './routes/git.js';
 import { buildsRouter } from './routes/builds.js';
-import { healthRouter } from './routes/health.js';
 import { createDoltNomsSampler, doltRouter } from './routes/dolt.js';
 import { eventsRouter } from './routes/events.js';
 import { clientErrorsRouter } from './routes/client-errors.js';
@@ -33,6 +36,8 @@ import {
   type MaintainerRefresher,
 } from './maintainer/worker.js';
 import { createSnapshotService } from './snapshot/service.js';
+import { ALL_MODULES } from './views/registry.js';
+import { bind, type CityContext } from './views/types.js';
 import { LOG_COMPONENT, logInfo } from './logging.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -43,7 +48,11 @@ type RefresherServerState =
 
 export interface DashboardRuntime {
   start(): void;
-  stop(): void;
+  /** Stop all background workers. Returns a Promise so workers that drain
+   *  in-flight work (e.g. an SSE registry close in PR-B) can await cleanly.
+   *  Callers without an await still benefit because the promise resolves
+   *  synchronously when all workers' stop()s are synchronous. */
+  stop(): Promise<void>;
 }
 
 export interface DashboardApp {
@@ -100,8 +109,34 @@ export function createDashboardApp(config: AdminConfig): DashboardApp {
   );
   writeRouter.use('/git', gitRouter());
   writeRouter.use('/builds', buildsRouter());
-  writeRouter.use('/system', healthRouter(gc));
   writeRouter.use('/client-errors', clientErrorsRouter());
+
+  // Modular-dashboard registry iterator (docs/PRD-modular-dashboard.md §2).
+  // PR-A wires HEALTH only via this loop; every other route stays
+  // explicitly mounted above. The CityContext is constructed once and
+  // threaded through the existential bind<D>() wrapper, so the iterator
+  // never sees Deps — premortem #3 mitigation (forbids the
+  // type-erasure cast pattern in this file).
+  const cityDataDir = path.join(
+    os.homedir(),
+    '.gascity-dashboard',
+    'cities',
+    config.cityName,
+  );
+  const cityContext: CityContext = {
+    cityName: config.cityName,
+    cityPath: config.cityPath,
+    cityDataDir,
+    gc,
+    config: dashboardConfig,
+  };
+  const moduleWorkers: BackgroundWorker[] = [];
+  for (const mod of ALL_MODULES) {
+    const bound = bind(mod, config);
+    writeRouter.use(`/${bound.id}`, bound.mount(cityContext));
+    const w = bound.worker?.(cityContext);
+    if (w) moduleWorkers.push(w);
+  }
 
   const doltNomsSampler = createDoltNomsSampler({ cityPath: config.cityPath });
   writeRouter.use('/dolt-noms', doltRouter(doltNomsSampler));
@@ -157,9 +192,16 @@ export function createDashboardApp(config: AdminConfig): DashboardApp {
       start() {
         doltNomsSampler.start();
         if (refresherState.status === 'active') refresherState.refresher.start();
+        for (const w of moduleWorkers) w.start();
       },
-      stop() {
-        if (refresherState.status === 'active') refresherState.refresher.stop();
+      async stop() {
+        // Stop registry-mounted workers first so PR-B+ background sweeps
+        // settle before the explicitly-mounted maintainer worker tears down
+        // its in-process timers + (eventually) its SSE registry.
+        await Promise.all(moduleWorkers.map((w) => w.stop()));
+        if (refresherState.status === 'active') {
+          await refresherState.refresher.stop();
+        }
         doltNomsSampler.stop();
       },
     },

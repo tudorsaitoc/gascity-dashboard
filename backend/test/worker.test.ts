@@ -273,7 +273,7 @@ describe('runRefresh — slung-state purge for vetted items', () => {
 });
 
 describe('createMaintainerRefresher', () => {
-  test('owns timers per instance and clears them on stop', () => {
+  test('owns timers per instance and clears them on stop', async () => {
     const scheduler = new FakeRefresherRuntime();
     const refresher = createMaintainerRefresher(
       {
@@ -296,7 +296,7 @@ describe('createMaintainerRefresher', () => {
     assert.equal(scheduler.activeTimeoutCount(), 1, 'start is idempotent');
     assert.equal(scheduler.activeIntervalCount(), 2, 'start does not duplicate intervals');
 
-    refresher.stop();
+    await refresher.stop();
     assert.equal(refresher.running, false);
     assert.equal(scheduler.activeTimeoutCount(), 0);
     assert.equal(scheduler.activeIntervalCount(), 0);
@@ -343,7 +343,7 @@ describe('createMaintainerRefresher', () => {
       const cached = await readCache(cachePath);
       return cached.status === 'ready' && cached.envelope.repo === 'test/second';
     });
-    refresher.stop();
+    await refresher.stop();
   });
 });
 

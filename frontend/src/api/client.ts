@@ -164,7 +164,7 @@ export const api = {
     return request('GET', '/api/builds');
   },
   systemHealth(): Promise<SystemHealth> {
-    return request('GET', '/api/system/system');
+    return request('GET', '/api/health/system');
   },
   doltTrend(): Promise<DoltNomsTrend> {
     return request('GET', '/api/dolt-noms/trend');

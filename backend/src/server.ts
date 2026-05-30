@@ -25,8 +25,9 @@ function main(): void {
 
   function shutdown(signal: string): void {
     logInfo(LOG_COMPONENT.admin, `${signal} received, shutting down`);
-    runtime.stop();
-    server.close(() => process.exit(0));
+    void runtime.stop().finally(() => {
+      server.close(() => process.exit(0));
+    });
     setTimeout(() => process.exit(1), 5_000).unref();
   }
   process.on('SIGTERM', () => shutdown('SIGTERM'));

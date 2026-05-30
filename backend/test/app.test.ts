@@ -61,7 +61,7 @@ describe('createDashboardApp', () => {
         });
       });
     } finally {
-      runtime.stop();
+      await runtime.stop();
     }
   });
 });

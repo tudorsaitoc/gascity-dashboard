@@ -4,20 +4,47 @@ import { useTheme } from '../contexts/ThemeContext';
 import { useViewingAs, OPERATOR_ALIAS } from '../contexts/ViewingAsContext';
 import { displayLabel } from '../hooks/aliasPriority';
 import { useCachedData } from '../hooks/useCachedData';
+import { ALL_VIEWS } from '../views/registry';
 
-const ROUTES: { to: string; label: string; end?: boolean }[] = [
+interface NavRoute {
+  to: string;
+  label: string;
+  end?: boolean;
+  order: number;
+}
+
+// Hand-maintained routes for the views that PR-A has NOT yet ported to
+// the modular registry. Each entry carries an explicit `order` so the
+// registry-driven entries (currently /health at 60) interleave cleanly
+// here without a separate "where does Health go" decision. PR-B+ will
+// move entries out of this list as they land in ALL_VIEWS.
+const EXPLICIT_ROUTES: ReadonlyArray<NavRoute> = [
   // gascity-dashboard-kb3: Home is the L0 ambient page at `/`.
   // `end: true` so the NavLink active-state matches `/` exactly
   // (otherwise every nested route would also be 'active').
-  { to: '/', label: 'Home', end: true },
-  { to: '/agents', label: 'Agents' },
-  { to: '/beads', label: 'Beads' },
-  { to: '/workflows', label: 'Workflows' },
-  { to: '/mail', label: 'Mail' },
-  { to: '/activity', label: 'Activity' },
-  { to: '/health', label: 'Health' },
-  { to: '/maintainer', label: 'Triage' },
+  { to: '/', label: 'Home', end: true, order: 10 },
+  { to: '/agents', label: 'Agents', order: 20 },
+  { to: '/beads', label: 'Beads', order: 30 },
+  { to: '/workflows', label: 'Workflows', order: 40 },
+  { to: '/mail', label: 'Mail', order: 50 },
+  { to: '/activity', label: 'Activity', order: 55 },
+  { to: '/maintainer', label: 'Triage', order: 80 },
 ];
+
+const REGISTRY_ROUTES: ReadonlyArray<NavRoute> = ALL_VIEWS.flatMap((v) => {
+  if (v.nav === null) return [];
+  return [{
+    to: v.path,
+    label: v.nav.label,
+    end: v.path === '/',
+    order: v.nav.order,
+  }];
+});
+
+// Spread already allocates a new mutable array, so .sort() in-place is
+// safe — no .slice() needed (PR-A Phase-4 TS M4).
+const ROUTES: ReadonlyArray<NavRoute> = [...EXPLICIT_ROUTES, ...REGISTRY_ROUTES]
+  .sort((a, b) => a.order - b.order);
 
 // The header is page furniture, not chrome. A small wordmark, the
 // five route names typeset as a row, a textual theme toggle. The
