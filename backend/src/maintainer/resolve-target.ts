@@ -30,6 +30,11 @@ import { resolveSessionForTarget } from 'gas-city-dashboard-shared';
  * already accepts session_name | alias | id, so any of the three
  * returned shapes resolves correctly when handed back to the route.
  *
+ * `session_name` is required per OpenAPI (6bv7 F10), so a `??` chain
+ * would be type-dead. `||` is used so an empty-string session_name
+ * (which `z.string()` still accepts) falls through to alias/id rather
+ * than producing an unroutable `/agents/` URL.
+ *
  * Pure function: no side effects, no IO. Callers that need to fetch
  * sessions own the listSessions() call.
  */
@@ -39,5 +44,5 @@ export function resolveTargetToSession(
 ): string | null {
   const session = resolveSessionForTarget(target, sessions);
   if (session === null) return null;
-  return session.session_name ?? session.alias ?? session.id;
+  return session.session_name || session.alias || session.id;
 }

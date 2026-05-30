@@ -4,8 +4,13 @@ import type { GcAgent, GcSession } from 'gas-city-dashboard-shared';
 // URL-safe primary; alias is human-readable; id is the stable fallback.
 // Mirrors the resolution order on the receiving page so a slug always
 // round-trips for as long as the session exists.
+//
+// `session_name` is required per OpenAPI (6bv7 F10), so a `??` chain
+// would be type-dead. `||` is used so an empty-string session_name
+// (which `z.string()` still accepts) falls through to alias/id rather
+// than producing an unroutable `/agents/` URL.
 export function sessionSlug(s: GcSession): string {
-  return s.session_name ?? s.alias ?? s.id;
+  return s.session_name || s.alias || s.id;
 }
 
 /**

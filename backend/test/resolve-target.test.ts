@@ -144,6 +144,19 @@ describe('resolveTargetToSession', () => {
     assert.equal(resolveTargetToSession('chief-of-staff', [s]), 'chief-of-staff');
   });
 
+  test('falls back to alias when session_name is empty string (6bv7.1)', () => {
+    // F10 made session_name a required string, but the wire could still
+    // deliver "" (z.string() does not enforce min(1)). The resolver uses
+    // || so an empty session_name does not become an unroutable /agents/
+    // URL — it falls through to alias.
+    const s = session({
+      id: 'gc-1',
+      alias: 'chief-of-staff',
+      session_name: '',
+    });
+    assert.equal(resolveTargetToSession('chief-of-staff', [s]), 'chief-of-staff');
+  });
+
   test('falls back to id when both session_name and alias absent', () => {
     const s = session({
       id: 'gc-1',
