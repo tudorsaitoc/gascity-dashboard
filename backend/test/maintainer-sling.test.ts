@@ -20,6 +20,7 @@ import type {
   TriageItem,
 } from 'gas-city-dashboard-shared';
 import { makePr } from './fixtures/triage-item.js';
+import { assertWireDetails } from './helpers/wire.js';
 
 // Tests for POST /api/maintainer/sling (gascity-dashboard-ib5,
 // gascity-dashboard-mq2). The route POSTs to the supervisor's /sling
@@ -1330,10 +1331,10 @@ describe('POST /api/maintainer/sling — err.message redaction', { concurrency: 
     // Any non-timeout throw maps to 502 upstream (gascity-dashboard-mq2).
     assert.equal(res.status, 502);
     assert.equal(res.body.kind, 'upstream');
-    const details = res.body.details as { name?: string; message?: string };
-    assert.equal(details?.message, undefined, 'details.message must be redacted');
+    assertWireDetails(res.body.details);
+    assert.equal(res.body.details.message, undefined, 'details.message must be redacted');
     assert.equal(
-      details?.name,
+      res.body.details.name,
       'NetworkError',
       'details.name must carry the Error class discriminator',
     );

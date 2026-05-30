@@ -11,6 +11,7 @@ import { beadsRouter } from '../src/routes/beads.js';
 import { setAuditLogPath } from '../src/audit.js';
 import { GcClient } from '../src/gc-client.js';
 import type { BeadUpdateInput } from 'gas-city-dashboard-shared';
+import { assertWireDetails } from './helpers/wire.js';
 
 // Tests for POST /api/beads/:id/{claim,close,nudge}.
 //
@@ -224,9 +225,9 @@ describe('POST /api/beads/:id/{claim,close,nudge}', { concurrency: false }, () =
     const res = await postJson(`${h.url}/api/beads/td-wisp-abc123/claim`);
     assert.equal(res.status, 502);
     assert.equal(res.body.kind, 'upstream');
-    const details = res.body.details as { name?: string; message?: string };
-    assert.equal(details?.message, undefined, 'details.message must be redacted');
-    assert.equal(details?.name, 'UpstreamError');
+    assertWireDetails(res.body.details);
+    assert.equal(res.body.details.message, undefined, 'details.message must be redacted');
+    assert.equal(res.body.details.name, 'UpstreamError');
     const wire = JSON.stringify(res.body);
     assert.ok(!wire.includes('127.0.0.1'), `response leaks loopback: ${wire}`);
     assert.ok(!wire.includes('8372'), `response leaks supervisor port: ${wire}`);
@@ -294,10 +295,10 @@ describe('POST /api/beads/:id/{claim,close,nudge}', { concurrency: false }, () =
     const res = await postJson(`${h.url}/api/beads/td-wisp-abc123/nudge`);
     assert.equal(res.status, 502);
     assert.equal(res.body.kind, 'upstream');
-    const details = res.body.details as { stderr?: string; name?: string };
-    assert.equal(details.stderr, undefined, 'wire must not carry raw stderr');
+    assertWireDetails(res.body.details);
+    assert.equal(res.body.details.stderr, undefined, 'wire must not carry raw stderr');
     assert.equal(
-      details.name,
+      res.body.details.name,
       'NonZeroExit',
       'wire must carry the fixed details discriminator only',
     );
@@ -401,14 +402,14 @@ describe('POST /api/beads/:id/{claim,close,nudge}', { concurrency: false }, () =
     const res = await postJson(`${h.url}/api/beads/td-wisp-abc123/nudge`);
     assert.equal(res.status, 500);
     assert.equal(res.body.kind, 'internal');
-    const details = res.body.details as { name?: string; message?: string };
+    assertWireDetails(res.body.details);
     assert.equal(
-      details?.message,
+      res.body.details.message,
       undefined,
       'details.message must be redacted',
     );
     assert.equal(
-      details?.name,
+      res.body.details.name,
       'NetworkError',
       'details.name must carry the Error class discriminator',
     );

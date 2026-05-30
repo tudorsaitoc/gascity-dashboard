@@ -9,6 +9,7 @@ import { ExecError } from '../src/exec.js';
 import { gitRouter } from '../src/routes/git.js';
 import type { GitRouterOptions } from '../src/routes/git.js';
 import { setAuditLogPath } from '../src/audit.js';
+import { assertWireDetails } from './helpers/wire.js';
 
 // Regression coverage for GET /api/git/commits catch-arm err.message
 // redaction (gascity-dashboard-big).
@@ -140,10 +141,10 @@ describe('GET /api/git/commits — catch-arm err.message redaction', { concurren
     const res = await getJson(`${h.url}/api/git/commits`);
     assert.equal(res.status, 500);
     assert.equal(res.body.kind, 'internal');
-    const details = res.body.details as { name?: string; message?: string };
-    assert.equal(details?.message, undefined, 'details.message must be redacted');
+    assertWireDetails(res.body.details);
+    assert.equal(res.body.details.message, undefined, 'details.message must be redacted');
     assert.equal(
-      details?.name,
+      res.body.details.name,
       'NetworkError',
       'details.name must carry the Error class discriminator',
     );

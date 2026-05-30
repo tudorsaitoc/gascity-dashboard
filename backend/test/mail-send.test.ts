@@ -8,6 +8,7 @@ import express from 'express';
 import { mailSendRouter } from '../src/routes/mail-send.js';
 import { setAuditLogPath } from '../src/audit.js';
 import type { MailSendResponse } from 'gas-city-dashboard-shared';
+import { assertWireDetails } from './helpers/wire.js';
 
 // Tests for POST /api/mail-send.
 //
@@ -243,9 +244,9 @@ describe('POST /api/mail-send', { concurrency: false }, () => {
     });
     assert.equal(res.status, 502);
     assert.equal(res.body.kind, 'upstream');
-    const details = res.body.details as { name?: string; message?: string };
-    assert.equal(details?.message, undefined, 'details.message must be redacted');
-    assert.equal(details?.name, 'UpstreamError');
+    assertWireDetails(res.body.details);
+    assert.equal(res.body.details.message, undefined, 'details.message must be redacted');
+    assert.equal(res.body.details.name, 'UpstreamError');
     const wire = JSON.stringify(res.body);
     assert.ok(!wire.includes('127.0.0.1'), `response leaks loopback: ${wire}`);
     assert.ok(!wire.includes('8372'), `response leaks supervisor port: ${wire}`);

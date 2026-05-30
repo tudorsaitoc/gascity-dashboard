@@ -9,6 +9,7 @@ import type { ExecResult } from '../src/exec.js';
 import { ExecError } from '../src/exec.js';
 import { agentsRouter } from '../src/routes/agents.js';
 import { setAuditLogPath } from '../src/audit.js';
+import { assertWireDetails, isWireDetails } from './helpers/wire.js';
 
 // Tests for GET /api/agents/:alias/prime non-zero-exit redaction
 // (gascity-dashboard-i53).
@@ -124,9 +125,8 @@ describe('GET /api/agents/:alias/prime — non-zero-exit redaction', { concurren
     // The acceptance criterion: stderr / path detail MUST NOT appear on
     // the wire. Both shapes (string field, nested details.stderr).
     assert.equal('stderr' in res.body, false, 'top-level stderr must not be present');
-    const details = res.body.details as Record<string, unknown> | undefined;
-    if (details !== undefined) {
-      assert.equal('stderr' in details, false, 'details.stderr must not be present');
+    if (isWireDetails(res.body.details)) {
+      assert.equal(res.body.details.stderr, undefined, 'details.stderr must not be present');
     }
     // Belt-and-suspenders: serialised body contains no path fragment from stderr.
     const serialised = JSON.stringify(res.body);
@@ -154,10 +154,9 @@ describe('GET /api/agents/:alias/prime — non-zero-exit redaction', { concurren
     // descriptive `name` and NO stderr. Pin it directly so a future
     // change that drops `details` (or revives `details.stderr`) fails
     // loudly instead of slipping through a loose conditional.
-    const details = res.body.details as Record<string, unknown> | undefined;
-    assert.ok(details !== undefined, 'details must be present on 502 upstream');
-    assert.equal(details.name, 'NonZeroExit');
-    assert.equal('stderr' in details, false, 'details.stderr must not be present');
+    assertWireDetails(res.body.details);
+    assert.equal(res.body.details.name, 'NonZeroExit');
+    assert.equal(res.body.details.stderr, undefined, 'details.stderr must not be present');
     const serialised = JSON.stringify(res.body);
     assert.equal(serialised.includes('/home/ds/gascity'), false);
     assert.equal(serialised.includes('goroutine'), false);
@@ -182,7 +181,8 @@ describe('GET /api/agents/:alias/prime — non-zero-exit redaction', { concurren
     assert.equal(res.status, 502);
     assert.equal(typeof res.body.kind, 'string');
     assert.equal(typeof res.body.error, 'string');
-    assert.equal((res.body.details as { name?: string } | undefined)?.name, 'NonZeroExit');
+    assertWireDetails(res.body.details);
+    assert.equal(res.body.details.name, 'NonZeroExit');
   });
 });
 
@@ -260,10 +260,10 @@ describe('GET /api/agents/:alias/prime — catch-arm err.message redaction', { c
     const res = await getJson(`${h.url}/api/agents/mayor/prime`);
     assert.equal(res.status, 500);
     assert.equal(res.body.kind, 'internal');
-    const details = res.body.details as { name?: string; message?: string };
-    assert.equal(details?.message, undefined, 'details.message must be redacted');
+    assertWireDetails(res.body.details);
+    assert.equal(res.body.details.message, undefined, 'details.message must be redacted');
     assert.equal(
-      details?.name,
+      res.body.details.name,
       'NetworkError',
       'details.name must carry the Error class discriminator',
     );
