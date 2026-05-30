@@ -6,7 +6,8 @@
 // views are registered by editing this file — the compile-time edit IS
 // the design-review checkpoint, premortem #6.
 
-import { healthView, type FrontendViewDescriptor } from './modules/health.module.js';
+import { healthView } from './modules/health.module.js';
+import type { FrontendViewDescriptor } from './types.js';
 
 export const ALL_VIEWS: ReadonlyArray<FrontendViewDescriptor> = [
   healthView,

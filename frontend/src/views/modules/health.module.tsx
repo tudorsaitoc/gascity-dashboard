@@ -4,10 +4,7 @@
 // navigates to /health, which is rare.
 
 import { lazy } from 'react';
-import type { ComponentType, LazyExoticComponent } from 'react';
-import type { ViewDescriptor } from 'gas-city-dashboard-shared';
-
-export type FrontendViewDescriptor = ViewDescriptor<LazyExoticComponent<ComponentType>>;
+import type { FrontendViewDescriptor } from '../types';
 
 export const healthView: FrontendViewDescriptor = {
   id: 'health',
