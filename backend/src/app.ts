@@ -154,12 +154,20 @@ export function createDashboardApp(config: AdminConfig): DashboardApp {
   // operator sees what mounted, not just what was requested. Emitted from
   // app.ts (not config.ts) because the registry-vs-env intersection is the
   // authoritative answer — config.ts only knows the env, not the registry.
+  //
+  // PR-C Phase-4 fix (MED-1 from security review): the log lists ALL
+  // mounted modules (core + firstParty); the wire field
+  // `/api/config.enabledModules` carries only the firstParty subset
+  // (core always mounts and is not part of the operator's opt-in surface).
+  // The trailing parenthetical is here so an operator comparing the log
+  // line to the wire response sees both shapes at the same site.
   logInfo(
     LOG_COMPONENT.admin,
-    `modules: enabled=[${mountedModules.map((m) => m.id).join(',')}]` +
+    `modules mounted=[${mountedModules.map((m) => m.id).join(',')}]` +
       ` disabled=[${ALL_MODULES.filter((m) => !mountedModules.includes(m))
         .map((m) => m.id)
-        .join(',')}]`,
+        .join(',')}]` +
+      ` (wire /api/config.enabledModules = firstParty subset only)`,
   );
   logInfo(
     LOG_COMPONENT.admin,

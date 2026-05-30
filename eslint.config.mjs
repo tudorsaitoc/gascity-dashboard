@@ -34,6 +34,15 @@ const backendColocatedTestGlobs = [
   'backend/src/**/fixtures/**',
 ];
 
+// Names of the module-isolation subdirs under views/modules/. Exported so
+// the drift-detector test can read it and assert it ⊇ actual subdirs of
+// `{backend,frontend}/src/views/modules/`. A new module added to the
+// registry without being added here would silently lose cross-import
+// protection — the drift-detector closes that window.
+// Defined ABOVE `export default` so `moduleIsolationConfigs()` (called
+// during default-export evaluation) doesn't TDZ-throw when it reads it.
+export const MODULE_ISOLATION_NAMES = ['maintainer', 'health'];
+
 export default tseslint.config(
   {
     ignores: [
@@ -199,38 +208,46 @@ function moduleIsolationConfigs() {
   const MESSAGE =
     'cross-module import forbidden — modules talk via CityContext / ModuleResources, not direct imports. See docs/MODULE-AUTHOR-CHECKLIST.md.';
 
-  // Enumerate every module's name once per side so the `no-restricted-imports`
-  // pattern list can name siblings explicitly. The pattern is the literal
-  // import string (minimatch), so each shape that resolves to a sibling
-  // module gets one entry:
+  // PR-C Phase-4 HIGH fix: extend the `no-restricted-imports` patterns to
+  // cover ALL practical depths from a module subdir, closing the bypass
+  // the reviewer found where a 2-up reach (`maintainer/fixtures/x.ts`
+  // → `../../health.module.js`) slipped past the original patterns. We
+  // initially tried `import/no-restricted-paths` (depth-independent by
+  // design) but it requires the import to RESOLVE first, and the default
+  // node resolver doesn't swap TypeScript's ESM `.js` → `.ts` — so the
+  // rule silently skips on every TS file in this codebase. Installing
+  // `eslint-import-resolver-typescript` would fix that but adds a dep
+  // for a problem we can pin down with one more pattern depth.
   //
-  //   `../<sibling>/**`          — one-up + dive into a sibling subdir
-  //   `../<sibling>.module.js`   — one-up to a sibling flat-file module
-  //   `../../modules/<sibling>/**`     — two-up + re-enter modules/ deep form
-  //   `../../modules/<sibling>.module.js` — two-up + re-enter, flat form
+  // Pattern shapes (literal-string minimatch, applied per importer):
+  //   `./X/**`           — flat-file module reaches sibling SUBDIR module
+  //   `./X.module*`      — flat-file module reaches sibling FLAT module
+  //   `../X/**`          — 1-up: subdir module reaches sibling SUBDIR
+  //   `../X.module*`     — 1-up: subdir module reaches sibling FLAT
+  //   `../../X/**`       — 2-up: nested subdir reaches sibling SUBDIR (e.g. fixtures/)
+  //   `../../X.module*`  — 2-up: nested subdir reaches sibling FLAT
+  //   `../../../X/**`    — 3-up: deeply nested (services/foo/bar.ts)
+  //   `../../../X.module*`
+  //   `../../modules/X/**` + `../../modules/X.module*` — explicit modules/-segment forms
   //
-  // Same-module imports stay inside the module dir
-  // (`./worker.js`, `./fixtures/x.json`) and never match any pattern.
-  // Out-of-tree imports (`../../routes/x.js` from `maintainer/`) traverse
-  // past `modules/` so they never match either.
-  //
-  // Adding a new module = appending one entry to MODULE_NAMES below.
-  // Forgetting to do so means a sibling import to that new module is not
-  // flagged — caught by the `views/registry.test.ts` smoke + the
-  // `MODULE-AUTHOR-CHECKLIST.md` step explicitly listing this file.
-  const MODULE_NAMES = ['maintainer', 'health'];
+  // The `../../X` form (no `modules/` segment) is what the reviewer's
+  // bypass exploited. The drift-detector test in `backend/test/views-registry
+  // .test.ts` asserts MODULE_ISOLATION_NAMES ⊇ actual subdirs/flat-files of
+  // views/modules/ so a new module added to the registry without being
+  // added here surfaces immediately.
+  const MODULE_NAMES = MODULE_ISOLATION_NAMES;
 
   function patternsFor() {
     const groups = [];
     for (const name of MODULE_NAMES) {
-      // From a sibling module dir reaching this module: `../<name>/...`
-      groups.push(`../${name}/**`);
-      groups.push(`../${name}.module*`);
-      // From a flat-file module at modules/ root reaching this module:
-      //   `./<name>/...` (subdir module) or `./<name>.module.js` (sibling flat file)
       groups.push(`./${name}/**`);
       groups.push(`./${name}.module*`);
-      // Deeper relative form (two-up + re-enter modules/):
+      groups.push(`../${name}/**`);
+      groups.push(`../${name}.module*`);
+      groups.push(`../../${name}/**`);
+      groups.push(`../../${name}.module*`);
+      groups.push(`../../../${name}/**`);
+      groups.push(`../../../${name}.module*`);
       groups.push(`../../modules/${name}/**`);
       groups.push(`../../modules/${name}.module*`);
     }
@@ -254,3 +271,4 @@ function moduleIsolationConfigs() {
     },
   ];
 }
+

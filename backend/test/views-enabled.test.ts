@@ -54,12 +54,29 @@ describe('resolveEnabledFirstPartyIds', () => {
   });
 
   test('CSV env with unknown id warns and continues — the typo does not crash boot', () => {
-    const enabled = resolveEnabledFirstPartyIds(
-      registry,
-      new Set(['maintainer', 'typo-here']),
-    );
+    // PR-C Phase-4 fix (MED-1 from correctness review): assert the warn
+    // actually FIRES, not just that the typo is dropped. Without this,
+    // silent-removal of the logWarn call would pass tests.
+    const warns: string[] = [];
+    const origStderr = process.stderr.write.bind(process.stderr);
+    process.stderr.write = ((chunk: string | Uint8Array): boolean => {
+      const text = typeof chunk === 'string' ? chunk : Buffer.from(chunk).toString('utf8');
+      if (text.includes('typo-here')) warns.push(text);
+      return origStderr(chunk);
+    }) as typeof process.stderr.write;
+    let enabled: ReadonlySet<string>;
+    try {
+      enabled = resolveEnabledFirstPartyIds(
+        registry,
+        new Set(['maintainer', 'typo-here']),
+      );
+    } finally {
+      process.stderr.write = origStderr;
+    }
     // Typo dropped; the rest of the set survives.
     assert.deepEqual([...enabled], ['maintainer']);
+    // The unknown-id warn fired (premortem #4 anti-drift signal).
+    assert.ok(warns.length >= 1, `expected unknown-id warn to fire, got ${warns.length}`);
   });
 
   test('returned set is a fresh copy, not the input', () => {
