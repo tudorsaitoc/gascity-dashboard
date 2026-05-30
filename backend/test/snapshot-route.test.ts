@@ -158,6 +158,8 @@ function buildApp(caches: SourceCacheMap): express.Express {
       cityName: 'test-city',
       cityRoot: '/tmp/test-city',
       useFixtures: false,
+      enabledModules: null,
+      defaultView: null,
     },
   });
   const app = express();

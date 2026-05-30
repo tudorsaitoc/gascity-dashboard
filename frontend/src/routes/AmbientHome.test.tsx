@@ -156,6 +156,8 @@ function envelope({
       cityName: 'racoon-city',
       cityRoot: '/tmp/x',
       useFixtures: false,
+      enabledModules: null,
+      defaultView: null,
     },
     headline: {
       activeAgents: { status: 'unavailable', source: 'city', error: 'unused' },

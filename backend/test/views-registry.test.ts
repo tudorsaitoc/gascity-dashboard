@@ -33,6 +33,8 @@ function makeConfig(overrides: Partial<AdminConfig> = {}): AdminConfig {
       },
     },
     useFixtures: false,
+    enabledModules: null,
+    defaultView: null,
     ...overrides,
   };
 }
@@ -177,5 +179,88 @@ describe('views/types#bind — non-void Deps fixture', () => {
     assert.equal(mounted.id, 'test-fixture');
     const router = mounted.mount(fakeCityContext(config));
     assert.equal(typeof router.use, 'function');
+  });
+});
+
+// Read eslint.config.mjs's exported MODULE_ISOLATION_NAMES by regex (not
+// import) — a TS test file can't import .mjs without a `.d.ts` companion
+// and adding one for a config file is overkill. The export shape is
+// `export const MODULE_ISOLATION_NAMES = ['a', 'b', ...]` (string literal
+// array, no computed values); the regex below is pinned to that shape.
+async function readModuleIsolationNames(): Promise<string[]> {
+  const fs = await import('node:fs/promises');
+  const path = await import('node:path');
+  const url = await import('node:url');
+  const here = path.dirname(url.fileURLToPath(import.meta.url));
+  const configPath = path.resolve(here, '..', '..', 'eslint.config.mjs');
+  const source = await fs.readFile(configPath, 'utf8');
+  const match = source.match(
+    /export const MODULE_ISOLATION_NAMES\s*=\s*\[([^\]]*)\]/,
+  );
+  if (!match) {
+    throw new Error(
+      `could not find 'export const MODULE_ISOLATION_NAMES = [...]' in ${configPath}`,
+    );
+  }
+  const arrayBody = match[1] ?? '';
+  return arrayBody
+    .split(',')
+    .map((s) => s.trim().replace(/^['"]|['"]$/g, ''))
+    .filter((s) => s.length > 0);
+}
+
+describe('MODULE_ISOLATION_NAMES drift detector (PR-C Phase-4 LOW-4)', () => {
+  // The ESLint cross-module rule iterates `MODULE_ISOLATION_NAMES` in
+  // `eslint.config.mjs`. A new module added to the registry but missed in
+  // that list would silently lose cross-import protection — and the rule
+  // is only as strong as the list it iterates. This drift detector reads
+  // the export and asserts it covers every actual module under
+  // views/modules/, so the omission fails at test-time instead of becoming
+  // a latent gap. Runs against BOTH backend and frontend module trees.
+  async function actualModuleNamesIn(absDir: string): Promise<string[]> {
+    const fs = await import('node:fs/promises');
+    const entries = await fs.readdir(absDir, { withFileTypes: true });
+    const names: string[] = [];
+    for (const entry of entries) {
+      if (entry.isDirectory()) {
+        names.push(entry.name);
+      } else if (/\.module\.(ts|tsx)$/.test(entry.name)) {
+        names.push(entry.name.replace(/\.module\.(ts|tsx)$/, ''));
+      }
+    }
+    return names;
+  }
+
+  async function modulesDir(side: 'backend' | 'frontend'): Promise<string> {
+    const path = await import('node:path');
+    const url = await import('node:url');
+    const here = path.dirname(url.fileURLToPath(import.meta.url));
+    return side === 'backend'
+      ? path.resolve(here, '..', 'src', 'views', 'modules')
+      : path.resolve(here, '..', '..', 'frontend', 'src', 'views', 'modules');
+  }
+
+  test('every backend module name is in MODULE_ISOLATION_NAMES', async () => {
+    const MODULE_ISOLATION_NAMES = await readModuleIsolationNames();
+    const actual = await actualModuleNamesIn(await modulesDir('backend'));
+    const listed = new Set(MODULE_ISOLATION_NAMES);
+    const missing = actual.filter((n) => !listed.has(n));
+    assert.deepEqual(
+      missing,
+      [],
+      `MODULE_ISOLATION_NAMES in eslint.config.mjs is missing backend modules: ${missing.join(', ')}. Add them or the cross-module ESLint rule won't fire for the new module.`,
+    );
+  });
+
+  test('every frontend module name is in MODULE_ISOLATION_NAMES', async () => {
+    const MODULE_ISOLATION_NAMES = await readModuleIsolationNames();
+    const actual = await actualModuleNamesIn(await modulesDir('frontend'));
+    const listed = new Set(MODULE_ISOLATION_NAMES);
+    const missing = actual.filter((n) => !listed.has(n));
+    assert.deepEqual(
+      missing,
+      [],
+      `MODULE_ISOLATION_NAMES is missing frontend modules: ${missing.join(', ')}`,
+    );
   });
 });

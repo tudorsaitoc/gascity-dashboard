@@ -1,3 +1,4 @@
+import { useMemo } from 'react';
 import { NavLink, useLocation } from 'react-router-dom';
 import { api } from '../api/client';
 import { useTheme } from '../contexts/ThemeContext';
@@ -5,6 +6,7 @@ import { useViewingAs, OPERATOR_ALIAS } from '../contexts/ViewingAsContext';
 import { displayLabel } from '../hooks/aliasPriority';
 import { useCachedData } from '../hooks/useCachedData';
 import { ALL_VIEWS } from '../views/registry';
+import { filterEnabledViews } from '../views/resolve';
 
 interface NavRoute {
   to: string;
@@ -30,21 +32,6 @@ const EXPLICIT_ROUTES: ReadonlyArray<NavRoute> = [
   { to: '/activity', label: 'Activity', order: 55 },
 ];
 
-const REGISTRY_ROUTES: ReadonlyArray<NavRoute> = ALL_VIEWS.flatMap((v) => {
-  if (v.nav === null) return [];
-  return [{
-    to: v.path,
-    label: v.nav.label,
-    end: v.path === '/',
-    order: v.nav.order,
-  }];
-});
-
-// Spread already allocates a new mutable array, so .sort() in-place is
-// safe — no .slice() needed (PR-A Phase-4 TS M4).
-const ROUTES: ReadonlyArray<NavRoute> = [...EXPLICIT_ROUTES, ...REGISTRY_ROUTES]
-  .sort((a, b) => a.order - b.order);
-
 // The header is page furniture, not chrome. A small wordmark, the
 // five route names typeset as a row, a textual theme toggle. The
 // route weight contrast IS the active-state affordance; no underline,
@@ -53,6 +40,22 @@ export function Header() {
   const { resolved, toggle } = useTheme();
   const { viewingAs } = useViewingAs();
   const { data: config } = useCachedData('config', () => api.config());
+  // PR-C: filter the registry views by the backend-advertised
+  // enabledModules so a disabled module's nav entry disappears in lockstep
+  // with its route. While the config fetch is in flight `enabledModules`
+  // is null — meaning every firstParty view appears, matching the
+  // first-paint route tree in App.tsx.
+  const ROUTES: ReadonlyArray<NavRoute> = useMemo(() => {
+    const enabled = filterEnabledViews(ALL_VIEWS, config?.enabledModules ?? null);
+    const registry: NavRoute[] = enabled.flatMap((v) =>
+      v.nav === null
+        ? []
+        : [{ to: v.path, label: v.nav.label, end: v.path === '/', order: v.nav.order }],
+    );
+    // Spread already allocates a new mutable array, so .sort() in-place is
+    // safe — no .slice() needed (PR-A Phase-4 TS M4).
+    return [...EXPLICIT_ROUTES, ...registry].sort((a, b) => a.order - b.order);
+  }, [config?.enabledModules]);
   const { pathname } = useLocation();
   // "Reading as" is a Mail-only concept — the value persists across views
   // (for Maintainer's impersonation guard + AgentDetail's chat filter) but

@@ -76,6 +76,54 @@ export interface AdminConfig {
    * gate is the global opt-in, not a substitute.
    */
   useFixtures: boolean;
+  /**
+   * Operator-enabled `firstParty` module ids (PRD §2, bead 9yj.5).
+   * `null` = unset, i.e. ALL firstParty modules mount (backwards-compat
+   * with pre-PR-C behaviour). An EMPTY set = no firstParty modules mount.
+   * Non-empty = exactly those `firstParty` ids mount. `core` modules
+   * ignore this filter entirely.
+   *
+   * The wire-shape `DashboardRuntimeConfig.enabledModules` mirrors this
+   * field as `string[] | null` so the frontend can apply the same filter
+   * to `ALL_VIEWS` (otherwise a backend-disabled module's path 404s in
+   * React Router).
+   *
+   * Env: `MODULES_ENABLED` (CSV — `MODULES_ENABLED=health,maintainer`).
+   * Whitespace tolerated around each entry; empty entries dropped. Casing
+   * preserved (ids are lowercase by convention but the filter is a literal
+   * set membership, so a typo surfaces as "module never mounted" at boot).
+   */
+  enabledModules: ReadonlySet<string> | null;
+  /**
+   * Operator override for the `/` route (PRD §6, bead 9yj.5).
+   * `null` = unset, i.e. the frontend resolves `/` via descriptor flags
+   * (`defaultRoute: true`) then falls back to the kb3 ambient home.
+   * Set via `DEFAULT_VIEW=<module-id>`. Value passes through verbatim to
+   * the wire shape and the frontend resolver; if the id is unknown or
+   * disabled the frontend warns and falls through (premortem #5).
+   */
+  defaultView: string | null;
+}
+
+/**
+ * Parse `MODULES_ENABLED` CSV per the AdminConfig.enabledModules contract.
+ * Returns `null` when the env is UNSET (preserves pre-PR-C behaviour);
+ * returns an empty set when the env is the empty string (operator explicitly
+ * disables all firstParty modules); returns a populated set otherwise.
+ *
+ * Whitespace around each entry is trimmed; empty entries (from leading /
+ * trailing / doubled commas) are dropped. Casing is preserved — module ids
+ * are lowercase by convention but the filter is a literal set membership,
+ * so a typo surfaces as "module never mounted" at boot rather than silently
+ * matching.
+ */
+export function parseModulesEnabled(raw: string | undefined): ReadonlySet<string> | null {
+  if (raw === undefined) return null;
+  const ids = raw
+    .split(',')
+    .map((s) => s.trim())
+    .filter((s) => s.length > 0);
+  return new Set(ids);
 }
 
 export function loadConfig(env: NodeJS.ProcessEnv = process.env): AdminConfig {
@@ -114,6 +162,15 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): AdminConfig {
       maintainer: loadMaintainerModuleConfig(env),
     },
     useFixtures: env.SNAPSHOT_USE_FIXTURES === '1',
+    enabledModules: parseModulesEnabled(env.MODULES_ENABLED),
+    // DEFAULT_VIEW: pass through verbatim. Validation (unknown id, disabled
+    // module) lives on the frontend's resolver so the warn is emitted in the
+    // same console where the operator sees the dashboard load. The backend
+    // mirrors the value into the wire-shape; null when unset or empty.
+    defaultView:
+      env.DEFAULT_VIEW !== undefined && env.DEFAULT_VIEW.length > 0
+        ? env.DEFAULT_VIEW
+        : null,
   };
 }
 

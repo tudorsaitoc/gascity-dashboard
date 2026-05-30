@@ -1,5 +1,6 @@
-import { Suspense } from 'react';
+import { Suspense, useMemo } from 'react';
 import { Routes, Route, Navigate } from 'react-router-dom';
+import { api } from './api/client';
 import { Layout } from './components/Layout';
 import { AgentsPage } from './routes/Agents';
 import { AgentDetailPage } from './routes/AgentDetail';
@@ -11,22 +12,53 @@ import { WorkflowsPage } from './routes/Workflows';
 import { WorkflowRunDetailPage } from './routes/WorkflowRunDetail';
 import { NowProvider } from './contexts/NowContext';
 import { ViewingAsProvider } from './contexts/ViewingAsContext';
+import { useCachedData } from './hooks/useCachedData';
 import { ALL_VIEWS } from './views/registry';
+import { filterEnabledViews, resolveDefaultViewWithLogging } from './views/resolve';
 
 export function App() {
   // NowProvider lives at the App root because useFaviconSignal (R8) is
   // mounted inside the L0 ambient home but the favicon swap must persist
   // across routes — a future refactor that mounts the signal on every
   // route stays straightforward because the 1s tick is already global.
+
+  // PR-C: the backend's /api/config carries the operator's MODULES_ENABLED
+  // intersection and the DEFAULT_VIEW env value. While the request is in
+  // flight `data` is undefined; we treat that as "use the pre-PR-C
+  // behaviour" (every firstParty mounted, ambient home at /) so the first
+  // paint never blanks. Once the response lands React re-renders the route
+  // tree with the resolved set.
+  const { data: config } = useCachedData('config', () => api.config());
+  const enabledModules = config?.enabledModules ?? null;
+  const defaultViewEnv = config?.defaultView ?? null;
+
+  const enabledViews = useMemo(
+    () => filterEnabledViews(ALL_VIEWS, enabledModules),
+    [enabledModules],
+  );
+  const defaultResolution = useMemo(
+    () => resolveDefaultViewWithLogging(enabledViews, defaultViewEnv),
+    [enabledViews, defaultViewEnv],
+  );
+  const DefaultViewElement = defaultResolution.view?.element ?? null;
+
   return (
     <ViewingAsProvider>
       <NowProvider>
         <Layout>
           <Suspense fallback={null}>
             <Routes>
-              {/* gascity-dashboard-kb3: / is the L0 ambient home (PRD §4/§5).
-                  Replaces the pre-kb3 Navigate to /agents. */}
-              <Route path="/" element={<AmbientHomePage />} />
+              {/* `/` resolution (PRD §6 / bead 9yj.5):
+                  DEFAULT_VIEW env → descriptor `defaultRoute: true` →
+                  kb3 ambient home fallback. The resolver runs once per
+                  enabled-set / env change; warnings surface in the
+                  browser console for premortem #5 visibility. */}
+              <Route
+                path="/"
+                element={
+                  DefaultViewElement !== null ? <DefaultViewElement /> : <AmbientHomePage />
+                }
+              />
               <Route path="/agents" element={<AgentsPage />} />
               <Route path="/agents/:slug" element={<AgentDetailPage />} />
               <Route path="/beads" element={<BeadsPage />} />
@@ -37,9 +69,12 @@ export function App() {
               <Route path="/kanban" element={<Navigate to="/workflows" replace />} />
               <Route path="/mail" element={<MailPage />} />
               <Route path="/activity" element={<ActivityPage />} />
-              {/* Modular-dashboard registry routes (PR-A: /health, PR-B2:
-                  /maintainer). Other routes will fold in as PR-B+ ports them. */}
-              {ALL_VIEWS.map((v) => {
+              {/* Modular-dashboard registry routes, filtered by the
+                  backend's enabledModules set. A disabled module's path
+                  is absent (not 404'd by React Router) so deep-link bookmarks
+                  surface the operator's MODULES_ENABLED change as a 404,
+                  not a blank route. */}
+              {enabledViews.map((v) => {
                 const Element = v.element;
                 return <Route key={v.id} path={v.path} element={<Element />} />;
               })}

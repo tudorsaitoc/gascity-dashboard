@@ -27,6 +27,8 @@ function makeConfig(overrides: Partial<AdminConfig> = {}): AdminConfig {
       },
     },
     useFixtures: false,
+    enabledModules: null,
+    defaultView: null,
     ...overrides,
   };
 }
@@ -61,6 +63,8 @@ describe('createDashboardApp', () => {
           cityName: 'test-city',
           cityRoot: '',
           useFixtures: false,
+          enabledModules: null,
+          defaultView: null,
         });
       });
     } finally {

@@ -1,7 +1,11 @@
 import { test, describe } from 'node:test';
 import assert from 'node:assert/strict';
 
-import { loadConfig, __resetMaintainerAliasWarnState } from '../src/config.js';
+import {
+  loadConfig,
+  parseModulesEnabled,
+  __resetMaintainerAliasWarnState,
+} from '../src/config.js';
 
 // loadConfig env-flag coverage. Seeded for gascity-dashboard-hzy's
 // useFixtures gate; new env-driven knobs land here to keep config
@@ -149,5 +153,72 @@ describe('MAINTAINER_REPO deprecation warning is warn-once per process', () => {
     }
     assert.equal(calls.length, 1, `expected 1 warn across 3 calls, got ${calls.length}`);
     __resetMaintainerAliasWarnState();
+  });
+});
+
+describe('parseModulesEnabled (PR-C / bead 9yj.5)', () => {
+  test('returns null when env is unset — preserves "all firstParty enabled" default', () => {
+    assert.equal(parseModulesEnabled(undefined), null);
+  });
+
+  test('returns an EMPTY set when env is the empty string — operator explicit opt-out', () => {
+    const set = parseModulesEnabled('');
+    assert.ok(set instanceof Set);
+    assert.equal(set?.size, 0);
+  });
+
+  test('returns the parsed set for a CSV value', () => {
+    const set = parseModulesEnabled('health,maintainer');
+    assert.deepEqual([...(set ?? [])].sort(), ['health', 'maintainer']);
+  });
+
+  test('trims whitespace around each entry', () => {
+    const set = parseModulesEnabled(' health , maintainer ');
+    assert.deepEqual([...(set ?? [])].sort(), ['health', 'maintainer']);
+  });
+
+  test('drops empty entries from leading / trailing / doubled commas', () => {
+    const set = parseModulesEnabled(',health,,maintainer,');
+    assert.deepEqual([...(set ?? [])].sort(), ['health', 'maintainer']);
+  });
+
+  test('preserves casing — typo surfaces as "module never mounted", not silent match', () => {
+    const set = parseModulesEnabled('Health,MAINTAINER');
+    assert.deepEqual([...(set ?? [])].sort(), ['Health', 'MAINTAINER']);
+  });
+});
+
+describe('loadConfig — enabledModules / defaultView (PR-C / bead 9yj.5)', () => {
+  test('enabledModules is null when MODULES_ENABLED is unset', () => {
+    const cfg = loadConfig({});
+    assert.equal(cfg.enabledModules, null);
+  });
+
+  test('enabledModules is an empty set when MODULES_ENABLED is the empty string', () => {
+    const cfg = loadConfig({ MODULES_ENABLED: '' });
+    assert.ok(cfg.enabledModules instanceof Set);
+    assert.equal(cfg.enabledModules?.size, 0);
+  });
+
+  test('enabledModules carries the parsed CSV when set', () => {
+    const cfg = loadConfig({ MODULES_ENABLED: 'health,maintainer' });
+    assert.deepEqual([...(cfg.enabledModules ?? [])].sort(), ['health', 'maintainer']);
+  });
+
+  test('defaultView is null when DEFAULT_VIEW is unset', () => {
+    const cfg = loadConfig({});
+    assert.equal(cfg.defaultView, null);
+  });
+
+  test('defaultView is null when DEFAULT_VIEW is the empty string', () => {
+    // Empty-string env vars are a Unix convention for "unset" — treat them
+    // as null so a `DEFAULT_VIEW=` doesn't accidentally pin "" as the id.
+    const cfg = loadConfig({ DEFAULT_VIEW: '' });
+    assert.equal(cfg.defaultView, null);
+  });
+
+  test('defaultView carries the env value verbatim when set', () => {
+    const cfg = loadConfig({ DEFAULT_VIEW: 'maintainer' });
+    assert.equal(cfg.defaultView, 'maintainer');
   });
 });

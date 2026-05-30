@@ -139,6 +139,8 @@ function buildService(caches: SourceCacheMap): SnapshotService {
 	      cityName: 'test-city',
 	      cityRoot: '/tmp/test-city',
       useFixtures: false,
+      enabledModules: null,
+      defaultView: null,
     },
   });
 }

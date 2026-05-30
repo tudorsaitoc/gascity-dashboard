@@ -125,6 +125,8 @@ const CONFIG = {
   cityName: 'test-city',
   cityRoot: '/tmp/x',
   useFixtures: false,
+  enabledModules: null,
+  defaultView: null,
 };
 
 describe('health engine wiring on /api/snapshot', () => {

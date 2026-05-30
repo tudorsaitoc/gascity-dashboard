@@ -32,6 +32,7 @@ import { clientErrorsRouter } from './routes/client-errors.js';
 import { snapshotRouter } from './routes/snapshot.js';
 import { createSnapshotService } from './snapshot/service.js';
 import { ALL_MODULES } from './views/registry.js';
+import { resolveEnabledFirstPartyIds } from './views/enabled.js';
 import { bind, type CityContext } from './views/types.js';
 import { LOG_COMPONENT, logInfo } from './logging.js';
 
@@ -73,10 +74,28 @@ export function createDashboardApp(config: AdminConfig): DashboardApp {
     baseUrl: config.gcSupervisorUrl,
     cityName: config.cityName,
   });
+  // PR-C: resolve which firstParty modules are mounted BEFORE building the
+  // wire-shape config so the frontend sees the same set the backend will
+  // actually bind. `core` modules ignore the filter entirely. Compute once
+  // here so the iterator below and the `/api/config` response cannot drift.
+  const enabledFirstPartyIds = resolveEnabledFirstPartyIds(
+    ALL_MODULES,
+    config.enabledModules,
+  );
+  const mountedModules = ALL_MODULES.filter(
+    (m) => m.kind === 'core' || enabledFirstPartyIds.has(m.id),
+  );
   const dashboardConfig: DashboardRuntimeConfig = {
     cityName: config.cityName,
     cityRoot: config.cityPath,
     useFixtures: config.useFixtures,
+    // null preserves the pre-PR-C "all firstParty enabled" semantics for the
+    // frontend (it sees null → does not filter). When the operator sets
+    // MODULES_ENABLED (even to empty) we ship the resolved list so the
+    // frontend's filter matches the backend's mount set exactly.
+    enabledModules:
+      config.enabledModules === null ? null : [...enabledFirstPartyIds],
+    defaultView: config.defaultView,
   };
 
   const writeRouter = express.Router();
@@ -124,12 +143,37 @@ export function createDashboardApp(config: AdminConfig): DashboardApp {
     config,
   };
   const moduleWorkers: BackgroundWorker[] = [];
-  for (const mod of ALL_MODULES) {
+  for (const mod of mountedModules) {
     const bound = bind(mod, config);
     writeRouter.use(`/${bound.id}`, bound.mount(cityContext));
     const w = bound.worker?.(cityContext);
     if (w) moduleWorkers.push(w);
   }
+  // Boot-time signal (premortem #4 + maintainer-coupling C7): log the
+  // ACTUAL enabled/disabled module split AFTER the filter resolves so the
+  // operator sees what mounted, not just what was requested. Emitted from
+  // app.ts (not config.ts) because the registry-vs-env intersection is the
+  // authoritative answer — config.ts only knows the env, not the registry.
+  //
+  // PR-C Phase-4 fix (MED-1 from security review): the log lists ALL
+  // mounted modules (core + firstParty); the wire field
+  // `/api/config.enabledModules` carries only the firstParty subset
+  // (core always mounts and is not part of the operator's opt-in surface).
+  // The trailing parenthetical is here so an operator comparing the log
+  // line to the wire response sees both shapes at the same site.
+  logInfo(
+    LOG_COMPONENT.admin,
+    `modules mounted=[${mountedModules.map((m) => m.id).join(',')}]` +
+      ` disabled=[${ALL_MODULES.filter((m) => !mountedModules.includes(m))
+        .map((m) => m.id)
+        .join(',')}]` +
+      ` (wire /api/config.enabledModules = firstParty subset only)`,
+  );
+  logInfo(
+    LOG_COMPONENT.admin,
+    `default-view: env=${config.defaultView ?? '(unset)'}` +
+      ` — resolution applied on the frontend (descriptor / fallback chain)`,
+  );
 
   const doltNomsSampler = createDoltNomsSampler({ cityPath: config.cityPath });
   writeRouter.use('/dolt-noms', doltRouter(doltNomsSampler));

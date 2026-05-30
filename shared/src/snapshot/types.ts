@@ -46,6 +46,33 @@ export interface DashboardRuntimeConfig {
   cityName: string;
   cityRoot: string;
   useFixtures: boolean;
+  /**
+   * Operator-enabled `firstParty` module ids (PRD §2 / bead 9yj.5).
+   * `null` = unset, i.e. ALL firstParty modules are enabled (backwards-compat
+   * default — preserves pre-PR-C behaviour). `[]` = explicitly disabled all
+   * firstParty modules. A CSV-ish set like `['health','maintainer']` enables
+   * exactly those firstParty ids. `core` modules are ALWAYS mounted and never
+   * appear in this filter — operators cannot disable a core module by leaving
+   * it off this list.
+   *
+   * The frontend's view registry filters `ALL_VIEWS` by this set so a
+   * backend-disabled module's route does not render a React Router 404; the
+   * route + nav entry are simply absent. The backend's module iterator
+   * applies the same filter to `ALL_MODULES` before `bind()`-ing.
+   */
+  enabledModules: string[] | null;
+  /**
+   * Operator override for the `/` route (PRD §6 / bead 9yj.5).
+   * Set via the `DEFAULT_VIEW=<module-id>` env. `null` when unset. The
+   * frontend's `resolveDefaultView()` honours this value when it points at
+   * an ENABLED view; otherwise it falls back to the descriptor's
+   * `defaultRoute: true` flag, then to the kb3 ambient home.
+   *
+   * Operator wins over descriptor by design — premortem #5's "default-view
+   * shadowing" signal is emitted from the resolver on the frontend when the
+   * env points at an unknown or disabled module.
+   */
+  defaultView: string | null;
 }
 
 export type DashboardMetric =

@@ -56,6 +56,8 @@ export const fixtureSnapshot = {
     cityName: 'example-city',
     cityRoot: '/tmp/example-city',
     useFixtures: true,
+    enabledModules: null,
+    defaultView: null,
   },
   headline: {
     activeAgents: { status: 'available', value: 12 },

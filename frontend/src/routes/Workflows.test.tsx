@@ -64,6 +64,8 @@ function buildEnvelope(
       cityName: 'racoon-city',
       cityRoot: '/tmp/example-city',
       useFixtures: false,
+      enabledModules: null,
+      defaultView: null,
     },
     headline: {
       activeAgents: { status: 'unavailable', source: 'city', error: 'city unavailable in test' },
