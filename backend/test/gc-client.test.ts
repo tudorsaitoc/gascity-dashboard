@@ -1232,9 +1232,11 @@ describe('GcClient error handling', () => {
     // Compile-time contract: `next` is no longer on GcEventList, so the
     // following access is only valid via an explicit cast. That cast is
     // the new tripwire — any consumer using `next` will need it, and any
-    // ungated `eventList.next` access fails tsc.
-    const ts = out as unknown as { next?: number };
-    void ts;
+    // ungated `eventList.next` access fails tsc. The runtime assertion
+    // pins the other half of the contract: passthrough() preserves the
+    // wire value (so we don't silently drop supervisor data), but the
+    // typed interior hides it behind the cast.
+    assert.equal((out as unknown as { next?: number }).next, 12345);
   });
 
   test('6bv7 F14: listBeads rejects a payload missing total', async () => {

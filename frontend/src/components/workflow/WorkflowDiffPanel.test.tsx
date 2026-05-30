@@ -2,7 +2,6 @@ import { cleanup, render, screen } from '@testing-library/react';
 import { afterEach, describe, expect, it } from 'vitest';
 import type { WorkflowDiffResponse } from 'gas-city-dashboard-shared';
 import { WorkflowDiffPanel } from './WorkflowDiffPanel';
-import { assertAtMostOneMark } from '../../test/assertions/oneMarkRule';
 
 afterEach(() => cleanup());
 
@@ -75,13 +74,11 @@ describe('WorkflowDiffPanel', () => {
 
     // The +/- glyph carries the add/remove signal; color must not. For the
     // kind:'ok' fixture no diff line — add, remove, hunk, or context — may
-    // carry the maroon accent. The shared helper layers in the One Mark Rule
-    // invariant (<=1 per viewport) for forward compatibility; the strict
-    // toBe(0) below is the original load-bearing guard — only the error
-    // branch of the panel intentionally renders text-accent, and this
-    // fixture never reaches it. Without the strict check, an add-line or
-    // hunk-line regressing to text-accent would still satisfy the helper.
-    assertAtMostOneMark(container);
+    // carry the maroon accent. Only the error branch of the panel
+    // intentionally renders text-accent, and this fixture never reaches it.
+    // The strict toBe(0) is stricter than the shared One Mark Rule helper
+    // (<=1) and would catch any add-line or hunk-line regression that the
+    // helper alone would let through.
     expect(container.querySelectorAll('.text-accent').length).toBe(0);
   });
 });
