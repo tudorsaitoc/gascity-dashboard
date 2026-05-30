@@ -2,13 +2,18 @@
 // import express or the concrete GcClient, so this file:
 //   1. Re-exports the shared types as type-only.
 //   2. Provides backend-narrowed aliases pinning the generics to express
-//      Router + the concrete DashboardRuntimeConfig.
+//      Router + the host-side `AdminConfig`.
 //   3. Implements `bind<D>()` — the existential wrapper that closes over
 //      each module's Deps so app.ts's iterator never sees them. Premortem
 //      #3 mitigation: no `as never` anywhere in app.ts.
+//
+// audit-C8 resolution: descriptor.needs() now receives the full
+// `AdminConfig` (not the narrow wire-shape `DashboardRuntimeConfig`) so
+// per-module slices under `AdminConfig.modules.<id>` are reachable
+// without re-projecting at every bind site. The wire shape stays narrow
+// because module config is host-side only — never serialized.
 
 import type { Router } from 'express';
-import type { DashboardRuntimeConfig } from 'gas-city-dashboard-shared';
 import type {
   BackendModule as SharedBackendModule,
   BackgroundWorker,
@@ -27,15 +32,17 @@ import type { GcClient } from '../gc-client.js';
 export type { BackgroundWorker, ModuleResources };
 
 /** Backend-narrowed `CityContext`: pins gc to the concrete `GcClient` and
- *  config to `DashboardRuntimeConfig`. */
-export type CityContext = SharedCityContext<GcClient, DashboardRuntimeConfig>;
+ *  config to the host-side `AdminConfig` so modules can read their slice
+ *  under `config.modules.<id>` from `ctx.config` at mount time. */
+export type CityContext = SharedCityContext<GcClient, AdminConfig>;
 
-/** Backend-narrowed `BackendModule`: pins router to `express.Router`. */
+/** Backend-narrowed `BackendModule`: pins router to `express.Router` and
+ *  config to the host-side `AdminConfig` (audit-C8). */
 export type BackendModule<Deps = void> = SharedBackendModule<
   Deps,
   Router,
   GcClient,
-  DashboardRuntimeConfig
+  AdminConfig
 >;
 
 /** Frontend re-export shape (backend doesn't render views but exports the
@@ -69,7 +76,7 @@ export function bind<D>(
       `BackendModule "${mod.id}" is missing required needs(config) function`,
     );
   }
-  const deps = mod.needs(toRuntimeConfig(config));
+  const deps = mod.needs(config);
   const workersFn = mod.workers;
   const mounted: MountedModule = {
     id: mod.id,
@@ -80,15 +87,4 @@ export function bind<D>(
     mounted.worker = (ctx) => workersFn(ctx, deps);
   }
   return mounted;
-}
-
-/** Mirror of the constructor in app.ts. Exposed so `bind()` and tests
- *  share one projection; modules see the same runtime view either way. */
-export function toRuntimeConfig(config: AdminConfig): DashboardRuntimeConfig {
-  return {
-    cityName: config.cityName,
-    cityRoot: config.cityPath,
-    githubRepo: config.maintainerRepo,
-    useFixtures: config.useFixtures,
-  };
 }

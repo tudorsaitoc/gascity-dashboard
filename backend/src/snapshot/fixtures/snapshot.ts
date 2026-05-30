@@ -55,7 +55,6 @@ export const fixtureSnapshot = {
   config: {
     cityName: 'example-city',
     cityRoot: '/tmp/example-city',
-    githubRepo: 'example-org/example-repo',
     useFixtures: true,
   },
   headline: {

@@ -9,7 +9,6 @@ import { MailPage } from './routes/Mail';
 import { ActivityPage } from './routes/Activity';
 import { WorkflowsPage } from './routes/Workflows';
 import { WorkflowRunDetailPage } from './routes/WorkflowRunDetail';
-import { MaintainerPage } from './views/modules/maintainer/Maintainer';
 import { NowProvider } from './contexts/NowContext';
 import { ViewingAsProvider } from './contexts/ViewingAsContext';
 import { ALL_VIEWS } from './views/registry';
@@ -38,9 +37,8 @@ export function App() {
               <Route path="/kanban" element={<Navigate to="/workflows" replace />} />
               <Route path="/mail" element={<MailPage />} />
               <Route path="/activity" element={<ActivityPage />} />
-              <Route path="/maintainer" element={<MaintainerPage />} />
-              {/* Modular-dashboard registry routes (PR-A: /health only).
-                  Other routes will fold in as PR-B+ ports them. */}
+              {/* Modular-dashboard registry routes (PR-A: /health, PR-B2:
+                  /maintainer). Other routes will fold in as PR-B+ ports them. */}
               {ALL_VIEWS.map((v) => {
                 const Element = v.element;
                 return <Route key={v.id} path={v.path} element={<Element />} />;

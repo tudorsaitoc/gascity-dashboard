@@ -45,7 +45,6 @@ export interface DashboardSnapshot {
 export interface DashboardRuntimeConfig {
   cityName: string;
   cityRoot: string;
-  githubRepo: string;
   useFixtures: boolean;
 }
 

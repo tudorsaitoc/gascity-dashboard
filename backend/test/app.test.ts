@@ -17,11 +17,15 @@ function makeConfig(overrides: Partial<AdminConfig> = {}): AdminConfig {
     auditLogPath: '.gc/events.jsonl',
     frontendDistPath: '../frontend/dist-does-not-exist',
     disabled: false,
-    maintainerRepo: 'gastownhall/gascity',
-    maintainerCachePath: '.gascity-dashboard/maintainer-cache.json',
-    maintainerRefreshIntervalMs: 0,
-    maintainerSlingTarget: 'mayor',
-    maintainerTriageTarget: 'chief-of-staff',
+    modules: {
+      maintainer: {
+        githubRepo: 'gastownhall/gascity',
+        slingTarget: 'mayor',
+        triageTarget: 'chief-of-staff',
+        refreshIntervalMs: 0,
+        cachePath: '.gascity-dashboard/maintainer-cache.json',
+      },
+    },
     useFixtures: false,
     ...overrides,
   };
@@ -56,7 +60,6 @@ describe('createDashboardApp', () => {
         assert.deepEqual(await config.json(), {
           cityName: 'test-city',
           cityRoot: '',
-          githubRepo: 'gastownhall/gascity',
           useFixtures: false,
         });
       });

@@ -138,7 +138,6 @@ function buildService(caches: SourceCacheMap): SnapshotService {
 	    config: {
 	      cityName: 'test-city',
 	      cityRoot: '/tmp/test-city',
-      githubRepo: 'test-org/test-repo',
       useFixtures: false,
     },
   });

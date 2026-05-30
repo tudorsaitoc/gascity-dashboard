@@ -7,10 +7,12 @@
 // the design-review checkpoint, premortem #6.
 
 import { healthView } from './modules/health.module.js';
+import { maintainerView } from './modules/maintainer/maintainer.module.js';
 import type { FrontendViewDescriptor } from './types.js';
 
 export const ALL_VIEWS: ReadonlyArray<FrontendViewDescriptor> = [
   healthView,
+  maintainerView,
 ];
 
 export type { FrontendViewDescriptor };
