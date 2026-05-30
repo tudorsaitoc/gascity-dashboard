@@ -1,6 +1,6 @@
 import { test, describe } from 'node:test';
 import assert from 'node:assert/strict';
-import { selectOneMark } from '../src/maintainer/triage.js';
+import { selectOneMark } from './triage.js';
 import { makeIssue, makePr } from './fixtures/triage-item.js';
 
 // gascity-dashboard-bs2: One Mark must skip issues with in-flight PRs.

@@ -1,6 +1,6 @@
 import { test, describe } from 'node:test';
 import assert from 'node:assert/strict';
-import { computeHasInFlightPr } from '../src/maintainer/triage.js';
+import { computeHasInFlightPr } from './triage.js';
 import { makeIssue, makePr } from './fixtures/triage-item.js';
 
 // gascity-dashboard-omv: TriageItem.has_in_flight_pr is the

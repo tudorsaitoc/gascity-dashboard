@@ -5,15 +5,15 @@ import type {
   TriageItem,
   TriageTierSection,
 } from 'gas-city-dashboard-shared';
-import { api } from '../api/client';
-import { setCached } from '../api/cache';
-import { Button } from '../components/Button';
-import { PageHeader } from '../components/PageHeader';
-import { SlungSection, TierSection } from '../components/maintainer/TriageSections';
-import { useCachedData } from '../hooks/useCachedData';
-import { useViewingAs } from '../contexts/ViewingAsContext';
-import { readBrowserStorage, writeBrowserStorage } from '../lib/browserStorage';
-import { reportClientError } from '../lib/clientErrorReporting';
+import { api } from '../../../api/client';
+import { setCached } from '../../../api/cache';
+import { Button } from '../../../components/Button';
+import { PageHeader } from '../../../components/PageHeader';
+import { SlungSection, TierSection } from './TriageSections';
+import { useCachedData } from '../../../hooks/useCachedData';
+import { useViewingAs } from '../../../contexts/ViewingAsContext';
+import { readBrowserStorage, writeBrowserStorage } from '../../../lib/browserStorage';
+import { reportClientError } from '../../../lib/clientErrorReporting';
 import {
   buildSlingRequests,
   dispatchSlings,
@@ -25,8 +25,8 @@ import {
   type SlingSuccess,
 } from './maintainerSelection';
 
-export { SlungLink, TriageScore } from '../components/maintainer/TriageSignals';
-export { IssueRow, SlungSection, TierSection } from '../components/maintainer/TriageSections';
+export { SlungLink, TriageScore } from './TriageSignals';
+export { IssueRow, SlungSection, TierSection } from './TriageSections';
 
 // Display labels for the two operator-facing sling intents
 // (gascity-dashboard-5xw). The actual aliases the backend dispatches

@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
-import { readCache, writeCache } from '../src/maintainer/storage.js';
+import { readCache, writeCache } from './storage.js';
 import type {
   MaintainerTriage,
   TriageItem,

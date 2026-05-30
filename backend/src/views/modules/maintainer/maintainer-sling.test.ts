@@ -8,10 +8,10 @@ import express from 'express';
 // ExecError is still used by the /refresh tests below — that route shells
 // `gh` (execGhIssueList) and maps ExecError kinds to wire codes. The /sling
 // path no longer throws ExecError (it POSTs to the supervisor via GcClient).
-import { ExecError } from '../src/exec.js';
-import { maintainerRouter } from '../src/routes/maintainer.js';
-import { setAuditLogPath } from '../src/audit.js';
-import { readSlungState, slungKey, writeSlungEntry } from '../src/maintainer/slung-state.js';
+import { ExecError } from '../../../exec.js';
+import { maintainerRouter } from './router.js';
+import { setAuditLogPath } from '../../../audit.js';
+import { readSlungState, slungKey, writeSlungEntry } from './slung-state.js';
 import type {
   GcSession,
   MaintainerTriage,
@@ -20,7 +20,7 @@ import type {
   TriageItem,
 } from 'gas-city-dashboard-shared';
 import { makePr } from './fixtures/triage-item.js';
-import { assertWireDetails } from './helpers/wire.js';
+import { assertWireDetails } from '../../../../test/helpers/wire.js';
 
 // Tests for POST /api/maintainer/sling (gascity-dashboard-ib5,
 // gascity-dashboard-mq2). The route POSTs to the supervisor's /sling
@@ -78,9 +78,14 @@ async function buildApp(opts: BuildOpts = {}): Promise<AppHandle> {
 
   const app = express();
   app.use(express.json());
+  // PR-B1 / docs/maintainer-coupling.md C2: slungStatePath is now
+  // required by maintainerRouter (defaultSlungStatePath removed). Mirror
+  // slungStatePathFor() below so the test still writes to the same file
+  // the router reads from.
   const routerOptions: Parameters<typeof maintainerRouter>[0] = {
     repo: 'gastownhall/gascity',
     cachePath: path.join(tmpDir, 'cache.json'),
+    slungStatePath: path.join(tmpDir, 'slung-state.json'),
     slingTarget: opts.slingTarget ?? 'mayor',
     sling,
   };
@@ -565,9 +570,9 @@ describe('POST /api/maintainer/sling', { concurrency: false }, () => {
 // means "agent has the work."
 
 function slungStatePathFor(handle: AppHandle): string {
-  // Mirrors defaultSlungStatePath in routes/maintainer.ts: sibling of
-  // the envelope cache. AppHandle exposes the cache via auditPath's
-  // dir (both live in the same tmpDir).
+  // Matches the slungStatePath threaded into routerOptions in buildApp:
+  // sibling of the envelope cache in the test tmpDir. AppHandle exposes
+  // the dir via auditPath (both live in the same tmpDir).
   return path.join(path.dirname(handle.auditPath), 'slung-state.json');
 }
 

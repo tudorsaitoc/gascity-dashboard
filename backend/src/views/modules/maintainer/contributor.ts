@@ -7,7 +7,7 @@ import {
   execGhIssueListAll,
   execGhPrListAll,
   ExecError,
-} from '../exec.js';
+} from '../../../exec.js';
 
 // Contributor stats + trust tier classifier (gascity-dashboard-alh).
 //

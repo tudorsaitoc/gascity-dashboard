@@ -21,7 +21,7 @@
 // already differ in the TriageItem subset they exercise (the frontend
 // fixture covers render-shape assertions, the backend one covers
 // scoring + overlay logic). Keep this fixture backend-only; the
-// frontend equivalent is `frontend/src/routes/maintainerSelection.test.ts`'s
+// frontend equivalent is `frontend/src/views/modules/maintainer/maintainerSelection.test.ts`'s
 // mkItem helper — left in place per the bead's OUT OF SCOPE.
 
 import type { TriageItem, TriageItemStatus } from 'gas-city-dashboard-shared';
