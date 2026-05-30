@@ -1,14 +1,12 @@
 import { describe, test } from 'node:test';
 import assert from 'node:assert/strict';
 import { Router } from 'express';
-import type { DashboardRuntimeConfig } from 'gas-city-dashboard-shared';
 
 import type { AdminConfig } from '../src/config.js';
 import type { GcClient } from '../src/gc-client.js';
 import { ALL_MODULES } from '../src/views/registry.js';
 import {
   bind,
-  toRuntimeConfig,
   type BackendModule,
   type BackgroundWorker,
   type CityContext,
@@ -26,18 +24,20 @@ function makeConfig(overrides: Partial<AdminConfig> = {}): AdminConfig {
     auditLogPath: '.gc/events.jsonl',
     frontendDistPath: '../frontend/dist-does-not-exist',
     disabled: false,
-    maintainerRepo: 'gastownhall/gascity',
-    maintainerCachePath: '.gascity-dashboard/maintainer-cache.json',
-    maintainerRefreshIntervalMs: 0,
-    maintainerSlingTarget: 'mayor',
-    maintainerTriageTarget: 'mayor',
+    modules: {
+      maintainer: {
+        githubRepo: 'gastownhall/gascity',
+        slingTarget: 'mayor',
+        triageTarget: 'mayor',
+        refreshIntervalMs: 0,
+      },
+    },
     useFixtures: false,
     ...overrides,
   };
 }
 
 function fakeCityContext(config: AdminConfig): CityContext {
-  const runtimeConfig: DashboardRuntimeConfig = toRuntimeConfig(config);
   return {
     cityName: config.cityName,
     cityPath: config.cityPath,
@@ -45,7 +45,7 @@ function fakeCityContext(config: AdminConfig): CityContext {
     // The registry tests only exercise structural mounting paths; modules
     // that actually hit the supervisor have integration tests of their own.
     gc: {} as GcClient,
-    config: runtimeConfig,
+    config,
   };
 }
 
@@ -53,6 +53,11 @@ describe('views/registry', () => {
   test('ALL_MODULES includes the health module', () => {
     const ids = ALL_MODULES.map((m) => m.id);
     assert.ok(ids.includes('health'), `expected 'health' in ${JSON.stringify(ids)}`);
+  });
+
+  test('ALL_MODULES includes the maintainer module', () => {
+    const ids = ALL_MODULES.map((m) => m.id);
+    assert.ok(ids.includes('maintainer'), `expected 'maintainer' in ${JSON.stringify(ids)}`);
   });
 
   test('ALL_MODULES has no duplicate ids', () => {
@@ -65,7 +70,6 @@ describe('views/registry', () => {
 
   test('every module declares a working needs(config) function', () => {
     const config = makeConfig();
-    const runtimeConfig = toRuntimeConfig(config);
     for (const mod of ALL_MODULES) {
       assert.equal(
         typeof mod.needs,
@@ -74,7 +78,7 @@ describe('views/registry', () => {
       );
       // Smoke-call needs() so the registry test catches a throw at boot
       // instead of waiting for the first request to a /api/<id> route.
-      assert.doesNotThrow(() => mod.needs(runtimeConfig), `${mod.id}.needs threw`);
+      assert.doesNotThrow(() => mod.needs(config), `${mod.id}.needs threw`);
     }
   });
 });
@@ -98,7 +102,7 @@ describe('views/types#bind', () => {
     const broken = {
       ...healthBackend,
       // Simulate JS-interop drift: the field exists but is not a function.
-      needs: undefined as unknown as (config: DashboardRuntimeConfig) => void,
+      needs: undefined as unknown as (config: AdminConfig) => void,
     } as BackendModule<void>;
     assert.throws(
       () => bind(broken, makeConfig()),

@@ -4,6 +4,33 @@
 import { AGENT_ALIAS_RE } from './exec.js';
 import { LOG_COMPONENT, logWarn } from './logging.js';
 
+/**
+ * Per-module configuration slices, scoped under AdminConfig.modules.<id>.
+ * The wire-shape `DashboardRuntimeConfig` deliberately omits these — module
+ * config is host-side only; modules read it via their `needs(config)`
+ * descriptor at bind time. See docs/PRD-modular-dashboard.md §7 audit-C8.
+ */
+export interface MaintainerModuleConfig {
+  /** owner/name repository the maintainer view fetches issues + PRs from. */
+  githubRepo: string;
+  /** Default agent alias for `gc sling` dispatch from the maintainer view. */
+  slingTarget: string;
+  /** Default agent alias for `gc sling` dispatch when intent='triage'. */
+  triageTarget: string;
+  /** Worker cadence in ms. 0 disables the worker (manual refresh only). */
+  refreshIntervalMs: number;
+  /**
+   * Optional explicit cache file path. When set, the maintainer module
+   * skips the legacy-path migration entirely — operator-pinned location
+   * wins over both old and new defaults.
+   */
+  cachePath?: string;
+}
+
+export interface ModulesConfig {
+  maintainer: MaintainerModuleConfig;
+}
+
 export interface AdminConfig {
   /** Listener port. Default 8081, side-by-side with gc dashboard at 8080. */
   port: number;
@@ -32,57 +59,14 @@ export interface AdminConfig {
   /** Kill-switch: set to '1' to refuse to start. */
   disabled: boolean;
   /**
-   * Repo (owner/name) the maintainer triage view fetches issues + PRs from.
-   * Env: MAINTAINER_REPO. Default: gastownhall/gascity.
+   * Per-module configuration slices. Modules read their own slice in
+   * `needs(config)`. See `MaintainerModuleConfig` for the maintainer
+   * envelope — env-driven via MAINTAINER_GITHUB_REPO, MAINTAINER_CACHE_PATH,
+   * MAINTAINER_REFRESH_INTERVAL_MS, MAINTAINER_SLING_TARGET,
+   * MAINTAINER_TRIAGE_TARGET. `MAINTAINER_REPO` is a deprecated alias for
+   * MAINTAINER_GITHUB_REPO (warn-once at boot).
    */
-  maintainerRepo: string;
-  /**
-   * Absolute path to the maintainer enrichment cache file. Env:
-   * MAINTAINER_CACHE_PATH. Default: $HOME/.gascity-dashboard/maintainer-cache.json.
-   * The dashboard atomically writes the cache after each refresh. Missing
-   * cache is an explicit empty state; parse and shape errors are logged and
-   * surfaced as maintainer-route errors.
-   */
-  maintainerCachePath: string;
-  /**
-   * How often the in-process worker re-runs the triage refresh
-   * (full gh fetch + classify + cluster). Env:
-   * MAINTAINER_REFRESH_INTERVAL_MS. Default: 6 hours.
-   * The frontend gets pushed an SSE 'refreshed' event after each
-   * successful run so open tabs refetch without manual interaction.
-   * 0 disables the worker (manual refresh only).
-   */
-  maintainerRefreshIntervalMs: number;
-  /**
-   * Default agent alias for `gc sling` dispatch from the maintainer view.
-   * Env: MAINTAINER_SLING_TARGET. Default: 'mayor'.
-   * Bad env values fall back to the default with an operational warning — a
-   * typo in this single optional env should not dark the whole
-   * dashboard. The exec wrapper re-validates target at request time.
-   */
-  maintainerSlingTarget: string;
-  /**
-   * Default agent alias for `gc sling` dispatch when intent='triage'.
-   * Env: MAINTAINER_TRIAGE_TARGET. Default: 'mayor'.
-   *
-   * Why 'mayor': the mayor is the top-level dispatcher present in every
-   * Gas City deployment, so a fresh install with no env override always
-   * has a live agent to claim slings. Earlier this defaulted to
-   * 'chief-of-staff', but that role can be suspended in a deployment's
-   * agent roster (observed 2026-05-29 with oversight-rig.chief-of-staff:
-   * suspended) — when suspended, the supervisor accepts the sling but
-   * no agent ever claims it, so the work just ages on the maintainer
-   * 'slung awaiting agent' panel.
-   *
-   * Deployments that DO provision a chief-of-staff (or other role) can
-   * still opt in via MAINTAINER_TRIAGE_TARGET. Bad env values fall back
-   * with the same warn pattern as maintainerSlingTarget.
-   *
-   * Note: roster-aware startup validation (refuse to start if the
-   * configured target isn't a live agent) is a separate follow-up that
-   * depends on gascity-dashboard-ay6's listAgents adoption.
-   */
-  maintainerTriageTarget: string;
+  modules: ModulesConfig;
   /**
    * Per-process kill-switch for snapshot fixture mode. When true, bead-3's
    * cache wiring should pass useFixture=true into each SourceCache so the
@@ -126,28 +110,82 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): AdminConfig {
     auditLogPath: env.ADMIN_AUDIT_LOG_PATH ?? defaultAuditLogPath(env),
     frontendDistPath: env.ADMIN_FRONTEND_DIST ?? '../frontend/dist',
     disabled: env.ADMIN_DASHBOARD_DISABLED === '1',
-    maintainerRepo: env.MAINTAINER_REPO ?? 'gastownhall/gascity',
-    maintainerCachePath:
-      env.MAINTAINER_CACHE_PATH ??
-      (env.HOME
-        ? `${env.HOME}/.gascity-dashboard/maintainer-cache.json`
-        : '.gascity-dashboard/maintainer-cache.json'),
-    maintainerRefreshIntervalMs: parseIntervalMs(
-      env.MAINTAINER_REFRESH_INTERVAL_MS,
-      6 * 60 * 60 * 1_000,
-    ),
-    maintainerSlingTarget: parseSlingTarget(
+    modules: {
+      maintainer: loadMaintainerModuleConfig(env),
+    },
+    useFixtures: env.SNAPSHOT_USE_FIXTURES === '1',
+  };
+}
+
+// Module-scope guards so MAINTAINER_REPO deprecation warnings fire at most
+// once per process — protects against config-reload, test-harness re-entry,
+// or any future caller that re-invokes loadConfig. The JSDoc on
+// loadMaintainerModuleConfig promises "warn-once at boot"; without these the
+// inline logWarn() emitted on every call (Phase-4 correctness MEDIUM).
+let warnedLegacyAliasIgnored = false;
+let warnedLegacyAliasUsed = false;
+
+// Test-only reset hook — config.test.ts re-invokes loadConfig under multiple
+// env permutations and needs each permutation to trigger the deprecation
+// warn that its precedence rule expects. Production code never calls this.
+export function __resetMaintainerAliasWarnState(): void {
+  warnedLegacyAliasIgnored = false;
+  warnedLegacyAliasUsed = false;
+}
+
+/**
+ * Resolve the maintainer module's config slice from env. Implements the
+ * MAINTAINER_REPO → MAINTAINER_GITHUB_REPO migration per audit-C8: the
+ * new name wins; the legacy name still works but emits a single warn at
+ * boot so operators know to rename. When BOTH are set, MAINTAINER_GITHUB_REPO
+ * takes precedence and the legacy value is logged as ignored.
+ */
+function loadMaintainerModuleConfig(env: NodeJS.ProcessEnv): MaintainerModuleConfig {
+  const newRepo = env.MAINTAINER_GITHUB_REPO;
+  const legacyRepo = env.MAINTAINER_REPO;
+  let githubRepo: string;
+  if (newRepo !== undefined && newRepo.length > 0) {
+    githubRepo = newRepo;
+    if (legacyRepo !== undefined && legacyRepo.length > 0 && !warnedLegacyAliasIgnored) {
+      warnedLegacyAliasIgnored = true;
+      logWarn(
+        LOG_COMPONENT.admin,
+        'MAINTAINER_REPO is deprecated and being ignored; MAINTAINER_GITHUB_REPO takes precedence',
+      );
+    }
+  } else if (legacyRepo !== undefined && legacyRepo.length > 0) {
+    githubRepo = legacyRepo;
+    if (!warnedLegacyAliasUsed) {
+      warnedLegacyAliasUsed = true;
+      logWarn(
+        LOG_COMPONENT.admin,
+        'MAINTAINER_REPO is deprecated; rename to MAINTAINER_GITHUB_REPO',
+      );
+    }
+  } else {
+    githubRepo = 'gastownhall/gascity';
+  }
+  const slice: MaintainerModuleConfig = {
+    githubRepo,
+    slingTarget: parseSlingTarget(
       'MAINTAINER_SLING_TARGET',
       env.MAINTAINER_SLING_TARGET,
       'mayor',
     ),
-    maintainerTriageTarget: parseSlingTarget(
+    triageTarget: parseSlingTarget(
       'MAINTAINER_TRIAGE_TARGET',
       env.MAINTAINER_TRIAGE_TARGET,
       'mayor',
     ),
-    useFixtures: env.SNAPSHOT_USE_FIXTURES === '1',
+    refreshIntervalMs: parseIntervalMs(
+      env.MAINTAINER_REFRESH_INTERVAL_MS,
+      6 * 60 * 60 * 1_000,
+    ),
   };
+  if (env.MAINTAINER_CACHE_PATH !== undefined && env.MAINTAINER_CACHE_PATH.length > 0) {
+    slice.cachePath = env.MAINTAINER_CACHE_PATH;
+  }
+  return slice;
 }
 
 function parseSlingTarget(envName: string, raw: string | undefined, fallback: string): string {

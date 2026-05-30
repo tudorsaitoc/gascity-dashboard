@@ -17,7 +17,6 @@ import {
 import { csrfIssueCookie, csrfValidate, getCsrfToken } from './middleware/csrf.js';
 import { GcClient } from './gc-client.js';
 import { sessionsRouter } from './routes/sessions.js';
-import { raceWithTimeout } from './lib/race-with-timeout.js';
 import { sessionStreamRouter } from './routes/session-stream.js';
 import { agentsRouter } from './routes/agents.js';
 import { beadsRouter } from './routes/beads.js';
@@ -30,22 +29,13 @@ import { buildsRouter } from './routes/builds.js';
 import { createDoltNomsSampler, doltRouter } from './routes/dolt.js';
 import { eventsRouter } from './routes/events.js';
 import { clientErrorsRouter } from './routes/client-errors.js';
-import { maintainerRouter } from './views/modules/maintainer/router.js';
 import { snapshotRouter } from './routes/snapshot.js';
-import {
-  createMaintainerRefresher,
-  type MaintainerRefresher,
-} from './views/modules/maintainer/worker.js';
 import { createSnapshotService } from './snapshot/service.js';
 import { ALL_MODULES } from './views/registry.js';
 import { bind, type CityContext } from './views/types.js';
 import { LOG_COMPONENT, logInfo } from './logging.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
-
-type RefresherServerState =
-  | { status: 'disabled' }
-  | { status: 'active'; refresher: MaintainerRefresher };
 
 export interface DashboardRuntime {
   start(): void;
@@ -86,7 +76,6 @@ export function createDashboardApp(config: AdminConfig): DashboardApp {
   const dashboardConfig: DashboardRuntimeConfig = {
     cityName: config.cityName,
     cityRoot: config.cityPath,
-    githubRepo: config.maintainerRepo,
     useFixtures: config.useFixtures,
   };
 
@@ -113,11 +102,12 @@ export function createDashboardApp(config: AdminConfig): DashboardApp {
   writeRouter.use('/client-errors', clientErrorsRouter());
 
   // Modular-dashboard registry iterator (docs/PRD-modular-dashboard.md §2).
-  // PR-A wires HEALTH only via this loop; every other route stays
-  // explicitly mounted above. The CityContext is constructed once and
-  // threaded through the existential bind<D>() wrapper, so the iterator
-  // never sees Deps — premortem #3 mitigation (forbids the
-  // type-erasure cast pattern in this file).
+  // PR-A wired health via this loop; PR-B2 adds maintainer and deletes the
+  // last explicit module mount. Remaining routes (sessions, workflows,
+  // mail, ...) stay explicitly mounted above pending later phases. The
+  // CityContext is constructed once and threaded through the existential
+  // bind<D>() wrapper, so the iterator never sees Deps — premortem #3
+  // mitigation (forbids the type-erasure cast pattern in this file).
   const cityDataDir = path.join(
     os.homedir(),
     '.gascity-dashboard',
@@ -129,7 +119,9 @@ export function createDashboardApp(config: AdminConfig): DashboardApp {
     cityPath: config.cityPath,
     cityDataDir,
     gc,
-    config: dashboardConfig,
+    // audit-C8: modules read their slice via `ctx.config.modules.<id>`.
+    // AdminConfig stays host-side only; never serialized.
+    config,
   };
   const moduleWorkers: BackgroundWorker[] = [];
   for (const mod of ALL_MODULES) {
@@ -142,26 +134,6 @@ export function createDashboardApp(config: AdminConfig): DashboardApp {
   const doltNomsSampler = createDoltNomsSampler({ cityPath: config.cityPath });
   writeRouter.use('/dolt-noms', doltRouter(doltNomsSampler));
 
-  const maintainerSlungStatePath = path.join(
-    path.dirname(config.maintainerCachePath),
-    'slung-state.json',
-  );
-  writeRouter.use(
-    '/maintainer',
-    maintainerRouter({
-      repo: config.maintainerRepo,
-      cachePath: config.maintainerCachePath,
-      slungStatePath: maintainerSlungStatePath,
-      slingTarget: config.maintainerSlingTarget,
-      triageTarget: config.maintainerTriageTarget,
-      sling: (input) => gc.sling(input),
-      listSessions: async () => {
-        const { items } = await raceWithTimeout(gc.listSessions(), 3_000);
-        return items;
-      },
-    }),
-  );
-
   const snapshotService = createSnapshotService({
     gc,
     config: dashboardConfig,
@@ -172,19 +144,6 @@ export function createDashboardApp(config: AdminConfig): DashboardApp {
   app.use('/api', writeRouter);
   app.use('/api/events', eventsRouter({ gc }));
 
-  const refresherState: RefresherServerState =
-    config.maintainerRefreshIntervalMs > 0
-      ? {
-          status: 'active',
-          refresher: createMaintainerRefresher({
-            repo: config.maintainerRepo,
-            cachePath: config.maintainerCachePath,
-            slungStatePath: maintainerSlungStatePath,
-            intervalMs: config.maintainerRefreshIntervalMs,
-          }),
-        }
-      : { status: 'disabled' };
-
   mountFrontend(app, config.frontendDistPath);
 
   return {
@@ -192,17 +151,10 @@ export function createDashboardApp(config: AdminConfig): DashboardApp {
     runtime: {
       start() {
         doltNomsSampler.start();
-        if (refresherState.status === 'active') refresherState.refresher.start();
         for (const w of moduleWorkers) w.start();
       },
       async stop() {
-        // Stop registry-mounted workers first so PR-B+ background sweeps
-        // settle before the explicitly-mounted maintainer worker tears down
-        // its in-process timers + (eventually) its SSE registry.
         await Promise.all(moduleWorkers.map((w) => w.stop()));
-        if (refresherState.status === 'active') {
-          await refresherState.refresher.stop();
-        }
         doltNomsSampler.stop();
       },
     },

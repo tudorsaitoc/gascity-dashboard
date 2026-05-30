@@ -200,7 +200,12 @@ export async function runRefresh(opts: WorkerOptions): Promise<void> {
     const prs = envelope.totals.prs_open;
     logInfo(LOG_COMPONENT.maintainer, `refresh ok: ${issues} issues, ${prs} PRs in ${Date.now() - start}ms`);
   } catch (err) {
-    const msg = err instanceof ExecError ? err.message : (err as Error).message;
+    const msg =
+      err instanceof ExecError
+        ? err.message
+        : err instanceof Error
+          ? err.message
+          : 'unknown error';
     logError(LOG_COMPONENT.maintainer, `refresh failed: ${msg}`);
   }
 }

@@ -1,7 +1,6 @@
 // Maintainer (Triage) backend module — first-party, opt-in via
-// MODULES_ENABLED in PR-C. Phase 1 PR-B1 ships the descriptor but
-// app.ts continues to mount it explicitly; PR-B2 swaps to the registry
-// iterator and deletes the explicit mount.
+// MODULES_ENABLED in PR-C. PR-B2 wires this into ALL_MODULES so the
+// explicit app.ts mount + refresher are deleted.
 //
 // Resources posture (premortem #5 + maintainer-coupling.md):
 //   - filesystem 'cache' (perCity)       — the triage envelope cache.
@@ -11,27 +10,18 @@
 //     `// module-allow` marker in sse.ts opts it out of the
 //     no-module-singletons grep gate.
 //
-// `slungStatePath` is derived ONCE here from ctx.cityDataDir per audit
-// C2 — the router and the worker both receive the SAME computed path so
-// they cannot drift (the router's defaultSlungStatePath fallback was
-// deleted in PR-B1).
-//
-// NOTE (PR-B1 scope): this descriptor is NOT yet added to ALL_MODULES.
-// The explicit app.ts mount remains the live wiring. PR-B2 will:
-//   (a) register this in views/registry.ts,
-//   (b) delete the explicit app.ts maintainer mount + refresher start/stop,
-//   (c) resolve audit C6 — `needs()` currently only sees
-//       DashboardRuntimeConfig (the read-only view); the maintainer-prefixed
-//       env values (cache path, refresh interval, sling/triage target) live
-//       on AdminConfig. PR-B2 either widens the contract to pass AdminConfig
-//       directly or introduces `AdminConfig.modules` per audit C6's
-//       follow-up. Until then, this `needs()` returns the safe-default
-//       shape; `mount`/`workers` derive paths from `ctx.cityDataDir`.
+// `slungStatePath` and `cachePath` are derived ONCE here per audit C2 —
+// the router and the worker both receive the SAME computed paths so they
+// cannot drift. Operators can pin the cache path via MAINTAINER_CACHE_PATH;
+// when set, the descriptor honours the pin AND skips the legacy-path
+// migration (operator location is sovereign).
 
 import path from 'node:path';
+import os from 'node:os';
 import type { BackendModule, CityContext } from '../../types.js';
 import { maintainerRouter } from './router.js';
 import { createMaintainerRefresher } from './worker.js';
+import { migrateLegacyMaintainerPaths } from './migrate-legacy-paths.js';
 import { raceWithTimeout } from '../../../lib/race-with-timeout.js';
 
 export interface MaintainerDeps {
@@ -39,29 +29,37 @@ export interface MaintainerDeps {
   slingTarget: string;
   triageTarget: string;
   refreshIntervalMs: number;
+  /** Operator-pinned cache path. Undefined = use cityDataDir default. */
+  cachePath?: string;
 }
 
-// PR-B1 review fix: single source of truth for the on-disk locations both
-// the router and the refresher must agree on. Previously `mount()` and
-// `workers()` each computed `path.join(ctx.cityDataDir, ...)` independently
-// with matching string literals; if one literal changed, the two closures
-// would silently diverge (router writes to A, refresher reads from B).
-// Extracting to a helper guarantees they always resolve identically.
-//
-// NOTE: this still differs from `backend/src/app.ts`'s LIVE mount, which
-// derives `slungStatePath` from `path.dirname(config.maintainerCachePath)`
-// (= `~/.gascity-dashboard/`), not `ctx.cityDataDir`
-// (= `~/.gascity-dashboard/cities/<cityName>/`). When PR-B2 swaps to the
-// registry, existing data at the live-mount location will not be found at
-// the descriptor location — see 9yj.4 / PR-B2 for the migration step.
-function maintainerPaths(ctx: CityContext): {
+/**
+ * Single source of truth for the on-disk locations the router and the
+ * refresher must agree on. Previously `mount()` and `workers()` each
+ * computed `path.join(ctx.cityDataDir, ...)` independently with matching
+ * string literals; extracting to a helper guarantees they always resolve
+ * identically. When `deps.cachePath` is set, the cache file location is
+ * operator-pinned and slung-state sits next to it.
+ */
+function maintainerPaths(ctx: CityContext, deps: MaintainerDeps): {
   cachePath: string;
   slungStatePath: string;
 } {
+  if (deps.cachePath !== undefined) {
+    return {
+      cachePath: deps.cachePath,
+      slungStatePath: path.join(path.dirname(deps.cachePath), 'slung-state.json'),
+    };
+  }
   return {
     cachePath: path.join(ctx.cityDataDir, 'maintainer-cache.json'),
     slungStatePath: path.join(ctx.cityDataDir, 'slung-state.json'),
   };
+}
+
+/** Legacy pre-modular default location (before paths derived from cityDataDir). */
+function legacyDefaultDir(): string {
+  return path.join(os.homedir(), '.gascity-dashboard');
 }
 
 export const maintainerBackend: BackendModule<MaintainerDeps> = {
@@ -76,19 +74,30 @@ export const maintainerBackend: BackendModule<MaintainerDeps> = {
       { name: 'sse-clients', scope: 'perCity' },
     ],
   },
-  // PR-B2 follow-up: when the contract widens to expose the maintainer-
-  // prefixed AdminConfig fields (or migrates them under
-  // `AdminConfig.modules` per audit C6), this returns the real env-derived
-  // shape. For PR-B1 the descriptor is defensive-default so the type
-  // is honest about what shared/DashboardRuntimeConfig actually exposes.
-  needs: (config) => ({
-    repo: config.githubRepo,
-    slingTarget: 'mayor',
-    triageTarget: 'mayor',
-    refreshIntervalMs: 0,
-  }),
+  needs: (config) => {
+    const slice = config.modules.maintainer;
+    const deps: MaintainerDeps = {
+      repo: slice.githubRepo,
+      slingTarget: slice.slingTarget,
+      triageTarget: slice.triageTarget,
+      refreshIntervalMs: slice.refreshIntervalMs,
+    };
+    if (slice.cachePath !== undefined) {
+      deps.cachePath = slice.cachePath;
+    }
+    return deps;
+  },
   mount: (ctx, deps) => {
-    const { cachePath, slungStatePath } = maintainerPaths(ctx);
+    const { cachePath, slungStatePath } = maintainerPaths(ctx, deps);
+    // Path-drift migration (audit-C8, Option A): when the operator has NOT
+    // pinned a cache path AND legacy files exist at the pre-modular default
+    // (~/.gascity-dashboard/), move them into ctx.cityDataDir BEFORE the
+    // router starts reading. Synchronous by design — see migrate-legacy-paths
+    // header comment for why fire-and-forget was rejected (Phase-4 security
+    // MEDIUM: race vs. concurrent router/worker writes).
+    if (deps.cachePath === undefined) {
+      migrateLegacyMaintainerPaths(legacyDefaultDir(), ctx.cityDataDir);
+    }
     return maintainerRouter({
       repo: deps.repo,
       cachePath,
@@ -102,12 +111,14 @@ export const maintainerBackend: BackendModule<MaintainerDeps> = {
       },
     });
   },
-  workers: (ctx, deps) =>
-    deps.refreshIntervalMs > 0
-      ? createMaintainerRefresher({
-          repo: deps.repo,
-          ...maintainerPaths(ctx),
-          intervalMs: deps.refreshIntervalMs,
-        })
-      : undefined,
+  workers: (ctx, deps) => {
+    if (deps.refreshIntervalMs <= 0) return undefined;
+    const { cachePath, slungStatePath } = maintainerPaths(ctx, deps);
+    return createMaintainerRefresher({
+      repo: deps.repo,
+      cachePath,
+      slungStatePath,
+      intervalMs: deps.refreshIntervalMs,
+    });
+  },
 };

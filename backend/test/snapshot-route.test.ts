@@ -157,7 +157,6 @@ function buildApp(caches: SourceCacheMap): express.Express {
     config: {
       cityName: 'test-city',
       cityRoot: '/tmp/test-city',
-      githubRepo: 'test-org/test-repo',
       useFixtures: false,
     },
   });

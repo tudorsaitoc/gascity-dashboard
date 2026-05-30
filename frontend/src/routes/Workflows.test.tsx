@@ -63,7 +63,6 @@ function buildEnvelope(
     config: {
       cityName: 'racoon-city',
       cityRoot: '/tmp/example-city',
-      githubRepo: 'example-org/example-repo',
       useFixtures: false,
     },
     headline: {

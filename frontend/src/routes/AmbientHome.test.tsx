@@ -155,7 +155,6 @@ function envelope({
     config: {
       cityName: 'racoon-city',
       cityRoot: '/tmp/x',
-      githubRepo: 'x/y',
       useFixtures: false,
     },
     headline: {
