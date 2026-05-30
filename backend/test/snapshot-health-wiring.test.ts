@@ -124,7 +124,6 @@ function requireAvailableHealth(lane: WorkflowLane | undefined): WorkflowLaneHea
 const CONFIG = {
   cityName: 'test-city',
   cityRoot: '/tmp/x',
-  githubRepo: 'o/r',
   useFixtures: false,
 };
 

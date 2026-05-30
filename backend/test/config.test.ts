@@ -57,12 +57,12 @@ describe('loadConfig', () => {
     // slings to silently fail. mayor is the top-level dispatcher present
     // in every Gas City deployment.
     const cfg = loadConfig({});
-    assert.equal(cfg.maintainerTriageTarget, 'mayor');
+    assert.equal(cfg.modules.maintainer.triageTarget, 'mayor');
   });
 
   test('maintainerTriageTarget honours MAINTAINER_TRIAGE_TARGET when valid', () => {
     const cfg = loadConfig({ MAINTAINER_TRIAGE_TARGET: 'project-lead' });
-    assert.equal(cfg.maintainerTriageTarget, 'project-lead');
+    assert.equal(cfg.modules.maintainer.triageTarget, 'project-lead');
   });
 
   test('maintainerTriageTarget still accepts chief-of-staff as an explicit override', () => {
@@ -70,14 +70,14 @@ describe('loadConfig', () => {
     // The default change in cus8 is about safe fresh-install behaviour,
     // not about removing chief-of-staff as a valid target.
     const cfg = loadConfig({ MAINTAINER_TRIAGE_TARGET: 'chief-of-staff' });
-    assert.equal(cfg.maintainerTriageTarget, 'chief-of-staff');
+    assert.equal(cfg.modules.maintainer.triageTarget, 'chief-of-staff');
   });
 
   test('maintainerTriageTarget silently falls back on invalid env (no startup crash)', () => {
     // Same precedent as maintainerSlingTarget: a typo in one optional env
     // should not dark the dashboard.
     const cfg = loadConfig({ MAINTAINER_TRIAGE_TARGET: 'bad alias!!' });
-    assert.equal(cfg.maintainerTriageTarget, 'mayor');
+    assert.equal(cfg.modules.maintainer.triageTarget, 'mayor');
   });
 
   test('maintainerSlingTarget and maintainerTriageTarget resolve independently', () => {
@@ -85,7 +85,44 @@ describe('loadConfig', () => {
       MAINTAINER_SLING_TARGET: 'mayor',
       MAINTAINER_TRIAGE_TARGET: 'project-lead',
     });
-    assert.equal(cfg.maintainerSlingTarget, 'mayor');
-    assert.equal(cfg.maintainerTriageTarget, 'project-lead');
+    assert.equal(cfg.modules.maintainer.slingTarget, 'mayor');
+    assert.equal(cfg.modules.maintainer.triageTarget, 'project-lead');
+  });
+
+  test('modules.maintainer.githubRepo defaults to gastownhall/gascity', () => {
+    const cfg = loadConfig({});
+    assert.equal(cfg.modules.maintainer.githubRepo, 'gastownhall/gascity');
+  });
+
+  test('modules.maintainer.githubRepo honours MAINTAINER_GITHUB_REPO (the new env name)', () => {
+    const cfg = loadConfig({ MAINTAINER_GITHUB_REPO: 'acme/widget' });
+    assert.equal(cfg.modules.maintainer.githubRepo, 'acme/widget');
+  });
+
+  test('modules.maintainer.githubRepo accepts the deprecated MAINTAINER_REPO alias', () => {
+    // Backwards-compat: existing operator envs keep working with a warn at boot.
+    const cfg = loadConfig({ MAINTAINER_REPO: 'legacy/repo' });
+    assert.equal(cfg.modules.maintainer.githubRepo, 'legacy/repo');
+  });
+
+  test('MAINTAINER_GITHUB_REPO wins when both are set', () => {
+    const cfg = loadConfig({
+      MAINTAINER_REPO: 'old/value',
+      MAINTAINER_GITHUB_REPO: 'new/value',
+    });
+    assert.equal(cfg.modules.maintainer.githubRepo, 'new/value');
+  });
+
+  test('modules.maintainer.cachePath is undefined when MAINTAINER_CACHE_PATH is unset', () => {
+    // The descriptor uses ctx.cityDataDir as the default; cachePath stays
+    // undefined so the maintainer module knows to run the legacy-path
+    // migration instead of treating the default as an operator pin.
+    const cfg = loadConfig({});
+    assert.equal(cfg.modules.maintainer.cachePath, undefined);
+  });
+
+  test('modules.maintainer.cachePath honours MAINTAINER_CACHE_PATH when set', () => {
+    const cfg = loadConfig({ MAINTAINER_CACHE_PATH: '/var/cache/maintainer.json' });
+    assert.equal(cfg.modules.maintainer.cachePath, '/var/cache/maintainer.json');
   });
 });

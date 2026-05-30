@@ -1,5 +1,5 @@
 // Backend module registry — the single list iterated by app.ts. PR-A
-// contains only `health`; PR-B1/B2 adds `maintainer`; later PRs add the
+// contains `health`; PR-B2 adds `maintainer`; later PRs add the
 // remaining first-party modules per PRD §7.
 //
 // `ALL_MODULES` is typed as `ReadonlyArray<BackendModule<unknown>>`
@@ -11,6 +11,7 @@
 
 import type { BackendModule } from './types.js';
 import { healthBackend } from './modules/health.module.js';
+import { maintainerBackend } from './modules/maintainer/maintainer.module.js';
 
 /** Erases a module's concrete Deps to `unknown` so heterogeneous modules
  *  share a single array type. Safe because `bind<D>()` re-closes over the
@@ -22,4 +23,5 @@ function register<D>(mod: BackendModule<D>): BackendModule<unknown> {
 
 export const ALL_MODULES: ReadonlyArray<BackendModule<unknown>> = [
   register(healthBackend),
+  register(maintainerBackend),
 ];

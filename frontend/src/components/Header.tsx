@@ -28,7 +28,6 @@ const EXPLICIT_ROUTES: ReadonlyArray<NavRoute> = [
   { to: '/workflows', label: 'Workflows', order: 40 },
   { to: '/mail', label: 'Mail', order: 50 },
   { to: '/activity', label: 'Activity', order: 55 },
-  { to: '/maintainer', label: 'Triage', order: 80 },
 ];
 
 const REGISTRY_ROUTES: ReadonlyArray<NavRoute> = ALL_VIEWS.flatMap((v) => {
