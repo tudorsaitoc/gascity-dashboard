@@ -2,6 +2,8 @@ import type {
   CitySessionProvider,
   CityStatusSummary,
   DashboardMetric,
+  GcAgent,
+  GcAgentList,
   GcRigList,
   GcSession,
   GcSessionList,
@@ -18,12 +20,17 @@ import { SourceCache } from '../cache.js';
 // path (`gc status`, `bd list`) is deliberately not ported per
 // gascity-dashboard-dkb Q1 (HTTP via GcClient is canonical).
 //
-// sessionsByProvider aggregation rule (gascity-dashboard-dkb Q4 + upstream
-// issue gastownhall/gascity#2508): only count sessions where
-// GcSession.provider is populated. Title-parsing as a fallback is
-// intentionally NOT ported — that path is a ZFC violation (regex
-// meaning-detection) and was rejected by the architecture review. Sessions
-// without provider get silently undercounted until the upstream fix lands.
+// sessionsByProvider aggregation rule (gascity-dashboard-sd4):
+// derived from the /agents roster, NOT from /sessions. The supervisor
+// does not populate GcSession.provider for every session today, which
+// systematically undercounts (see gascity-dashboard-dkb Q4 +
+// gastownhall/gascity#2508). The /agents endpoint (gascity-dashboard-ay6)
+// is the authoritative source of per-agent provider info — using it here
+// removes the undercount completely without ever inferring from titles
+// (the rejected ZFC-violating path). The wire field name remains
+// `sessionsByProvider` to keep the CityStatusSummary contract stable;
+// only the data source changes. aggregateSessionsByProvider is kept
+// exported for legacy callers but the collector no longer uses it.
 //
 // maxSessions degradation (gascity-dashboard-19w): the supervisor's HTTP
 // API does NOT expose city-level max_active_sessions today. Verified
@@ -44,6 +51,8 @@ const MAX_SESSIONS_UNAVAILABLE_REASON =
 export interface CollectCityStatusOptions {
   /** Live upstream loader for sessions. */
   listSessions: () => Promise<GcSessionList>;
+  /** Live upstream loader for agents (authoritative provider source). */
+  listAgents: () => Promise<GcAgentList>;
   /** Live upstream loader for rigs. */
   listRigs: () => Promise<GcRigList>;
 }
@@ -55,6 +64,8 @@ export interface CreateCityStatusSourceCacheOptions {
   useFixture?: boolean | undefined;
   /** Test seam: override the listSessions binding to avoid a real GcClient. */
   listSessions?: (() => Promise<GcSessionList>) | undefined;
+  /** Test seam: override the listAgents binding to avoid a real GcClient. */
+  listAgents?: (() => Promise<GcAgentList>) | undefined;
   /** Test seam: override the listRigs binding to avoid a real GcClient. */
   listRigs?: (() => Promise<GcRigList>) | undefined;
 }
@@ -65,13 +76,14 @@ export function createCityStatusSourceCache(
   options: CreateCityStatusSourceCacheOptions,
 ): SourceCache<CityStatusSummary> {
   const listSessions = options.listSessions ?? (() => options.gc.listSessions());
+  const listAgents = options.listAgents ?? (() => options.gc.listAgents());
   const listRigs = options.listRigs ?? (() => options.gc.listRigs());
 
   return new SourceCache<CityStatusSummary>({
     source: 'city',
     ttlMs: CITY_STATUS_CACHE_TTL_MS,
     now: options.now,
-    load: () => collectCityStatus({ listSessions, listRigs }),
+    load: () => collectCityStatus({ listSessions, listAgents, listRigs }),
     loadFixture: options.loadFixture,
     useFixture: options.useFixture,
     // gascity-dashboard-4r5: opt out of default-on sanitization.
@@ -86,18 +98,24 @@ export function createCityStatusSourceCache(
 export async function collectCityStatus(
   options: CollectCityStatusOptions,
 ): Promise<CityStatusSummary> {
-  // Fetch sessions and rigs in parallel. Both throws propagate; the
-  // SourceCache surfaces them as the city source's status='error',
+  // Fetch sessions, agents, and rigs in parallel. Any throw propagates;
+  // the SourceCache surfaces them as the city source's status='error',
   // preserving failure isolation per the snapshot service contract.
   // We do NOT catch-and-empty here — silently aggregating an empty
-  // rigs list would mask an upstream rigs-route outage.
-  const [sessionList, rigList] = await Promise.all([
+  // list would mask an upstream outage.
+  //
+  // sd4: listAgents is now part of the city aggregate so
+  // sessionsByProvider can derive from the authoritative agent roster
+  // instead of from sessions (which undercount because the supervisor
+  // doesn't populate GcSession.provider for every session today).
+  const [sessionList, agentList, rigList] = await Promise.all([
     options.listSessions(),
+    options.listAgents(),
     options.listRigs(),
   ]);
 
   const sessions = sessionList.items;
-  const sessionsByProvider = aggregateSessionsByProvider(sessions);
+  const sessionsByProvider = aggregateAgentsByProvider(agentList.items);
   const activeSessions = countActiveSessions(sessions);
 
   // gascity-dashboard-19w.1: supervisor-reported wire-partial on a 200
@@ -183,6 +201,58 @@ export function aggregateSessionsByProvider(
   return Array.from(buckets.entries())
     .map(([provider, counts]) => ({ provider, ...counts }))
     .sort((a, b) => b.active - a.active || a.provider.localeCompare(b.provider));
+}
+
+/**
+ * sd4: Aggregate AGENTS into a per-provider active/total breakdown.
+ * Authoritative source for CityStatusSummary.sessionsByProvider — the
+ * wire field is still named for sessions (contract stability), but the
+ * count is over the agent roster because /agents reliably carries
+ * `provider` while /sessions does not.
+ *
+ * Active rule mirrors `countActiveAgents(sessions)`:
+ * `running === true || state === 'active'`. An agent counts as active if
+ * the process is up OR gc's lifecycle state is 'active' — either signal
+ * is sufficient for "currently doing work."
+ *
+ * Agents without provider (undefined or empty string) are skipped with
+ * a single per-call warn (matches aggregateSessionsByProvider's contract).
+ */
+export function aggregateAgentsByProvider(
+  agents: ReadonlyArray<GcAgent>,
+): CitySessionProvider[] {
+  const buckets = new Map<string, { active: number; total: number }>();
+  let emptyProviderCount = 0;
+
+  for (const agent of agents) {
+    const provider = agent.provider;
+    if (!provider) {
+      emptyProviderCount += 1;
+      continue;
+    }
+
+    const bucket = buckets.get(provider) ?? { active: 0, total: 0 };
+    bucket.total += 1;
+    if (isAgentActive(agent)) {
+      bucket.active += 1;
+    }
+    buckets.set(provider, bucket);
+  }
+
+  if (emptyProviderCount > 0) {
+    logWarn(
+      LOG_COMPONENT.snapshot,
+      `aggregateAgentsByProvider: ${emptyProviderCount} agents skipped due to empty provider`,
+    );
+  }
+
+  return Array.from(buckets.entries())
+    .map(([provider, counts]) => ({ provider, ...counts }))
+    .sort((a, b) => b.active - a.active || a.provider.localeCompare(b.provider));
+}
+
+function isAgentActive(agent: GcAgent): boolean {
+  return agent.running === true || isActive(agent.state);
 }
 
 function countActiveAgents(sessions: ReadonlyArray<GcSession>): number {
