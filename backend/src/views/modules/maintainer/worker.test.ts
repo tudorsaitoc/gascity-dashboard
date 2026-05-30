@@ -16,13 +16,13 @@ import {
   type RefresherRuntime,
   type RefresherTimer,
   runRefresh,
-} from '../src/maintainer/worker.js';
-import { readCache } from '../src/maintainer/storage.js';
+} from './worker.js';
+import { readCache } from './storage.js';
 import {
   readSlungState,
   slungKey,
   writeSlungEntry,
-} from '../src/maintainer/slung-state.js';
+} from './slung-state.js';
 
 // Worker slung-state purge (gascity-dashboard-4jy).
 //

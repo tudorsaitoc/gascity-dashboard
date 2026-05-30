@@ -2,9 +2,9 @@ import { act, cleanup, render, screen, waitFor } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi, type Mock } from 'vitest';
 import { MemoryRouter } from 'react-router-dom';
 import type { MaintainerTriage } from 'gas-city-dashboard-shared';
-import { api } from '../api/client';
-import { invalidateKey } from '../api/cache';
-import { ViewingAsProvider } from '../contexts/ViewingAsContext';
+import { api } from '../../../api/client';
+import { invalidateKey } from '../../../api/cache';
+import { ViewingAsProvider } from '../../../contexts/ViewingAsContext';
 import { MaintainerPage } from './Maintainer';
 
 // gascity-dashboard-ppe: end-to-end pin of the dual-intent dispatch
@@ -31,7 +31,7 @@ import { MaintainerPage } from './Maintainer';
 // Mock the api client at module boundary — same pattern as
 // ViewingAsContext.test.tsx. Test cases install per-call behaviour
 // in beforeEach (mockReset wipes everything across tests).
-vi.mock('../api/client', () => ({
+vi.mock('../../../api/client', () => ({
   api: {
     maintainerTriage: vi.fn(),
     maintainerRefresh: vi.fn(),

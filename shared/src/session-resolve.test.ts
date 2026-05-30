@@ -2,7 +2,7 @@
 //
 // gascity-dashboard-3ax: the single role/assignee → session resolution.
 // Mirrors the matcher behavior previously private to
-// backend/src/maintainer/resolve-target.ts (whose own test suite is the
+// backend/src/views/modules/maintainer/resolve-target.ts (whose own test suite is the
 // regression guard that the slug-returning wrapper still delegates here).
 
 import { test, describe } from 'node:test';

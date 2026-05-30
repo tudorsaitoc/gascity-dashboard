@@ -1,10 +1,10 @@
 import type { BackgroundWorker, MaintainerTriage } from 'gas-city-dashboard-shared';
-import { ExecError } from '../exec.js';
+import { ExecError } from '../../../exec.js';
 import { fetchTriage as defaultFetchTriage, collectItems } from './triage.js';
 import { writeCache } from './storage.js';
 import { purgeSlungKeys, slungKey } from './slung-state.js';
 import { notifyRefresh, sendHeartbeat } from './sse.js';
-import { LOG_COMPONENT, logError, logInfo, logWarn } from '../logging.js';
+import { LOG_COMPONENT, logError, logInfo, logWarn } from '../../../logging.js';
 
 // Nightly enrichment worker (gascity-dashboard-ar9). In-process setInterval
 // scheduler — no external cron. Runs once at boot (after a short delay so
@@ -82,7 +82,7 @@ export interface WorkerOptions {
    * Injected envelope fetcher. Defaults to the real `gh`-driven
    * fetchTriage from ./triage; tests pass a stub so runRefresh can be
    * exercised without subprocess calls. Mirrors the execGcSling DI
-   * pattern in routes/maintainer.ts.
+   * pattern in the sibling router.ts.
    */
   fetchTriage?: (repo: string) => Promise<MaintainerTriage>;
 }

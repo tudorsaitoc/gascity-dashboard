@@ -1,7 +1,7 @@
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import type { MaintainerTriage, TriageItem } from 'gas-city-dashboard-shared';
-import { LOG_COMPONENT, errorMessage, logWarn } from '../logging.js';
+import { LOG_COMPONENT, errorMessage, logWarn } from '../../../logging.js';
 
 // Atomic JSON cache for the maintainer triage view.
 // Missing file is the only cache miss. Corrupt JSON, unreadable files, and

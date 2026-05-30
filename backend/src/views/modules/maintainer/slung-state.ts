@@ -1,7 +1,7 @@
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import type { SlungState, TriageKind } from 'gas-city-dashboard-shared';
-import { LOG_COMPONENT, errorMessage, logWarn } from '../logging.js';
+import { LOG_COMPONENT, errorMessage, logWarn } from '../../../logging.js';
 
 // Active sling state persistence (gascity-dashboard-9qs).
 //
@@ -10,7 +10,7 @@ import { LOG_COMPONENT, errorMessage, logWarn } from '../logging.js';
 // in the same directory as the maintainer envelope cache, so the directory
 // itself carries the repo scope.
 //
-// Atomic tmp+rename mirrors backend/src/maintainer/storage.ts. An
+// Atomic tmp+rename mirrors the sibling storage.ts. An
 // in-process Promise-chain mutex serialises read-modify-write so two
 // concurrent slings to different items don't lose updates to the
 // classic read-old / modify / write-newer race. The mutex is courtesy:

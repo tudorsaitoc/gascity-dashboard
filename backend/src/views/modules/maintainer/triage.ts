@@ -6,7 +6,7 @@ import type {
   TriageTier,
   TriageTierSection,
 } from 'gas-city-dashboard-shared';
-import { execGhIssueList, execGhPrList, ExecError } from '../exec.js';
+import { execGhIssueList, execGhPrList, ExecError } from '../../../exec.js';
 import { classifyItem } from './classifier.js';
 import { computeContributorStats } from './contributor.js';
 import { buildClusters, inheritIssueFiles } from './blast-radius.js';
@@ -281,8 +281,8 @@ function defaultContributor(login: string): ContributorStat {
 /**
  * Walk every TriageItem in an envelope (unclustered + clustered, across
  * all tiers) into a flat array. Shared by the serve-time overlay
- * (gascity-dashboard-9qs, routes/maintainer.ts) and the worker
- * slung-state purge (gascity-dashboard-4jy, maintainer/worker.ts) so
+ * (gascity-dashboard-9qs, sibling router.ts) and the worker
+ * slung-state purge (gascity-dashboard-4jy, sibling worker.ts) so
  * both walk the envelope by the same rule. Mutations to the returned
  * items mutate the envelope in place — both call sites depend on that.
  */

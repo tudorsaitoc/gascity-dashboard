@@ -16,7 +16,8 @@ import {
 } from './middleware/security.js';
 import { csrfIssueCookie, csrfValidate, getCsrfToken } from './middleware/csrf.js';
 import { GcClient } from './gc-client.js';
-import { sessionsRouter, raceWithTimeout } from './routes/sessions.js';
+import { sessionsRouter } from './routes/sessions.js';
+import { raceWithTimeout } from './lib/race-with-timeout.js';
 import { sessionStreamRouter } from './routes/session-stream.js';
 import { agentsRouter } from './routes/agents.js';
 import { beadsRouter } from './routes/beads.js';
@@ -29,12 +30,12 @@ import { buildsRouter } from './routes/builds.js';
 import { createDoltNomsSampler, doltRouter } from './routes/dolt.js';
 import { eventsRouter } from './routes/events.js';
 import { clientErrorsRouter } from './routes/client-errors.js';
-import { maintainerRouter } from './routes/maintainer.js';
+import { maintainerRouter } from './views/modules/maintainer/router.js';
 import { snapshotRouter } from './routes/snapshot.js';
 import {
   createMaintainerRefresher,
   type MaintainerRefresher,
-} from './maintainer/worker.js';
+} from './views/modules/maintainer/worker.js';
 import { createSnapshotService } from './snapshot/service.js';
 import { ALL_MODULES } from './views/registry.js';
 import { bind, type CityContext } from './views/types.js';
