@@ -1,7 +1,7 @@
-import { test, describe } from 'node:test';
+import { test, describe, mock } from 'node:test';
 import assert from 'node:assert/strict';
 
-import type { GcRigList, GcSession, GcSessionList } from 'gas-city-dashboard-shared';
+import type { GcRig, GcRigList, GcSession, GcSessionList } from 'gas-city-dashboard-shared';
 
 import {
   aggregateSessionsByProvider,
@@ -69,34 +69,82 @@ describe('aggregateSessionsByProvider', () => {
     ]);
   });
 
-  test('skips sessions with empty provider string (defensive against degenerate wire)', () => {
+  test('skips sessions with empty provider string and logs a single warn (6bv7.2)', () => {
     // 6bv7 F10 tightened GcSession.provider to required `string` per OpenAPI,
     // but the aggregator still skips empty-string providers as a defensive
     // guard against a degenerate supervisor response (the wire contract is
     // `string`, not "non-empty string"). Title text is NEVER consulted —
     // no inference fallback (ZFC).
-    const sessions: GcSession[] = [
-      sess({ id: 't-1', provider: 'codex', state: 'active' }),
-      sess({ id: 't-2', title: 'codex/research', provider: '', state: 'active' }),
-      sess({ id: 't-3', title: 'claude/triage', provider: '', state: 'active' }),
-      sess({ id: 't-4', provider: 'claude', state: 'asleep' }),
-    ];
+    //
+    // 6bv7.2: the skip is no longer silent — a single warn is emitted per
+    // call with the count, so a supervisor sending `provider: ""` for all
+    // sessions does not invisibly produce zero aggregated sessions.
+    // Bounded by SourceCache TTL (~45s) so no log-spam risk.
+    const warnMock = mock.method(console, 'warn', () => undefined);
+    try {
+      const sessions: GcSession[] = [
+        sess({ id: 't-1', provider: 'codex', state: 'active' }),
+        sess({ id: 't-2', title: 'codex/research', provider: '', state: 'active' }),
+        sess({ id: 't-3', title: 'claude/triage', provider: '', state: 'active' }),
+        sess({ id: 't-4', provider: 'claude', state: 'asleep' }),
+      ];
 
-    const breakdown = aggregateSessionsByProvider(sessions);
+      const breakdown = aggregateSessionsByProvider(sessions);
 
-    assert.deepEqual(breakdown, [
-      { provider: 'codex', active: 1, total: 1 },
-      { provider: 'claude', active: 0, total: 1 },
-    ]);
+      assert.deepEqual(breakdown, [
+        { provider: 'codex', active: 1, total: 1 },
+        { provider: 'claude', active: 0, total: 1 },
+      ]);
+
+      const emptyWarns = warnMock.mock.calls.filter((call) =>
+        String(call.arguments[0]).includes(
+          'aggregateSessionsByProvider: 2 sessions skipped due to empty provider',
+        ),
+      );
+      assert.equal(emptyWarns.length, 1, 'expected exactly one empty-provider warn per call');
+    } finally {
+      warnMock.mock.restore();
+    }
   });
 
-  test('returns empty array when every provider is the empty string', () => {
-    const sessions: GcSession[] = [
-      sess({ id: 't-1', title: 'codex/x', provider: '' }),
-      sess({ id: 't-2', title: 'claude/y', provider: '' }),
-    ];
+  test('returns empty array AND warns once when every provider is the empty string', () => {
+    const warnMock = mock.method(console, 'warn', () => undefined);
+    try {
+      const sessions: GcSession[] = [
+        sess({ id: 't-1', title: 'codex/x', provider: '' }),
+        sess({ id: 't-2', title: 'claude/y', provider: '' }),
+      ];
 
-    assert.deepEqual(aggregateSessionsByProvider(sessions), []);
+      assert.deepEqual(aggregateSessionsByProvider(sessions), []);
+
+      const emptyWarns = warnMock.mock.calls.filter((call) =>
+        String(call.arguments[0]).includes(
+          'aggregateSessionsByProvider: 2 sessions skipped due to empty provider',
+        ),
+      );
+      assert.equal(emptyWarns.length, 1);
+    } finally {
+      warnMock.mock.restore();
+    }
+  });
+
+  test('does NOT warn when every session has a populated provider (happy path)', () => {
+    const warnMock = mock.method(console, 'warn', () => undefined);
+    try {
+      const sessions: GcSession[] = [
+        sess({ id: 't-1', provider: 'codex', state: 'active' }),
+        sess({ id: 't-2', provider: 'claude', state: 'asleep' }),
+      ];
+
+      aggregateSessionsByProvider(sessions);
+
+      const emptyWarns = warnMock.mock.calls.filter((call) =>
+        String(call.arguments[0]).includes('aggregateSessionsByProvider:'),
+      );
+      assert.equal(emptyWarns.length, 0);
+    } finally {
+      warnMock.mock.restore();
+    }
   });
 
   test('returns empty array on empty input', () => {
@@ -235,6 +283,29 @@ describe('collectCityStatus', () => {
     });
 
     assert.equal(summary.rigsPartial, true);
+  });
+
+  test('GcRig fixture projects to CityRig with name+path only (19w.2 regression guard)', async () => {
+    // 19w.2: toCityRig delegation-only mapper was dropped in favor of an
+    // inline projection at the call site. GcRig and CityRig are structurally
+    // equivalent ({ name: string; path: string }); the inline projection
+    // preserves the explicit field-strip so a future widening of GcRig
+    // upstream cannot silently leak new fields into the snapshot wire shape.
+    // This test pins that contract.
+    const fixture: GcRig = { name: 'rig-a', path: '/data/rig-a' };
+    // Cast to a wider shape to simulate GcRig being widened upstream with
+    // a field that has not yet been exposed in CityRig — the inline
+    // projection must drop it.
+    const widened = { ...fixture, agent_count: 7, running_count: 3 } as GcRig;
+    const rigList: GcRigList = { items: [widened] };
+
+    const summary = await collectCityStatus({
+      listSessions: async () => ({ items: [], total: 0 }),
+      listRigs: async () => rigList,
+    });
+
+    assert.deepEqual(summary.rigs, [{ name: 'rig-a', path: '/data/rig-a' }]);
+    assert.equal(Object.keys(summary.rigs[0]!).length, 2);
   });
 
   test('rigs without partial signal — rigsPartial omitted', async () => {

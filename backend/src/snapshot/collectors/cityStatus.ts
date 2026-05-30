@@ -1,5 +1,4 @@
 import type {
-  CityRig,
   CitySessionProvider,
   CityStatusSummary,
   DashboardMetric,
@@ -126,7 +125,12 @@ export async function collectCityStatus(
     suspendedSessions: Math.max(0, sessions.length - activeSessions),
     maxSessions: unavailableCityMetric(MAX_SESSIONS_UNAVAILABLE_REASON),
     sessionsByProvider,
-    rigs: rigList.items.map(toCityRig),
+    // gascity-dashboard-19w.2: inline projection (no toCityRig delegate).
+    // GcRig and CityRig are structurally equivalent today; the explicit
+    // {name, path} pick keeps the field-strip in place so a future upstream
+    // widening of GcRig (agent_count, running_count, etc.) does not silently
+    // leak into the CityStatusSummary wire shape.
+    rigs: rigList.items.map(({ name, path }) => ({ name, path })),
   };
   if (rigsPartial) {
     summary.rigsPartial = true;
@@ -139,15 +143,27 @@ export async function collectCityStatus(
  * without GcSession.provider are EXCLUDED (no title-parsing fallback —
  * see gascity-dashboard-dkb Q4). Result is sorted by active desc, then
  * provider name asc for stable display.
+ *
+ * gascity-dashboard-6bv7.2: empty-string providers are still skipped
+ * (the wire contract is `string`, not "non-empty string", so a degenerate
+ * supervisor sending `provider: ""` for all sessions would otherwise
+ * silently produce zero buckets). The skip is no longer silent — a single
+ * warn is emitted per call with the count when any are dropped. Per-call
+ * (not per-session) keeps the log volume bounded by the SourceCache TTL
+ * (~45s) instead of scaling with session count.
  */
 export function aggregateSessionsByProvider(
   sessions: ReadonlyArray<GcSession>,
 ): CitySessionProvider[] {
   const buckets = new Map<string, { active: number; total: number }>();
+  let emptyProviderCount = 0;
 
   for (const session of sessions) {
     const provider = session.provider;
-    if (!provider) continue;
+    if (!provider) {
+      emptyProviderCount += 1;
+      continue;
+    }
 
     const bucket = buckets.get(provider) ?? { active: 0, total: 0 };
     bucket.total += 1;
@@ -157,13 +173,16 @@ export function aggregateSessionsByProvider(
     buckets.set(provider, bucket);
   }
 
+  if (emptyProviderCount > 0) {
+    logWarn(
+      LOG_COMPONENT.snapshot,
+      `aggregateSessionsByProvider: ${emptyProviderCount} sessions skipped due to empty provider`,
+    );
+  }
+
   return Array.from(buckets.entries())
     .map(([provider, counts]) => ({ provider, ...counts }))
     .sort((a, b) => b.active - a.active || a.provider.localeCompare(b.provider));
-}
-
-function toCityRig(rig: { name: string; path: string }): CityRig {
-  return { name: rig.name, path: rig.path };
 }
 
 function countActiveAgents(sessions: ReadonlyArray<GcSession>): number {
