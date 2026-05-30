@@ -931,9 +931,13 @@ describe('GcClient error handling', () => {
             context_pct: 18,
             context_window: 200_000,
             // Extra supervisor fields (last_output, active_bead) ride through
-            // via passthrough but the dashboard-side GcAgent intentionally
-            // narrows to fields the Agents view consumes; the decoder drops
-            // them from the typed output.
+            // AgentSchema's .passthrough() and remain on the raw decoded
+            // object, but the dashboard-side GcAgent interface intentionally
+            // narrows to fields the Agents view consumes — they are not
+            // exposed on the typed surface, so callers cannot read them
+            // without an unsafe cast. That's the correct boundary: new
+            // supervisor fields don't break decoding, but adopting them in
+            // the dashboard requires an explicit shared-types change.
             last_output: 'reviewing PR',
             active_bead: 'gascity-dashboard-ay6',
             session: {
