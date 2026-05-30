@@ -12,12 +12,15 @@ import type { MaintainerTriage } from 'gas-city-dashboard-shared';
 // enough; on client disconnect or write failure the response gets
 // dropped from the set.
 
-// module-allow: SSE client registry is intentionally module-scoped per
+// SSE client registry is intentionally module-scoped per
 // maintainer-coupling.md C1. Premortem #2's "two-Set" failure mode is
 // addressed by a SINGLE canonical import path for this module after PR-B1
 // — every consumer (router, worker) imports from this exact file, and
 // the snap harness extends to assert SSE round-trip post-relocation.
-const clients = new Set<Response>();
+// The trailing `// module-allow:` marker is on the SAME line as the const
+// so the grep gate (which matches `^const.*= new Set`) sees it; the
+// previous preceding-line position let the gate fire false positives.
+const clients = new Set<Response>(); // module-allow: SSE registry (see comment above)
 
 export function addSseClient(res: Response): void {
   res.setHeader('Content-Type', 'text/event-stream');

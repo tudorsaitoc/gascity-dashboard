@@ -27,10 +27,11 @@ import type { TriageItem, TriageTier } from 'gas-city-dashboard-shared';
 // other repos is sparse — here it's high.
 
 const BUG_LABEL = 'kind/bug';
-// module-allow: immutable label literal table (ReadonlySet), not a mutable
+// Immutable label literal table (ReadonlySet), not a mutable
 // per-process singleton — the no-singletons grep gate is about hidden state
 // (audit C1's failure class), and a frozen constant set has no state.
-const BREAKING_PRIORITY_LABELS: ReadonlySet<string> = new Set([
+// Same-line `// module-allow:` marker so the grep gate sees it.
+const BREAKING_PRIORITY_LABELS: ReadonlySet<string> = new Set<string>([ // module-allow: frozen literal label table, no hidden state
   'priority/p0',
   'priority/p1',
 ]);

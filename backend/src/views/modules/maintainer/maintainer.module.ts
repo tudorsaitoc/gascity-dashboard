@@ -29,7 +29,7 @@
 //       shape; `mount`/`workers` derive paths from `ctx.cityDataDir`.
 
 import path from 'node:path';
-import type { BackendModule } from '../../types.js';
+import type { BackendModule, CityContext } from '../../types.js';
 import { maintainerRouter } from './router.js';
 import { createMaintainerRefresher } from './worker.js';
 import { raceWithTimeout } from '../../../lib/race-with-timeout.js';
@@ -39,6 +39,29 @@ export interface MaintainerDeps {
   slingTarget: string;
   triageTarget: string;
   refreshIntervalMs: number;
+}
+
+// PR-B1 review fix: single source of truth for the on-disk locations both
+// the router and the refresher must agree on. Previously `mount()` and
+// `workers()` each computed `path.join(ctx.cityDataDir, ...)` independently
+// with matching string literals; if one literal changed, the two closures
+// would silently diverge (router writes to A, refresher reads from B).
+// Extracting to a helper guarantees they always resolve identically.
+//
+// NOTE: this still differs from `backend/src/app.ts`'s LIVE mount, which
+// derives `slungStatePath` from `path.dirname(config.maintainerCachePath)`
+// (= `~/.gascity-dashboard/`), not `ctx.cityDataDir`
+// (= `~/.gascity-dashboard/cities/<cityName>/`). When PR-B2 swaps to the
+// registry, existing data at the live-mount location will not be found at
+// the descriptor location — see 9yj.4 / PR-B2 for the migration step.
+function maintainerPaths(ctx: CityContext): {
+  cachePath: string;
+  slungStatePath: string;
+} {
+  return {
+    cachePath: path.join(ctx.cityDataDir, 'maintainer-cache.json'),
+    slungStatePath: path.join(ctx.cityDataDir, 'slung-state.json'),
+  };
 }
 
 export const maintainerBackend: BackendModule<MaintainerDeps> = {
@@ -65,8 +88,7 @@ export const maintainerBackend: BackendModule<MaintainerDeps> = {
     refreshIntervalMs: 0,
   }),
   mount: (ctx, deps) => {
-    const cachePath = path.join(ctx.cityDataDir, 'maintainer-cache.json');
-    const slungStatePath = path.join(ctx.cityDataDir, 'slung-state.json');
+    const { cachePath, slungStatePath } = maintainerPaths(ctx);
     return maintainerRouter({
       repo: deps.repo,
       cachePath,
@@ -84,8 +106,7 @@ export const maintainerBackend: BackendModule<MaintainerDeps> = {
     deps.refreshIntervalMs > 0
       ? createMaintainerRefresher({
           repo: deps.repo,
-          cachePath: path.join(ctx.cityDataDir, 'maintainer-cache.json'),
-          slungStatePath: path.join(ctx.cityDataDir, 'slung-state.json'),
+          ...maintainerPaths(ctx),
           intervalMs: deps.refreshIntervalMs,
         })
       : undefined,
