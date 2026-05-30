@@ -27,6 +27,9 @@ import type { TriageItem, TriageTier } from 'gas-city-dashboard-shared';
 // other repos is sparse — here it's high.
 
 const BUG_LABEL = 'kind/bug';
+// module-allow: immutable label literal table (ReadonlySet), not a mutable
+// per-process singleton — the no-singletons grep gate is about hidden state
+// (audit C1's failure class), and a frozen constant set has no state.
 const BREAKING_PRIORITY_LABELS: ReadonlySet<string> = new Set([
   'priority/p0',
   'priority/p1',
@@ -73,7 +76,7 @@ function classifyTier(item: TriageItem): TriageTier {
  * effectively means "in the review queue, not blocked."
  *
  * Page-level uniqueness contract: this predicate identifies *candidates*
- * per item, not the winner. selectOneMark (backend/src/maintainer/triage.ts)
+ * per item, not the winner. selectOneMark (sibling triage.ts)
  * scans the flat list and clears `is_marked` on every non-top-scorer so at
  * most one item per envelope carries the maroon mark. The frontend renderer
  * (TriageSections.tsx IssueRow + PrRow) emits the mark per-row based on

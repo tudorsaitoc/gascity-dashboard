@@ -9,12 +9,12 @@ import {
   writeSlungEntry,
   purgeSlungKeys,
   type SlungStateMap,
-} from '../src/maintainer/slung-state.js';
+} from './slung-state.js';
 
 // Active sling state persistence (gascity-dashboard-9qs).
 //
 // JSON map keyed by `kind:number` (single-repo scope per CLAUDE.md).
-// Atomic tmp+rename mirrors backend/src/maintainer/storage.ts. Tests
+// Atomic tmp+rename mirrors the sibling storage.ts. Tests
 // use a unique tmpdir per case so concurrent test runs don't collide
 // and assert isolation is intact.
 

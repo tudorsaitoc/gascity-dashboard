@@ -4,7 +4,7 @@ import type { GcSession } from './index.js';
 //
 // This is the SINGLE implementation of the 4-step resolution the codebase
 // flags in two places: SlungState.resolved_session_name (shared/src/index.ts)
-// and the maintainer sling resolver (backend/src/maintainer/resolve-target.ts,
+// and the maintainer sling resolver (backend/src/views/modules/maintainer/resolve-target.ts,
 // which now delegates here). PRD risk R2 calls this join out as load-bearing
 // for the workflow-health engine — role-pool dispatch routinely fails it —
 // so it must not drift between consumers.

@@ -23,6 +23,17 @@ const typeAwareSourceFiles = [
   'shared/src/workflow-snapshot.ts',
 ];
 
+// Colocated backend test files (PR-B1+) live under backend/src/**/*.test.ts.
+// Pre-PR-B1 backend tests lived in backend/test/ and were never subject to
+// type-aware rules (the glob above only matched non-test src). Preserve
+// that behaviour for the migrated colocated tests so the relocation isn't
+// entangled with a global lint-rule expansion (one change, one purpose).
+// Frontend tests stay type-aware as they always were under frontend/src/.
+const backendColocatedTestGlobs = [
+  'backend/src/**/*.test.ts',
+  'backend/src/**/fixtures/**',
+];
+
 export default tseslint.config(
   {
     ignores: [
@@ -80,6 +91,7 @@ export default tseslint.config(
   },
   {
     files: typeAwareSourceFiles,
+    ignores: backendColocatedTestGlobs,
     languageOptions: {
       ecmaVersion: 'latest',
       sourceType: 'module',

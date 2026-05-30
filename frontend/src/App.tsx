@@ -9,7 +9,7 @@ import { MailPage } from './routes/Mail';
 import { ActivityPage } from './routes/Activity';
 import { WorkflowsPage } from './routes/Workflows';
 import { WorkflowRunDetailPage } from './routes/WorkflowRunDetail';
-import { MaintainerPage } from './routes/Maintainer';
+import { MaintainerPage } from './views/modules/maintainer/Maintainer';
 import { NowProvider } from './contexts/NowContext';
 import { ViewingAsProvider } from './contexts/ViewingAsContext';
 import { ALL_VIEWS } from './views/registry';

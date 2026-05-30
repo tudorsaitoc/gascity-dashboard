@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import {
   parseTriageAssessment,
   sortScore,
-} from '../src/maintainer/triage-assessment.js';
+} from './triage-assessment.js';
 import type { TriageItem } from 'gas-city-dashboard-shared';
 
 // Label-driven vetted triage assessment parser (gascity-dashboard-are).

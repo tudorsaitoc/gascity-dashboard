@@ -1,4 +1,3 @@
-import path from 'node:path';
 import { Router } from 'express';
 import type {
   ContributorStat,
@@ -8,31 +7,31 @@ import type {
   SlingResponse,
   TriageItem,
 } from 'gas-city-dashboard-shared';
-import { recordAudit } from '../audit.js';
-import { AGENT_ALIAS_RE, ExecError } from '../exec.js';
-import { GcClient } from '../gc-client.js';
+import { recordAudit } from '../../../audit.js';
+import { AGENT_ALIAS_RE, ExecError } from '../../../exec.js';
+import { GcClient } from '../../../gc-client.js';
 import {
   collectItems,
   fetchTriage as defaultFetchTriage,
   selectOneMark,
-} from '../maintainer/triage.js';
-import { readCache, writeCache, type CacheReadResult } from '../maintainer/storage.js';
-import { isMarkCandidate } from '../maintainer/classifier.js';
-import { resolveTargetToSession } from '../maintainer/resolve-target.js';
+} from './triage.js';
+import { readCache, writeCache, type CacheReadResult } from './storage.js';
+import { isMarkCandidate } from './classifier.js';
+import { resolveTargetToSession } from './resolve-target.js';
 import {
   readSlungState,
   slungKey,
   writeSlungEntry,
-} from '../maintainer/slung-state.js';
-import { addSseClient, notifyRefresh, removeSseClient } from '../maintainer/sse.js';
-import { toWireExecError } from '../lib/sanitise-error.js';
-import { LOG_COMPONENT, errorMessage, logWarn } from '../logging.js';
+} from './slung-state.js';
+import { addSseClient, notifyRefresh, removeSseClient } from './sse.js';
+import { toWireExecError } from '../../../lib/sanitise-error.js';
+import { LOG_COMPONENT, errorMessage, logWarn } from '../../../logging.js';
 import {
   routeInternalError,
   routeUpstreamError,
   routeValidationError,
   writeRouteError,
-} from '../route-errors.js';
+} from '../../../route-errors.js';
 
 const GH_LOGIN_RE = /^[A-Za-z0-9][A-Za-z0-9-]{0,38}$/;
 const GH_URL_RE = /^https:\/\/github\.com\/[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+\/(issues|pull)\/\d+$/;
@@ -50,10 +49,12 @@ interface MaintainerRouterOptions {
   cachePath: string;
   /**
    * Path to the active-sling-state JSON map (gascity-dashboard-9qs).
-   * Defaults to a sibling of cachePath when omitted so callers that
-   * predate this option don't need to thread a separate config.
+   * Required: the maintainer module's `needs(config)` is the single
+   * source of truth for this derivation (PR-B1 / docs/maintainer-coupling.md C2).
+   * Callers must pass it explicitly — there is no longer a sibling-of-cachePath
+   * fallback inside the router, so the worker and the route cannot drift.
    */
-  slungStatePath?: string;
+  slungStatePath: string;
   /** Default `gc sling` target when the request omits one. From config. */
   slingTarget: string;
   /**
@@ -95,7 +96,7 @@ interface MaintainerRouterOptions {
 export function maintainerRouter({
   repo,
   cachePath,
-  slungStatePath = defaultSlungStatePath(cachePath),
+  slungStatePath,
   slingTarget,
   triageTarget,
   sling,
@@ -473,12 +474,6 @@ function countItems(envelope: MaintainerTriage): number {
 }
 
 // ── Slung-state overlay (gascity-dashboard-9qs) ──────────────────────
-
-function defaultSlungStatePath(cachePath: string): string {
-  // Sibling of the envelope cache so a single state-dir holds the
-  // maintainer's persisted bookkeeping.
-  return path.join(path.dirname(cachePath), 'slung-state.json');
-}
 
 /**
  * Resolves the configured `gc sling` target role to a concrete session

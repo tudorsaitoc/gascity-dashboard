@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import type { TriageItem } from 'gas-city-dashboard-shared';
-import { selectionKey, type SelectionKey } from '../components/maintainer/selectionKey';
-export { selectionKey, type SelectionKey } from '../components/maintainer/selectionKey';
+import { selectionKey, type SelectionKey } from './selectionKey';
+export { selectionKey, type SelectionKey } from './selectionKey';
 
 // Pure helpers for the maintainer bulk-sling selection state
 // (gascity-dashboard-0nn). Lives outside Maintainer.tsx so vitest can

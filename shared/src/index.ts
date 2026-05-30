@@ -909,7 +909,7 @@ export interface TriageItem {
    *  when present (gascity-dashboard-are). Null means the item has not been
    *  vetted; the frontend then renders the heuristic `triage_score` in the
    *  faint italic register. Populated by the label parser in
-   *  backend/src/maintainer/triage-assessment.ts. */
+   *  backend/src/views/modules/maintainer/triage-assessment.ts. */
   triage_assessment: TriageAssessment | null;
   /** Active sling state (gascity-dashboard-9qs). Non-null while the item
    *  is in flight to a triage agent and not yet vetted. Excludes the

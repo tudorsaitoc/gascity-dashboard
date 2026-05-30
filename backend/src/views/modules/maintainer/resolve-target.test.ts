@@ -1,7 +1,7 @@
 import { test, describe } from 'node:test';
 import assert from 'node:assert/strict';
 import type { GcSession } from 'gas-city-dashboard-shared';
-import { resolveTargetToSession } from '../src/maintainer/resolve-target.js';
+import { resolveTargetToSession } from './resolve-target.js';
 
 // gascity-dashboard-55b: role-to-session resolver tests. The function is
 // pure (no IO) so all cases use synthesised GcSession fixtures.
