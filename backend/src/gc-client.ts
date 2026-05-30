@@ -346,8 +346,9 @@ export class GcClient {
    * path which under-counted agents that are configured but not currently
    * bound to a running session. Alias-keyed (each item's `name` is the
    * stable alias the operator types into `gc sling`). The Agents view
-   * consumes this directly; the cityStatus snapshot collector continues
-   * aggregating over sessions for now (migration is sd4's territory).
+   * consumes this directly; the cityStatus snapshot collector now also
+   * consumes this for sessionsByProvider (gascity-dashboard-sd4) because
+   * /sessions doesn't carry provider for every entry.
    */
   async listAgents(signal?: AbortSignal): Promise<GcAgentList> {
     return this.getOperation(
