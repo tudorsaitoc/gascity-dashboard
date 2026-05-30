@@ -122,16 +122,34 @@ export function AgentsPage() {
     'agents',
     () => api.listAgents(),
   );
+  // The supervisor's AgentResponse.session (SessionInfo) carries only
+  // `name`/`attached`/`last_activity` — NOT the session id. Peek needs
+  // the session id (gc-XXX format) per SESSION_ID_RE on the backend.
+  // Fetch the sessions list in parallel so we can map agent.session.name
+  // -> session.id at peek time.
+  const sessionsCache = useCachedData('sessions', () => api.listSessions());
   const rows = useMemo<GcAgent[]>(() => data?.items ?? [], [data]);
+  const sessionsById = useMemo(() => {
+    const map = new Map<string, string>();
+    for (const s of sessionsCache.data?.items ?? []) {
+      if (s.session_name) map.set(s.session_name, s.id);
+    }
+    return map;
+  }, [sessionsCache.data]);
   const [now, setNow] = useState(() => Date.now());
 
-  // Peek key is the agent alias (`name`); the modal resolves the live
-  // session through the agent row's `session.name`.
+  // Peek key is the agent alias (`name`); modal resolves the live session
+  // by mapping agent.session.name -> session.id via the sessions cache.
   const [peekAlias, setPeekAlias] = useState<string | null>(null);
   const peekAgent = useMemo(
     () => (peekAlias === null ? null : rows.find((a) => a.name === peekAlias) ?? null),
     [rows, peekAlias],
   );
+  const peekSessionId = useMemo(() => {
+    const sessionName = peekAgent?.session?.name;
+    if (!sessionName) return null;
+    return sessionsById.get(sessionName) ?? null;
+  }, [peekAgent, sessionsById]);
 
   useVisibleInterval(() => setNow(Date.now()), 15_000);
 
@@ -157,7 +175,10 @@ export function AgentsPage() {
       key: 'name',
       label: 'Agent',
       sortable: true,
-      sortValue: (r) => r.display_name ?? r.name,
+      // Sort by alias (the identity), not the display_name. Two agents
+      // with the same provider label ("Claude (Account 5)") would
+      // otherwise collide; alias is unique.
+      sortValue: (r) => r.name,
       render: (r) => {
         // Per-rig dispatchers (alias '<rig>/control-dispatcher') live
         // inside their rig group but perform an orchestration role.
@@ -166,7 +187,14 @@ export function AgentsPage() {
         // orchestration is handled separately by the Orchestration
         // pinned group).
         const dispatcher = isPerRigDispatcherAgent(r);
-        const label = r.display_name ?? r.name;
+        // Primary label is the alias (`name`) — that's the identity the
+        // operator dispatches with (`gc sling <alias> ...`) and the only
+        // field guaranteed unique. display_name is the provider's
+        // human-readable label (e.g. "Claude (Account 5)") and is
+        // useful as secondary context but not as a primary identifier.
+        const secondary = r.display_name && r.display_name !== r.name
+          ? r.display_name
+          : (r.provider ?? r.model ?? '');
         return (
           <div className="min-w-0">
             <Link
@@ -174,13 +202,15 @@ export function AgentsPage() {
               className={`block text-fg truncate hover:text-accent focus-mark ${
                 dispatcher ? 'font-normal italic' : 'font-medium'
               }`}
-              title={`Open drilldown for ${label}`}
+              title={`Open drilldown for ${r.name}`}
             >
-              {label}
+              {r.name}
             </Link>
-            <div className="text-label uppercase tracking-wider text-fg-faint mt-1 truncate">
-              {r.provider ?? r.model ?? ''}
-            </div>
+            {secondary && (
+              <div className="text-label uppercase tracking-wider text-fg-faint mt-1 truncate">
+                {secondary}
+              </div>
+            )}
           </div>
         );
       },
@@ -361,20 +391,26 @@ export function AgentsPage() {
       <Modal
         open={peekAlias !== null}
         onClose={() => setPeekAlias(null)}
-        title={
-          peekAgent
-            ? (peekAgent.display_name ?? peekAgent.name)
-            : (peekAlias ?? 'Transcript')
-        }
+        title={peekAgent?.name ?? peekAlias ?? 'Transcript'}
         caption={
-          isAgentStreamable(peekAgent)
-            ? "Live transcript from the supervisor's session stream."
-            : "Snapshot from the supervisor's transcript API."
+          // SessionInfo on the supervisor side carries only name/attached/
+          // last_activity — no session id — so we resolve agent.session.name
+          // -> session.id through the sessions cache. If sessions hasn't
+          // loaded yet (or the agent's session is missing from it), surface
+          // that explicitly instead of letting peek hit the route with an
+          // invalid id and degrade to "invalid session id".
+          peekAgent && peekAgent.session && !peekSessionId
+            ? sessionsCache.loading
+              ? 'Resolving session…'
+              : `No live session matches "${peekAgent.session.name}".`
+            : isAgentStreamable(peekAgent)
+              ? "Live transcript from the supervisor's session stream."
+              : "Snapshot from the supervisor's transcript API."
         }
         widthClass="max-w-5xl"
       >
         <LiveSessionPeek
-          sessionId={peekAgent?.session?.name ?? null}
+          sessionId={peekSessionId}
           stream={isAgentStreamable(peekAgent)}
           showBadge
           showCaption
