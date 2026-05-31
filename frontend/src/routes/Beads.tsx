@@ -1,6 +1,8 @@
 import { useCallback, useMemo, useState } from 'react';
 import { GC_EVENT_PREFIX, type GcBead } from 'gas-city-dashboard-shared';
 import { api, ApiClientError } from '../api/client';
+import { BeadBoardSection } from '../components/beads/BeadBoardSection';
+import { BeadDetailRail } from '../components/beads/BeadDetailRail';
 import { BeadDetailModal } from '../components/BeadDetailModal';
 import { Button } from '../components/Button';
 import { FilterChips } from '../components/FilterChips';
@@ -8,13 +10,24 @@ import { GroupedTable } from '../components/GroupedTable';
 import { ListSearchBar } from '../components/ListSearchBar';
 import { Modal } from '../components/Modal';
 import { PageHeader } from '../components/PageHeader';
+import { SortToggle } from '../components/SortToggle';
 import { StatusBadge, type StatusTone } from '../components/StatusBadge';
 import { type TableColumn } from '../components/Table';
+import { buildBeadGraph } from '../lib/beadGraph';
 import { useCachedData } from '../hooks/useCachedData';
 import { useGcEventRefresh } from '../hooks/useGcEvents';
 import { useListFilters, type FilterChip } from '../hooks/useListFilters';
 import { beadProject } from '../hooks/projectOf';
 import { formatDate } from '../lib/format';
+
+type BeadView = 'board' | 'list';
+
+const VIEW_OPTIONS: ReadonlyArray<{ id: BeadView; label: string }> = [
+  { id: 'board', label: 'Board' },
+  { id: 'list', label: 'List' },
+];
+
+const EMPTY_IDS: ReadonlySet<string> = new Set();
 
 const BEAD_CHIPS: ReadonlyArray<FilterChip<GcBead>> = [
   { id: 'open', label: 'open', match: (b) => b.status === 'open' },
@@ -33,9 +46,14 @@ const BEAD_SEARCH_FIELDS = (b: GcBead): ReadonlyArray<string | undefined> => [
 export function BeadsPage() {
   const [labelFilter, setLabelFilter] = useState<string | null>(null);
   const [showAll, setShowAll] = useState(false);
+  const [view, setView] = useState<BeadView>('board');
+  // The board is a kanban: its in-progress / blocked / done columns are
+  // empty under the open-only default, so Board implies "show all". List
+  // keeps the manual toggle.
+  const showAllEffective = view === 'board' || showAll;
   const { data, loading, error, refresh } = useCachedData(
-    showAll ? 'beads:all' : 'beads:open',
-    () => api.listBeads(showAll),
+    showAllEffective ? 'beads:all' : 'beads:open',
+    () => api.listBeads(showAllEffective),
   );
   const rows = useMemo(() => data?.items ?? [], [data]);
   const totalShown = data?.total ?? 0;
@@ -48,6 +66,15 @@ export function BeadsPage() {
   const [actionInFlight, setActionInFlight] = useState<{ id: string; action: string } | null>(null);
   const [actionResult, setActionResult] = useState<string | null>(null);
   const [viewing, setViewing] = useState<GcBead | null>(null);
+  const [selectedId, setSelectedId] = useState<string | null>(null);
+
+  // Sessions back the board's bead -> live-run resolution. Only the board
+  // view reads them; the list view leaves the cache cold.
+  const sessions = useCachedData('sessions', () => api.listSessions());
+  const sessionItems = useMemo(
+    () => sessions.data?.items ?? [],
+    [sessions.data],
+  );
 
   const filteredRows = useMemo(() => {
     if (labelFilter === null) return rows;
@@ -63,6 +90,29 @@ export function BeadsPage() {
   });
 
   useGcEventRefresh([GC_EVENT_PREFIX.bead], () => void refresh());
+
+  // The board operates on the same search/chip/label-filtered set the list
+  // does, flattened across project groups. The dependency graph (columns +
+  // needs/blocks edges) is rebuilt from that set; edges pointing outside it
+  // render unresolved rather than fabricated.
+  const matched = useMemo(
+    () => filters.groups.flatMap((g) => g.rows),
+    [filters.groups],
+  );
+  const graph = useMemo(() => buildBeadGraph(matched), [matched]);
+  // Bead ids per rig group, so each rig section renders its own slice of the
+  // single shared graph (cross-rig edges stay resolved).
+  const groupIds = useMemo(() => {
+    const map = new Map<string, Set<string>>();
+    for (const g of filters.groups) {
+      map.set(g.projectKey, new Set(g.rows.map((r) => r.id)));
+    }
+    return map;
+  }, [filters.groups]);
+  const selectedBead = useMemo(
+    () => matched.find((b) => b.id === selectedId) ?? null,
+    [matched, selectedId],
+  );
 
   const runAction = useCallback(
     async (
@@ -243,15 +293,21 @@ export function BeadsPage() {
                 {error}
               </span>
             )}
-            <label className="flex items-baseline gap-2 text-label uppercase tracking-wider text-fg-muted cursor-pointer">
-              <input
-                type="checkbox"
-                checked={showAll}
-                onChange={(e) => setShowAll(e.target.checked)}
-                className="accent-accent translate-y-0.5"
-              />
-              Show all
-            </label>
+            {view === 'board' ? (
+              <span className="text-label uppercase tracking-wider text-fg-faint">
+                All statuses
+              </span>
+            ) : (
+              <label className="flex items-baseline gap-2 text-label uppercase tracking-wider text-fg-muted cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={showAll}
+                  onChange={(e) => setShowAll(e.target.checked)}
+                  className="accent-accent translate-y-0.5"
+                />
+                Show all
+              </label>
+            )}
             <Button size="sm" onClick={() => void refresh()} disabled={loading}>
               {loading ? 'Refreshing' : 'Refresh'}
             </Button>
@@ -292,29 +348,73 @@ export function BeadsPage() {
           totalCount={filteredRows.length}
           ariaLabel="Search beads"
         />
-        <FilterChips
-          chips={BEAD_CHIPS}
-          activeIds={filters.activeChipIds}
-          onToggle={filters.toggleChip}
-          legend="Status"
-        />
+        <div className="flex items-baseline justify-between gap-4">
+          <FilterChips
+            chips={BEAD_CHIPS}
+            activeIds={filters.activeChipIds}
+            onToggle={filters.toggleChip}
+            legend="Status"
+          />
+          <SortToggle<BeadView>
+            value={view}
+            options={VIEW_OPTIONS}
+            onChange={setView}
+            legend="View"
+          />
+        </div>
       </div>
 
-      <GroupedTable
-        groups={filters.groups}
-        columns={columns}
-        rowKey={(r) => r.id}
-        onToggleProject={filters.toggleProject}
-        emptyMessage={
-          filters.search.length > 0 || filters.activeChipIds.size > 0
-            ? 'No beads match the current search or filter.'
-            : labelFilter !== null
-              ? `No beads match label "${labelFilter}".`
-              : 'Nothing on the queue right now.'
-        }
-        perProjectEmpty="No beads in this project."
-        initialSort={{ key: 'updated', dir: 'desc' }}
-      />
+      {view === 'board' ? (
+        matched.length === 0 ? (
+          <p className="text-body text-fg-muted italic">
+            {filters.search.length > 0 || filters.activeChipIds.size > 0
+              ? 'No beads match the current search or filter.'
+              : labelFilter !== null
+                ? `No beads match label "${labelFilter}".`
+                : 'Nothing on the queue right now.'}
+          </p>
+        ) : (
+          <div className="grid grid-cols-1 xl:grid-cols-[2fr_1fr] gap-x-10 gap-y-8">
+            <div className="space-y-12">
+              {filters.groups.map((g) => (
+                <BeadBoardSection
+                  key={g.projectKey}
+                  label={g.project}
+                  count={g.totalInProject}
+                  graph={graph}
+                  ids={groupIds.get(g.projectKey) ?? EMPTY_IDS}
+                  selectedId={selectedId}
+                  onSelect={setSelectedId}
+                />
+              ))}
+            </div>
+            <div className="xl:sticky xl:top-6 xl:self-start">
+              <BeadDetailRail
+                beadId={selectedId}
+                initialBead={selectedBead}
+                sessions={sessionItems}
+                onOpenBead={setSelectedId}
+              />
+            </div>
+          </div>
+        )
+      ) : (
+        <GroupedTable
+          groups={filters.groups}
+          columns={columns}
+          rowKey={(r) => r.id}
+          onToggleProject={filters.toggleProject}
+          emptyMessage={
+            filters.search.length > 0 || filters.activeChipIds.size > 0
+              ? 'No beads match the current search or filter.'
+              : labelFilter !== null
+                ? `No beads match label "${labelFilter}".`
+                : 'Nothing on the queue right now.'
+          }
+          perProjectEmpty="No beads in this project."
+          initialSort={{ key: 'updated', dir: 'desc' }}
+        />
+      )}
 
       <BeadDetailModal
         open={viewing !== null}
