@@ -16,9 +16,9 @@ import type {
   DashboardSnapshot,
   SourceName,
   DashboardRuntimeConfig,
-  WorkflowDiffResponse,
-  WorkflowRunDetail,
-  WorkflowScopeKind,
+  RunDiffResponse,
+  FormulaRunDetail,
+  RunScopeKind,
   EntityLinkView,
 } from 'gas-city-dashboard-shared';
 import { readCsrfToken } from './csrf';
@@ -183,7 +183,7 @@ export const api = {
   // Bypasses the backend's per-source TTL — POSTs through
   // SnapshotService.refresh which forces a fresh upstream load on the
   // listed sources (or all sources when `sources` is omitted). Used by
-  // the /workflows live-updates path so SSE-triggered re-fetches see
+  // the /runs live-updates path so SSE-triggered re-fetches see
   // genuinely fresh data (gascity-dashboard-bqn).
   snapshotRefresh(sources?: readonly SourceName[]): Promise<DashboardSnapshot> {
     // Backend rejects [] explicitly (snapshot.ts:83 — "sources must not
@@ -193,19 +193,19 @@ export const api = {
     const body = sources && sources.length > 0 ? { sources } : {};
     return request('POST', '/api/snapshot/refresh', body);
   },
-  workflowRun(
-    workflowId: string,
-    params?: { scopeKind?: WorkflowScopeKind; scopeRef?: string },
-  ): Promise<WorkflowRunDetail> {
-    const qs = workflowQuery(params);
-    return request('GET', `/api/workflows/${encodeURIComponent(workflowId)}${qs}`);
+  formulaRun(
+    runId: string,
+    params?: { scopeKind?: RunScopeKind; scopeRef?: string },
+  ): Promise<FormulaRunDetail> {
+    const qs = runQuery(params);
+    return request('GET', `/api/runs/${encodeURIComponent(runId)}${qs}`);
   },
-  workflowDiff(
-    workflowId: string,
-    params?: { scopeKind?: WorkflowScopeKind; scopeRef?: string },
-  ): Promise<WorkflowDiffResponse> {
-    const qs = workflowQuery(params);
-    return request('GET', `/api/workflows/${encodeURIComponent(workflowId)}/diff${qs}`);
+  runDiff(
+    runId: string,
+    params?: { scopeKind?: RunScopeKind; scopeRef?: string },
+  ): Promise<RunDiffResponse> {
+    const qs = runQuery(params);
+    return request('GET', `/api/runs/${encodeURIComponent(runId)}/diff${qs}`);
   },
   sessionStreamUrl(id: string): string {
     return `/api/sessions/${encodeURIComponent(id)}/stream`;
@@ -223,7 +223,7 @@ export const api = {
   // action bar fans out one call per selected item via Promise.allSettled
   // so a single 4xx/5xx doesn't block the rest of the batch.
   // Bead-ID cross-entity linked view (gascity-dashboard-j4x). `ref` is a
-  // bead id, `pr/<n>`, `issue/<n>`, a session id, or a workflow id.
+  // bead id, `pr/<n>`, `issue/<n>`, a session id, or a run id.
   entityLinks(ref: string): Promise<EntityLinkView> {
     return request('GET', `/api/links/${encodeURIComponent(ref)}`);
   },
@@ -238,7 +238,7 @@ export const api = {
   },
 };
 
-function workflowQuery(params?: { scopeKind?: WorkflowScopeKind; scopeRef?: string }): string {
+function runQuery(params?: { scopeKind?: RunScopeKind; scopeRef?: string }): string {
   const search = new URLSearchParams();
   if (params?.scopeKind && params.scopeRef) {
     search.set('scope_kind', params.scopeKind);

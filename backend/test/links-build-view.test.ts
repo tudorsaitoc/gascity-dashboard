@@ -1,10 +1,10 @@
-import { test, describe } from 'node:test';
-import assert from 'node:assert/strict';
 import type { GcBead, GcSession, LinkNode } from 'gas-city-dashboard-shared';
-import { buildRelationIndex } from '../src/links/relation-index.js';
+import assert from 'node:assert/strict';
+import { describe, test } from 'node:test';
 import { buildLinkView } from '../src/links/build-link-view.js';
-import { parseRef } from '../src/links/node-ref.js';
 import { ResolutionRollup } from '../src/links/instrumentation.js';
+import { parseRef } from '../src/links/node-ref.js';
+import { buildRelationIndex } from '../src/links/relation-index.js';
 
 function bead(id: string, metadata: Record<string, unknown> = {}): GcBead {
   return {
@@ -222,7 +222,7 @@ describe('buildLinkView (R2/R3/R4/R6/R7/R11)', () => {
   });
 
   test('molecule: the molecule root bead is linked alongside peer members', () => {
-    // molecule_id is the workflow ROOT bead id; it should be linked as a
+    // molecule_id is the run ROOT bead id; it should be linked as a
     // navigable bead in addition to peer members.
     const beads = [
       bead('focus', { molecule_id: 'root-mol' }),

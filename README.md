@@ -1,6 +1,6 @@
 # gas-city-dashboard
 
-An editorial-typographic ambient dashboard for a single [Gas City](https://github.com/gastownhall/gascity) (`gc`) operator. Six views — Agents, Beads, Workflows, Mail, Activity, Health — laid out as a thoughtfully-set page rather than a wall of cards. The room is calm by default; the only thing that earns the eye is something going wrong.
+An editorial-typographic ambient dashboard for a single [Gas City](https://github.com/gastownhall/gascity) (`gc`) operator. Six views — Agents, Beads, Runs, Mail, Activity, Health — laid out as a thoughtfully-set page rather than a wall of cards. The room is calm by default; the only thing that earns the eye is something going wrong.
 
 The shape is forked from [Wldc4rd/citadel](https://github.com/Wldc4rd/citadel) (MIT, Charlie Coutts) which solved the orchestrator-tab problem first. The visual register is a full redesign, driven through [impeccable](https://impeccable.style/) with the design context captured in [`PRODUCT.md`](PRODUCT.md) and [`DESIGN.md`](DESIGN.md).
 
@@ -8,7 +8,7 @@ The shape is forked from [Wldc4rd/citadel](https://github.com/Wldc4rd/citadel) (
 
 - **Agents** — every session's state at a glance, with a Peek modal for `gc session peek` snapshots.
 - **Beads** — engineering work in `gc bd` (system noise filtered by default), with inline claim / close / nudge and click-to-filter label chips.
-- **Workflows** — active formula runs, with graph.v2 run details, node session transcripts, and current execution-folder git diffs.
+- **Runs** — active formula runs, with graph.v2 run details, node session transcripts, and current execution-folder git diffs.
 - **Mail** — read any agent's inbox via a persistent "Reading as" strip. Sends always go from the operator; impersonation is read-only.
 - **Activity** — recent commits and the dev-deploy log, with view tabs (recent · main / recent · all / 24h / 7d). Live updates via SSE from the supervisor.
 - **Health** — supervisor state, host memory + load, admin process stats, plus a 24-hour dolt-noms trend sparkline.
@@ -55,17 +55,17 @@ npm --workspace backend test
 
 All knobs are environment variables. See [`backend/src/config.ts`](backend/src/config.ts) for the authoritative list.
 
-| Variable | Default | Purpose |
-|---|---|---|
-| `PORT` | `8081` | TCP port the dashboard listens on |
-| `HOST` | `127.0.0.1` | Bind interface. Set `0.0.0.0` for LAN access on a trusted network. |
-| `ADMIN_EXTRA_ALLOWED_HOSTS` | (empty) | CSV of extra hostnames allowed in the `Host:` header (e.g. `my-vm,192.168.1.58`). The floor `127.0.0.1` / `localhost` is always allowed. |
-| `GC_SUPERVISOR_URL` | `http://127.0.0.1:8372` | gc supervisor API base URL. |
-| `GC_CITY_NAME` | `racoon-city` | Name of the city this dashboard manages. One dashboard per city. |
-| `ADMIN_AUDIT_LOG_PATH` | `$HOME/.gc/events.jsonl` | Where state-changing actions append audit entries. |
-| `ADMIN_FRONTEND_DIST` | `../frontend/dist` | Path to built frontend assets. |
-| `ADMIN_GIT_REPO` | `$HOME` | Repo for the Activity view's `git log` queries. |
-| `ADMIN_DASHBOARD_DISABLED` | `0` | Kill switch. Set to `1` to refuse to start. |
+| Variable                    | Default                  | Purpose                                                                                                                                  |
+| --------------------------- | ------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------- |
+| `PORT`                      | `8081`                   | TCP port the dashboard listens on                                                                                                        |
+| `HOST`                      | `127.0.0.1`              | Bind interface. Set `0.0.0.0` for LAN access on a trusted network.                                                                       |
+| `ADMIN_EXTRA_ALLOWED_HOSTS` | (empty)                  | CSV of extra hostnames allowed in the `Host:` header (e.g. `my-vm,192.168.1.58`). The floor `127.0.0.1` / `localhost` is always allowed. |
+| `GC_SUPERVISOR_URL`         | `http://127.0.0.1:8372`  | gc supervisor API base URL.                                                                                                              |
+| `GC_CITY_NAME`              | `racoon-city`            | Name of the city this dashboard manages. One dashboard per city.                                                                         |
+| `ADMIN_AUDIT_LOG_PATH`      | `$HOME/.gc/events.jsonl` | Where state-changing actions append audit entries.                                                                                       |
+| `ADMIN_FRONTEND_DIST`       | `../frontend/dist`       | Path to built frontend assets.                                                                                                           |
+| `ADMIN_GIT_REPO`            | `$HOME`                  | Repo for the Activity view's `git log` queries.                                                                                          |
+| `ADMIN_DASHBOARD_DISABLED`  | `0`                      | Kill switch. Set to `1` to refuse to start.                                                                                              |
 
 For local dev a `.env.local` is convenient (not auto-loaded; source it explicitly):
 
@@ -92,7 +92,7 @@ Full threat model: [`docs/SECURITY.md`](docs/SECURITY.md).
 - **Backend** — Node 20 + Express + TypeScript. Single port serves API at `/api/*` and the SPA from `/`.
 - **Frontend** — React 18 + Vite + TypeScript + Tailwind, self-hosted Inter Variable. Single-page app, statically served by the backend in production.
 - **Shared types** — `gas-city-dashboard-shared` workspace package. Wire-shape drift becomes a compile error on both sides.
-- **Deploy** — systemd user unit. Deliberately *not* managed by `gc [[services]]`; see [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) for why the dashboard must outlive supervisor outages.
+- **Deploy** — systemd user unit. Deliberately _not_ managed by `gc [[services]]`; see [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) for why the dashboard must outlive supervisor outages.
 
 ## Layout
 
@@ -116,8 +116,8 @@ gas-city-dashboard/
 
 This codebase carries two committed design artifacts at the root:
 
-- [`PRODUCT.md`](PRODUCT.md) — Who the operator is, what she's doing when she looks at this, the brand personality (*"considered, literary, instrumental"*), and the strategic anti-references (Datadog density, Linear dark-slate, hero-metric cards).
-- [`DESIGN.md`](DESIGN.md) — Creative North Star *"The Reading Room"*, the warm-paper + warm-graphite + maroon palette, the single-typeface Inter system, the `Flat Page Rule`, `One Mark Rule`, `One Voice Rule`, `Greyscale Test`, and the explicit Do's and Don'ts.
+- [`PRODUCT.md`](PRODUCT.md) — Who the operator is, what she's doing when she looks at this, the brand personality (_"considered, literary, instrumental"_), and the strategic anti-references (Datadog density, Linear dark-slate, hero-metric cards).
+- [`DESIGN.md`](DESIGN.md) — Creative North Star _"The Reading Room"_, the warm-paper + warm-graphite + maroon palette, the single-typeface Inter system, the `Flat Page Rule`, `One Mark Rule`, `One Voice Rule`, `Greyscale Test`, and the explicit Do's and Don'ts.
 
 Subsequent design changes should be measured against these documents. Re-run `/impeccable document` after substantial visual changes to regenerate `DESIGN.md` from the actual implementation.
 

@@ -1,28 +1,28 @@
-import { test, describe } from 'node:test';
+import express from 'express';
 import assert from 'node:assert/strict';
 import type { AddressInfo } from 'node:net';
-import express from 'express';
+import { describe, test } from 'node:test';
 
 import type {
   CityStatusSummary,
   DashboardSnapshot,
   ResourceSummary,
+  RunSummary,
   SourceName,
-  WorkflowSummary,
 } from 'gas-city-dashboard-shared';
 
+import { snapshotRouter } from '../src/routes/snapshot.js';
 import { SourceCache } from '../src/snapshot/cache.js';
+import { fixtureSourceLoader } from '../src/snapshot/fixtures/loader.js';
 import {
   createSnapshotService,
   type SourceCacheMap,
 } from '../src/snapshot/service.js';
-import { snapshotRouter } from '../src/routes/snapshot.js';
-import { fixtureSourceLoader } from '../src/snapshot/fixtures/loader.js';
 
 // ── Integration coverage for the snapshot aggregate route ────────────────
 //
 // Acceptance gates (from gascity-dashboard-8nj):
-//   1. GET /api/snapshot returns DashboardSnapshot with city/workflows/resources populated.
+//   1. GET /api/snapshot returns DashboardSnapshot with city/runs/resources populated.
 //   2. Concurrent GETs coalesce upstream load() calls (SourceCache single-flight).
 //   3. POST /refresh { sources: ['city'] } only re-fetches the named caches.
 //   4. POST /refresh with bogus source name → 400 validation error.
@@ -39,7 +39,7 @@ const SAMPLE_CITY: CityStatusSummary = {
   rigs: [],
 };
 
-const SAMPLE_WORKFLOWS: WorkflowSummary = {
+const SAMPLE_RunS: RunSummary = {
   totalActive: 0,
   runCounts: {
     total: 0,
@@ -53,7 +53,7 @@ const SAMPLE_WORKFLOWS: WorkflowSummary = {
   lanes: [],
   // gascity-dashboard-3ax: the snapshot read path now runs the health engine,
   // which always derives a census. With no lanes it is the all-zero census,
-  // so the served workflows.data carries this exact value.
+  // so the served runs.data carries this exact value.
   census: {
     status: 'available',
     data: {
@@ -87,7 +87,7 @@ const SAMPLE_RESOURCES: ResourceSummary = {
 
 interface SpyLoads {
   city: number;
-  workflows: number;
+  runs: number;
   resources: number;
 }
 
@@ -98,7 +98,7 @@ interface SpyLoads {
 function buildCaches(opts: {
   loadCounts: SpyLoads;
   cityResult?: () => Promise<CityStatusSummary> | CityStatusSummary;
-  workflowsResult?: () => Promise<WorkflowSummary> | WorkflowSummary;
+  runsResult?: () => Promise<RunSummary> | RunSummary;
   resourcesResult?: () => Promise<ResourceSummary> | ResourceSummary;
   useFixture?: boolean;
   wireFixturesFor?: SourceName[];
@@ -108,7 +108,7 @@ function buildCaches(opts: {
   const wireFor = new Set<SourceName>(opts.wireFixturesFor ?? []);
 
   const cityLoad = opts.cityResult ?? (() => SAMPLE_CITY);
-  const workflowsLoad = opts.workflowsResult ?? (() => SAMPLE_WORKFLOWS);
+  const runsLoad = opts.runsResult ?? (() => SAMPLE_RunS);
   const resourcesLoad = opts.resourcesResult ?? (() => SAMPLE_RESOURCES);
 
   return {
@@ -136,15 +136,15 @@ function buildCaches(opts: {
       },
       loadFixture: wireFor.has('resources') ? fixtureSourceLoader('resources') : undefined,
     }),
-    workflows: new SourceCache({
-      source: 'workflows',
+    runs: new SourceCache({
+      source: 'runs',
       ttlMs: 60_000,
       useFixture,
       load: async () => {
-        loadCounts.workflows += 1;
-        return workflowsLoad();
+        loadCounts.runs += 1;
+        return runsLoad();
       },
-      loadFixture: wireFor.has('workflows') ? fixtureSourceLoader('workflows') : undefined,
+      loadFixture: wireFor.has('runs') ? fixtureSourceLoader('runs') : undefined,
     }),
   };
 }
@@ -178,28 +178,28 @@ function startApp(app: express.Express): Promise<{ url: string; close: () => Pro
 }
 
 describe('GET /api/snapshot', () => {
-  test('returns DashboardSnapshot with city/workflows/resources populated', async () => {
-    const counts: SpyLoads = { city: 0, workflows: 0, resources: 0 };
+  test('returns DashboardSnapshot with city/runs/resources populated', async () => {
+    const counts: SpyLoads = { city: 0, runs: 0, resources: 0 };
     const app = buildApp(buildCaches({ loadCounts: counts }));
     const { url, close } = await startApp(app);
     try {
       const res = await fetch(`${url}/api/snapshot`);
       assert.equal(res.status, 200);
       const body = (await res.json()) as DashboardSnapshot;
-      assert.deepEqual(Object.keys(body.sources).sort(), ['city', 'resources', 'workflows']);
+      assert.deepEqual(Object.keys(body.sources).sort(), ['city', 'resources', 'runs']);
 
       assert.equal(body.sources.city.status, 'fresh');
       assert.deepEqual(body.sources.city.data, SAMPLE_CITY);
-      assert.equal(body.sources.workflows.status, 'fresh');
-      assert.deepEqual(body.sources.workflows.data, SAMPLE_WORKFLOWS);
+      assert.equal(body.sources.runs.status, 'fresh');
+      assert.deepEqual(body.sources.runs.data, SAMPLE_RunS);
       assert.equal(body.sources.resources.status, 'fresh');
       assert.deepEqual(body.sources.resources.data, SAMPLE_RESOURCES);
 
-      // headline composed from city + workflows without nullable sentinels.
+      // headline composed from city + runs without nullable sentinels.
       assert.deepEqual(body.headline.activeAgents, { status: 'available', value: 2 });
       assert.deepEqual(body.headline.maxAgents, { status: 'available', value: 100 });
       assert.deepEqual(body.headline.activeSessions, { status: 'available', value: 2 });
-      assert.deepEqual(body.headline.activeWorkflows, { status: 'available', value: 0 });
+      assert.deepEqual(body.headline.activeRuns, { status: 'available', value: 0 });
 
       // generatedAt present and ISO.
       assert.ok(body.generatedAt.endsWith('Z'));
@@ -213,7 +213,7 @@ describe('GET /api/snapshot', () => {
   });
 
   test('concurrent GETs coalesce upstream load() per source (single-flight)', async () => {
-    const counts: SpyLoads = { city: 0, workflows: 0, resources: 0 };
+    const counts: SpyLoads = { city: 0, runs: 0, resources: 0 };
     let resolveCity: ((v: CityStatusSummary) => void) | undefined;
     const app = buildApp(
       buildCaches({
@@ -252,7 +252,7 @@ describe('GET /api/snapshot', () => {
   });
 
   test('isolates a failing source: one collector erroring does not poison siblings', async () => {
-    const counts: SpyLoads = { city: 0, workflows: 0, resources: 0 };
+    const counts: SpyLoads = { city: 0, runs: 0, resources: 0 };
     const app = buildApp(
       buildCaches({
         loadCounts: counts,
@@ -284,22 +284,22 @@ describe('GET /api/snapshot', () => {
         source: 'city',
         error: 'supervisor unreachable',
       });
-      assert.deepEqual(body.headline.activeWorkflows, { status: 'available', value: 0 });
+      assert.deepEqual(body.headline.activeRuns, { status: 'available', value: 0 });
 
       assert.equal(body.sources.resources.status, 'fresh');
-      assert.equal(body.sources.workflows.status, 'fresh');
+      assert.equal(body.sources.runs.status, 'fresh');
     } finally {
       await close();
     }
   });
 
   test('useFixtures + supervisor down + fixture wired → city status=fixture with data', async () => {
-    const counts: SpyLoads = { city: 0, workflows: 0, resources: 0 };
+    const counts: SpyLoads = { city: 0, runs: 0, resources: 0 };
     const app = buildApp(
       buildCaches({
         loadCounts: counts,
         useFixture: true,
-        wireFixturesFor: ['city', 'workflows', 'resources'],
+        wireFixturesFor: ['city', 'runs', 'resources'],
         cityResult: () => {
           throw new Error('supervisor unreachable');
         },
@@ -320,14 +320,14 @@ describe('GET /api/snapshot', () => {
 
 describe('POST /api/snapshot/refresh', () => {
   test('selective refresh: { sources: [city] } only re-fetches city cache', async () => {
-    const counts: SpyLoads = { city: 0, workflows: 0, resources: 0 };
+    const counts: SpyLoads = { city: 0, runs: 0, resources: 0 };
     const app = buildApp(buildCaches({ loadCounts: counts }));
     const { url, close } = await startApp(app);
     try {
       // Prime: one GET hits every cache once.
       await fetch(`${url}/api/snapshot`);
       assert.equal(counts.city, 1);
-      assert.equal(counts.workflows, 1);
+      assert.equal(counts.runs, 1);
       assert.equal(counts.resources, 1);
 
       // Refresh city only.
@@ -339,7 +339,7 @@ describe('POST /api/snapshot/refresh', () => {
       assert.equal(res.status, 200);
 
       assert.equal(counts.city, 2, 'city must be re-fetched');
-      assert.equal(counts.workflows, 1, 'workflows must NOT be re-fetched');
+      assert.equal(counts.runs, 1, 'runs must NOT be re-fetched');
       assert.equal(counts.resources, 1, 'resources must NOT be re-fetched');
     } finally {
       await close();
@@ -347,7 +347,7 @@ describe('POST /api/snapshot/refresh', () => {
   });
 
   test('rejects unknown source names with 400', async () => {
-    const counts: SpyLoads = { city: 0, workflows: 0, resources: 0 };
+    const counts: SpyLoads = { city: 0, runs: 0, resources: 0 };
     const app = buildApp(buildCaches({ loadCounts: counts }));
     const { url, close } = await startApp(app);
     try {
@@ -365,7 +365,7 @@ describe('POST /api/snapshot/refresh', () => {
   });
 
   test('empty body / no sources field → refresh all sources', async () => {
-    const counts: SpyLoads = { city: 0, workflows: 0, resources: 0 };
+    const counts: SpyLoads = { city: 0, runs: 0, resources: 0 };
     const app = buildApp(buildCaches({ loadCounts: counts }));
     const { url, close } = await startApp(app);
     try {
@@ -382,7 +382,7 @@ describe('POST /api/snapshot/refresh', () => {
 
       // All active snapshot sources re-fetched.
       assert.equal(counts.city, 2);
-      assert.equal(counts.workflows, 2);
+      assert.equal(counts.runs, 2);
       assert.equal(counts.resources, 2);
     } finally {
       await close();
@@ -390,7 +390,7 @@ describe('POST /api/snapshot/refresh', () => {
   });
 
   test('rejects body.sources that is an empty array with 400', async () => {
-    const counts: SpyLoads = { city: 0, workflows: 0, resources: 0 };
+    const counts: SpyLoads = { city: 0, runs: 0, resources: 0 };
     const app = buildApp(buildCaches({ loadCounts: counts }));
     const { url, close } = await startApp(app);
     try {
@@ -406,7 +406,7 @@ describe('POST /api/snapshot/refresh', () => {
       assert.equal(body.kind, 'validation');
       // No refresh fired — counts unchanged from baseline.
       assert.equal(counts.city, baseline.city);
-      assert.equal(counts.workflows, baseline.workflows);
+      assert.equal(counts.runs, baseline.runs);
       assert.equal(counts.resources, baseline.resources);
     } finally {
       await close();
@@ -414,7 +414,7 @@ describe('POST /api/snapshot/refresh', () => {
   });
 
   test('rejects body.sources that is not an array with 400', async () => {
-    const counts: SpyLoads = { city: 0, workflows: 0, resources: 0 };
+    const counts: SpyLoads = { city: 0, runs: 0, resources: 0 };
     const app = buildApp(buildCaches({ loadCounts: counts }));
     const { url, close } = await startApp(app);
     try {

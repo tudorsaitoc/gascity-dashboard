@@ -16,7 +16,7 @@ import { resolveSessionForTarget } from 'gas-city-dashboard-shared';
 // The 4-step matcher (alias / pool / last-segment of alias / last-segment
 // of session_name, active-first) now lives in the shared package
 // (gas-city-dashboard-shared resolveSessionForTarget, gascity-dashboard-3ax)
-// so the workflow-health engine's bead×session join and this sling
+// so the run-health engine's bead×session join and this sling
 // resolver share ONE implementation of the lossy resolution PRD risk R2
 // flags. This wrapper keeps the slug-returning contract its callers expect.
 

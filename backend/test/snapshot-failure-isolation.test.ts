@@ -1,10 +1,10 @@
-import { test, describe } from 'node:test';
 import assert from 'node:assert/strict';
+import { describe, test } from 'node:test';
 
 import type {
   CityStatusSummary,
   ResourceSummary,
-  WorkflowSummary,
+  RunSummary,
 } from 'gas-city-dashboard-shared';
 
 import { SourceCache } from '../src/snapshot/cache.js';
@@ -46,7 +46,7 @@ const SAMPLE_CITY: CityStatusSummary = {
   rigs: [],
 };
 
-const SAMPLE_WORKFLOWS: WorkflowSummary = {
+const SAMPLE_RunS: RunSummary = {
   totalActive: 0,
   runCounts: {
     total: 0,
@@ -108,10 +108,10 @@ function buildHealthyCaches(): SourceCacheMap {
       ttlMs: 30_000,
       load: async () => SAMPLE_RESOURCES,
     }),
-    workflows: new SourceCache({
-      source: 'workflows',
+    runs: new SourceCache({
+      source: 'runs',
       ttlMs: 60_000,
-      load: async () => SAMPLE_WORKFLOWS,
+      load: async () => SAMPLE_RunS,
     }),
   };
 }
@@ -158,21 +158,21 @@ describe('readSources failure isolation (settle wrapper contract)', () => {
 
     assert.equal(snapshot.sources.resources.status, 'fresh');
     assert.deepEqual(snapshot.sources.resources.data, SAMPLE_RESOURCES);
-    assert.equal(snapshot.sources.workflows.status, 'fresh');
-    assert.deepEqual(snapshot.sources.workflows.data, SAMPLE_WORKFLOWS);
+    assert.equal(snapshot.sources.runs.status, 'fresh');
+    assert.deepEqual(snapshot.sources.runs.data, SAMPLE_RunS);
   });
 
   test('every cache rejecting still resolves with a fully-shaped envelope (no thrown promise)', async () => {
     const caches = buildHealthyCaches();
     sabotageCache(caches.city as SourceCache<unknown>, 'city down');
     sabotageCache(caches.resources as SourceCache<unknown>, 'resources down');
-    sabotageCache(caches.workflows as SourceCache<unknown>, 'workflows down');
+    sabotageCache(caches.runs as SourceCache<unknown>, 'runs down');
 
     const service = buildService(caches);
 
     const snapshot = await service.getSnapshot();
 
-    for (const name of ['city', 'resources', 'workflows'] as const) {
+    for (const name of ['city', 'resources', 'runs'] as const) {
       assert.equal(snapshot.sources[name].status, 'error', `${name} should be status=error`);
       assert.equal('data' in snapshot.sources[name], false, `${name} should not expose data`);
       assert.equal(snapshot.sources[name].source, name, `${name} envelope should carry source name`);

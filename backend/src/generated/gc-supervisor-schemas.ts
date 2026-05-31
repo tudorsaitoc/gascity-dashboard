@@ -1,6 +1,27 @@
 /* eslint-disable */
 // Generated from backend/openapi/gc-supervisor.openapi.json. Do not edit.
 export const gcSupervisorComponentSchemas: Record<string, unknown> = {
+  "AdapterCapabilities": {
+    "additionalProperties": false,
+    "properties": {
+      "MaxMessageLength": {
+        "format": "int64",
+        "type": "integer"
+      },
+      "SupportsAttachments": {
+        "type": "boolean"
+      },
+      "SupportsChildConversations": {
+        "type": "boolean"
+      }
+    },
+    "required": [
+      "SupportsChildConversations",
+      "SupportsAttachments",
+      "MaxMessageLength"
+    ],
+    "type": "object"
+  },
   "AdapterEventPayload": {
     "additionalProperties": false,
     "properties": {
@@ -14,6 +35,759 @@ export const gcSupervisorComponentSchemas: Record<string, unknown> = {
     "required": [
       "provider",
       "account_id"
+    ],
+    "type": "object"
+  },
+  "AgentCreateInputBody": {
+    "additionalProperties": false,
+    "properties": {
+      "dir": {
+        "description": "Working directory (rig name).",
+        "type": "string"
+      },
+      "name": {
+        "description": "Agent name.",
+        "examples": [
+          "deacon-1"
+        ],
+        "minLength": 1,
+        "type": "string"
+      },
+      "provider": {
+        "description": "Provider name.",
+        "examples": [
+          "claude"
+        ],
+        "minLength": 1,
+        "type": "string"
+      },
+      "scope": {
+        "description": "Agent scope.",
+        "type": "string"
+      }
+    },
+    "required": [
+      "name",
+      "provider"
+    ],
+    "type": "object"
+  },
+  "AgentCreatedOutputBody": {
+    "additionalProperties": false,
+    "properties": {
+      "agent": {
+        "description": "Created agent name.",
+        "type": "string"
+      },
+      "status": {
+        "description": "Operation result.",
+        "examples": [
+          "created"
+        ],
+        "type": "string"
+      }
+    },
+    "required": [
+      "status",
+      "agent"
+    ],
+    "type": "object"
+  },
+  "AgentMapping": {
+    "additionalProperties": false,
+    "properties": {
+      "agent_id": {
+        "type": "string"
+      },
+      "parent_tool_use_id": {
+        "type": "string"
+      }
+    },
+    "required": [
+      "agent_id",
+      "parent_tool_use_id"
+    ],
+    "type": "object"
+  },
+  "AgentOutputResponse": {
+    "additionalProperties": false,
+    "properties": {
+      "agent": {
+        "type": "string"
+      },
+      "format": {
+        "type": "string"
+      },
+      "pagination": {
+        "$ref": "#/components/schemas/PaginationInfo"
+      },
+      "turns": {
+        "items": {
+          "$ref": "#/components/schemas/OutputTurn"
+        },
+        "type": [
+          "array",
+          "null"
+        ]
+      }
+    },
+    "required": [
+      "agent",
+      "format",
+      "turns"
+    ],
+    "type": "object"
+  },
+  "AgentPatch": {
+    "additionalProperties": false,
+    "properties": {
+      "AppendFragments": {
+        "items": {
+          "type": "string"
+        },
+        "type": [
+          "array",
+          "null"
+        ]
+      },
+      "Attach": {
+        "type": [
+          "boolean",
+          "null"
+        ]
+      },
+      "DefaultSlingFormula": {
+        "type": [
+          "string",
+          "null"
+        ]
+      },
+      "DependsOn": {
+        "items": {
+          "type": "string"
+        },
+        "type": [
+          "array",
+          "null"
+        ]
+      },
+      "Dir": {
+        "type": "string"
+      },
+      "Env": {
+        "additionalProperties": {
+          "type": "string"
+        },
+        "type": "object"
+      },
+      "EnvRemove": {
+        "items": {
+          "type": "string"
+        },
+        "type": [
+          "array",
+          "null"
+        ]
+      },
+      "HooksInstalled": {
+        "type": [
+          "boolean",
+          "null"
+        ]
+      },
+      "IdleTimeout": {
+        "type": [
+          "string",
+          "null"
+        ]
+      },
+      "InjectAssignedSkills": {
+        "type": [
+          "boolean",
+          "null"
+        ]
+      },
+      "InjectFragments": {
+        "items": {
+          "type": "string"
+        },
+        "type": [
+          "array",
+          "null"
+        ]
+      },
+      "InjectFragmentsAppend": {
+        "items": {
+          "type": "string"
+        },
+        "type": [
+          "array",
+          "null"
+        ]
+      },
+      "InstallAgentHooks": {
+        "items": {
+          "type": "string"
+        },
+        "type": [
+          "array",
+          "null"
+        ]
+      },
+      "InstallAgentHooksAppend": {
+        "items": {
+          "type": "string"
+        },
+        "type": [
+          "array",
+          "null"
+        ]
+      },
+      "Lifecycle": {
+        "type": [
+          "string",
+          "null"
+        ]
+      },
+      "MCP": {
+        "items": {
+          "type": "string"
+        },
+        "type": [
+          "array",
+          "null"
+        ]
+      },
+      "MCPAppend": {
+        "items": {
+          "type": "string"
+        },
+        "type": [
+          "array",
+          "null"
+        ]
+      },
+      "MaxActiveSessions": {
+        "format": "int64",
+        "type": [
+          "integer",
+          "null"
+        ]
+      },
+      "MaxSessionAge": {
+        "type": [
+          "string",
+          "null"
+        ]
+      },
+      "MaxSessionAgeJitter": {
+        "type": [
+          "string",
+          "null"
+        ]
+      },
+      "MinActiveSessions": {
+        "format": "int64",
+        "type": [
+          "integer",
+          "null"
+        ]
+      },
+      "Name": {
+        "type": "string"
+      },
+      "Nudge": {
+        "type": [
+          "string",
+          "null"
+        ]
+      },
+      "OptionDefaults": {
+        "additionalProperties": {
+          "type": "string"
+        },
+        "type": "object"
+      },
+      "OverlayDir": {
+        "type": [
+          "string",
+          "null"
+        ]
+      },
+      "Pool": {
+        "$ref": "#/components/schemas/PoolOverride"
+      },
+      "PreStart": {
+        "items": {
+          "type": "string"
+        },
+        "type": [
+          "array",
+          "null"
+        ]
+      },
+      "PreStartAppend": {
+        "items": {
+          "type": "string"
+        },
+        "type": [
+          "array",
+          "null"
+        ]
+      },
+      "PromptTemplate": {
+        "type": [
+          "string",
+          "null"
+        ]
+      },
+      "Provider": {
+        "type": [
+          "string",
+          "null"
+        ]
+      },
+      "ResumeCommand": {
+        "type": [
+          "string",
+          "null"
+        ]
+      },
+      "ScaleCheck": {
+        "type": [
+          "string",
+          "null"
+        ]
+      },
+      "Scope": {
+        "type": [
+          "string",
+          "null"
+        ]
+      },
+      "Session": {
+        "type": [
+          "string",
+          "null"
+        ]
+      },
+      "SessionLive": {
+        "items": {
+          "type": "string"
+        },
+        "type": [
+          "array",
+          "null"
+        ]
+      },
+      "SessionLiveAppend": {
+        "items": {
+          "type": "string"
+        },
+        "type": [
+          "array",
+          "null"
+        ]
+      },
+      "SessionSetup": {
+        "items": {
+          "type": "string"
+        },
+        "type": [
+          "array",
+          "null"
+        ]
+      },
+      "SessionSetupAppend": {
+        "items": {
+          "type": "string"
+        },
+        "type": [
+          "array",
+          "null"
+        ]
+      },
+      "SessionSetupScript": {
+        "type": [
+          "string",
+          "null"
+        ]
+      },
+      "Skills": {
+        "items": {
+          "type": "string"
+        },
+        "type": [
+          "array",
+          "null"
+        ]
+      },
+      "SkillsAppend": {
+        "items": {
+          "type": "string"
+        },
+        "type": [
+          "array",
+          "null"
+        ]
+      },
+      "SleepAfterIdle": {
+        "type": [
+          "string",
+          "null"
+        ]
+      },
+      "StartCommand": {
+        "type": [
+          "string",
+          "null"
+        ]
+      },
+      "Suspended": {
+        "type": [
+          "boolean",
+          "null"
+        ]
+      },
+      "TmuxAlias": {
+        "type": [
+          "string",
+          "null"
+        ]
+      },
+      "WakeMode": {
+        "type": [
+          "string",
+          "null"
+        ]
+      },
+      "WorkDir": {
+        "type": [
+          "string",
+          "null"
+        ]
+      }
+    },
+    "required": [
+      "Dir",
+      "Name",
+      "WorkDir",
+      "TmuxAlias",
+      "Scope",
+      "Suspended",
+      "Pool",
+      "Env",
+      "EnvRemove",
+      "PreStart",
+      "PromptTemplate",
+      "Session",
+      "Provider",
+      "StartCommand",
+      "Lifecycle",
+      "Nudge",
+      "IdleTimeout",
+      "MaxSessionAge",
+      "MaxSessionAgeJitter",
+      "SleepAfterIdle",
+      "InstallAgentHooks",
+      "Skills",
+      "MCP",
+      "SkillsAppend",
+      "MCPAppend",
+      "HooksInstalled",
+      "InjectAssignedSkills",
+      "SessionSetup",
+      "SessionSetupScript",
+      "SessionLive",
+      "OverlayDir",
+      "DefaultSlingFormula",
+      "InjectFragments",
+      "AppendFragments",
+      "Attach",
+      "DependsOn",
+      "ResumeCommand",
+      "WakeMode",
+      "PreStartAppend",
+      "SessionSetupAppend",
+      "SessionLiveAppend",
+      "InstallAgentHooksAppend",
+      "InjectFragmentsAppend",
+      "MaxActiveSessions",
+      "MinActiveSessions",
+      "ScaleCheck",
+      "OptionDefaults"
+    ],
+    "type": "object"
+  },
+  "AgentPatchSetInputBody": {
+    "additionalProperties": false,
+    "properties": {
+      "dir": {
+        "description": "Agent directory scope.",
+        "type": "string"
+      },
+      "env": {
+        "additionalProperties": {
+          "type": "string"
+        },
+        "description": "Override environment variables.",
+        "type": "object"
+      },
+      "name": {
+        "description": "Agent name.",
+        "type": "string"
+      },
+      "scope": {
+        "description": "Override agent scope.",
+        "type": "string"
+      },
+      "suspended": {
+        "description": "Override suspended state.",
+        "type": "boolean"
+      },
+      "tmux_alias": {
+        "description": "Override tmux session name template.",
+        "type": "string"
+      },
+      "work_dir": {
+        "description": "Override session working directory.",
+        "type": "string"
+      }
+    },
+    "type": "object"
+  },
+  "AgentResponse": {
+    "additionalProperties": false,
+    "properties": {
+      "active_bead": {
+        "type": "string"
+      },
+      "activity": {
+        "type": "string"
+      },
+      "available": {
+        "type": "boolean"
+      },
+      "context_pct": {
+        "format": "int64",
+        "type": "integer"
+      },
+      "context_window": {
+        "format": "int64",
+        "type": "integer"
+      },
+      "description": {
+        "type": "string"
+      },
+      "display_name": {
+        "type": "string"
+      },
+      "last_output": {
+        "type": "string"
+      },
+      "model": {
+        "type": "string"
+      },
+      "name": {
+        "type": "string"
+      },
+      "pool": {
+        "type": "string"
+      },
+      "provider": {
+        "type": "string"
+      },
+      "rig": {
+        "type": "string"
+      },
+      "running": {
+        "type": "boolean"
+      },
+      "session": {
+        "$ref": "#/components/schemas/SessionInfo"
+      },
+      "state": {
+        "type": "string"
+      },
+      "suspended": {
+        "type": "boolean"
+      },
+      "unavailable_reason": {
+        "type": "string"
+      }
+    },
+    "required": [
+      "name",
+      "running",
+      "suspended",
+      "state",
+      "available"
+    ],
+    "type": "object"
+  },
+  "AgentUpdateInputBody": {
+    "additionalProperties": false,
+    "properties": {
+      "provider": {
+        "description": "Provider name.",
+        "type": "string"
+      },
+      "scope": {
+        "description": "Agent scope.",
+        "type": "string"
+      },
+      "suspended": {
+        "description": "Whether agent is suspended.",
+        "type": "boolean"
+      }
+    },
+    "type": "object"
+  },
+  "AgentUpdateQualifiedInputBody": {
+    "additionalProperties": false,
+    "properties": {
+      "provider": {
+        "description": "Provider name.",
+        "type": "string"
+      },
+      "scope": {
+        "description": "Agent scope.",
+        "type": "string"
+      },
+      "suspended": {
+        "description": "Whether agent is suspended.",
+        "type": "boolean"
+      }
+    },
+    "type": "object"
+  },
+  "AnnotatedAgentResponse": {
+    "additionalProperties": false,
+    "properties": {
+      "dir": {
+        "type": "string"
+      },
+      "is_pool": {
+        "type": "boolean"
+      },
+      "name": {
+        "type": "string"
+      },
+      "origin": {
+        "description": "Agent origin: inline or pack-derived.",
+        "type": "string"
+      },
+      "provider": {
+        "type": "string"
+      },
+      "scope": {
+        "type": "string"
+      },
+      "suspended": {
+        "type": "boolean"
+      }
+    },
+    "required": [
+      "name",
+      "suspended",
+      "origin"
+    ],
+    "type": "object"
+  },
+  "AnnotatedProviderResponse": {
+    "additionalProperties": false,
+    "properties": {
+      "acp_args": {
+        "items": {
+          "type": "string"
+        },
+        "type": "array"
+      },
+      "acp_command": {
+        "type": "string"
+      },
+      "args": {
+        "items": {
+          "type": "string"
+        },
+        "type": [
+          "array",
+          "null"
+        ]
+      },
+      "command": {
+        "type": "string"
+      },
+      "display_name": {
+        "type": "string"
+      },
+      "env": {
+        "additionalProperties": {
+          "type": "string"
+        },
+        "type": "object"
+      },
+      "origin": {
+        "description": "Provider origin: builtin, city, or builtin+city.",
+        "type": "string"
+      },
+      "prompt_flag": {
+        "type": "string"
+      },
+      "prompt_mode": {
+        "type": "string"
+      },
+      "ready_delay_ms": {
+        "format": "int64",
+        "type": "integer"
+      }
+    },
+    "required": [
+      "origin"
+    ],
+    "type": "object"
+  },
+  "AsyncAcceptedBody": {
+    "additionalProperties": false,
+    "properties": {
+      "event_cursor": {
+        "description": "City event-stream sequence captured before the async request was accepted. Pass this value as after_seq to /v0/city/{cityName}/events/stream to receive the request result without replaying unrelated historical backlog. A value of 0 can also mean no event provider is configured or the event log is empty.",
+        "type": "string"
+      },
+      "request_id": {
+        "description": "Correlation ID. Watch the city event stream for request.result.session.create, request.result.session.message, request.result.session.submit, or request.failed with this request_id.",
+        "type": "string"
+      },
+      "status": {
+        "description": "Async request status.",
+        "examples": [
+          "accepted"
+        ],
+        "type": "string"
+      }
+    },
+    "required": [
+      "status",
+      "request_id",
+      "event_cursor"
+    ],
+    "type": "object"
+  },
+  "AsyncAcceptedResponse": {
+    "additionalProperties": false,
+    "properties": {
+      "event_cursor": {
+        "description": "Supervisor event-stream cursor captured before the async request was accepted. Pass this value as after_cursor to /v0/events/stream to receive the request result without replaying unrelated historical backlog. A value of 0 can also mean no event provider is configured or every event log is empty.",
+        "type": "string"
+      },
+      "request_id": {
+        "description": "Correlation ID. Watch /v0/events/stream for request.result.city.create, request.result.city.unregister, or request.failed with this request_id.",
+        "type": "string"
+      }
+    },
+    "required": [
+      "request_id",
+      "event_cursor"
     ],
     "type": "object"
   },
@@ -104,6 +878,90 @@ export const gcSupervisorComponentSchemas: Record<string, unknown> = {
     ],
     "type": "object"
   },
+  "BeadAssignInputBody": {
+    "additionalProperties": false,
+    "properties": {
+      "assignee": {
+        "description": "Assignee name.",
+        "type": "string"
+      }
+    },
+    "type": "object"
+  },
+  "BeadCreateInputBody": {
+    "additionalProperties": false,
+    "properties": {
+      "assignee": {
+        "description": "Assigned agent.",
+        "type": "string"
+      },
+      "description": {
+        "description": "Bead description.",
+        "type": "string"
+      },
+      "labels": {
+        "description": "Bead labels.",
+        "items": {
+          "type": "string"
+        },
+        "type": [
+          "array",
+          "null"
+        ]
+      },
+      "metadata": {
+        "additionalProperties": {
+          "type": "string"
+        },
+        "description": "Metadata key-value pairs to set at create time.",
+        "type": "object"
+      },
+      "parent": {
+        "description": "Parent bead ID.",
+        "type": "string"
+      },
+      "priority": {
+        "description": "Bead priority.",
+        "format": "int64",
+        "type": "integer"
+      },
+      "rig": {
+        "description": "Rig name.",
+        "type": "string"
+      },
+      "title": {
+        "description": "Bead title.",
+        "minLength": 1,
+        "type": "string"
+      },
+      "type": {
+        "description": "Bead type.",
+        "type": "string"
+      }
+    },
+    "required": [
+      "title"
+    ],
+    "type": "object"
+  },
+  "BeadDepsResponse": {
+    "additionalProperties": false,
+    "properties": {
+      "children": {
+        "items": {
+          "$ref": "#/components/schemas/Bead"
+        },
+        "type": [
+          "array",
+          "null"
+        ]
+      }
+    },
+    "required": [
+      "children"
+    ],
+    "type": "object"
+  },
   "BeadEventPayload": {
     "additionalProperties": false,
     "properties": {
@@ -115,6 +973,111 @@ export const gcSupervisorComponentSchemas: Record<string, unknown> = {
       "bead"
     ],
     "type": "object"
+  },
+  "BeadGraphResponse": {
+    "additionalProperties": false,
+    "properties": {
+      "beads": {
+        "items": {
+          "$ref": "#/components/schemas/Bead"
+        },
+        "type": [
+          "array",
+          "null"
+        ]
+      },
+      "deps": {
+        "items": {
+          "$ref": "#/components/schemas/WorkflowDepResponse"
+        },
+        "type": [
+          "array",
+          "null"
+        ]
+      },
+      "root": {
+        "$ref": "#/components/schemas/Bead"
+      }
+    },
+    "required": [
+      "root",
+      "beads",
+      "deps"
+    ],
+    "type": "object"
+  },
+  "BeadUpdateBody": {
+    "additionalProperties": false,
+    "properties": {
+      "assignee": {
+        "description": "Assigned agent.",
+        "type": "string"
+      },
+      "description": {
+        "description": "Bead description.",
+        "type": "string"
+      },
+      "labels": {
+        "description": "Bead labels.",
+        "items": {
+          "type": "string"
+        },
+        "type": [
+          "array",
+          "null"
+        ]
+      },
+      "metadata": {
+        "additionalProperties": {
+          "type": "string"
+        },
+        "description": "Metadata key-value pairs to set.",
+        "type": "object"
+      },
+      "parent": {
+        "description": "Parent bead ID. Use null or an empty string to clear.",
+        "type": [
+          "string",
+          "null"
+        ]
+      },
+      "priority": {
+        "description": "Bead priority.",
+        "format": "int64",
+        "type": "integer"
+      },
+      "remove_labels": {
+        "description": "Labels to remove.",
+        "items": {
+          "type": "string"
+        },
+        "type": [
+          "array",
+          "null"
+        ]
+      },
+      "status": {
+        "description": "Bead status.",
+        "type": "string"
+      },
+      "title": {
+        "description": "Bead title.",
+        "type": "string"
+      },
+      "type": {
+        "description": "Bead type.",
+        "type": "string"
+      }
+    },
+    "type": "object"
+  },
+  "BindingStatus": {
+    "description": "Lifecycle state of a session binding.",
+    "enum": [
+      "active",
+      "ended"
+    ],
+    "type": "string"
   },
   "BoundEventPayload": {
     "additionalProperties": false,
@@ -133,6 +1096,39 @@ export const gcSupervisorComponentSchemas: Record<string, unknown> = {
       "provider",
       "conversation_id",
       "session_id"
+    ],
+    "type": "object"
+  },
+  "CityCreateRequest": {
+    "additionalProperties": false,
+    "properties": {
+      "bootstrap_profile": {
+        "description": "Optional bootstrap profile.",
+        "enum": [
+          "k8s-cell",
+          "kubernetes",
+          "kubernetes-cell",
+          "single-host-compat"
+        ],
+        "type": "string"
+      },
+      "dir": {
+        "description": "Directory to create the city in. Absolute or relative to $HOME.",
+        "minLength": 1,
+        "type": "string"
+      },
+      "provider": {
+        "description": "Provider name for the city's default session template. Mutually exclusive with start_command.",
+        "minLength": 1,
+        "type": "string"
+      },
+      "start_command": {
+        "description": "Custom workspace start command for the city's default session template. Mutually exclusive with provider.",
+        "type": "string"
+      }
+    },
+    "required": [
+      "dir"
     ],
     "type": "object"
   },
@@ -159,6 +1155,85 @@ export const gcSupervisorComponentSchemas: Record<string, unknown> = {
     ],
     "type": "object"
   },
+  "CityGetResponse": {
+    "additionalProperties": false,
+    "properties": {
+      "agent_count": {
+        "format": "int64",
+        "type": "integer"
+      },
+      "name": {
+        "type": "string"
+      },
+      "path": {
+        "type": "string"
+      },
+      "provider": {
+        "type": "string"
+      },
+      "rig_count": {
+        "format": "int64",
+        "type": "integer"
+      },
+      "session_template": {
+        "type": "string"
+      },
+      "suspended": {
+        "type": "boolean"
+      },
+      "uptime_sec": {
+        "format": "int64",
+        "type": "integer"
+      },
+      "version": {
+        "type": "string"
+      }
+    },
+    "required": [
+      "name",
+      "path",
+      "suspended",
+      "uptime_sec",
+      "agent_count",
+      "rig_count"
+    ],
+    "type": "object"
+  },
+  "CityInfo": {
+    "additionalProperties": false,
+    "properties": {
+      "error": {
+        "type": "string"
+      },
+      "name": {
+        "type": "string"
+      },
+      "path": {
+        "type": "string"
+      },
+      "phases_completed": {
+        "items": {
+          "type": "string"
+        },
+        "type": [
+          "array",
+          "null"
+        ]
+      },
+      "running": {
+        "type": "boolean"
+      },
+      "status": {
+        "type": "string"
+      }
+    },
+    "required": [
+      "name",
+      "path",
+      "running"
+    ],
+    "type": "object"
+  },
   "CityLifecyclePayload": {
     "additionalProperties": false,
     "properties": {
@@ -173,6 +1248,16 @@ export const gcSupervisorComponentSchemas: Record<string, unknown> = {
       "name",
       "path"
     ],
+    "type": "object"
+  },
+  "CityPatchInputBody": {
+    "additionalProperties": false,
+    "properties": {
+      "suspended": {
+        "description": "Whether the city is suspended.",
+        "type": "boolean"
+      }
+    },
     "type": "object"
   },
   "CityUnregisterSucceededPayload": {
@@ -198,6 +1283,591 @@ export const gcSupervisorComponentSchemas: Record<string, unknown> = {
     ],
     "type": "object"
   },
+  "ConfigAgentResponse": {
+    "additionalProperties": false,
+    "properties": {
+      "dir": {
+        "type": "string"
+      },
+      "is_pool": {
+        "type": "boolean"
+      },
+      "name": {
+        "type": "string"
+      },
+      "provider": {
+        "type": "string"
+      },
+      "scope": {
+        "type": "string"
+      },
+      "suspended": {
+        "type": "boolean"
+      }
+    },
+    "required": [
+      "name",
+      "suspended"
+    ],
+    "type": "object"
+  },
+  "ConfigExplainPatches": {
+    "additionalProperties": false,
+    "properties": {
+      "agents": {
+        "format": "int64",
+        "type": "integer"
+      },
+      "providers": {
+        "format": "int64",
+        "type": "integer"
+      },
+      "rigs": {
+        "format": "int64",
+        "type": "integer"
+      }
+    },
+    "required": [
+      "agents",
+      "rigs",
+      "providers"
+    ],
+    "type": "object"
+  },
+  "ConfigExplainResponse": {
+    "additionalProperties": false,
+    "properties": {
+      "agents": {
+        "items": {
+          "$ref": "#/components/schemas/AnnotatedAgentResponse"
+        },
+        "type": [
+          "array",
+          "null"
+        ]
+      },
+      "patches": {
+        "$ref": "#/components/schemas/ConfigExplainPatches"
+      },
+      "providers": {
+        "additionalProperties": {
+          "$ref": "#/components/schemas/AnnotatedProviderResponse"
+        },
+        "type": "object"
+      }
+    },
+    "required": [
+      "agents",
+      "providers",
+      "patches"
+    ],
+    "type": "object"
+  },
+  "ConfigPatchesResponse": {
+    "additionalProperties": false,
+    "properties": {
+      "agent_count": {
+        "format": "int64",
+        "type": "integer"
+      },
+      "provider_count": {
+        "format": "int64",
+        "type": "integer"
+      },
+      "rig_count": {
+        "format": "int64",
+        "type": "integer"
+      }
+    },
+    "required": [
+      "agent_count",
+      "rig_count",
+      "provider_count"
+    ],
+    "type": "object"
+  },
+  "ConfigResponse": {
+    "additionalProperties": false,
+    "properties": {
+      "agents": {
+        "items": {
+          "$ref": "#/components/schemas/ConfigAgentResponse"
+        },
+        "type": [
+          "array",
+          "null"
+        ]
+      },
+      "patches": {
+        "$ref": "#/components/schemas/ConfigPatchesResponse"
+      },
+      "providers": {
+        "additionalProperties": {
+          "$ref": "#/components/schemas/ProviderSpecJSON"
+        },
+        "type": "object"
+      },
+      "rigs": {
+        "items": {
+          "$ref": "#/components/schemas/ConfigRigResponse"
+        },
+        "type": [
+          "array",
+          "null"
+        ]
+      },
+      "workspace": {
+        "$ref": "#/components/schemas/WorkspaceResponse"
+      }
+    },
+    "required": [
+      "workspace",
+      "agents",
+      "rigs"
+    ],
+    "type": "object"
+  },
+  "ConfigRigResponse": {
+    "additionalProperties": false,
+    "properties": {
+      "name": {
+        "type": "string"
+      },
+      "path": {
+        "type": "string"
+      },
+      "prefix": {
+        "type": "string"
+      },
+      "suspended": {
+        "type": "boolean"
+      }
+    },
+    "required": [
+      "name",
+      "path",
+      "suspended"
+    ],
+    "type": "object"
+  },
+  "ConfigValidateOutputBody": {
+    "additionalProperties": false,
+    "properties": {
+      "errors": {
+        "description": "Validation errors.",
+        "items": {
+          "type": "string"
+        },
+        "type": [
+          "array",
+          "null"
+        ]
+      },
+      "valid": {
+        "description": "Whether the configuration is valid.",
+        "type": "boolean"
+      },
+      "warnings": {
+        "description": "Validation warnings.",
+        "items": {
+          "type": "string"
+        },
+        "type": [
+          "array",
+          "null"
+        ]
+      }
+    },
+    "required": [
+      "valid",
+      "errors",
+      "warnings"
+    ],
+    "type": "object"
+  },
+  "ConversationGroupParticipant": {
+    "additionalProperties": false,
+    "properties": {
+      "GroupID": {
+        "type": "string"
+      },
+      "Handle": {
+        "type": "string"
+      },
+      "ID": {
+        "type": "string"
+      },
+      "Metadata": {
+        "additionalProperties": {
+          "type": "string"
+        },
+        "type": "object"
+      },
+      "Public": {
+        "type": "boolean"
+      },
+      "SessionID": {
+        "type": "string"
+      }
+    },
+    "required": [
+      "ID",
+      "GroupID",
+      "Handle",
+      "SessionID",
+      "Public",
+      "Metadata"
+    ],
+    "type": "object"
+  },
+  "ConversationGroupRecord": {
+    "additionalProperties": false,
+    "properties": {
+      "DefaultHandle": {
+        "type": "string"
+      },
+      "FanoutPolicy": {
+        "$ref": "#/components/schemas/FanoutPolicy"
+      },
+      "ID": {
+        "type": "string"
+      },
+      "LastAddressedHandle": {
+        "type": "string"
+      },
+      "Metadata": {
+        "additionalProperties": {
+          "type": "string"
+        },
+        "type": "object"
+      },
+      "Mode": {
+        "type": "string"
+      },
+      "RootConversation": {
+        "$ref": "#/components/schemas/ConversationRef"
+      },
+      "SchemaVersion": {
+        "format": "int64",
+        "type": "integer"
+      }
+    },
+    "required": [
+      "ID",
+      "SchemaVersion",
+      "RootConversation",
+      "Mode",
+      "DefaultHandle",
+      "LastAddressedHandle",
+      "FanoutPolicy",
+      "Metadata"
+    ],
+    "type": "object"
+  },
+  "ConversationKind": {
+    "description": "Shape of a conversation.",
+    "enum": [
+      "dm",
+      "room",
+      "thread"
+    ],
+    "type": "string"
+  },
+  "ConversationRef": {
+    "additionalProperties": false,
+    "properties": {
+      "account_id": {
+        "type": "string"
+      },
+      "conversation_id": {
+        "type": "string"
+      },
+      "kind": {
+        "$ref": "#/components/schemas/ConversationKind"
+      },
+      "parent_conversation_id": {
+        "type": "string"
+      },
+      "provider": {
+        "type": "string"
+      },
+      "scope_id": {
+        "type": "string"
+      }
+    },
+    "required": [
+      "scope_id",
+      "provider",
+      "account_id",
+      "conversation_id",
+      "kind"
+    ],
+    "type": "object"
+  },
+  "ConversationTranscriptRecord": {
+    "additionalProperties": false,
+    "properties": {
+      "Actor": {
+        "$ref": "#/components/schemas/ExternalActor"
+      },
+      "Attachments": {
+        "items": {
+          "$ref": "#/components/schemas/ExternalAttachment"
+        },
+        "type": [
+          "array",
+          "null"
+        ]
+      },
+      "Conversation": {
+        "$ref": "#/components/schemas/ConversationRef"
+      },
+      "CreatedAt": {
+        "format": "date-time",
+        "type": "string"
+      },
+      "ExplicitTarget": {
+        "type": "string"
+      },
+      "ID": {
+        "type": "string"
+      },
+      "Kind": {
+        "$ref": "#/components/schemas/TranscriptMessageKind"
+      },
+      "Metadata": {
+        "additionalProperties": {
+          "type": "string"
+        },
+        "type": "object"
+      },
+      "Provenance": {
+        "$ref": "#/components/schemas/TranscriptProvenance"
+      },
+      "ProviderMessageID": {
+        "type": "string"
+      },
+      "ReplyToMessageID": {
+        "type": "string"
+      },
+      "SchemaVersion": {
+        "format": "int64",
+        "type": "integer"
+      },
+      "Sequence": {
+        "format": "int64",
+        "type": "integer"
+      },
+      "SourceSessionID": {
+        "type": "string"
+      },
+      "Text": {
+        "type": "string"
+      }
+    },
+    "required": [
+      "ID",
+      "SchemaVersion",
+      "Conversation",
+      "Sequence",
+      "Kind",
+      "Provenance",
+      "ProviderMessageID",
+      "Actor",
+      "Text",
+      "ExplicitTarget",
+      "ReplyToMessageID",
+      "Attachments",
+      "SourceSessionID",
+      "CreatedAt",
+      "Metadata"
+    ],
+    "type": "object"
+  },
+  "ConvoyAddInputBody": {
+    "additionalProperties": false,
+    "properties": {
+      "items": {
+        "description": "Bead IDs to add.",
+        "items": {
+          "type": "string"
+        },
+        "type": [
+          "array",
+          "null"
+        ]
+      }
+    },
+    "type": "object"
+  },
+  "ConvoyCheckResponse": {
+    "additionalProperties": false,
+    "properties": {
+      "closed": {
+        "description": "Closed child bead count.",
+        "format": "int64",
+        "type": "integer"
+      },
+      "complete": {
+        "description": "True when all child beads are closed and total > 0.",
+        "type": "boolean"
+      },
+      "convoy_id": {
+        "description": "Convoy ID.",
+        "type": "string"
+      },
+      "total": {
+        "description": "Total child bead count.",
+        "format": "int64",
+        "type": "integer"
+      }
+    },
+    "required": [
+      "convoy_id",
+      "total",
+      "closed",
+      "complete"
+    ],
+    "type": "object"
+  },
+  "ConvoyCreateInputBody": {
+    "additionalProperties": false,
+    "properties": {
+      "items": {
+        "description": "Bead IDs to include.",
+        "items": {
+          "type": "string"
+        },
+        "type": [
+          "array",
+          "null"
+        ]
+      },
+      "rig": {
+        "description": "Rig name.",
+        "type": "string"
+      },
+      "title": {
+        "description": "Convoy title.",
+        "minLength": 1,
+        "type": "string"
+      }
+    },
+    "required": [
+      "title"
+    ],
+    "type": "object"
+  },
+  "ConvoyGetResponse": {
+    "additionalProperties": false,
+    "properties": {
+      "children": {
+        "description": "Direct child beads (non-workflow case).",
+        "items": {
+          "$ref": "#/components/schemas/Bead"
+        },
+        "type": [
+          "array",
+          "null"
+        ]
+      },
+      "convoy": {
+        "$ref": "#/components/schemas/Bead",
+        "description": "Simple convoy bead (non-workflow case)."
+      },
+      "progress": {
+        "$ref": "#/components/schemas/ConvoyProgress",
+        "description": "Child bead progress (non-workflow case)."
+      }
+    },
+    "type": "object"
+  },
+  "ConvoyProgress": {
+    "additionalProperties": false,
+    "properties": {
+      "closed": {
+        "description": "Closed child bead count.",
+        "format": "int64",
+        "type": "integer"
+      },
+      "total": {
+        "description": "Total child bead count.",
+        "format": "int64",
+        "type": "integer"
+      }
+    },
+    "required": [
+      "total",
+      "closed"
+    ],
+    "type": "object"
+  },
+  "ConvoyRemoveInputBody": {
+    "additionalProperties": false,
+    "properties": {
+      "items": {
+        "description": "Bead IDs to remove.",
+        "items": {
+          "type": "string"
+        },
+        "type": [
+          "array",
+          "null"
+        ]
+      }
+    },
+    "type": "object"
+  },
+  "DeliveryContextRecord": {
+    "additionalProperties": false,
+    "properties": {
+      "BindingGeneration": {
+        "format": "int64",
+        "type": "integer"
+      },
+      "Conversation": {
+        "$ref": "#/components/schemas/ConversationRef"
+      },
+      "ID": {
+        "type": "string"
+      },
+      "LastMessageID": {
+        "type": "string"
+      },
+      "LastPublishedAt": {
+        "format": "date-time",
+        "type": "string"
+      },
+      "Metadata": {
+        "additionalProperties": {
+          "type": "string"
+        },
+        "type": "object"
+      },
+      "SchemaVersion": {
+        "format": "int64",
+        "type": "integer"
+      },
+      "SessionID": {
+        "type": "string"
+      },
+      "SourceSessionID": {
+        "type": "string"
+      }
+    },
+    "required": [
+      "ID",
+      "SchemaVersion",
+      "SessionID",
+      "Conversation",
+      "BindingGeneration",
+      "LastPublishedAt",
+      "LastMessageID",
+      "SourceSessionID",
+      "Metadata"
+    ],
+    "type": "object"
+  },
   "Dep": {
     "additionalProperties": false,
     "properties": {
@@ -215,6 +1885,775 @@ export const gcSupervisorComponentSchemas: Record<string, unknown> = {
       "issue_id",
       "depends_on_id",
       "type"
+    ],
+    "type": "object"
+  },
+  "ErrorDetail": {
+    "additionalProperties": false,
+    "properties": {
+      "location": {
+        "description": "Where the error occurred, e.g. 'body.items[3].tags' or 'path.thing-id'",
+        "type": "string"
+      },
+      "message": {
+        "description": "Error message text",
+        "type": "string"
+      },
+      "value": {
+        "description": "The value at the given location"
+      }
+    },
+    "type": "object"
+  },
+  "ErrorModel": {
+    "additionalProperties": false,
+    "properties": {
+      "detail": {
+        "description": "A human-readable explanation specific to this occurrence of the problem.",
+        "examples": [
+          "Property foo is required but is missing."
+        ],
+        "type": "string"
+      },
+      "errors": {
+        "description": "Optional list of individual error details",
+        "items": {
+          "$ref": "#/components/schemas/ErrorDetail"
+        },
+        "type": [
+          "array",
+          "null"
+        ]
+      },
+      "instance": {
+        "description": "A URI reference that identifies the specific occurrence of the problem.",
+        "examples": [
+          "https://example.com/error-log/abc123"
+        ],
+        "format": "uri",
+        "type": "string"
+      },
+      "status": {
+        "description": "HTTP status code",
+        "examples": [
+          400
+        ],
+        "format": "int64",
+        "type": "integer"
+      },
+      "title": {
+        "description": "A short, human-readable summary of the problem type. This value should not change between occurrences of the error.",
+        "examples": [
+          "Bad Request"
+        ],
+        "type": "string"
+      },
+      "type": {
+        "default": "about:blank",
+        "description": "A URI reference to human-readable documentation for the error.",
+        "examples": [
+          "https://example.com/errors/example",
+          "urn:gascity:error:sling-missing-bead",
+          "urn:gascity:error:sling-cross-rig"
+        ],
+        "format": "uri",
+        "type": "string",
+        "x-gascity-problem-types": [
+          "urn:gascity:error:sling-missing-bead",
+          "urn:gascity:error:sling-cross-rig"
+        ]
+      }
+    },
+    "type": "object"
+  },
+  "EventEmitOutputBody": {
+    "additionalProperties": false,
+    "properties": {
+      "status": {
+        "description": "Operation result.",
+        "examples": [
+          "recorded"
+        ],
+        "type": "string"
+      }
+    },
+    "required": [
+      "status"
+    ],
+    "type": "object"
+  },
+  "EventEmitRequest": {
+    "additionalProperties": false,
+    "properties": {
+      "actor": {
+        "description": "Actor that produced the event.",
+        "minLength": 1,
+        "type": "string"
+      },
+      "message": {
+        "description": "Event message.",
+        "type": "string"
+      },
+      "subject": {
+        "description": "Event subject.",
+        "type": "string"
+      },
+      "type": {
+        "description": "Event type.",
+        "minLength": 1,
+        "type": "string"
+      }
+    },
+    "required": [
+      "type",
+      "actor"
+    ],
+    "type": "object"
+  },
+  "EventPayload": {
+    "oneOf": [
+      {
+        "$ref": "#/components/schemas/AdapterEventPayload"
+      },
+      {
+        "$ref": "#/components/schemas/BeadEventPayload"
+      },
+      {
+        "$ref": "#/components/schemas/BoundEventPayload"
+      },
+      {
+        "$ref": "#/components/schemas/CityCreateSucceededPayload"
+      },
+      {
+        "$ref": "#/components/schemas/CityLifecyclePayload"
+      },
+      {
+        "$ref": "#/components/schemas/CityUnregisterSucceededPayload"
+      },
+      {
+        "$ref": "#/components/schemas/GroupCreatedEventPayload"
+      },
+      {
+        "$ref": "#/components/schemas/InboundEventPayload"
+      },
+      {
+        "$ref": "#/components/schemas/MailEventPayload"
+      },
+      {
+        "$ref": "#/components/schemas/NoPayload"
+      },
+      {
+        "$ref": "#/components/schemas/OutboundEventPayload"
+      },
+      {
+        "$ref": "#/components/schemas/ProjectIdentityStampedPayload"
+      },
+      {
+        "$ref": "#/components/schemas/RequestFailedPayload"
+      },
+      {
+        "$ref": "#/components/schemas/RotatedPayload"
+      },
+      {
+        "$ref": "#/components/schemas/SessionCreateSucceededPayload"
+      },
+      {
+        "$ref": "#/components/schemas/SessionDrainAckedWithAssignedWorkPayload"
+      },
+      {
+        "$ref": "#/components/schemas/SessionLifecyclePayload"
+      },
+      {
+        "$ref": "#/components/schemas/SessionMessageSucceededPayload"
+      },
+      {
+        "$ref": "#/components/schemas/SessionSubmitSucceededPayload"
+      },
+      {
+        "$ref": "#/components/schemas/StoreMaintenanceDonePayload"
+      },
+      {
+        "$ref": "#/components/schemas/StoreMaintenanceFailedPayload"
+      },
+      {
+        "$ref": "#/components/schemas/SupervisorFSPressureSkippedTickPayload"
+      },
+      {
+        "$ref": "#/components/schemas/SupervisorShutdownPayload"
+      },
+      {
+        "$ref": "#/components/schemas/UnboundEventPayload"
+      },
+      {
+        "$ref": "#/components/schemas/WorkerOperationEventPayload"
+      }
+    ]
+  },
+  "EventRotateAnchor": {
+    "additionalProperties": false,
+    "properties": {
+      "seq": {
+        "description": "Anchor event sequence.",
+        "format": "int64",
+        "minimum": 0,
+        "type": "integer"
+      },
+      "ts": {
+        "description": "Anchor event timestamp.",
+        "format": "date-time",
+        "type": "string"
+      },
+      "type": {
+        "description": "Anchor event type.",
+        "examples": [
+          "events.rotated"
+        ],
+        "type": "string"
+      }
+    },
+    "required": [
+      "seq",
+      "type",
+      "ts"
+    ],
+    "type": "object"
+  },
+  "EventRotateArchive": {
+    "additionalProperties": false,
+    "properties": {
+      "compression_status": {
+        "description": "Archive compression status.",
+        "enum": [
+          "pending",
+          "complete"
+        ],
+        "type": "string"
+      },
+      "first_seq": {
+        "description": "First event sequence included in the archive.",
+        "format": "int64",
+        "minimum": 0,
+        "type": "integer"
+      },
+      "last_seq": {
+        "description": "Last event sequence included in the archive.",
+        "format": "int64",
+        "minimum": 0,
+        "type": "integer"
+      },
+      "path": {
+        "description": "Absolute path to the archive.",
+        "type": "string"
+      }
+    },
+    "required": [
+      "path",
+      "first_seq",
+      "last_seq",
+      "compression_status"
+    ],
+    "type": "object"
+  },
+  "EventRotateResponse": {
+    "additionalProperties": false,
+    "properties": {
+      "anchor_event": {
+        "$ref": "#/components/schemas/EventRotateAnchor",
+        "description": "Anchor event metadata when rotated is true."
+      },
+      "archive": {
+        "$ref": "#/components/schemas/EventRotateArchive",
+        "description": "Archive metadata when rotated is true."
+      },
+      "reason": {
+        "description": "No-op reason when rotated is false.",
+        "type": "string"
+      },
+      "rotated": {
+        "description": "Whether an archive was produced.",
+        "type": "boolean"
+      }
+    },
+    "required": [
+      "rotated"
+    ],
+    "type": "object"
+  },
+  "EventStreamEnvelope": {
+    "additionalProperties": false,
+    "properties": {
+      "actor": {
+        "type": "string"
+      },
+      "message": {
+        "type": "string"
+      },
+      "payload": {
+        "$ref": "#/components/schemas/EventPayload"
+      },
+      "seq": {
+        "format": "int64",
+        "minimum": 0,
+        "type": "integer"
+      },
+      "subject": {
+        "type": "string"
+      },
+      "ts": {
+        "format": "date-time",
+        "type": "string"
+      },
+      "type": {
+        "type": "string"
+      },
+      "workflow": {
+        "$ref": "#/components/schemas/WorkflowEventProjection"
+      }
+    },
+    "required": [
+      "seq",
+      "type",
+      "ts",
+      "actor"
+    ],
+    "type": "object"
+  },
+  "ExtMsgAdapterRegisterInputBody": {
+    "additionalProperties": false,
+    "properties": {
+      "account_id": {
+        "description": "Account ID.",
+        "minLength": 1,
+        "type": "string"
+      },
+      "callback_url": {
+        "description": "Callback URL for outbound messages.",
+        "type": "string"
+      },
+      "capabilities": {
+        "$ref": "#/components/schemas/AdapterCapabilities",
+        "description": "Adapter capabilities."
+      },
+      "name": {
+        "description": "Adapter display name.",
+        "type": "string"
+      },
+      "provider": {
+        "description": "Provider name.",
+        "minLength": 1,
+        "type": "string"
+      }
+    },
+    "required": [
+      "provider",
+      "account_id"
+    ],
+    "type": "object"
+  },
+  "ExtMsgAdapterRegisterOutputBody": {
+    "additionalProperties": false,
+    "properties": {
+      "account_id": {
+        "description": "Account ID.",
+        "type": "string"
+      },
+      "name": {
+        "description": "Adapter name.",
+        "type": "string"
+      },
+      "provider": {
+        "description": "Provider name.",
+        "type": "string"
+      },
+      "status": {
+        "description": "Operation result.",
+        "examples": [
+          "registered"
+        ],
+        "type": "string"
+      }
+    },
+    "required": [
+      "status",
+      "provider",
+      "account_id",
+      "name"
+    ],
+    "type": "object"
+  },
+  "ExtMsgAdapterUnregisterInputBody": {
+    "additionalProperties": false,
+    "properties": {
+      "account_id": {
+        "description": "Account ID.",
+        "minLength": 1,
+        "type": "string"
+      },
+      "provider": {
+        "description": "Provider name.",
+        "minLength": 1,
+        "type": "string"
+      }
+    },
+    "required": [
+      "provider",
+      "account_id"
+    ],
+    "type": "object"
+  },
+  "ExtMsgBindInputBody": {
+    "additionalProperties": false,
+    "properties": {
+      "conversation": {
+        "$ref": "#/components/schemas/ConversationRef",
+        "description": "Conversation to bind."
+      },
+      "metadata": {
+        "additionalProperties": {
+          "type": "string"
+        },
+        "description": "Optional binding metadata.",
+        "type": "object"
+      },
+      "session_id": {
+        "description": "Session ID to bind.",
+        "minLength": 1,
+        "type": "string"
+      }
+    },
+    "required": [
+      "session_id"
+    ],
+    "type": "object"
+  },
+  "ExtMsgGroupEnsureInputBody": {
+    "additionalProperties": false,
+    "properties": {
+      "default_handle": {
+        "description": "Default handle for the group.",
+        "type": "string"
+      },
+      "metadata": {
+        "additionalProperties": {
+          "type": "string"
+        },
+        "description": "Group metadata.",
+        "type": "object"
+      },
+      "mode": {
+        "description": "Group mode (launcher, etc.).",
+        "type": "string"
+      },
+      "root_conversation": {
+        "$ref": "#/components/schemas/ConversationRef",
+        "description": "Root conversation reference."
+      }
+    },
+    "type": "object"
+  },
+  "ExtMsgInboundInputBody": {
+    "additionalProperties": false,
+    "properties": {
+      "account_id": {
+        "description": "Account ID for raw payloads (required when message is absent).",
+        "type": "string"
+      },
+      "message": {
+        "$ref": "#/components/schemas/ExternalInboundMessage",
+        "description": "Pre-normalized inbound message."
+      },
+      "payload": {
+        "contentEncoding": "base64",
+        "description": "Raw payload bytes.",
+        "type": "string"
+      },
+      "provider": {
+        "description": "Provider name for raw payloads (required when message is absent).",
+        "type": "string"
+      }
+    },
+    "type": "object"
+  },
+  "ExtMsgOutboundInputBody": {
+    "additionalProperties": false,
+    "properties": {
+      "conversation": {
+        "$ref": "#/components/schemas/ConversationRef",
+        "description": "Target conversation."
+      },
+      "idempotency_key": {
+        "description": "Idempotency key.",
+        "type": "string"
+      },
+      "reply_to_message_id": {
+        "description": "Message ID to reply to.",
+        "type": "string"
+      },
+      "session_id": {
+        "description": "Session ID.",
+        "minLength": 1,
+        "type": "string"
+      },
+      "text": {
+        "description": "Message text.",
+        "type": "string"
+      }
+    },
+    "required": [
+      "session_id"
+    ],
+    "type": "object"
+  },
+  "ExtMsgParticipantRemoveInputBody": {
+    "additionalProperties": false,
+    "properties": {
+      "group_id": {
+        "description": "Group ID.",
+        "minLength": 1,
+        "type": "string"
+      },
+      "handle": {
+        "description": "Participant handle.",
+        "minLength": 1,
+        "type": "string"
+      }
+    },
+    "required": [
+      "group_id",
+      "handle"
+    ],
+    "type": "object"
+  },
+  "ExtMsgParticipantUpsertInputBody": {
+    "additionalProperties": false,
+    "properties": {
+      "group_id": {
+        "description": "Group ID.",
+        "minLength": 1,
+        "type": "string"
+      },
+      "handle": {
+        "description": "Participant handle.",
+        "minLength": 1,
+        "type": "string"
+      },
+      "metadata": {
+        "additionalProperties": {
+          "type": "string"
+        },
+        "description": "Participant metadata.",
+        "type": "object"
+      },
+      "public": {
+        "description": "Whether participant is public.",
+        "type": "boolean"
+      },
+      "session_id": {
+        "description": "Session ID.",
+        "minLength": 1,
+        "type": "string"
+      }
+    },
+    "required": [
+      "group_id",
+      "handle",
+      "session_id"
+    ],
+    "type": "object"
+  },
+  "ExtMsgTranscriptAckInputBody": {
+    "additionalProperties": false,
+    "properties": {
+      "conversation": {
+        "$ref": "#/components/schemas/ConversationRef",
+        "description": "Conversation to acknowledge."
+      },
+      "sequence": {
+        "description": "Sequence number to acknowledge up to.",
+        "format": "int64",
+        "type": "integer"
+      },
+      "session_id": {
+        "description": "Session ID.",
+        "minLength": 1,
+        "type": "string"
+      }
+    },
+    "required": [
+      "session_id"
+    ],
+    "type": "object"
+  },
+  "ExtMsgUnbindBody": {
+    "additionalProperties": false,
+    "properties": {
+      "unbound": {
+        "description": "Bindings that were removed.",
+        "items": {
+          "$ref": "#/components/schemas/SessionBindingRecord"
+        },
+        "type": [
+          "array",
+          "null"
+        ]
+      }
+    },
+    "required": [
+      "unbound"
+    ],
+    "type": "object"
+  },
+  "ExtMsgUnbindInputBody": {
+    "additionalProperties": false,
+    "properties": {
+      "conversation": {
+        "$ref": "#/components/schemas/ConversationRef",
+        "description": "Conversation to unbind (nil = all)."
+      },
+      "session_id": {
+        "description": "Session ID to unbind.",
+        "minLength": 1,
+        "type": "string"
+      }
+    },
+    "required": [
+      "session_id"
+    ],
+    "type": "object"
+  },
+  "ExternalActor": {
+    "additionalProperties": false,
+    "properties": {
+      "display_name": {
+        "type": "string"
+      },
+      "id": {
+        "type": "string"
+      },
+      "is_bot": {
+        "type": "boolean"
+      }
+    },
+    "required": [
+      "id",
+      "display_name",
+      "is_bot"
+    ],
+    "type": "object"
+  },
+  "ExternalAttachment": {
+    "additionalProperties": false,
+    "properties": {
+      "mime_type": {
+        "type": "string"
+      },
+      "provider_id": {
+        "type": "string"
+      },
+      "url": {
+        "type": "string"
+      }
+    },
+    "required": [
+      "provider_id",
+      "url",
+      "mime_type"
+    ],
+    "type": "object"
+  },
+  "ExternalInboundMessage": {
+    "additionalProperties": false,
+    "properties": {
+      "actor": {
+        "$ref": "#/components/schemas/ExternalActor"
+      },
+      "attachments": {
+        "items": {
+          "$ref": "#/components/schemas/ExternalAttachment"
+        },
+        "type": [
+          "array",
+          "null"
+        ]
+      },
+      "conversation": {
+        "$ref": "#/components/schemas/ConversationRef"
+      },
+      "dedup_key": {
+        "type": "string"
+      },
+      "explicit_target": {
+        "type": "string"
+      },
+      "provider_message_id": {
+        "type": "string"
+      },
+      "received_at": {
+        "format": "date-time",
+        "type": "string"
+      },
+      "reply_to_message_id": {
+        "type": "string"
+      },
+      "text": {
+        "type": "string"
+      }
+    },
+    "required": [
+      "provider_message_id",
+      "conversation",
+      "actor",
+      "text",
+      "received_at"
+    ],
+    "type": "object"
+  },
+  "ExtmsgAdapterInfo": {
+    "additionalProperties": false,
+    "properties": {
+      "account_id": {
+        "description": "Adapter account ID.",
+        "type": "string"
+      },
+      "name": {
+        "description": "Adapter display name.",
+        "type": "string"
+      },
+      "provider": {
+        "description": "Adapter provider key.",
+        "type": "string"
+      }
+    },
+    "required": [
+      "provider",
+      "account_id",
+      "name"
+    ],
+    "type": "object"
+  },
+  "FanoutPolicy": {
+    "additionalProperties": false,
+    "properties": {
+      "AllowUntargetedPublication": {
+        "type": "boolean"
+      },
+      "Enabled": {
+        "type": "boolean"
+      },
+      "MaxPeerTriggeredPublishes": {
+        "format": "int64",
+        "type": "integer"
+      },
+      "MaxTotalPeerDeliveries": {
+        "format": "int64",
+        "type": "integer"
+      }
+    },
+    "required": [
+      "Enabled",
+      "AllowUntargetedPublication",
+      "MaxPeerTriggeredPublishes",
+      "MaxTotalPeerDeliveries"
     ],
     "type": "object"
   },
@@ -269,6 +2708,96 @@ export const gcSupervisorComponentSchemas: Record<string, unknown> = {
       "steps",
       "deps",
       "preview"
+    ],
+    "type": "object"
+  },
+  "FormulaFeedBody": {
+    "additionalProperties": false,
+    "properties": {
+      "items": {
+        "items": {
+          "$ref": "#/components/schemas/MonitorFeedItemResponse"
+        },
+        "type": [
+          "array",
+          "null"
+        ]
+      },
+      "partial": {
+        "type": "boolean"
+      },
+      "partial_errors": {
+        "items": {
+          "type": "string"
+        },
+        "type": [
+          "array",
+          "null"
+        ]
+      }
+    },
+    "required": [
+      "items",
+      "partial"
+    ],
+    "type": "object"
+  },
+  "FormulaListBody": {
+    "additionalProperties": false,
+    "properties": {
+      "items": {
+        "description": "Formula summaries.",
+        "items": {
+          "$ref": "#/components/schemas/FormulaSummaryResponse"
+        },
+        "type": [
+          "array",
+          "null"
+        ]
+      },
+      "partial": {
+        "description": "Whether the list is partial.",
+        "type": "boolean"
+      },
+      "total": {
+        "description": "Total number of formulas in the list.",
+        "format": "int64",
+        "type": "integer"
+      }
+    },
+    "required": [
+      "items",
+      "total",
+      "partial"
+    ],
+    "type": "object"
+  },
+  "FormulaPreviewBody": {
+    "additionalProperties": false,
+    "properties": {
+      "scope_kind": {
+        "description": "Scope kind (city or rig).",
+        "type": "string"
+      },
+      "scope_ref": {
+        "description": "Scope reference.",
+        "type": "string"
+      },
+      "target": {
+        "description": "Target agent for preview compilation.",
+        "minLength": 1,
+        "type": "string"
+      },
+      "vars": {
+        "additionalProperties": {
+          "type": "string"
+        },
+        "description": "Variable name-to-value overrides applied to the compiled preview.",
+        "type": "object"
+      }
+    },
+    "required": [
+      "target"
     ],
     "type": "object"
   },
@@ -342,6 +2871,74 @@ export const gcSupervisorComponentSchemas: Record<string, unknown> = {
     ],
     "type": "object"
   },
+  "FormulaRecentRunResponse": {
+    "additionalProperties": false,
+    "properties": {
+      "started_at": {
+        "type": "string"
+      },
+      "status": {
+        "type": "string"
+      },
+      "target": {
+        "type": "string"
+      },
+      "updated_at": {
+        "type": "string"
+      },
+      "workflow_id": {
+        "type": "string"
+      }
+    },
+    "required": [
+      "workflow_id",
+      "status",
+      "target",
+      "started_at",
+      "updated_at"
+    ],
+    "type": "object"
+  },
+  "FormulaRunsResponse": {
+    "additionalProperties": false,
+    "properties": {
+      "formula": {
+        "type": "string"
+      },
+      "partial": {
+        "type": "boolean"
+      },
+      "partial_errors": {
+        "items": {
+          "type": "string"
+        },
+        "type": [
+          "array",
+          "null"
+        ]
+      },
+      "recent_runs": {
+        "items": {
+          "$ref": "#/components/schemas/FormulaRecentRunResponse"
+        },
+        "type": [
+          "array",
+          "null"
+        ]
+      },
+      "run_count": {
+        "format": "int64",
+        "type": "integer"
+      }
+    },
+    "required": [
+      "formula",
+      "run_count",
+      "recent_runs",
+      "partial"
+    ],
+    "type": "object"
+  },
   "FormulaStepResponse": {
     "additionalProperties": false,
     "properties": {
@@ -383,6 +2980,51 @@ export const gcSupervisorComponentSchemas: Record<string, unknown> = {
     ],
     "type": "object"
   },
+  "FormulaSummaryResponse": {
+    "additionalProperties": false,
+    "properties": {
+      "description": {
+        "type": "string"
+      },
+      "name": {
+        "type": "string"
+      },
+      "recent_runs": {
+        "items": {
+          "$ref": "#/components/schemas/FormulaRecentRunResponse"
+        },
+        "type": [
+          "array",
+          "null"
+        ]
+      },
+      "run_count": {
+        "format": "int64",
+        "type": "integer"
+      },
+      "var_defs": {
+        "items": {
+          "$ref": "#/components/schemas/FormulaVarDefResponse"
+        },
+        "type": [
+          "array",
+          "null"
+        ]
+      },
+      "version": {
+        "type": "string"
+      }
+    },
+    "required": [
+      "name",
+      "description",
+      "version",
+      "var_defs",
+      "run_count",
+      "recent_runs"
+    ],
+    "type": "object"
+  },
   "FormulaVarDefResponse": {
     "additionalProperties": false,
     "properties": {
@@ -418,6 +3060,37 @@ export const gcSupervisorComponentSchemas: Record<string, unknown> = {
     ],
     "type": "object"
   },
+  "GitStatus": {
+    "additionalProperties": false,
+    "properties": {
+      "ahead": {
+        "format": "int64",
+        "type": "integer"
+      },
+      "behind": {
+        "format": "int64",
+        "type": "integer"
+      },
+      "branch": {
+        "type": "string"
+      },
+      "changed_files": {
+        "format": "int64",
+        "type": "integer"
+      },
+      "clean": {
+        "type": "boolean"
+      }
+    },
+    "required": [
+      "branch",
+      "clean",
+      "changed_files",
+      "ahead",
+      "behind"
+    ],
+    "type": "object"
+  },
   "GroupCreatedEventPayload": {
     "additionalProperties": false,
     "properties": {
@@ -435,6 +3108,26 @@ export const gcSupervisorComponentSchemas: Record<string, unknown> = {
       "provider",
       "conversation_id",
       "mode"
+    ],
+    "type": "object"
+  },
+  "GroupRouteDecision": {
+    "additionalProperties": false,
+    "properties": {
+      "Match": {
+        "type": "string"
+      },
+      "TargetSessionID": {
+        "type": "string"
+      },
+      "UpdateCursor": {
+        "type": "boolean"
+      }
+    },
+    "required": [
+      "Match",
+      "TargetSessionID",
+      "UpdateCursor"
     ],
     "type": "object"
   },
@@ -468,6 +3161,19 @@ export const gcSupervisorComponentSchemas: Record<string, unknown> = {
     ],
     "type": "object"
   },
+  "HeartbeatEvent": {
+    "additionalProperties": false,
+    "properties": {
+      "timestamp": {
+        "description": "ISO 8601 timestamp when the heartbeat was sent.",
+        "type": "string"
+      }
+    },
+    "required": [
+      "timestamp"
+    ],
+    "type": "object"
+  },
   "InboundEventPayload": {
     "additionalProperties": false,
     "properties": {
@@ -489,6 +3195,120 @@ export const gcSupervisorComponentSchemas: Record<string, unknown> = {
       "conversation_id",
       "actor",
       "target_session"
+    ],
+    "type": "object"
+  },
+  "InboundResult": {
+    "additionalProperties": false,
+    "properties": {
+      "Binding": {
+        "$ref": "#/components/schemas/SessionBindingRecord"
+      },
+      "GroupRoute": {
+        "$ref": "#/components/schemas/GroupRouteDecision"
+      },
+      "Message": {
+        "$ref": "#/components/schemas/ExternalInboundMessage"
+      },
+      "TargetSessionID": {
+        "type": "string"
+      },
+      "TranscriptEntry": {
+        "$ref": "#/components/schemas/ConversationTranscriptRecord"
+      }
+    },
+    "required": [
+      "Message",
+      "Binding",
+      "GroupRoute",
+      "TranscriptEntry",
+      "TargetSessionID"
+    ],
+    "type": "object"
+  },
+  "ListBodyAgentPatch": {
+    "additionalProperties": false,
+    "properties": {
+      "items": {
+        "description": "The list of items.",
+        "items": {
+          "$ref": "#/components/schemas/AgentPatch"
+        },
+        "type": [
+          "array",
+          "null"
+        ]
+      },
+      "next_cursor": {
+        "description": "Cursor for the next page of results.",
+        "type": "string"
+      },
+      "partial": {
+        "description": "True when one or more backends failed and the list is incomplete.",
+        "type": "boolean"
+      },
+      "partial_errors": {
+        "description": "Human-readable errors from backends that failed during aggregation.",
+        "items": {
+          "type": "string"
+        },
+        "type": [
+          "array",
+          "null"
+        ]
+      },
+      "total": {
+        "description": "Total number of items matching the query.",
+        "format": "int64",
+        "type": "integer"
+      }
+    },
+    "required": [
+      "items",
+      "total"
+    ],
+    "type": "object"
+  },
+  "ListBodyAgentResponse": {
+    "additionalProperties": false,
+    "properties": {
+      "items": {
+        "description": "The list of items.",
+        "items": {
+          "$ref": "#/components/schemas/AgentResponse"
+        },
+        "type": [
+          "array",
+          "null"
+        ]
+      },
+      "next_cursor": {
+        "description": "Cursor for the next page of results.",
+        "type": "string"
+      },
+      "partial": {
+        "description": "True when one or more backends failed and the list is incomplete.",
+        "type": "boolean"
+      },
+      "partial_errors": {
+        "description": "Human-readable errors from backends that failed during aggregation.",
+        "items": {
+          "type": "string"
+        },
+        "type": [
+          "array",
+          "null"
+        ]
+      },
+      "total": {
+        "description": "Total number of items matching the query.",
+        "format": "int64",
+        "type": "integer"
+      }
+    },
+    "required": [
+      "items",
+      "total"
     ],
     "type": "object"
   },
@@ -535,6 +3355,307 @@ export const gcSupervisorComponentSchemas: Record<string, unknown> = {
     ],
     "type": "object"
   },
+  "ListBodyConversationTranscriptRecord": {
+    "additionalProperties": false,
+    "properties": {
+      "items": {
+        "description": "The list of items.",
+        "items": {
+          "$ref": "#/components/schemas/ConversationTranscriptRecord"
+        },
+        "type": [
+          "array",
+          "null"
+        ]
+      },
+      "next_cursor": {
+        "description": "Cursor for the next page of results.",
+        "type": "string"
+      },
+      "partial": {
+        "description": "True when one or more backends failed and the list is incomplete.",
+        "type": "boolean"
+      },
+      "partial_errors": {
+        "description": "Human-readable errors from backends that failed during aggregation.",
+        "items": {
+          "type": "string"
+        },
+        "type": [
+          "array",
+          "null"
+        ]
+      },
+      "total": {
+        "description": "Total number of items matching the query.",
+        "format": "int64",
+        "type": "integer"
+      }
+    },
+    "required": [
+      "items",
+      "total"
+    ],
+    "type": "object"
+  },
+  "ListBodyExtmsgAdapterInfo": {
+    "additionalProperties": false,
+    "properties": {
+      "items": {
+        "description": "The list of items.",
+        "items": {
+          "$ref": "#/components/schemas/ExtmsgAdapterInfo"
+        },
+        "type": [
+          "array",
+          "null"
+        ]
+      },
+      "next_cursor": {
+        "description": "Cursor for the next page of results.",
+        "type": "string"
+      },
+      "partial": {
+        "description": "True when one or more backends failed and the list is incomplete.",
+        "type": "boolean"
+      },
+      "partial_errors": {
+        "description": "Human-readable errors from backends that failed during aggregation.",
+        "items": {
+          "type": "string"
+        },
+        "type": [
+          "array",
+          "null"
+        ]
+      },
+      "total": {
+        "description": "Total number of items matching the query.",
+        "format": "int64",
+        "type": "integer"
+      }
+    },
+    "required": [
+      "items",
+      "total"
+    ],
+    "type": "object"
+  },
+  "ListBodyProviderPatch": {
+    "additionalProperties": false,
+    "properties": {
+      "items": {
+        "description": "The list of items.",
+        "items": {
+          "$ref": "#/components/schemas/ProviderPatch"
+        },
+        "type": [
+          "array",
+          "null"
+        ]
+      },
+      "next_cursor": {
+        "description": "Cursor for the next page of results.",
+        "type": "string"
+      },
+      "partial": {
+        "description": "True when one or more backends failed and the list is incomplete.",
+        "type": "boolean"
+      },
+      "partial_errors": {
+        "description": "Human-readable errors from backends that failed during aggregation.",
+        "items": {
+          "type": "string"
+        },
+        "type": [
+          "array",
+          "null"
+        ]
+      },
+      "total": {
+        "description": "Total number of items matching the query.",
+        "format": "int64",
+        "type": "integer"
+      }
+    },
+    "required": [
+      "items",
+      "total"
+    ],
+    "type": "object"
+  },
+  "ListBodyProviderResponse": {
+    "additionalProperties": false,
+    "properties": {
+      "items": {
+        "description": "The list of items.",
+        "items": {
+          "$ref": "#/components/schemas/ProviderResponse"
+        },
+        "type": [
+          "array",
+          "null"
+        ]
+      },
+      "next_cursor": {
+        "description": "Cursor for the next page of results.",
+        "type": "string"
+      },
+      "partial": {
+        "description": "True when one or more backends failed and the list is incomplete.",
+        "type": "boolean"
+      },
+      "partial_errors": {
+        "description": "Human-readable errors from backends that failed during aggregation.",
+        "items": {
+          "type": "string"
+        },
+        "type": [
+          "array",
+          "null"
+        ]
+      },
+      "total": {
+        "description": "Total number of items matching the query.",
+        "format": "int64",
+        "type": "integer"
+      }
+    },
+    "required": [
+      "items",
+      "total"
+    ],
+    "type": "object"
+  },
+  "ListBodyRigPatch": {
+    "additionalProperties": false,
+    "properties": {
+      "items": {
+        "description": "The list of items.",
+        "items": {
+          "$ref": "#/components/schemas/RigPatch"
+        },
+        "type": [
+          "array",
+          "null"
+        ]
+      },
+      "next_cursor": {
+        "description": "Cursor for the next page of results.",
+        "type": "string"
+      },
+      "partial": {
+        "description": "True when one or more backends failed and the list is incomplete.",
+        "type": "boolean"
+      },
+      "partial_errors": {
+        "description": "Human-readable errors from backends that failed during aggregation.",
+        "items": {
+          "type": "string"
+        },
+        "type": [
+          "array",
+          "null"
+        ]
+      },
+      "total": {
+        "description": "Total number of items matching the query.",
+        "format": "int64",
+        "type": "integer"
+      }
+    },
+    "required": [
+      "items",
+      "total"
+    ],
+    "type": "object"
+  },
+  "ListBodyRigResponse": {
+    "additionalProperties": false,
+    "properties": {
+      "items": {
+        "description": "The list of items.",
+        "items": {
+          "$ref": "#/components/schemas/RigResponse"
+        },
+        "type": [
+          "array",
+          "null"
+        ]
+      },
+      "next_cursor": {
+        "description": "Cursor for the next page of results.",
+        "type": "string"
+      },
+      "partial": {
+        "description": "True when one or more backends failed and the list is incomplete.",
+        "type": "boolean"
+      },
+      "partial_errors": {
+        "description": "Human-readable errors from backends that failed during aggregation.",
+        "items": {
+          "type": "string"
+        },
+        "type": [
+          "array",
+          "null"
+        ]
+      },
+      "total": {
+        "description": "Total number of items matching the query.",
+        "format": "int64",
+        "type": "integer"
+      }
+    },
+    "required": [
+      "items",
+      "total"
+    ],
+    "type": "object"
+  },
+  "ListBodySessionBindingRecord": {
+    "additionalProperties": false,
+    "properties": {
+      "items": {
+        "description": "The list of items.",
+        "items": {
+          "$ref": "#/components/schemas/SessionBindingRecord"
+        },
+        "type": [
+          "array",
+          "null"
+        ]
+      },
+      "next_cursor": {
+        "description": "Cursor for the next page of results.",
+        "type": "string"
+      },
+      "partial": {
+        "description": "True when one or more backends failed and the list is incomplete.",
+        "type": "boolean"
+      },
+      "partial_errors": {
+        "description": "Human-readable errors from backends that failed during aggregation.",
+        "items": {
+          "type": "string"
+        },
+        "type": [
+          "array",
+          "null"
+        ]
+      },
+      "total": {
+        "description": "Total number of items matching the query.",
+        "format": "int64",
+        "type": "integer"
+      }
+    },
+    "required": [
+      "items",
+      "total"
+    ],
+    "type": "object"
+  },
   "ListBodySessionResponse": {
     "additionalProperties": false,
     "properties": {
@@ -542,6 +3663,49 @@ export const gcSupervisorComponentSchemas: Record<string, unknown> = {
         "description": "The list of items.",
         "items": {
           "$ref": "#/components/schemas/SessionResponse"
+        },
+        "type": [
+          "array",
+          "null"
+        ]
+      },
+      "next_cursor": {
+        "description": "Cursor for the next page of results.",
+        "type": "string"
+      },
+      "partial": {
+        "description": "True when one or more backends failed and the list is incomplete.",
+        "type": "boolean"
+      },
+      "partial_errors": {
+        "description": "Human-readable errors from backends that failed during aggregation.",
+        "items": {
+          "type": "string"
+        },
+        "type": [
+          "array",
+          "null"
+        ]
+      },
+      "total": {
+        "description": "Total number of items matching the query.",
+        "format": "int64",
+        "type": "integer"
+      }
+    },
+    "required": [
+      "items",
+      "total"
+    ],
+    "type": "object"
+  },
+  "ListBodyStatus": {
+    "additionalProperties": false,
+    "properties": {
+      "items": {
+        "description": "The list of items.",
+        "items": {
+          "$ref": "#/components/schemas/Status"
         },
         "type": [
           "array",
@@ -625,6 +3789,40 @@ export const gcSupervisorComponentSchemas: Record<string, unknown> = {
     "additionalProperties": false,
     "type": "object"
   },
+  "MailCountOutputBody": {
+    "additionalProperties": false,
+    "properties": {
+      "partial": {
+        "description": "True when one or more rig providers failed and the counts are not authoritative.",
+        "type": "boolean"
+      },
+      "partial_errors": {
+        "description": "Per-provider errors when partial is true.",
+        "items": {
+          "type": "string"
+        },
+        "type": [
+          "array",
+          "null"
+        ]
+      },
+      "total": {
+        "description": "Total message count.",
+        "format": "int64",
+        "type": "integer"
+      },
+      "unread": {
+        "description": "Unread message count.",
+        "format": "int64",
+        "type": "integer"
+      }
+    },
+    "required": [
+      "total",
+      "unread"
+    ],
+    "type": "object"
+  },
   "MailEventPayload": {
     "additionalProperties": false,
     "properties": {
@@ -680,6 +3878,56 @@ export const gcSupervisorComponentSchemas: Record<string, unknown> = {
     "required": [
       "items",
       "total"
+    ],
+    "type": "object"
+  },
+  "MailReplyInputBody": {
+    "additionalProperties": false,
+    "properties": {
+      "body": {
+        "description": "Reply body.",
+        "type": "string"
+      },
+      "from": {
+        "description": "Sender name.",
+        "type": "string"
+      },
+      "subject": {
+        "description": "Reply subject.",
+        "type": "string"
+      }
+    },
+    "type": "object"
+  },
+  "MailSendInputBody": {
+    "additionalProperties": false,
+    "properties": {
+      "body": {
+        "description": "Message body.",
+        "type": "string"
+      },
+      "from": {
+        "description": "Sender name.",
+        "type": "string"
+      },
+      "rig": {
+        "description": "Rig name.",
+        "type": "string"
+      },
+      "subject": {
+        "description": "Message subject.",
+        "minLength": 1,
+        "type": "string"
+      },
+      "to": {
+        "description": "Recipient name.",
+        "minLength": 1,
+        "type": "string"
+      }
+    },
+    "required": [
+      "to",
+      "subject"
     ],
     "type": "object"
   },
@@ -742,8 +3990,420 @@ export const gcSupervisorComponentSchemas: Record<string, unknown> = {
     ],
     "type": "object"
   },
+  "MonitorFeedItemResponse": {
+    "additionalProperties": false,
+    "properties": {
+      "attached_bead_id": {
+        "type": "string"
+      },
+      "bead_id": {
+        "type": "string"
+      },
+      "detail_available": {
+        "type": "boolean"
+      },
+      "id": {
+        "type": "string"
+      },
+      "logical_bead_id": {
+        "type": "string"
+      },
+      "root_bead_id": {
+        "type": "string"
+      },
+      "root_store_ref": {
+        "type": "string"
+      },
+      "run_detail_available": {
+        "type": "boolean"
+      },
+      "scope_kind": {
+        "type": "string"
+      },
+      "scope_ref": {
+        "type": "string"
+      },
+      "started_at": {
+        "type": "string"
+      },
+      "status": {
+        "type": "string"
+      },
+      "store_ref": {
+        "type": "string"
+      },
+      "target": {
+        "type": "string"
+      },
+      "title": {
+        "type": "string"
+      },
+      "type": {
+        "type": "string"
+      },
+      "updated_at": {
+        "type": "string"
+      },
+      "workflow_id": {
+        "type": "string"
+      }
+    },
+    "required": [
+      "id",
+      "type",
+      "status",
+      "title",
+      "scope_kind",
+      "scope_ref",
+      "target",
+      "started_at",
+      "updated_at"
+    ],
+    "type": "object"
+  },
   "NoPayload": {
     "additionalProperties": false,
+    "type": "object"
+  },
+  "OKResponseBody": {
+    "additionalProperties": false,
+    "properties": {
+      "status": {
+        "description": "Operation result.",
+        "examples": [
+          "ok"
+        ],
+        "type": "string"
+      }
+    },
+    "required": [
+      "status"
+    ],
+    "type": "object"
+  },
+  "OKWithIDResponseBody": {
+    "additionalProperties": false,
+    "properties": {
+      "id": {
+        "description": "Resource ID.",
+        "type": "string"
+      },
+      "status": {
+        "description": "Operation result.",
+        "examples": [
+          "ok"
+        ],
+        "type": "string"
+      }
+    },
+    "required": [
+      "status"
+    ],
+    "type": "object"
+  },
+  "OptionChoiceDTO": {
+    "additionalProperties": false,
+    "properties": {
+      "label": {
+        "type": "string"
+      },
+      "value": {
+        "type": "string"
+      }
+    },
+    "required": [
+      "value",
+      "label"
+    ],
+    "type": "object"
+  },
+  "OrderCheckListBody": {
+    "additionalProperties": false,
+    "properties": {
+      "checks": {
+        "description": "Order trigger evaluations.",
+        "items": {
+          "$ref": "#/components/schemas/OrderCheckResponse"
+        },
+        "type": [
+          "array",
+          "null"
+        ]
+      }
+    },
+    "required": [
+      "checks"
+    ],
+    "type": "object"
+  },
+  "OrderCheckResponse": {
+    "additionalProperties": false,
+    "properties": {
+      "due": {
+        "type": "boolean"
+      },
+      "last_run": {
+        "type": "string"
+      },
+      "last_run_outcome": {
+        "type": "string"
+      },
+      "name": {
+        "type": "string"
+      },
+      "reason": {
+        "type": "string"
+      },
+      "rig": {
+        "type": "string"
+      },
+      "scoped_name": {
+        "type": "string"
+      }
+    },
+    "required": [
+      "name",
+      "scoped_name",
+      "due",
+      "reason"
+    ],
+    "type": "object"
+  },
+  "OrderHistoryDetailResponse": {
+    "additionalProperties": false,
+    "properties": {
+      "bead_id": {
+        "type": "string"
+      },
+      "created_at": {
+        "type": "string"
+      },
+      "labels": {
+        "items": {
+          "type": "string"
+        },
+        "type": [
+          "array",
+          "null"
+        ]
+      },
+      "output": {
+        "type": "string"
+      },
+      "store_ref": {
+        "type": "string"
+      }
+    },
+    "required": [
+      "bead_id",
+      "store_ref",
+      "created_at",
+      "labels",
+      "output"
+    ],
+    "type": "object"
+  },
+  "OrderHistoryEntry": {
+    "additionalProperties": false,
+    "properties": {
+      "bead_id": {
+        "type": "string"
+      },
+      "capture_output": {
+        "type": "boolean"
+      },
+      "created_at": {
+        "type": "string"
+      },
+      "duration_ms": {
+        "type": "string"
+      },
+      "error": {
+        "type": "string"
+      },
+      "exit_code": {
+        "type": "string"
+      },
+      "has_output": {
+        "type": "boolean"
+      },
+      "labels": {
+        "items": {
+          "type": "string"
+        },
+        "type": [
+          "array",
+          "null"
+        ]
+      },
+      "name": {
+        "type": "string"
+      },
+      "rig": {
+        "type": "string"
+      },
+      "scoped_name": {
+        "type": "string"
+      },
+      "signal": {
+        "type": "string"
+      },
+      "store_ref": {
+        "type": "string"
+      },
+      "wisp_root_id": {
+        "type": "string"
+      }
+    },
+    "required": [
+      "bead_id",
+      "store_ref",
+      "name",
+      "scoped_name",
+      "created_at",
+      "labels",
+      "capture_output",
+      "has_output"
+    ],
+    "type": "object"
+  },
+  "OrderHistoryListBody": {
+    "additionalProperties": false,
+    "properties": {
+      "entries": {
+        "description": "Order history entries.",
+        "items": {
+          "$ref": "#/components/schemas/OrderHistoryEntry"
+        },
+        "type": [
+          "array",
+          "null"
+        ]
+      }
+    },
+    "required": [
+      "entries"
+    ],
+    "type": "object"
+  },
+  "OrderListBody": {
+    "additionalProperties": false,
+    "properties": {
+      "orders": {
+        "description": "Registered orders.",
+        "items": {
+          "$ref": "#/components/schemas/OrderResponse"
+        },
+        "type": [
+          "array",
+          "null"
+        ]
+      }
+    },
+    "required": [
+      "orders"
+    ],
+    "type": "object"
+  },
+  "OrderResponse": {
+    "additionalProperties": false,
+    "properties": {
+      "capture_output": {
+        "type": "boolean"
+      },
+      "check": {
+        "type": "string"
+      },
+      "description": {
+        "type": "string"
+      },
+      "enabled": {
+        "type": "boolean"
+      },
+      "exec": {
+        "type": "string"
+      },
+      "formula": {
+        "type": "string"
+      },
+      "gate": {
+        "deprecated": true,
+        "type": "string"
+      },
+      "interval": {
+        "type": "string"
+      },
+      "name": {
+        "type": "string"
+      },
+      "on": {
+        "type": "string"
+      },
+      "pool": {
+        "type": "string"
+      },
+      "rig": {
+        "type": "string"
+      },
+      "schedule": {
+        "type": "string"
+      },
+      "scoped_name": {
+        "type": "string"
+      },
+      "timeout": {
+        "type": "string"
+      },
+      "timeout_ms": {
+        "format": "int64",
+        "type": "integer"
+      },
+      "trigger": {
+        "type": "string"
+      },
+      "type": {
+        "type": "string"
+      }
+    },
+    "required": [
+      "name",
+      "scoped_name",
+      "type",
+      "timeout_ms",
+      "enabled",
+      "capture_output"
+    ],
+    "type": "object"
+  },
+  "OrdersFeedBody": {
+    "additionalProperties": false,
+    "properties": {
+      "items": {
+        "items": {
+          "$ref": "#/components/schemas/MonitorFeedItemResponse"
+        },
+        "type": [
+          "array",
+          "null"
+        ]
+      },
+      "partial": {
+        "type": "boolean"
+      },
+      "partial_errors": {
+        "items": {
+          "type": "string"
+        },
+        "type": [
+          "array",
+          "null"
+        ]
+      }
+    },
+    "required": [
+      "items",
+      "partial"
+    ],
     "type": "object"
   },
   "OutboundEventPayload": {
@@ -770,6 +4430,26 @@ export const gcSupervisorComponentSchemas: Record<string, unknown> = {
     ],
     "type": "object"
   },
+  "OutboundResult": {
+    "additionalProperties": false,
+    "properties": {
+      "DeliveryContext": {
+        "$ref": "#/components/schemas/DeliveryContextRecord"
+      },
+      "Receipt": {
+        "$ref": "#/components/schemas/PublishReceipt"
+      },
+      "TranscriptEntry": {
+        "$ref": "#/components/schemas/ConversationTranscriptRecord"
+      }
+    },
+    "required": [
+      "Receipt",
+      "DeliveryContext",
+      "TranscriptEntry"
+    ],
+    "type": "object"
+  },
   "OutputTurn": {
     "additionalProperties": false,
     "properties": {
@@ -786,6 +4466,46 @@ export const gcSupervisorComponentSchemas: Record<string, unknown> = {
     "required": [
       "role",
       "text"
+    ],
+    "type": "object"
+  },
+  "PackListBody": {
+    "additionalProperties": false,
+    "properties": {
+      "packs": {
+        "description": "Registered packs.",
+        "items": {
+          "$ref": "#/components/schemas/PackResponse"
+        },
+        "type": [
+          "array",
+          "null"
+        ]
+      }
+    },
+    "required": [
+      "packs"
+    ],
+    "type": "object"
+  },
+  "PackResponse": {
+    "additionalProperties": false,
+    "properties": {
+      "name": {
+        "type": "string"
+      },
+      "path": {
+        "type": "string"
+      },
+      "ref": {
+        "type": "string"
+      },
+      "source": {
+        "type": "string"
+      }
+    },
+    "required": [
+      "name"
     ],
     "type": "object"
   },
@@ -819,6 +4539,148 @@ export const gcSupervisorComponentSchemas: Record<string, unknown> = {
     ],
     "type": "object"
   },
+  "PatchDeletedResponseBody": {
+    "additionalProperties": false,
+    "properties": {
+      "agent_patch": {
+        "description": "Agent patch qualified name.",
+        "type": "string"
+      },
+      "provider_patch": {
+        "description": "Provider patch name.",
+        "type": "string"
+      },
+      "rig_patch": {
+        "description": "Rig patch name.",
+        "type": "string"
+      },
+      "status": {
+        "description": "Operation result.",
+        "examples": [
+          "deleted"
+        ],
+        "type": "string"
+      }
+    },
+    "required": [
+      "status"
+    ],
+    "type": "object"
+  },
+  "PatchOKResponseBody": {
+    "additionalProperties": false,
+    "properties": {
+      "agent_patch": {
+        "description": "Agent patch qualified name.",
+        "type": "string"
+      },
+      "provider_patch": {
+        "description": "Provider patch name.",
+        "type": "string"
+      },
+      "rig_patch": {
+        "description": "Rig patch name.",
+        "type": "string"
+      },
+      "status": {
+        "description": "Operation result.",
+        "examples": [
+          "ok"
+        ],
+        "type": "string"
+      }
+    },
+    "required": [
+      "status"
+    ],
+    "type": "object"
+  },
+  "PendingInteraction": {
+    "additionalProperties": false,
+    "properties": {
+      "kind": {
+        "type": "string"
+      },
+      "metadata": {
+        "additionalProperties": {
+          "type": "string"
+        },
+        "type": "object"
+      },
+      "options": {
+        "items": {
+          "type": "string"
+        },
+        "type": [
+          "array",
+          "null"
+        ]
+      },
+      "prompt": {
+        "type": "string"
+      },
+      "request_id": {
+        "type": "string"
+      }
+    },
+    "required": [
+      "request_id",
+      "kind"
+    ],
+    "type": "object"
+  },
+  "PoolOverride": {
+    "additionalProperties": false,
+    "properties": {
+      "Check": {
+        "type": [
+          "string",
+          "null"
+        ]
+      },
+      "DrainTimeout": {
+        "type": [
+          "string",
+          "null"
+        ]
+      },
+      "Max": {
+        "format": "int64",
+        "type": [
+          "integer",
+          "null"
+        ]
+      },
+      "Min": {
+        "format": "int64",
+        "type": [
+          "integer",
+          "null"
+        ]
+      },
+      "OnBoot": {
+        "type": [
+          "string",
+          "null"
+        ]
+      },
+      "OnDeath": {
+        "type": [
+          "string",
+          "null"
+        ]
+      }
+    },
+    "required": [
+      "Min",
+      "Max",
+      "Check",
+      "DrainTimeout",
+      "OnDeath",
+      "OnBoot"
+    ],
+    "type": "object"
+  },
   "ProjectIdentityStampedPayload": {
     "additionalProperties": false,
     "properties": {
@@ -843,6 +4705,688 @@ export const gcSupervisorComponentSchemas: Record<string, unknown> = {
       "source",
       "layer",
       "new_id"
+    ],
+    "type": "object"
+  },
+  "ProviderCreateInputBody": {
+    "additionalProperties": false,
+    "properties": {
+      "acp_args": {
+        "description": "ACP transport command arguments override.",
+        "items": {
+          "type": "string"
+        },
+        "type": [
+          "array",
+          "null"
+        ]
+      },
+      "acp_command": {
+        "description": "ACP transport command binary override.",
+        "type": "string"
+      },
+      "args": {
+        "description": "Command arguments.",
+        "items": {
+          "type": "string"
+        },
+        "type": [
+          "array",
+          "null"
+        ]
+      },
+      "args_append": {
+        "description": "Arguments appended after inherited/base args.",
+        "items": {
+          "type": "string"
+        },
+        "type": [
+          "array",
+          "null"
+        ]
+      },
+      "base": {
+        "description": "Optional provider base for inheritance.",
+        "type": "string"
+      },
+      "command": {
+        "description": "Provider command binary. Omit for base-only descendants.",
+        "type": "string"
+      },
+      "display_name": {
+        "description": "Human-readable display name.",
+        "type": "string"
+      },
+      "env": {
+        "additionalProperties": {
+          "type": "string"
+        },
+        "description": "Environment variables.",
+        "type": "object"
+      },
+      "name": {
+        "description": "Provider name.",
+        "minLength": 1,
+        "type": "string"
+      },
+      "options_schema_merge": {
+        "description": "Options schema merge mode across inheritance chain.",
+        "type": "string"
+      },
+      "prompt_flag": {
+        "description": "Flag for prompt delivery.",
+        "type": "string"
+      },
+      "prompt_mode": {
+        "description": "Prompt delivery mode.",
+        "type": "string"
+      },
+      "ready_delay_ms": {
+        "description": "Milliseconds to wait before probing readiness.",
+        "format": "int64",
+        "type": "integer"
+      }
+    },
+    "required": [
+      "name"
+    ],
+    "type": "object"
+  },
+  "ProviderCreatedOutputBody": {
+    "additionalProperties": false,
+    "properties": {
+      "provider": {
+        "description": "Created provider name.",
+        "type": "string"
+      },
+      "status": {
+        "description": "Operation result.",
+        "examples": [
+          "created"
+        ],
+        "type": "string"
+      }
+    },
+    "required": [
+      "status",
+      "provider"
+    ],
+    "type": "object"
+  },
+  "ProviderOptionDTO": {
+    "additionalProperties": false,
+    "properties": {
+      "choices": {
+        "items": {
+          "$ref": "#/components/schemas/OptionChoiceDTO"
+        },
+        "type": [
+          "array",
+          "null"
+        ]
+      },
+      "default": {
+        "type": "string"
+      },
+      "key": {
+        "type": "string"
+      },
+      "label": {
+        "type": "string"
+      },
+      "type": {
+        "type": "string"
+      }
+    },
+    "required": [
+      "key",
+      "label",
+      "type",
+      "default",
+      "choices"
+    ],
+    "type": "object"
+  },
+  "ProviderPatch": {
+    "additionalProperties": false,
+    "properties": {
+      "ACPArgs": {
+        "items": {
+          "type": "string"
+        },
+        "type": [
+          "array",
+          "null"
+        ]
+      },
+      "ACPCommand": {
+        "type": [
+          "string",
+          "null"
+        ]
+      },
+      "AcceptStartupDialogs": {
+        "type": [
+          "boolean",
+          "null"
+        ]
+      },
+      "Args": {
+        "items": {
+          "type": "string"
+        },
+        "type": [
+          "array",
+          "null"
+        ]
+      },
+      "ArgsAppend": {
+        "items": {
+          "type": "string"
+        },
+        "type": [
+          "array",
+          "null"
+        ]
+      },
+      "Base": {
+        "type": [
+          "string",
+          "null"
+        ]
+      },
+      "Command": {
+        "type": [
+          "string",
+          "null"
+        ]
+      },
+      "Env": {
+        "additionalProperties": {
+          "type": "string"
+        },
+        "type": "object"
+      },
+      "EnvRemove": {
+        "items": {
+          "type": "string"
+        },
+        "type": [
+          "array",
+          "null"
+        ]
+      },
+      "Name": {
+        "type": "string"
+      },
+      "OptionsSchemaMerge": {
+        "type": [
+          "string",
+          "null"
+        ]
+      },
+      "PromptFlag": {
+        "type": [
+          "string",
+          "null"
+        ]
+      },
+      "PromptMode": {
+        "type": [
+          "string",
+          "null"
+        ]
+      },
+      "ReadyDelayMs": {
+        "format": "int64",
+        "type": [
+          "integer",
+          "null"
+        ]
+      },
+      "Replace": {
+        "type": "boolean"
+      }
+    },
+    "required": [
+      "Name",
+      "Base",
+      "Command",
+      "ACPCommand",
+      "Args",
+      "ACPArgs",
+      "ArgsAppend",
+      "OptionsSchemaMerge",
+      "PromptMode",
+      "PromptFlag",
+      "ReadyDelayMs",
+      "AcceptStartupDialogs",
+      "Env",
+      "EnvRemove",
+      "Replace"
+    ],
+    "type": "object"
+  },
+  "ProviderPatchSetInputBody": {
+    "additionalProperties": false,
+    "properties": {
+      "accept_startup_dialogs": {
+        "description": "Override startup dialog acceptance behavior.",
+        "type": "boolean"
+      },
+      "acp_args": {
+        "description": "Override ACP transport command arguments.",
+        "items": {
+          "type": "string"
+        },
+        "type": [
+          "array",
+          "null"
+        ]
+      },
+      "acp_command": {
+        "description": "Override ACP transport command binary.",
+        "type": "string"
+      },
+      "args": {
+        "description": "Override command arguments.",
+        "items": {
+          "type": "string"
+        },
+        "type": [
+          "array",
+          "null"
+        ]
+      },
+      "command": {
+        "description": "Override command binary.",
+        "type": "string"
+      },
+      "env": {
+        "additionalProperties": {
+          "type": "string"
+        },
+        "description": "Override environment variables.",
+        "type": "object"
+      },
+      "name": {
+        "description": "Provider name.",
+        "type": "string"
+      },
+      "prompt_flag": {
+        "description": "Override prompt flag.",
+        "type": "string"
+      },
+      "prompt_mode": {
+        "description": "Override prompt delivery mode.",
+        "type": "string"
+      },
+      "ready_delay_ms": {
+        "description": "Override ready delay in milliseconds.",
+        "format": "int64",
+        "type": "integer"
+      }
+    },
+    "type": "object"
+  },
+  "ProviderPublicListBody": {
+    "additionalProperties": false,
+    "properties": {
+      "items": {
+        "description": "The list of browser-safe provider summaries.",
+        "items": {
+          "$ref": "#/components/schemas/ProviderPublicResponse"
+        },
+        "type": [
+          "array",
+          "null"
+        ]
+      },
+      "next_cursor": {
+        "description": "Cursor for the next page of results.",
+        "type": "string"
+      },
+      "total": {
+        "description": "Total number of providers in the list.",
+        "format": "int64",
+        "type": "integer"
+      }
+    },
+    "required": [
+      "items",
+      "total"
+    ],
+    "type": "object"
+  },
+  "ProviderPublicResponse": {
+    "additionalProperties": false,
+    "properties": {
+      "builtin": {
+        "type": "boolean"
+      },
+      "city_level": {
+        "type": "boolean"
+      },
+      "display_name": {
+        "type": "string"
+      },
+      "effective_defaults": {
+        "additionalProperties": {
+          "type": "string"
+        },
+        "type": "object"
+      },
+      "name": {
+        "type": "string"
+      },
+      "options_schema": {
+        "items": {
+          "$ref": "#/components/schemas/ProviderOptionDTO"
+        },
+        "type": [
+          "array",
+          "null"
+        ]
+      }
+    },
+    "required": [
+      "name",
+      "builtin",
+      "city_level"
+    ],
+    "type": "object"
+  },
+  "ProviderReadiness": {
+    "additionalProperties": false,
+    "properties": {
+      "detail": {
+        "type": "string"
+      },
+      "display_name": {
+        "type": "string"
+      },
+      "status": {
+        "type": "string"
+      }
+    },
+    "required": [
+      "display_name",
+      "status"
+    ],
+    "type": "object"
+  },
+  "ProviderReadinessResponse": {
+    "additionalProperties": false,
+    "properties": {
+      "providers": {
+        "additionalProperties": {
+          "$ref": "#/components/schemas/ProviderReadiness"
+        },
+        "type": "object"
+      }
+    },
+    "required": [
+      "providers"
+    ],
+    "type": "object"
+  },
+  "ProviderResponse": {
+    "additionalProperties": false,
+    "properties": {
+      "acp_args": {
+        "items": {
+          "type": "string"
+        },
+        "type": "array"
+      },
+      "acp_command": {
+        "type": "string"
+      },
+      "args": {
+        "items": {
+          "type": "string"
+        },
+        "type": [
+          "array",
+          "null"
+        ]
+      },
+      "builtin": {
+        "type": "boolean"
+      },
+      "city_level": {
+        "type": "boolean"
+      },
+      "command": {
+        "type": "string"
+      },
+      "display_name": {
+        "type": "string"
+      },
+      "env": {
+        "additionalProperties": {
+          "type": "string"
+        },
+        "type": "object"
+      },
+      "name": {
+        "type": "string"
+      },
+      "prompt_flag": {
+        "type": "string"
+      },
+      "prompt_mode": {
+        "type": "string"
+      },
+      "ready_delay_ms": {
+        "format": "int64",
+        "type": "integer"
+      }
+    },
+    "required": [
+      "name",
+      "builtin",
+      "city_level"
+    ],
+    "type": "object"
+  },
+  "ProviderSpecJSON": {
+    "additionalProperties": false,
+    "properties": {
+      "acp_args": {
+        "items": {
+          "type": "string"
+        },
+        "type": "array"
+      },
+      "acp_command": {
+        "type": "string"
+      },
+      "args": {
+        "items": {
+          "type": "string"
+        },
+        "type": [
+          "array",
+          "null"
+        ]
+      },
+      "command": {
+        "type": "string"
+      },
+      "display_name": {
+        "type": "string"
+      },
+      "env": {
+        "additionalProperties": {
+          "type": "string"
+        },
+        "type": "object"
+      },
+      "prompt_flag": {
+        "type": "string"
+      },
+      "prompt_mode": {
+        "type": "string"
+      },
+      "ready_delay_ms": {
+        "format": "int64",
+        "type": "integer"
+      }
+    },
+    "type": "object"
+  },
+  "ProviderUpdateInputBody": {
+    "additionalProperties": false,
+    "properties": {
+      "acp_args": {
+        "description": "ACP transport command arguments override.",
+        "items": {
+          "type": "string"
+        },
+        "type": [
+          "array",
+          "null"
+        ]
+      },
+      "acp_command": {
+        "description": "ACP transport command binary override.",
+        "type": "string"
+      },
+      "args": {
+        "description": "Command arguments.",
+        "items": {
+          "type": "string"
+        },
+        "type": [
+          "array",
+          "null"
+        ]
+      },
+      "args_append": {
+        "description": "Arguments appended after inherited/base args.",
+        "items": {
+          "type": "string"
+        },
+        "type": [
+          "array",
+          "null"
+        ]
+      },
+      "base": {
+        "description": "Provider base for inheritance.",
+        "type": "string"
+      },
+      "command": {
+        "description": "Provider command binary.",
+        "type": "string"
+      },
+      "display_name": {
+        "description": "Human-readable display name.",
+        "type": "string"
+      },
+      "env": {
+        "additionalProperties": {
+          "type": "string"
+        },
+        "description": "Environment variables.",
+        "type": "object"
+      },
+      "options_schema_merge": {
+        "description": "Options schema merge mode across inheritance chain.",
+        "type": "string"
+      },
+      "prompt_flag": {
+        "description": "Flag for prompt delivery.",
+        "type": "string"
+      },
+      "prompt_mode": {
+        "description": "Prompt delivery mode.",
+        "type": "string"
+      },
+      "ready_delay_ms": {
+        "description": "Milliseconds to wait before probing readiness.",
+        "format": "int64",
+        "type": "integer"
+      }
+    },
+    "type": "object"
+  },
+  "PublishReceipt": {
+    "additionalProperties": false,
+    "properties": {
+      "Conversation": {
+        "$ref": "#/components/schemas/ConversationRef"
+      },
+      "Delivered": {
+        "type": "boolean"
+      },
+      "FailureKind": {
+        "type": "string"
+      },
+      "MessageID": {
+        "type": "string"
+      },
+      "Metadata": {
+        "additionalProperties": {
+          "type": "string"
+        },
+        "type": "object"
+      },
+      "RetryAfter": {
+        "format": "int64",
+        "type": "integer"
+      }
+    },
+    "required": [
+      "MessageID",
+      "Conversation",
+      "Delivered",
+      "FailureKind",
+      "RetryAfter",
+      "Metadata"
+    ],
+    "type": "object"
+  },
+  "ReadinessItem": {
+    "additionalProperties": false,
+    "properties": {
+      "detail": {
+        "type": "string"
+      },
+      "display_name": {
+        "type": "string"
+      },
+      "kind": {
+        "type": "string"
+      },
+      "name": {
+        "type": "string"
+      },
+      "status": {
+        "type": "string"
+      }
+    },
+    "required": [
+      "name",
+      "kind",
+      "display_name",
+      "status"
+    ],
+    "type": "object"
+  },
+  "ReadinessResponse": {
+    "additionalProperties": false,
+    "properties": {
+      "items": {
+        "additionalProperties": {
+          "$ref": "#/components/schemas/ReadinessItem"
+        },
+        "type": "object"
+      }
+    },
+    "required": [
+      "items"
     ],
     "type": "object"
   },
@@ -881,6 +5425,239 @@ export const gcSupervisorComponentSchemas: Record<string, unknown> = {
     ],
     "type": "object"
   },
+  "RigActionBody": {
+    "additionalProperties": false,
+    "properties": {
+      "action": {
+        "description": "Action that was performed.",
+        "type": "string"
+      },
+      "failed": {
+        "description": "Agents that failed to stop (restart only).",
+        "items": {
+          "type": "string"
+        },
+        "type": [
+          "array",
+          "null"
+        ]
+      },
+      "killed": {
+        "description": "Agents that were killed (restart only).",
+        "items": {
+          "type": "string"
+        },
+        "type": [
+          "array",
+          "null"
+        ]
+      },
+      "rig": {
+        "description": "Rig name.",
+        "type": "string"
+      },
+      "status": {
+        "description": "Operation result (ok, partial, failed).",
+        "examples": [
+          "ok"
+        ],
+        "type": "string"
+      }
+    },
+    "required": [
+      "status",
+      "action",
+      "rig"
+    ],
+    "type": "object"
+  },
+  "RigCreateInputBody": {
+    "additionalProperties": false,
+    "properties": {
+      "default_branch": {
+        "description": "Mainline branch (e.g. main, master). Auto-detected when omitted.",
+        "type": "string"
+      },
+      "name": {
+        "description": "Rig name.",
+        "minLength": 1,
+        "type": "string"
+      },
+      "path": {
+        "description": "Filesystem path.",
+        "minLength": 1,
+        "type": "string"
+      },
+      "prefix": {
+        "description": "Session name prefix.",
+        "type": "string"
+      }
+    },
+    "required": [
+      "name",
+      "path"
+    ],
+    "type": "object"
+  },
+  "RigCreatedOutputBody": {
+    "additionalProperties": false,
+    "properties": {
+      "rig": {
+        "description": "Created rig name.",
+        "type": "string"
+      },
+      "status": {
+        "description": "Operation result.",
+        "examples": [
+          "created"
+        ],
+        "type": "string"
+      }
+    },
+    "required": [
+      "status",
+      "rig"
+    ],
+    "type": "object"
+  },
+  "RigPatch": {
+    "additionalProperties": false,
+    "properties": {
+      "DefaultBranch": {
+        "type": [
+          "string",
+          "null"
+        ]
+      },
+      "FormulaVars": {
+        "additionalProperties": {
+          "type": "string"
+        },
+        "type": "object"
+      },
+      "Name": {
+        "type": "string"
+      },
+      "Path": {
+        "type": [
+          "string",
+          "null"
+        ]
+      },
+      "Prefix": {
+        "type": [
+          "string",
+          "null"
+        ]
+      },
+      "Suspended": {
+        "type": [
+          "boolean",
+          "null"
+        ]
+      }
+    },
+    "required": [
+      "Name",
+      "Path",
+      "Prefix",
+      "DefaultBranch",
+      "Suspended",
+      "FormulaVars"
+    ],
+    "type": "object"
+  },
+  "RigPatchSetInputBody": {
+    "additionalProperties": false,
+    "properties": {
+      "default_branch": {
+        "description": "Override mainline branch.",
+        "type": "string"
+      },
+      "name": {
+        "description": "Rig name.",
+        "type": "string"
+      },
+      "path": {
+        "description": "Override filesystem path.",
+        "type": "string"
+      },
+      "prefix": {
+        "description": "Override bead ID prefix.",
+        "type": "string"
+      },
+      "suspended": {
+        "description": "Override suspended state.",
+        "type": "boolean"
+      }
+    },
+    "type": "object"
+  },
+  "RigResponse": {
+    "additionalProperties": false,
+    "properties": {
+      "agent_count": {
+        "format": "int64",
+        "type": "integer"
+      },
+      "default_branch": {
+        "type": "string"
+      },
+      "git": {
+        "$ref": "#/components/schemas/GitStatus"
+      },
+      "last_activity": {
+        "format": "date-time",
+        "type": "string"
+      },
+      "name": {
+        "type": "string"
+      },
+      "path": {
+        "type": "string"
+      },
+      "prefix": {
+        "type": "string"
+      },
+      "running_count": {
+        "format": "int64",
+        "type": "integer"
+      },
+      "suspended": {
+        "type": "boolean"
+      }
+    },
+    "required": [
+      "name",
+      "path",
+      "suspended",
+      "agent_count",
+      "running_count"
+    ],
+    "type": "object"
+  },
+  "RigUpdateInputBody": {
+    "additionalProperties": false,
+    "properties": {
+      "default_branch": {
+        "description": "Mainline branch (e.g. main, master).",
+        "type": "string"
+      },
+      "path": {
+        "description": "Filesystem path.",
+        "type": "string"
+      },
+      "prefix": {
+        "description": "Session name prefix.",
+        "type": "string"
+      },
+      "suspended": {
+        "description": "Whether rig is suspended.",
+        "type": "boolean"
+      }
+    },
+    "type": "object"
+  },
   "RotatedPayload": {
     "additionalProperties": false,
     "properties": {
@@ -907,6 +5684,187 @@ export const gcSupervisorComponentSchemas: Record<string, unknown> = {
   },
   "ScopeGroup": {
     "additionalProperties": false,
+    "type": "object"
+  },
+  "ServiceRestartOutputBody": {
+    "additionalProperties": false,
+    "properties": {
+      "action": {
+        "description": "Action performed.",
+        "examples": [
+          "restart"
+        ],
+        "type": "string"
+      },
+      "service": {
+        "description": "Service name.",
+        "type": "string"
+      },
+      "status": {
+        "description": "Operation result.",
+        "examples": [
+          "ok"
+        ],
+        "type": "string"
+      }
+    },
+    "required": [
+      "status",
+      "action",
+      "service"
+    ],
+    "type": "object"
+  },
+  "SessionActivityEvent": {
+    "additionalProperties": false,
+    "properties": {
+      "activity": {
+        "description": "Session activity state: 'idle' or 'in-turn'.",
+        "examples": [
+          "idle"
+        ],
+        "type": "string"
+      }
+    },
+    "required": [
+      "activity"
+    ],
+    "type": "object"
+  },
+  "SessionAgentGetResponse": {
+    "additionalProperties": false,
+    "properties": {
+      "messages": {
+        "items": {},
+        "type": [
+          "array",
+          "null"
+        ]
+      },
+      "status": {
+        "type": "string"
+      }
+    },
+    "required": [
+      "messages"
+    ],
+    "type": "object"
+  },
+  "SessionAgentListResponse": {
+    "additionalProperties": false,
+    "properties": {
+      "agents": {
+        "items": {
+          "$ref": "#/components/schemas/AgentMapping"
+        },
+        "type": [
+          "array",
+          "null"
+        ]
+      }
+    },
+    "required": [
+      "agents"
+    ],
+    "type": "object"
+  },
+  "SessionBindingRecord": {
+    "additionalProperties": false,
+    "properties": {
+      "BindingGeneration": {
+        "format": "int64",
+        "type": "integer"
+      },
+      "BoundAt": {
+        "format": "date-time",
+        "type": "string"
+      },
+      "Conversation": {
+        "$ref": "#/components/schemas/ConversationRef"
+      },
+      "ExpiresAt": {
+        "format": "date-time",
+        "type": [
+          "string",
+          "null"
+        ]
+      },
+      "ID": {
+        "type": "string"
+      },
+      "Metadata": {
+        "additionalProperties": {
+          "type": "string"
+        },
+        "type": "object"
+      },
+      "SchemaVersion": {
+        "format": "int64",
+        "type": "integer"
+      },
+      "SessionID": {
+        "type": "string"
+      },
+      "Status": {
+        "$ref": "#/components/schemas/BindingStatus"
+      }
+    },
+    "required": [
+      "ID",
+      "SchemaVersion",
+      "Conversation",
+      "SessionID",
+      "Status",
+      "BoundAt",
+      "ExpiresAt",
+      "BindingGeneration",
+      "Metadata"
+    ],
+    "type": "object"
+  },
+  "SessionCreateBody": {
+    "additionalProperties": false,
+    "properties": {
+      "alias": {
+        "description": "Optional session alias.",
+        "type": "string"
+      },
+      "async": {
+        "description": "Create session asynchronously (agent only).",
+        "type": "boolean"
+      },
+      "kind": {
+        "description": "Session target kind: agent or provider.",
+        "type": "string"
+      },
+      "message": {
+        "description": "Initial message to send to the session.",
+        "type": "string"
+      },
+      "name": {
+        "description": "Agent or provider name.",
+        "type": "string"
+      },
+      "options": {
+        "additionalProperties": {
+          "type": "string"
+        },
+        "description": "Provider/agent option overrides.",
+        "type": "object"
+      },
+      "project_id": {
+        "description": "Opaque project context identifier.",
+        "type": "string"
+      },
+      "session_name": {
+        "description": "Deprecated: use alias.",
+        "type": "string"
+      },
+      "title": {
+        "description": "Session title.",
+        "type": "string"
+      }
+    },
     "type": "object"
   },
   "SessionCreateSucceededPayload": {
@@ -957,6 +5915,26 @@ export const gcSupervisorComponentSchemas: Record<string, unknown> = {
     ],
     "type": "object"
   },
+  "SessionInfo": {
+    "additionalProperties": false,
+    "properties": {
+      "attached": {
+        "type": "boolean"
+      },
+      "last_activity": {
+        "format": "date-time",
+        "type": "string"
+      },
+      "name": {
+        "type": "string"
+      }
+    },
+    "required": [
+      "name",
+      "attached"
+    ],
+    "type": "object"
+  },
   "SessionLifecyclePayload": {
     "additionalProperties": false,
     "properties": {
@@ -978,6 +5956,21 @@ export const gcSupervisorComponentSchemas: Record<string, unknown> = {
     ],
     "type": "object"
   },
+  "SessionMessageInputBody": {
+    "additionalProperties": false,
+    "properties": {
+      "message": {
+        "description": "Message text to send.",
+        "minLength": 1,
+        "pattern": "\\S",
+        "type": "string"
+      }
+    },
+    "required": [
+      "message"
+    ],
+    "type": "object"
+  },
   "SessionMessageSucceededPayload": {
     "additionalProperties": false,
     "properties": {
@@ -996,9 +5989,118 @@ export const gcSupervisorComponentSchemas: Record<string, unknown> = {
     ],
     "type": "object"
   },
+  "SessionPatchBody": {
+    "additionalProperties": false,
+    "properties": {
+      "alias": {
+        "description": "Session alias. Empty string clears the alias.",
+        "type": "string"
+      },
+      "title": {
+        "description": "Session title. If provided, must be non-empty.",
+        "minLength": 1,
+        "type": "string"
+      }
+    },
+    "type": "object"
+  },
+  "SessionPendingResponse": {
+    "additionalProperties": false,
+    "properties": {
+      "pending": {
+        "$ref": "#/components/schemas/PendingInteraction"
+      },
+      "supported": {
+        "type": "boolean"
+      }
+    },
+    "required": [
+      "supported"
+    ],
+    "type": "object"
+  },
+  "SessionPermissionModeBody": {
+    "additionalProperties": false,
+    "properties": {
+      "permission_mode": {
+        "description": "Provider schema value for the permission_mode option.",
+        "minLength": 1,
+        "pattern": "\\S",
+        "type": "string"
+      }
+    },
+    "required": [
+      "permission_mode"
+    ],
+    "type": "object"
+  },
   "SessionRawMessageFrame": {
     "description": "Provider-native transcript frame. Gas City forwards the exact JSON the provider wrote to its session log, so the shape is provider-specific and can be any JSON value. The producing provider is identified by the Provider field on the enclosing envelope; consumers dispatch per-provider frame parsing keyed by that identifier.",
     "title": "Session raw transcript frame"
+  },
+  "SessionRenameInputBody": {
+    "additionalProperties": false,
+    "properties": {
+      "title": {
+        "description": "New session title.",
+        "minLength": 1,
+        "type": "string"
+      }
+    },
+    "required": [
+      "title"
+    ],
+    "type": "object"
+  },
+  "SessionRespondInputBody": {
+    "additionalProperties": false,
+    "properties": {
+      "action": {
+        "description": "Response action (e.g. allow, deny).",
+        "minLength": 1,
+        "type": "string"
+      },
+      "metadata": {
+        "additionalProperties": {
+          "type": "string"
+        },
+        "description": "Optional response metadata.",
+        "type": "object"
+      },
+      "request_id": {
+        "description": "Pending interaction request ID (optional).",
+        "type": "string"
+      },
+      "text": {
+        "description": "Optional response text.",
+        "type": "string"
+      }
+    },
+    "required": [
+      "action"
+    ],
+    "type": "object"
+  },
+  "SessionRespondOutputBody": {
+    "additionalProperties": false,
+    "properties": {
+      "id": {
+        "description": "Session ID.",
+        "type": "string"
+      },
+      "status": {
+        "description": "Operation result.",
+        "examples": [
+          "accepted"
+        ],
+        "type": "string"
+      }
+    },
+    "required": [
+      "status",
+      "id"
+    ],
+    "type": "object"
   },
   "SessionResponse": {
     "additionalProperties": false,
@@ -1109,6 +6211,122 @@ export const gcSupervisorComponentSchemas: Record<string, unknown> = {
     ],
     "type": "object"
   },
+  "SessionStreamCommonEvent": {
+    "description": "Non-message events emitted on the session SSE stream: activity transitions, pending interactions, and keepalive heartbeats. The concrete variant is identified by the SSE event name.",
+    "oneOf": [
+      {
+        "$ref": "#/components/schemas/SessionActivityEvent"
+      },
+      {
+        "$ref": "#/components/schemas/PendingInteraction"
+      },
+      {
+        "$ref": "#/components/schemas/HeartbeatEvent"
+      }
+    ],
+    "title": "Session stream lifecycle event"
+  },
+  "SessionStreamMessageEvent": {
+    "additionalProperties": false,
+    "properties": {
+      "format": {
+        "type": "string"
+      },
+      "id": {
+        "type": "string"
+      },
+      "pagination": {
+        "$ref": "#/components/schemas/PaginationInfo"
+      },
+      "provider": {
+        "description": "Producing provider identifier (claude, codex, gemini, open-code, etc.).",
+        "type": "string"
+      },
+      "template": {
+        "type": "string"
+      },
+      "turns": {
+        "items": {
+          "$ref": "#/components/schemas/OutputTurn"
+        },
+        "type": [
+          "array",
+          "null"
+        ]
+      }
+    },
+    "required": [
+      "id",
+      "template",
+      "provider",
+      "format",
+      "turns"
+    ],
+    "type": "object"
+  },
+  "SessionStreamRawMessageEvent": {
+    "additionalProperties": false,
+    "properties": {
+      "format": {
+        "type": "string"
+      },
+      "id": {
+        "type": "string"
+      },
+      "messages": {
+        "description": "Provider-native transcript frames, emitted verbatim as the provider wrote them.",
+        "items": {
+          "$ref": "#/components/schemas/SessionRawMessageFrame"
+        },
+        "type": [
+          "array",
+          "null"
+        ]
+      },
+      "pagination": {
+        "$ref": "#/components/schemas/PaginationInfo"
+      },
+      "provider": {
+        "description": "Producing provider identifier (claude, codex, gemini, open-code, etc.). Consumers use this to dispatch per-provider frame parsing.",
+        "type": "string"
+      },
+      "template": {
+        "type": "string"
+      }
+    },
+    "required": [
+      "id",
+      "template",
+      "provider",
+      "format",
+      "messages"
+    ],
+    "type": "object"
+  },
+  "SessionSubmitInputBody": {
+    "additionalProperties": false,
+    "properties": {
+      "intent": {
+        "$ref": "#/components/schemas/SubmitIntent",
+        "description": "Submit intent; empty defaults to \"default\".",
+        "enum": [
+          "default",
+          "follow_up",
+          "interrupt_now"
+        ]
+      },
+      "message": {
+        "description": "Message text to submit.",
+        "minLength": 1,
+        "pattern": "\\S",
+        "type": "string"
+      }
+    },
+    "required": [
+      "message"
+    ],
+    "type": "object"
+  },
   "SessionSubmitSucceededPayload": {
     "additionalProperties": false,
     "properties": {
@@ -1186,6 +6404,553 @@ export const gcSupervisorComponentSchemas: Record<string, unknown> = {
     ],
     "type": "object"
   },
+  "SlingInputBody": {
+    "additionalProperties": false,
+    "properties": {
+      "attached_bead_id": {
+        "description": "Bead ID to attach a formula to.",
+        "type": "string"
+      },
+      "bead": {
+        "description": "Bead ID to sling.",
+        "type": "string"
+      },
+      "force": {
+        "description": "Bypass cross-rig guards; for direct bead routes, also bypass missing-bead validation. Formula-backed graph routes may replace existing live workflow roots but still require the source bead to exist.",
+        "type": "boolean"
+      },
+      "formula": {
+        "description": "Formula name for workflow launch.",
+        "type": "string"
+      },
+      "rig": {
+        "description": "Rig name.",
+        "type": "string"
+      },
+      "scope_kind": {
+        "description": "Scope kind (city or rig).",
+        "type": "string"
+      },
+      "scope_ref": {
+        "description": "Scope reference.",
+        "type": "string"
+      },
+      "target": {
+        "description": "Target agent or pool.",
+        "minLength": 1,
+        "type": "string"
+      },
+      "title": {
+        "description": "Workflow title.",
+        "type": "string"
+      },
+      "vars": {
+        "additionalProperties": {
+          "type": "string"
+        },
+        "description": "Formula variables.",
+        "type": "object"
+      }
+    },
+    "required": [
+      "target"
+    ],
+    "type": "object"
+  },
+  "SlingResponse": {
+    "additionalProperties": false,
+    "properties": {
+      "attached_bead_id": {
+        "type": "string"
+      },
+      "bead": {
+        "type": "string"
+      },
+      "formula": {
+        "type": "string"
+      },
+      "mode": {
+        "type": "string"
+      },
+      "root_bead_id": {
+        "type": "string"
+      },
+      "status": {
+        "type": "string"
+      },
+      "target": {
+        "type": "string"
+      },
+      "warnings": {
+        "items": {
+          "type": "string"
+        },
+        "type": [
+          "array",
+          "null"
+        ]
+      },
+      "workflow_id": {
+        "type": "string"
+      }
+    },
+    "required": [
+      "status",
+      "target"
+    ],
+    "type": "object"
+  },
+  "Status": {
+    "additionalProperties": false,
+    "properties": {
+      "allow_websockets": {
+        "type": "boolean"
+      },
+      "hostname": {
+        "type": "string"
+      },
+      "kind": {
+        "type": "string"
+      },
+      "local_state": {
+        "type": "string"
+      },
+      "mount_path": {
+        "type": "string"
+      },
+      "publication_state": {
+        "type": "string"
+      },
+      "publish_mode": {
+        "type": "string"
+      },
+      "reason": {
+        "type": "string"
+      },
+      "service_name": {
+        "type": "string"
+      },
+      "state": {
+        "type": "string"
+      },
+      "state_root": {
+        "type": "string"
+      },
+      "updated_at": {
+        "format": "date-time",
+        "type": "string"
+      },
+      "url": {
+        "type": "string"
+      },
+      "visibility": {
+        "type": "string"
+      },
+      "workflow_contract": {
+        "type": "string"
+      }
+    },
+    "required": [
+      "service_name",
+      "mount_path",
+      "publish_mode",
+      "state_root",
+      "local_state",
+      "publication_state",
+      "updated_at"
+    ],
+    "type": "object"
+  },
+  "StatusAgentCounts": {
+    "additionalProperties": false,
+    "properties": {
+      "quarantined": {
+        "description": "Number of quarantined agents.",
+        "format": "int64",
+        "type": "integer"
+      },
+      "running": {
+        "description": "Number of running agents.",
+        "format": "int64",
+        "type": "integer"
+      },
+      "suspended": {
+        "description": "Number of suspended agents.",
+        "format": "int64",
+        "type": "integer"
+      },
+      "total": {
+        "description": "Total number of agents.",
+        "format": "int64",
+        "type": "integer"
+      }
+    },
+    "required": [
+      "total",
+      "running",
+      "suspended",
+      "quarantined"
+    ],
+    "type": "object"
+  },
+  "StatusAgentDetail": {
+    "additionalProperties": false,
+    "properties": {
+      "draining": {
+        "description": "True when the pool is draining this instance.",
+        "type": "boolean"
+      },
+      "expanded": {
+        "description": "True when this row is a pool-expanded instance (renderer indents differently).",
+        "type": "boolean"
+      },
+      "group_name": {
+        "description": "Pool group label for expanded rows; same as QualifiedName for singletons.",
+        "type": "string"
+      },
+      "name": {
+        "description": "Unqualified agent name (for pool instances, the per-instance short name like 'polecat-1').",
+        "type": "string"
+      },
+      "qualified_name": {
+        "description": "Rig-qualified name when applicable, else the bare agent name.",
+        "type": "string"
+      },
+      "running": {
+        "description": "Observed running state of the agent's session.",
+        "type": "boolean"
+      },
+      "scale_label": {
+        "description": "'scaled (min=N, max=M)' header emitted once per pool group.",
+        "type": "string"
+      },
+      "scope": {
+        "description": "city or rig.",
+        "type": "string"
+      },
+      "session_name": {
+        "description": "tmux session name CLI drain-ops key on.",
+        "type": "string"
+      },
+      "suspended": {
+        "description": "Whether the agent (or its rig) is suspended.",
+        "type": "boolean"
+      }
+    },
+    "required": [
+      "name",
+      "qualified_name",
+      "scope",
+      "running",
+      "suspended"
+    ],
+    "type": "object"
+  },
+  "StatusBody": {
+    "additionalProperties": false,
+    "properties": {
+      "agent_count": {
+        "description": "Total agent count (deprecated, use agents.total).",
+        "format": "int64",
+        "type": "integer"
+      },
+      "agent_details": {
+        "description": "Per-agent state (for CLI status views). Empty when none.",
+        "items": {
+          "$ref": "#/components/schemas/StatusAgentDetail"
+        },
+        "type": [
+          "array",
+          "null"
+        ]
+      },
+      "agents": {
+        "$ref": "#/components/schemas/StatusAgentCounts",
+        "description": "Agent state counts."
+      },
+      "mail": {
+        "$ref": "#/components/schemas/StatusMailCounts",
+        "description": "Mail counts."
+      },
+      "name": {
+        "description": "City name.",
+        "type": "string"
+      },
+      "named_session_details": {
+        "description": "Per-named-session detail. Empty when none configured.",
+        "items": {
+          "$ref": "#/components/schemas/StatusNamedSessionDetail"
+        },
+        "type": [
+          "array",
+          "null"
+        ]
+      },
+      "partial": {
+        "description": "True when one or more status backing reads returned incomplete data.",
+        "type": "boolean"
+      },
+      "partial_errors": {
+        "description": "Human-readable errors from incomplete status backing reads.",
+        "items": {
+          "type": "string"
+        },
+        "type": [
+          "array",
+          "null"
+        ]
+      },
+      "path": {
+        "description": "City directory path.",
+        "type": "string"
+      },
+      "rig_count": {
+        "description": "Total rig count (deprecated, use rigs.total).",
+        "format": "int64",
+        "type": "integer"
+      },
+      "rig_details": {
+        "description": "Per-rig detail (for CLI status views). Empty when none.",
+        "items": {
+          "$ref": "#/components/schemas/StatusRigDetail"
+        },
+        "type": [
+          "array",
+          "null"
+        ]
+      },
+      "rigs": {
+        "$ref": "#/components/schemas/StatusRigCounts",
+        "description": "Rig state counts."
+      },
+      "running": {
+        "description": "Number of running agent processes.",
+        "format": "int64",
+        "type": "integer"
+      },
+      "session_counts_detail": {
+        "$ref": "#/components/schemas/StatusSessionCountsDetail",
+        "description": "Active/suspended session counts. Omitted when unavailable."
+      },
+      "store_health": {
+        "$ref": "#/components/schemas/StatusStoreHealth",
+        "description": "Dolt bead store health summary. Omitted when unavailable."
+      },
+      "suspended": {
+        "description": "Whether the city is suspended.",
+        "type": "boolean"
+      },
+      "uptime_sec": {
+        "description": "Server uptime in seconds.",
+        "format": "int64",
+        "type": "integer"
+      },
+      "version": {
+        "description": "Server version.",
+        "type": "string"
+      },
+      "work": {
+        "$ref": "#/components/schemas/StatusWorkCounts",
+        "description": "Work item counts."
+      }
+    },
+    "required": [
+      "name",
+      "path",
+      "uptime_sec",
+      "suspended",
+      "agent_count",
+      "rig_count",
+      "running",
+      "agents",
+      "rigs",
+      "work",
+      "mail"
+    ],
+    "type": "object"
+  },
+  "StatusMailCounts": {
+    "additionalProperties": false,
+    "properties": {
+      "total": {
+        "description": "Total number of messages.",
+        "format": "int64",
+        "type": "integer"
+      },
+      "unread": {
+        "description": "Number of unread messages.",
+        "format": "int64",
+        "type": "integer"
+      }
+    },
+    "required": [
+      "unread",
+      "total"
+    ],
+    "type": "object"
+  },
+  "StatusNamedSessionDetail": {
+    "additionalProperties": false,
+    "properties": {
+      "identity": {
+        "description": "Qualified named-session identity.",
+        "type": "string"
+      },
+      "mode": {
+        "description": "Named-session mode (on-demand, always, etc.).",
+        "type": "string"
+      },
+      "status": {
+        "description": "Lifecycle status string (materialized, reserved-unmaterialized, etc.).",
+        "type": "string"
+      }
+    },
+    "required": [
+      "identity",
+      "status",
+      "mode"
+    ],
+    "type": "object"
+  },
+  "StatusRigCounts": {
+    "additionalProperties": false,
+    "properties": {
+      "suspended": {
+        "description": "Number of suspended rigs.",
+        "format": "int64",
+        "type": "integer"
+      },
+      "total": {
+        "description": "Total number of rigs.",
+        "format": "int64",
+        "type": "integer"
+      }
+    },
+    "required": [
+      "total",
+      "suspended"
+    ],
+    "type": "object"
+  },
+  "StatusRigDetail": {
+    "additionalProperties": false,
+    "properties": {
+      "name": {
+        "description": "Rig name.",
+        "type": "string"
+      },
+      "path": {
+        "description": "Rig directory path.",
+        "type": "string"
+      },
+      "suspended": {
+        "description": "Whether the rig is suspended (either explicitly or because all its agents are suspended).",
+        "type": "boolean"
+      }
+    },
+    "required": [
+      "name",
+      "path",
+      "suspended"
+    ],
+    "type": "object"
+  },
+  "StatusSessionCountsDetail": {
+    "additionalProperties": false,
+    "properties": {
+      "active": {
+        "description": "Number of active sessions.",
+        "format": "int64",
+        "type": "integer"
+      },
+      "suspended": {
+        "description": "Number of suspended sessions.",
+        "format": "int64",
+        "type": "integer"
+      }
+    },
+    "required": [
+      "active",
+      "suspended"
+    ],
+    "type": "object"
+  },
+  "StatusStoreHealth": {
+    "additionalProperties": false,
+    "properties": {
+      "last_gc_at": {
+        "description": "RFC3339 timestamp of last maintenance run.",
+        "type": "string"
+      },
+      "last_gc_status": {
+        "description": "Status of last maintenance run ('success' or 'failed').",
+        "type": "string"
+      },
+      "live_rows": {
+        "description": "Live bead row count.",
+        "format": "int64",
+        "type": "integer"
+      },
+      "path": {
+        "description": "On-disk path of the Dolt store.",
+        "type": "string"
+      },
+      "ratio_mb_per_row": {
+        "description": "Derived megabytes per row.",
+        "format": "double",
+        "type": "number"
+      },
+      "size_bytes": {
+        "description": "Total bytes of the store directory.",
+        "format": "int64",
+        "type": "integer"
+      },
+      "threshold_mb_per_row": {
+        "description": "Ratio threshold; a ratio above this trips warning.",
+        "format": "double",
+        "type": "number"
+      },
+      "warning": {
+        "description": "True when maintenance is overdue.",
+        "type": "boolean"
+      }
+    },
+    "required": [
+      "path",
+      "size_bytes",
+      "live_rows",
+      "ratio_mb_per_row",
+      "warning",
+      "threshold_mb_per_row"
+    ],
+    "type": "object"
+  },
+  "StatusWorkCounts": {
+    "additionalProperties": false,
+    "properties": {
+      "in_progress": {
+        "description": "Number of in-progress work items.",
+        "format": "int64",
+        "type": "integer"
+      },
+      "open": {
+        "description": "Number of open work items.",
+        "format": "int64",
+        "type": "integer"
+      },
+      "ready": {
+        "description": "Number of ready work items.",
+        "format": "int64",
+        "type": "integer"
+      }
+    },
+    "required": [
+      "in_progress",
+      "ready",
+      "open"
+    ],
+    "type": "object"
+  },
   "StoreMaintenanceDonePayload": {
     "additionalProperties": false,
     "properties": {
@@ -1253,6 +7018,68 @@ export const gcSupervisorComponentSchemas: Record<string, unknown> = {
     ],
     "type": "object"
   },
+  "SubmitIntent": {
+    "description": "Semantic delivery choice for a user message on a session submit request.",
+    "enum": [
+      "default",
+      "follow_up",
+      "interrupt_now"
+    ],
+    "type": "string"
+  },
+  "SupervisorCitiesOutputBody": {
+    "additionalProperties": false,
+    "properties": {
+      "items": {
+        "description": "Managed cities with status info.",
+        "items": {
+          "$ref": "#/components/schemas/CityInfo"
+        },
+        "type": [
+          "array",
+          "null"
+        ]
+      },
+      "total": {
+        "description": "Total count.",
+        "format": "int64",
+        "type": "integer"
+      }
+    },
+    "required": [
+      "items",
+      "total"
+    ],
+    "type": "object"
+  },
+  "SupervisorEventListOutputBody": {
+    "additionalProperties": false,
+    "properties": {
+      "event_cursor": {
+        "description": "Supervisor event-stream cursor captured before the history snapshot was listed. Pass this value as after_cursor to /v0/events/stream to receive events emitted after the snapshot boundary without replaying unrelated historical backlog.",
+        "type": "string"
+      },
+      "items": {
+        "items": {
+          "$ref": "#/components/schemas/TypedTaggedEventStreamEnvelope"
+        },
+        "type": [
+          "array",
+          "null"
+        ]
+      },
+      "total": {
+        "format": "int64",
+        "type": "integer"
+      }
+    },
+    "required": [
+      "event_cursor",
+      "items",
+      "total"
+    ],
+    "type": "object"
+  },
   "SupervisorFSPressureSkippedTickPayload": {
     "additionalProperties": false,
     "properties": {
@@ -1294,6 +7121,50 @@ export const gcSupervisorComponentSchemas: Record<string, unknown> = {
     ],
     "type": "object"
   },
+  "SupervisorHealthOutputBody": {
+    "additionalProperties": false,
+    "properties": {
+      "build_id": {
+        "description": "Build identity (typically a short git commit hash, with \"-dirty\" suffix when built from an unclean tree). Empty when unavailable.",
+        "type": "string"
+      },
+      "cities_running": {
+        "description": "Cities currently running.",
+        "format": "int64",
+        "type": "integer"
+      },
+      "cities_total": {
+        "description": "Total managed cities.",
+        "format": "int64",
+        "type": "integer"
+      },
+      "startup": {
+        "$ref": "#/components/schemas/SupervisorStartup",
+        "description": "First-city startup info for single-city deployments."
+      },
+      "status": {
+        "description": "Health status (\"ok\").",
+        "type": "string"
+      },
+      "uptime_sec": {
+        "description": "Supervisor uptime in seconds.",
+        "format": "int64",
+        "type": "integer"
+      },
+      "version": {
+        "description": "Supervisor version.",
+        "type": "string"
+      }
+    },
+    "required": [
+      "status",
+      "version",
+      "uptime_sec",
+      "cities_total",
+      "cities_running"
+    ],
+    "type": "object"
+  },
   "SupervisorShutdownPayload": {
     "additionalProperties": false,
     "properties": {
@@ -1328,6 +7199,92 @@ export const gcSupervisorComponentSchemas: Record<string, unknown> = {
       "mode"
     ],
     "type": "object"
+  },
+  "SupervisorStartup": {
+    "additionalProperties": false,
+    "properties": {
+      "phase": {
+        "description": "Current phase (when not ready).",
+        "type": "string"
+      },
+      "phases_completed": {
+        "description": "Phases completed so far.",
+        "items": {
+          "type": "string"
+        },
+        "type": [
+          "array",
+          "null"
+        ]
+      },
+      "ready": {
+        "description": "True when the city is running.",
+        "type": "boolean"
+      }
+    },
+    "required": [
+      "ready"
+    ],
+    "type": "object"
+  },
+  "TaggedEventStreamEnvelope": {
+    "additionalProperties": false,
+    "properties": {
+      "actor": {
+        "type": "string"
+      },
+      "city": {
+        "type": "string"
+      },
+      "message": {
+        "type": "string"
+      },
+      "payload": {
+        "$ref": "#/components/schemas/EventPayload"
+      },
+      "seq": {
+        "format": "int64",
+        "minimum": 0,
+        "type": "integer"
+      },
+      "subject": {
+        "type": "string"
+      },
+      "ts": {
+        "format": "date-time",
+        "type": "string"
+      },
+      "type": {
+        "type": "string"
+      },
+      "workflow": {
+        "$ref": "#/components/schemas/WorkflowEventProjection"
+      }
+    },
+    "required": [
+      "seq",
+      "type",
+      "ts",
+      "actor",
+      "city"
+    ],
+    "type": "object"
+  },
+  "TranscriptMessageKind": {
+    "description": "Direction of a transcript entry.",
+    "enum": [
+      "inbound",
+      "outbound"
+    ],
+    "type": "string"
+  },
+  "TranscriptProvenance": {
+    "description": "Provenance of a transcript entry (freshly observed vs. replayed from persisted history).",
+    "enum": [
+      "live",
+      "hydrated"
+    ],
+    "type": "string"
   },
   "TypedEventStreamEnvelope": {
     "description": "Discriminated union of city event stream envelopes. Each variant constrains the envelope type and payload schema together.",
@@ -3971,6 +9928,2872 @@ export const gcSupervisorComponentSchemas: Record<string, unknown> = {
     "title": "TypedEventStreamEnvelope worker.operation",
     "type": "object"
   },
+  "TypedTaggedEventStreamEnvelope": {
+    "description": "Discriminated union of supervisor event stream envelopes. Each variant constrains the envelope type and payload schema together and includes the source city.",
+    "discriminator": {
+      "mapping": {
+        "bead.closed": "#/components/schemas/TypedTaggedEventStreamEnvelopeBeadClosed",
+        "bead.created": "#/components/schemas/TypedTaggedEventStreamEnvelopeBeadCreated",
+        "bead.updated": "#/components/schemas/TypedTaggedEventStreamEnvelopeBeadUpdated",
+        "city.created": "#/components/schemas/TypedTaggedEventStreamEnvelopeCityCreated",
+        "city.resumed": "#/components/schemas/TypedTaggedEventStreamEnvelopeCityResumed",
+        "city.suspended": "#/components/schemas/TypedTaggedEventStreamEnvelopeCitySuspended",
+        "city.unregister_requested": "#/components/schemas/TypedTaggedEventStreamEnvelopeCityUnregisterRequested",
+        "controller.started": "#/components/schemas/TypedTaggedEventStreamEnvelopeControllerStarted",
+        "controller.stopped": "#/components/schemas/TypedTaggedEventStreamEnvelopeControllerStopped",
+        "convoy.closed": "#/components/schemas/TypedTaggedEventStreamEnvelopeConvoyClosed",
+        "convoy.created": "#/components/schemas/TypedTaggedEventStreamEnvelopeConvoyCreated",
+        "events.rotated": "#/components/schemas/TypedTaggedEventStreamEnvelopeEventsRotated",
+        "extmsg.adapter_added": "#/components/schemas/TypedTaggedEventStreamEnvelopeExtmsgAdapterAdded",
+        "extmsg.adapter_removed": "#/components/schemas/TypedTaggedEventStreamEnvelopeExtmsgAdapterRemoved",
+        "extmsg.bound": "#/components/schemas/TypedTaggedEventStreamEnvelopeExtmsgBound",
+        "extmsg.group_created": "#/components/schemas/TypedTaggedEventStreamEnvelopeExtmsgGroupCreated",
+        "extmsg.inbound": "#/components/schemas/TypedTaggedEventStreamEnvelopeExtmsgInbound",
+        "extmsg.outbound": "#/components/schemas/TypedTaggedEventStreamEnvelopeExtmsgOutbound",
+        "extmsg.unbound": "#/components/schemas/TypedTaggedEventStreamEnvelopeExtmsgUnbound",
+        "gc.store.maintenance.done": "#/components/schemas/TypedTaggedEventStreamEnvelopeGcStoreMaintenanceDone",
+        "gc.store.maintenance.failed": "#/components/schemas/TypedTaggedEventStreamEnvelopeGcStoreMaintenanceFailed",
+        "mail.archived": "#/components/schemas/TypedTaggedEventStreamEnvelopeMailArchived",
+        "mail.deleted": "#/components/schemas/TypedTaggedEventStreamEnvelopeMailDeleted",
+        "mail.marked_read": "#/components/schemas/TypedTaggedEventStreamEnvelopeMailMarkedRead",
+        "mail.marked_unread": "#/components/schemas/TypedTaggedEventStreamEnvelopeMailMarkedUnread",
+        "mail.read": "#/components/schemas/TypedTaggedEventStreamEnvelopeMailRead",
+        "mail.replied": "#/components/schemas/TypedTaggedEventStreamEnvelopeMailReplied",
+        "mail.sent": "#/components/schemas/TypedTaggedEventStreamEnvelopeMailSent",
+        "order.completed": "#/components/schemas/TypedTaggedEventStreamEnvelopeOrderCompleted",
+        "order.failed": "#/components/schemas/TypedTaggedEventStreamEnvelopeOrderFailed",
+        "order.fired": "#/components/schemas/TypedTaggedEventStreamEnvelopeOrderFired",
+        "project.identity.stamped": "#/components/schemas/TypedTaggedEventStreamEnvelopeProjectIdentityStamped",
+        "provider.swapped": "#/components/schemas/TypedTaggedEventStreamEnvelopeProviderSwapped",
+        "request.failed": "#/components/schemas/TypedTaggedEventStreamEnvelopeRequestFailed",
+        "request.result.city.create": "#/components/schemas/TypedTaggedEventStreamEnvelopeRequestResultCityCreate",
+        "request.result.city.unregister": "#/components/schemas/TypedTaggedEventStreamEnvelopeRequestResultCityUnregister",
+        "request.result.session.create": "#/components/schemas/TypedTaggedEventStreamEnvelopeRequestResultSessionCreate",
+        "request.result.session.message": "#/components/schemas/TypedTaggedEventStreamEnvelopeRequestResultSessionMessage",
+        "request.result.session.submit": "#/components/schemas/TypedTaggedEventStreamEnvelopeRequestResultSessionSubmit",
+        "session.crashed": "#/components/schemas/TypedTaggedEventStreamEnvelopeSessionCrashed",
+        "session.drain_acked_with_assigned_work": "#/components/schemas/TypedTaggedEventStreamEnvelopeSessionDrainAckedWithAssignedWork",
+        "session.draining": "#/components/schemas/TypedTaggedEventStreamEnvelopeSessionDraining",
+        "session.idle_killed": "#/components/schemas/TypedTaggedEventStreamEnvelopeSessionIdleKilled",
+        "session.max_age_killed": "#/components/schemas/TypedTaggedEventStreamEnvelopeSessionMaxAgeKilled",
+        "session.quarantined": "#/components/schemas/TypedTaggedEventStreamEnvelopeSessionQuarantined",
+        "session.stopped": "#/components/schemas/TypedTaggedEventStreamEnvelopeSessionStopped",
+        "session.stranded": "#/components/schemas/TypedTaggedEventStreamEnvelopeSessionStranded",
+        "session.suspended": "#/components/schemas/TypedTaggedEventStreamEnvelopeSessionSuspended",
+        "session.undrained": "#/components/schemas/TypedTaggedEventStreamEnvelopeSessionUndrained",
+        "session.updated": "#/components/schemas/TypedTaggedEventStreamEnvelopeSessionUpdated",
+        "session.woke": "#/components/schemas/TypedTaggedEventStreamEnvelopeSessionWoke",
+        "session.work_query_failed": "#/components/schemas/TypedTaggedEventStreamEnvelopeSessionWorkQueryFailed",
+        "supervisor.fs_pressure.skipped_tick": "#/components/schemas/TypedTaggedEventStreamEnvelopeSupervisorFsPressureSkippedTick",
+        "supervisor.shutdown_requested": "#/components/schemas/TypedTaggedEventStreamEnvelopeSupervisorShutdownRequested",
+        "worker.operation": "#/components/schemas/TypedTaggedEventStreamEnvelopeWorkerOperation"
+      },
+      "propertyName": "type"
+    },
+    "oneOf": [
+      {
+        "$ref": "#/components/schemas/TypedTaggedEventStreamEnvelopeBeadClosed"
+      },
+      {
+        "$ref": "#/components/schemas/TypedTaggedEventStreamEnvelopeBeadCreated"
+      },
+      {
+        "$ref": "#/components/schemas/TypedTaggedEventStreamEnvelopeBeadUpdated"
+      },
+      {
+        "$ref": "#/components/schemas/TypedTaggedEventStreamEnvelopeCityCreated"
+      },
+      {
+        "$ref": "#/components/schemas/TypedTaggedEventStreamEnvelopeCityResumed"
+      },
+      {
+        "$ref": "#/components/schemas/TypedTaggedEventStreamEnvelopeCitySuspended"
+      },
+      {
+        "$ref": "#/components/schemas/TypedTaggedEventStreamEnvelopeCityUnregisterRequested"
+      },
+      {
+        "$ref": "#/components/schemas/TypedTaggedEventStreamEnvelopeControllerStarted"
+      },
+      {
+        "$ref": "#/components/schemas/TypedTaggedEventStreamEnvelopeControllerStopped"
+      },
+      {
+        "$ref": "#/components/schemas/TypedTaggedEventStreamEnvelopeConvoyClosed"
+      },
+      {
+        "$ref": "#/components/schemas/TypedTaggedEventStreamEnvelopeConvoyCreated"
+      },
+      {
+        "$ref": "#/components/schemas/TypedTaggedEventStreamEnvelopeEventsRotated"
+      },
+      {
+        "$ref": "#/components/schemas/TypedTaggedEventStreamEnvelopeExtmsgAdapterAdded"
+      },
+      {
+        "$ref": "#/components/schemas/TypedTaggedEventStreamEnvelopeExtmsgAdapterRemoved"
+      },
+      {
+        "$ref": "#/components/schemas/TypedTaggedEventStreamEnvelopeExtmsgBound"
+      },
+      {
+        "$ref": "#/components/schemas/TypedTaggedEventStreamEnvelopeExtmsgGroupCreated"
+      },
+      {
+        "$ref": "#/components/schemas/TypedTaggedEventStreamEnvelopeExtmsgInbound"
+      },
+      {
+        "$ref": "#/components/schemas/TypedTaggedEventStreamEnvelopeExtmsgOutbound"
+      },
+      {
+        "$ref": "#/components/schemas/TypedTaggedEventStreamEnvelopeExtmsgUnbound"
+      },
+      {
+        "$ref": "#/components/schemas/TypedTaggedEventStreamEnvelopeGcStoreMaintenanceDone"
+      },
+      {
+        "$ref": "#/components/schemas/TypedTaggedEventStreamEnvelopeGcStoreMaintenanceFailed"
+      },
+      {
+        "$ref": "#/components/schemas/TypedTaggedEventStreamEnvelopeMailArchived"
+      },
+      {
+        "$ref": "#/components/schemas/TypedTaggedEventStreamEnvelopeMailDeleted"
+      },
+      {
+        "$ref": "#/components/schemas/TypedTaggedEventStreamEnvelopeMailMarkedRead"
+      },
+      {
+        "$ref": "#/components/schemas/TypedTaggedEventStreamEnvelopeMailMarkedUnread"
+      },
+      {
+        "$ref": "#/components/schemas/TypedTaggedEventStreamEnvelopeMailRead"
+      },
+      {
+        "$ref": "#/components/schemas/TypedTaggedEventStreamEnvelopeMailReplied"
+      },
+      {
+        "$ref": "#/components/schemas/TypedTaggedEventStreamEnvelopeMailSent"
+      },
+      {
+        "$ref": "#/components/schemas/TypedTaggedEventStreamEnvelopeOrderCompleted"
+      },
+      {
+        "$ref": "#/components/schemas/TypedTaggedEventStreamEnvelopeOrderFailed"
+      },
+      {
+        "$ref": "#/components/schemas/TypedTaggedEventStreamEnvelopeOrderFired"
+      },
+      {
+        "$ref": "#/components/schemas/TypedTaggedEventStreamEnvelopeProjectIdentityStamped"
+      },
+      {
+        "$ref": "#/components/schemas/TypedTaggedEventStreamEnvelopeProviderSwapped"
+      },
+      {
+        "$ref": "#/components/schemas/TypedTaggedEventStreamEnvelopeRequestFailed"
+      },
+      {
+        "$ref": "#/components/schemas/TypedTaggedEventStreamEnvelopeRequestResultCityCreate"
+      },
+      {
+        "$ref": "#/components/schemas/TypedTaggedEventStreamEnvelopeRequestResultCityUnregister"
+      },
+      {
+        "$ref": "#/components/schemas/TypedTaggedEventStreamEnvelopeRequestResultSessionCreate"
+      },
+      {
+        "$ref": "#/components/schemas/TypedTaggedEventStreamEnvelopeRequestResultSessionMessage"
+      },
+      {
+        "$ref": "#/components/schemas/TypedTaggedEventStreamEnvelopeRequestResultSessionSubmit"
+      },
+      {
+        "$ref": "#/components/schemas/TypedTaggedEventStreamEnvelopeSessionCrashed"
+      },
+      {
+        "$ref": "#/components/schemas/TypedTaggedEventStreamEnvelopeSessionDrainAckedWithAssignedWork"
+      },
+      {
+        "$ref": "#/components/schemas/TypedTaggedEventStreamEnvelopeSessionDraining"
+      },
+      {
+        "$ref": "#/components/schemas/TypedTaggedEventStreamEnvelopeSessionIdleKilled"
+      },
+      {
+        "$ref": "#/components/schemas/TypedTaggedEventStreamEnvelopeSessionMaxAgeKilled"
+      },
+      {
+        "$ref": "#/components/schemas/TypedTaggedEventStreamEnvelopeSessionQuarantined"
+      },
+      {
+        "$ref": "#/components/schemas/TypedTaggedEventStreamEnvelopeSessionStopped"
+      },
+      {
+        "$ref": "#/components/schemas/TypedTaggedEventStreamEnvelopeSessionStranded"
+      },
+      {
+        "$ref": "#/components/schemas/TypedTaggedEventStreamEnvelopeSessionSuspended"
+      },
+      {
+        "$ref": "#/components/schemas/TypedTaggedEventStreamEnvelopeSessionUndrained"
+      },
+      {
+        "$ref": "#/components/schemas/TypedTaggedEventStreamEnvelopeSessionUpdated"
+      },
+      {
+        "$ref": "#/components/schemas/TypedTaggedEventStreamEnvelopeSessionWoke"
+      },
+      {
+        "$ref": "#/components/schemas/TypedTaggedEventStreamEnvelopeSessionWorkQueryFailed"
+      },
+      {
+        "$ref": "#/components/schemas/TypedTaggedEventStreamEnvelopeSupervisorFsPressureSkippedTick"
+      },
+      {
+        "$ref": "#/components/schemas/TypedTaggedEventStreamEnvelopeSupervisorShutdownRequested"
+      },
+      {
+        "$ref": "#/components/schemas/TypedTaggedEventStreamEnvelopeWorkerOperation"
+      },
+      {
+        "$ref": "#/components/schemas/TypedTaggedEventStreamEnvelopeCustom"
+      }
+    ],
+    "title": "Typed supervisor event stream envelope"
+  },
+  "TypedTaggedEventStreamEnvelopeBeadClosed": {
+    "additionalProperties": false,
+    "properties": {
+      "actor": {
+        "type": "string"
+      },
+      "city": {
+        "type": "string"
+      },
+      "message": {
+        "type": "string"
+      },
+      "payload": {
+        "$ref": "#/components/schemas/BeadEventPayload"
+      },
+      "seq": {
+        "format": "int64",
+        "minimum": 0,
+        "type": "integer"
+      },
+      "subject": {
+        "type": "string"
+      },
+      "ts": {
+        "format": "date-time",
+        "type": "string"
+      },
+      "type": {
+        "const": "bead.closed",
+        "type": "string"
+      },
+      "workflow": {
+        "$ref": "#/components/schemas/WorkflowEventProjection"
+      }
+    },
+    "required": [
+      "seq",
+      "type",
+      "ts",
+      "actor",
+      "payload",
+      "city"
+    ],
+    "title": "TypedTaggedEventStreamEnvelope bead.closed",
+    "type": "object"
+  },
+  "TypedTaggedEventStreamEnvelopeBeadCreated": {
+    "additionalProperties": false,
+    "properties": {
+      "actor": {
+        "type": "string"
+      },
+      "city": {
+        "type": "string"
+      },
+      "message": {
+        "type": "string"
+      },
+      "payload": {
+        "$ref": "#/components/schemas/BeadEventPayload"
+      },
+      "seq": {
+        "format": "int64",
+        "minimum": 0,
+        "type": "integer"
+      },
+      "subject": {
+        "type": "string"
+      },
+      "ts": {
+        "format": "date-time",
+        "type": "string"
+      },
+      "type": {
+        "const": "bead.created",
+        "type": "string"
+      },
+      "workflow": {
+        "$ref": "#/components/schemas/WorkflowEventProjection"
+      }
+    },
+    "required": [
+      "seq",
+      "type",
+      "ts",
+      "actor",
+      "payload",
+      "city"
+    ],
+    "title": "TypedTaggedEventStreamEnvelope bead.created",
+    "type": "object"
+  },
+  "TypedTaggedEventStreamEnvelopeBeadUpdated": {
+    "additionalProperties": false,
+    "properties": {
+      "actor": {
+        "type": "string"
+      },
+      "city": {
+        "type": "string"
+      },
+      "message": {
+        "type": "string"
+      },
+      "payload": {
+        "$ref": "#/components/schemas/BeadEventPayload"
+      },
+      "seq": {
+        "format": "int64",
+        "minimum": 0,
+        "type": "integer"
+      },
+      "subject": {
+        "type": "string"
+      },
+      "ts": {
+        "format": "date-time",
+        "type": "string"
+      },
+      "type": {
+        "const": "bead.updated",
+        "type": "string"
+      },
+      "workflow": {
+        "$ref": "#/components/schemas/WorkflowEventProjection"
+      }
+    },
+    "required": [
+      "seq",
+      "type",
+      "ts",
+      "actor",
+      "payload",
+      "city"
+    ],
+    "title": "TypedTaggedEventStreamEnvelope bead.updated",
+    "type": "object"
+  },
+  "TypedTaggedEventStreamEnvelopeCityCreated": {
+    "additionalProperties": false,
+    "properties": {
+      "actor": {
+        "type": "string"
+      },
+      "city": {
+        "type": "string"
+      },
+      "message": {
+        "type": "string"
+      },
+      "payload": {
+        "$ref": "#/components/schemas/CityLifecyclePayload"
+      },
+      "seq": {
+        "format": "int64",
+        "minimum": 0,
+        "type": "integer"
+      },
+      "subject": {
+        "type": "string"
+      },
+      "ts": {
+        "format": "date-time",
+        "type": "string"
+      },
+      "type": {
+        "const": "city.created",
+        "type": "string"
+      },
+      "workflow": {
+        "$ref": "#/components/schemas/WorkflowEventProjection"
+      }
+    },
+    "required": [
+      "seq",
+      "type",
+      "ts",
+      "actor",
+      "payload",
+      "city"
+    ],
+    "title": "TypedTaggedEventStreamEnvelope city.created",
+    "type": "object"
+  },
+  "TypedTaggedEventStreamEnvelopeCityResumed": {
+    "additionalProperties": false,
+    "properties": {
+      "actor": {
+        "type": "string"
+      },
+      "city": {
+        "type": "string"
+      },
+      "message": {
+        "type": "string"
+      },
+      "payload": {
+        "$ref": "#/components/schemas/NoPayload"
+      },
+      "seq": {
+        "format": "int64",
+        "minimum": 0,
+        "type": "integer"
+      },
+      "subject": {
+        "type": "string"
+      },
+      "ts": {
+        "format": "date-time",
+        "type": "string"
+      },
+      "type": {
+        "const": "city.resumed",
+        "type": "string"
+      },
+      "workflow": {
+        "$ref": "#/components/schemas/WorkflowEventProjection"
+      }
+    },
+    "required": [
+      "seq",
+      "type",
+      "ts",
+      "actor",
+      "payload",
+      "city"
+    ],
+    "title": "TypedTaggedEventStreamEnvelope city.resumed",
+    "type": "object"
+  },
+  "TypedTaggedEventStreamEnvelopeCitySuspended": {
+    "additionalProperties": false,
+    "properties": {
+      "actor": {
+        "type": "string"
+      },
+      "city": {
+        "type": "string"
+      },
+      "message": {
+        "type": "string"
+      },
+      "payload": {
+        "$ref": "#/components/schemas/NoPayload"
+      },
+      "seq": {
+        "format": "int64",
+        "minimum": 0,
+        "type": "integer"
+      },
+      "subject": {
+        "type": "string"
+      },
+      "ts": {
+        "format": "date-time",
+        "type": "string"
+      },
+      "type": {
+        "const": "city.suspended",
+        "type": "string"
+      },
+      "workflow": {
+        "$ref": "#/components/schemas/WorkflowEventProjection"
+      }
+    },
+    "required": [
+      "seq",
+      "type",
+      "ts",
+      "actor",
+      "payload",
+      "city"
+    ],
+    "title": "TypedTaggedEventStreamEnvelope city.suspended",
+    "type": "object"
+  },
+  "TypedTaggedEventStreamEnvelopeCityUnregisterRequested": {
+    "additionalProperties": false,
+    "properties": {
+      "actor": {
+        "type": "string"
+      },
+      "city": {
+        "type": "string"
+      },
+      "message": {
+        "type": "string"
+      },
+      "payload": {
+        "$ref": "#/components/schemas/CityLifecyclePayload"
+      },
+      "seq": {
+        "format": "int64",
+        "minimum": 0,
+        "type": "integer"
+      },
+      "subject": {
+        "type": "string"
+      },
+      "ts": {
+        "format": "date-time",
+        "type": "string"
+      },
+      "type": {
+        "const": "city.unregister_requested",
+        "type": "string"
+      },
+      "workflow": {
+        "$ref": "#/components/schemas/WorkflowEventProjection"
+      }
+    },
+    "required": [
+      "seq",
+      "type",
+      "ts",
+      "actor",
+      "payload",
+      "city"
+    ],
+    "title": "TypedTaggedEventStreamEnvelope city.unregister_requested",
+    "type": "object"
+  },
+  "TypedTaggedEventStreamEnvelopeControllerStarted": {
+    "additionalProperties": false,
+    "properties": {
+      "actor": {
+        "type": "string"
+      },
+      "city": {
+        "type": "string"
+      },
+      "message": {
+        "type": "string"
+      },
+      "payload": {
+        "$ref": "#/components/schemas/NoPayload"
+      },
+      "seq": {
+        "format": "int64",
+        "minimum": 0,
+        "type": "integer"
+      },
+      "subject": {
+        "type": "string"
+      },
+      "ts": {
+        "format": "date-time",
+        "type": "string"
+      },
+      "type": {
+        "const": "controller.started",
+        "type": "string"
+      },
+      "workflow": {
+        "$ref": "#/components/schemas/WorkflowEventProjection"
+      }
+    },
+    "required": [
+      "seq",
+      "type",
+      "ts",
+      "actor",
+      "payload",
+      "city"
+    ],
+    "title": "TypedTaggedEventStreamEnvelope controller.started",
+    "type": "object"
+  },
+  "TypedTaggedEventStreamEnvelopeControllerStopped": {
+    "additionalProperties": false,
+    "properties": {
+      "actor": {
+        "type": "string"
+      },
+      "city": {
+        "type": "string"
+      },
+      "message": {
+        "type": "string"
+      },
+      "payload": {
+        "$ref": "#/components/schemas/NoPayload"
+      },
+      "seq": {
+        "format": "int64",
+        "minimum": 0,
+        "type": "integer"
+      },
+      "subject": {
+        "type": "string"
+      },
+      "ts": {
+        "format": "date-time",
+        "type": "string"
+      },
+      "type": {
+        "const": "controller.stopped",
+        "type": "string"
+      },
+      "workflow": {
+        "$ref": "#/components/schemas/WorkflowEventProjection"
+      }
+    },
+    "required": [
+      "seq",
+      "type",
+      "ts",
+      "actor",
+      "payload",
+      "city"
+    ],
+    "title": "TypedTaggedEventStreamEnvelope controller.stopped",
+    "type": "object"
+  },
+  "TypedTaggedEventStreamEnvelopeConvoyClosed": {
+    "additionalProperties": false,
+    "properties": {
+      "actor": {
+        "type": "string"
+      },
+      "city": {
+        "type": "string"
+      },
+      "message": {
+        "type": "string"
+      },
+      "payload": {
+        "$ref": "#/components/schemas/NoPayload"
+      },
+      "seq": {
+        "format": "int64",
+        "minimum": 0,
+        "type": "integer"
+      },
+      "subject": {
+        "type": "string"
+      },
+      "ts": {
+        "format": "date-time",
+        "type": "string"
+      },
+      "type": {
+        "const": "convoy.closed",
+        "type": "string"
+      },
+      "workflow": {
+        "$ref": "#/components/schemas/WorkflowEventProjection"
+      }
+    },
+    "required": [
+      "seq",
+      "type",
+      "ts",
+      "actor",
+      "payload",
+      "city"
+    ],
+    "title": "TypedTaggedEventStreamEnvelope convoy.closed",
+    "type": "object"
+  },
+  "TypedTaggedEventStreamEnvelopeConvoyCreated": {
+    "additionalProperties": false,
+    "properties": {
+      "actor": {
+        "type": "string"
+      },
+      "city": {
+        "type": "string"
+      },
+      "message": {
+        "type": "string"
+      },
+      "payload": {
+        "$ref": "#/components/schemas/NoPayload"
+      },
+      "seq": {
+        "format": "int64",
+        "minimum": 0,
+        "type": "integer"
+      },
+      "subject": {
+        "type": "string"
+      },
+      "ts": {
+        "format": "date-time",
+        "type": "string"
+      },
+      "type": {
+        "const": "convoy.created",
+        "type": "string"
+      },
+      "workflow": {
+        "$ref": "#/components/schemas/WorkflowEventProjection"
+      }
+    },
+    "required": [
+      "seq",
+      "type",
+      "ts",
+      "actor",
+      "payload",
+      "city"
+    ],
+    "title": "TypedTaggedEventStreamEnvelope convoy.created",
+    "type": "object"
+  },
+  "TypedTaggedEventStreamEnvelopeCustom": {
+    "additionalProperties": false,
+    "properties": {
+      "actor": {
+        "type": "string"
+      },
+      "city": {
+        "type": "string"
+      },
+      "message": {
+        "type": "string"
+      },
+      "payload": {},
+      "seq": {
+        "format": "int64",
+        "minimum": 0,
+        "type": "integer"
+      },
+      "subject": {
+        "type": "string"
+      },
+      "ts": {
+        "format": "date-time",
+        "type": "string"
+      },
+      "type": {
+        "not": {
+          "enum": [
+            "session.woke",
+            "session.stopped",
+            "session.crashed",
+            "session.draining",
+            "session.undrained",
+            "session.quarantined",
+            "session.idle_killed",
+            "session.max_age_killed",
+            "session.suspended",
+            "session.updated",
+            "session.drain_acked_with_assigned_work",
+            "session.stranded",
+            "session.work_query_failed",
+            "bead.created",
+            "bead.closed",
+            "bead.updated",
+            "mail.sent",
+            "mail.read",
+            "mail.archived",
+            "mail.marked_read",
+            "mail.marked_unread",
+            "mail.replied",
+            "mail.deleted",
+            "convoy.created",
+            "convoy.closed",
+            "controller.started",
+            "controller.stopped",
+            "city.suspended",
+            "city.resumed",
+            "request.result.city.create",
+            "request.result.city.unregister",
+            "request.result.session.create",
+            "request.result.session.message",
+            "request.result.session.submit",
+            "request.failed",
+            "city.created",
+            "city.unregister_requested",
+            "order.fired",
+            "order.completed",
+            "order.failed",
+            "provider.swapped",
+            "worker.operation",
+            "project.identity.stamped",
+            "supervisor.fs_pressure.skipped_tick",
+            "supervisor.shutdown_requested",
+            "extmsg.bound",
+            "extmsg.unbound",
+            "extmsg.group_created",
+            "extmsg.adapter_added",
+            "extmsg.adapter_removed",
+            "extmsg.inbound",
+            "extmsg.outbound",
+            "events.rotated",
+            "gc.store.maintenance.done",
+            "gc.store.maintenance.failed"
+          ]
+        },
+        "type": "string"
+      },
+      "workflow": {
+        "$ref": "#/components/schemas/WorkflowEventProjection"
+      }
+    },
+    "required": [
+      "seq",
+      "type",
+      "ts",
+      "actor",
+      "payload",
+      "city"
+    ],
+    "title": "TypedTaggedEventStreamEnvelope custom",
+    "type": "object"
+  },
+  "TypedTaggedEventStreamEnvelopeEventsRotated": {
+    "additionalProperties": false,
+    "properties": {
+      "actor": {
+        "type": "string"
+      },
+      "city": {
+        "type": "string"
+      },
+      "message": {
+        "type": "string"
+      },
+      "payload": {
+        "$ref": "#/components/schemas/RotatedPayload"
+      },
+      "seq": {
+        "format": "int64",
+        "minimum": 0,
+        "type": "integer"
+      },
+      "subject": {
+        "type": "string"
+      },
+      "ts": {
+        "format": "date-time",
+        "type": "string"
+      },
+      "type": {
+        "const": "events.rotated",
+        "type": "string"
+      },
+      "workflow": {
+        "$ref": "#/components/schemas/WorkflowEventProjection"
+      }
+    },
+    "required": [
+      "seq",
+      "type",
+      "ts",
+      "actor",
+      "payload",
+      "city"
+    ],
+    "title": "TypedTaggedEventStreamEnvelope events.rotated",
+    "type": "object"
+  },
+  "TypedTaggedEventStreamEnvelopeExtmsgAdapterAdded": {
+    "additionalProperties": false,
+    "properties": {
+      "actor": {
+        "type": "string"
+      },
+      "city": {
+        "type": "string"
+      },
+      "message": {
+        "type": "string"
+      },
+      "payload": {
+        "$ref": "#/components/schemas/AdapterEventPayload"
+      },
+      "seq": {
+        "format": "int64",
+        "minimum": 0,
+        "type": "integer"
+      },
+      "subject": {
+        "type": "string"
+      },
+      "ts": {
+        "format": "date-time",
+        "type": "string"
+      },
+      "type": {
+        "const": "extmsg.adapter_added",
+        "type": "string"
+      },
+      "workflow": {
+        "$ref": "#/components/schemas/WorkflowEventProjection"
+      }
+    },
+    "required": [
+      "seq",
+      "type",
+      "ts",
+      "actor",
+      "payload",
+      "city"
+    ],
+    "title": "TypedTaggedEventStreamEnvelope extmsg.adapter_added",
+    "type": "object"
+  },
+  "TypedTaggedEventStreamEnvelopeExtmsgAdapterRemoved": {
+    "additionalProperties": false,
+    "properties": {
+      "actor": {
+        "type": "string"
+      },
+      "city": {
+        "type": "string"
+      },
+      "message": {
+        "type": "string"
+      },
+      "payload": {
+        "$ref": "#/components/schemas/AdapterEventPayload"
+      },
+      "seq": {
+        "format": "int64",
+        "minimum": 0,
+        "type": "integer"
+      },
+      "subject": {
+        "type": "string"
+      },
+      "ts": {
+        "format": "date-time",
+        "type": "string"
+      },
+      "type": {
+        "const": "extmsg.adapter_removed",
+        "type": "string"
+      },
+      "workflow": {
+        "$ref": "#/components/schemas/WorkflowEventProjection"
+      }
+    },
+    "required": [
+      "seq",
+      "type",
+      "ts",
+      "actor",
+      "payload",
+      "city"
+    ],
+    "title": "TypedTaggedEventStreamEnvelope extmsg.adapter_removed",
+    "type": "object"
+  },
+  "TypedTaggedEventStreamEnvelopeExtmsgBound": {
+    "additionalProperties": false,
+    "properties": {
+      "actor": {
+        "type": "string"
+      },
+      "city": {
+        "type": "string"
+      },
+      "message": {
+        "type": "string"
+      },
+      "payload": {
+        "$ref": "#/components/schemas/BoundEventPayload"
+      },
+      "seq": {
+        "format": "int64",
+        "minimum": 0,
+        "type": "integer"
+      },
+      "subject": {
+        "type": "string"
+      },
+      "ts": {
+        "format": "date-time",
+        "type": "string"
+      },
+      "type": {
+        "const": "extmsg.bound",
+        "type": "string"
+      },
+      "workflow": {
+        "$ref": "#/components/schemas/WorkflowEventProjection"
+      }
+    },
+    "required": [
+      "seq",
+      "type",
+      "ts",
+      "actor",
+      "payload",
+      "city"
+    ],
+    "title": "TypedTaggedEventStreamEnvelope extmsg.bound",
+    "type": "object"
+  },
+  "TypedTaggedEventStreamEnvelopeExtmsgGroupCreated": {
+    "additionalProperties": false,
+    "properties": {
+      "actor": {
+        "type": "string"
+      },
+      "city": {
+        "type": "string"
+      },
+      "message": {
+        "type": "string"
+      },
+      "payload": {
+        "$ref": "#/components/schemas/GroupCreatedEventPayload"
+      },
+      "seq": {
+        "format": "int64",
+        "minimum": 0,
+        "type": "integer"
+      },
+      "subject": {
+        "type": "string"
+      },
+      "ts": {
+        "format": "date-time",
+        "type": "string"
+      },
+      "type": {
+        "const": "extmsg.group_created",
+        "type": "string"
+      },
+      "workflow": {
+        "$ref": "#/components/schemas/WorkflowEventProjection"
+      }
+    },
+    "required": [
+      "seq",
+      "type",
+      "ts",
+      "actor",
+      "payload",
+      "city"
+    ],
+    "title": "TypedTaggedEventStreamEnvelope extmsg.group_created",
+    "type": "object"
+  },
+  "TypedTaggedEventStreamEnvelopeExtmsgInbound": {
+    "additionalProperties": false,
+    "properties": {
+      "actor": {
+        "type": "string"
+      },
+      "city": {
+        "type": "string"
+      },
+      "message": {
+        "type": "string"
+      },
+      "payload": {
+        "$ref": "#/components/schemas/InboundEventPayload"
+      },
+      "seq": {
+        "format": "int64",
+        "minimum": 0,
+        "type": "integer"
+      },
+      "subject": {
+        "type": "string"
+      },
+      "ts": {
+        "format": "date-time",
+        "type": "string"
+      },
+      "type": {
+        "const": "extmsg.inbound",
+        "type": "string"
+      },
+      "workflow": {
+        "$ref": "#/components/schemas/WorkflowEventProjection"
+      }
+    },
+    "required": [
+      "seq",
+      "type",
+      "ts",
+      "actor",
+      "payload",
+      "city"
+    ],
+    "title": "TypedTaggedEventStreamEnvelope extmsg.inbound",
+    "type": "object"
+  },
+  "TypedTaggedEventStreamEnvelopeExtmsgOutbound": {
+    "additionalProperties": false,
+    "properties": {
+      "actor": {
+        "type": "string"
+      },
+      "city": {
+        "type": "string"
+      },
+      "message": {
+        "type": "string"
+      },
+      "payload": {
+        "$ref": "#/components/schemas/OutboundEventPayload"
+      },
+      "seq": {
+        "format": "int64",
+        "minimum": 0,
+        "type": "integer"
+      },
+      "subject": {
+        "type": "string"
+      },
+      "ts": {
+        "format": "date-time",
+        "type": "string"
+      },
+      "type": {
+        "const": "extmsg.outbound",
+        "type": "string"
+      },
+      "workflow": {
+        "$ref": "#/components/schemas/WorkflowEventProjection"
+      }
+    },
+    "required": [
+      "seq",
+      "type",
+      "ts",
+      "actor",
+      "payload",
+      "city"
+    ],
+    "title": "TypedTaggedEventStreamEnvelope extmsg.outbound",
+    "type": "object"
+  },
+  "TypedTaggedEventStreamEnvelopeExtmsgUnbound": {
+    "additionalProperties": false,
+    "properties": {
+      "actor": {
+        "type": "string"
+      },
+      "city": {
+        "type": "string"
+      },
+      "message": {
+        "type": "string"
+      },
+      "payload": {
+        "$ref": "#/components/schemas/UnboundEventPayload"
+      },
+      "seq": {
+        "format": "int64",
+        "minimum": 0,
+        "type": "integer"
+      },
+      "subject": {
+        "type": "string"
+      },
+      "ts": {
+        "format": "date-time",
+        "type": "string"
+      },
+      "type": {
+        "const": "extmsg.unbound",
+        "type": "string"
+      },
+      "workflow": {
+        "$ref": "#/components/schemas/WorkflowEventProjection"
+      }
+    },
+    "required": [
+      "seq",
+      "type",
+      "ts",
+      "actor",
+      "payload",
+      "city"
+    ],
+    "title": "TypedTaggedEventStreamEnvelope extmsg.unbound",
+    "type": "object"
+  },
+  "TypedTaggedEventStreamEnvelopeGcStoreMaintenanceDone": {
+    "additionalProperties": false,
+    "properties": {
+      "actor": {
+        "type": "string"
+      },
+      "city": {
+        "type": "string"
+      },
+      "message": {
+        "type": "string"
+      },
+      "payload": {
+        "$ref": "#/components/schemas/StoreMaintenanceDonePayload"
+      },
+      "seq": {
+        "format": "int64",
+        "minimum": 0,
+        "type": "integer"
+      },
+      "subject": {
+        "type": "string"
+      },
+      "ts": {
+        "format": "date-time",
+        "type": "string"
+      },
+      "type": {
+        "const": "gc.store.maintenance.done",
+        "type": "string"
+      },
+      "workflow": {
+        "$ref": "#/components/schemas/WorkflowEventProjection"
+      }
+    },
+    "required": [
+      "seq",
+      "type",
+      "ts",
+      "actor",
+      "payload",
+      "city"
+    ],
+    "title": "TypedTaggedEventStreamEnvelope gc.store.maintenance.done",
+    "type": "object"
+  },
+  "TypedTaggedEventStreamEnvelopeGcStoreMaintenanceFailed": {
+    "additionalProperties": false,
+    "properties": {
+      "actor": {
+        "type": "string"
+      },
+      "city": {
+        "type": "string"
+      },
+      "message": {
+        "type": "string"
+      },
+      "payload": {
+        "$ref": "#/components/schemas/StoreMaintenanceFailedPayload"
+      },
+      "seq": {
+        "format": "int64",
+        "minimum": 0,
+        "type": "integer"
+      },
+      "subject": {
+        "type": "string"
+      },
+      "ts": {
+        "format": "date-time",
+        "type": "string"
+      },
+      "type": {
+        "const": "gc.store.maintenance.failed",
+        "type": "string"
+      },
+      "workflow": {
+        "$ref": "#/components/schemas/WorkflowEventProjection"
+      }
+    },
+    "required": [
+      "seq",
+      "type",
+      "ts",
+      "actor",
+      "payload",
+      "city"
+    ],
+    "title": "TypedTaggedEventStreamEnvelope gc.store.maintenance.failed",
+    "type": "object"
+  },
+  "TypedTaggedEventStreamEnvelopeMailArchived": {
+    "additionalProperties": false,
+    "properties": {
+      "actor": {
+        "type": "string"
+      },
+      "city": {
+        "type": "string"
+      },
+      "message": {
+        "type": "string"
+      },
+      "payload": {
+        "$ref": "#/components/schemas/MailEventPayload"
+      },
+      "seq": {
+        "format": "int64",
+        "minimum": 0,
+        "type": "integer"
+      },
+      "subject": {
+        "type": "string"
+      },
+      "ts": {
+        "format": "date-time",
+        "type": "string"
+      },
+      "type": {
+        "const": "mail.archived",
+        "type": "string"
+      },
+      "workflow": {
+        "$ref": "#/components/schemas/WorkflowEventProjection"
+      }
+    },
+    "required": [
+      "seq",
+      "type",
+      "ts",
+      "actor",
+      "payload",
+      "city"
+    ],
+    "title": "TypedTaggedEventStreamEnvelope mail.archived",
+    "type": "object"
+  },
+  "TypedTaggedEventStreamEnvelopeMailDeleted": {
+    "additionalProperties": false,
+    "properties": {
+      "actor": {
+        "type": "string"
+      },
+      "city": {
+        "type": "string"
+      },
+      "message": {
+        "type": "string"
+      },
+      "payload": {
+        "$ref": "#/components/schemas/MailEventPayload"
+      },
+      "seq": {
+        "format": "int64",
+        "minimum": 0,
+        "type": "integer"
+      },
+      "subject": {
+        "type": "string"
+      },
+      "ts": {
+        "format": "date-time",
+        "type": "string"
+      },
+      "type": {
+        "const": "mail.deleted",
+        "type": "string"
+      },
+      "workflow": {
+        "$ref": "#/components/schemas/WorkflowEventProjection"
+      }
+    },
+    "required": [
+      "seq",
+      "type",
+      "ts",
+      "actor",
+      "payload",
+      "city"
+    ],
+    "title": "TypedTaggedEventStreamEnvelope mail.deleted",
+    "type": "object"
+  },
+  "TypedTaggedEventStreamEnvelopeMailMarkedRead": {
+    "additionalProperties": false,
+    "properties": {
+      "actor": {
+        "type": "string"
+      },
+      "city": {
+        "type": "string"
+      },
+      "message": {
+        "type": "string"
+      },
+      "payload": {
+        "$ref": "#/components/schemas/MailEventPayload"
+      },
+      "seq": {
+        "format": "int64",
+        "minimum": 0,
+        "type": "integer"
+      },
+      "subject": {
+        "type": "string"
+      },
+      "ts": {
+        "format": "date-time",
+        "type": "string"
+      },
+      "type": {
+        "const": "mail.marked_read",
+        "type": "string"
+      },
+      "workflow": {
+        "$ref": "#/components/schemas/WorkflowEventProjection"
+      }
+    },
+    "required": [
+      "seq",
+      "type",
+      "ts",
+      "actor",
+      "payload",
+      "city"
+    ],
+    "title": "TypedTaggedEventStreamEnvelope mail.marked_read",
+    "type": "object"
+  },
+  "TypedTaggedEventStreamEnvelopeMailMarkedUnread": {
+    "additionalProperties": false,
+    "properties": {
+      "actor": {
+        "type": "string"
+      },
+      "city": {
+        "type": "string"
+      },
+      "message": {
+        "type": "string"
+      },
+      "payload": {
+        "$ref": "#/components/schemas/MailEventPayload"
+      },
+      "seq": {
+        "format": "int64",
+        "minimum": 0,
+        "type": "integer"
+      },
+      "subject": {
+        "type": "string"
+      },
+      "ts": {
+        "format": "date-time",
+        "type": "string"
+      },
+      "type": {
+        "const": "mail.marked_unread",
+        "type": "string"
+      },
+      "workflow": {
+        "$ref": "#/components/schemas/WorkflowEventProjection"
+      }
+    },
+    "required": [
+      "seq",
+      "type",
+      "ts",
+      "actor",
+      "payload",
+      "city"
+    ],
+    "title": "TypedTaggedEventStreamEnvelope mail.marked_unread",
+    "type": "object"
+  },
+  "TypedTaggedEventStreamEnvelopeMailRead": {
+    "additionalProperties": false,
+    "properties": {
+      "actor": {
+        "type": "string"
+      },
+      "city": {
+        "type": "string"
+      },
+      "message": {
+        "type": "string"
+      },
+      "payload": {
+        "$ref": "#/components/schemas/MailEventPayload"
+      },
+      "seq": {
+        "format": "int64",
+        "minimum": 0,
+        "type": "integer"
+      },
+      "subject": {
+        "type": "string"
+      },
+      "ts": {
+        "format": "date-time",
+        "type": "string"
+      },
+      "type": {
+        "const": "mail.read",
+        "type": "string"
+      },
+      "workflow": {
+        "$ref": "#/components/schemas/WorkflowEventProjection"
+      }
+    },
+    "required": [
+      "seq",
+      "type",
+      "ts",
+      "actor",
+      "payload",
+      "city"
+    ],
+    "title": "TypedTaggedEventStreamEnvelope mail.read",
+    "type": "object"
+  },
+  "TypedTaggedEventStreamEnvelopeMailReplied": {
+    "additionalProperties": false,
+    "properties": {
+      "actor": {
+        "type": "string"
+      },
+      "city": {
+        "type": "string"
+      },
+      "message": {
+        "type": "string"
+      },
+      "payload": {
+        "$ref": "#/components/schemas/MailEventPayload"
+      },
+      "seq": {
+        "format": "int64",
+        "minimum": 0,
+        "type": "integer"
+      },
+      "subject": {
+        "type": "string"
+      },
+      "ts": {
+        "format": "date-time",
+        "type": "string"
+      },
+      "type": {
+        "const": "mail.replied",
+        "type": "string"
+      },
+      "workflow": {
+        "$ref": "#/components/schemas/WorkflowEventProjection"
+      }
+    },
+    "required": [
+      "seq",
+      "type",
+      "ts",
+      "actor",
+      "payload",
+      "city"
+    ],
+    "title": "TypedTaggedEventStreamEnvelope mail.replied",
+    "type": "object"
+  },
+  "TypedTaggedEventStreamEnvelopeMailSent": {
+    "additionalProperties": false,
+    "properties": {
+      "actor": {
+        "type": "string"
+      },
+      "city": {
+        "type": "string"
+      },
+      "message": {
+        "type": "string"
+      },
+      "payload": {
+        "$ref": "#/components/schemas/MailEventPayload"
+      },
+      "seq": {
+        "format": "int64",
+        "minimum": 0,
+        "type": "integer"
+      },
+      "subject": {
+        "type": "string"
+      },
+      "ts": {
+        "format": "date-time",
+        "type": "string"
+      },
+      "type": {
+        "const": "mail.sent",
+        "type": "string"
+      },
+      "workflow": {
+        "$ref": "#/components/schemas/WorkflowEventProjection"
+      }
+    },
+    "required": [
+      "seq",
+      "type",
+      "ts",
+      "actor",
+      "payload",
+      "city"
+    ],
+    "title": "TypedTaggedEventStreamEnvelope mail.sent",
+    "type": "object"
+  },
+  "TypedTaggedEventStreamEnvelopeOrderCompleted": {
+    "additionalProperties": false,
+    "properties": {
+      "actor": {
+        "type": "string"
+      },
+      "city": {
+        "type": "string"
+      },
+      "message": {
+        "type": "string"
+      },
+      "payload": {
+        "$ref": "#/components/schemas/NoPayload"
+      },
+      "seq": {
+        "format": "int64",
+        "minimum": 0,
+        "type": "integer"
+      },
+      "subject": {
+        "type": "string"
+      },
+      "ts": {
+        "format": "date-time",
+        "type": "string"
+      },
+      "type": {
+        "const": "order.completed",
+        "type": "string"
+      },
+      "workflow": {
+        "$ref": "#/components/schemas/WorkflowEventProjection"
+      }
+    },
+    "required": [
+      "seq",
+      "type",
+      "ts",
+      "actor",
+      "payload",
+      "city"
+    ],
+    "title": "TypedTaggedEventStreamEnvelope order.completed",
+    "type": "object"
+  },
+  "TypedTaggedEventStreamEnvelopeOrderFailed": {
+    "additionalProperties": false,
+    "properties": {
+      "actor": {
+        "type": "string"
+      },
+      "city": {
+        "type": "string"
+      },
+      "message": {
+        "type": "string"
+      },
+      "payload": {
+        "$ref": "#/components/schemas/NoPayload"
+      },
+      "seq": {
+        "format": "int64",
+        "minimum": 0,
+        "type": "integer"
+      },
+      "subject": {
+        "type": "string"
+      },
+      "ts": {
+        "format": "date-time",
+        "type": "string"
+      },
+      "type": {
+        "const": "order.failed",
+        "type": "string"
+      },
+      "workflow": {
+        "$ref": "#/components/schemas/WorkflowEventProjection"
+      }
+    },
+    "required": [
+      "seq",
+      "type",
+      "ts",
+      "actor",
+      "payload",
+      "city"
+    ],
+    "title": "TypedTaggedEventStreamEnvelope order.failed",
+    "type": "object"
+  },
+  "TypedTaggedEventStreamEnvelopeOrderFired": {
+    "additionalProperties": false,
+    "properties": {
+      "actor": {
+        "type": "string"
+      },
+      "city": {
+        "type": "string"
+      },
+      "message": {
+        "type": "string"
+      },
+      "payload": {
+        "$ref": "#/components/schemas/NoPayload"
+      },
+      "seq": {
+        "format": "int64",
+        "minimum": 0,
+        "type": "integer"
+      },
+      "subject": {
+        "type": "string"
+      },
+      "ts": {
+        "format": "date-time",
+        "type": "string"
+      },
+      "type": {
+        "const": "order.fired",
+        "type": "string"
+      },
+      "workflow": {
+        "$ref": "#/components/schemas/WorkflowEventProjection"
+      }
+    },
+    "required": [
+      "seq",
+      "type",
+      "ts",
+      "actor",
+      "payload",
+      "city"
+    ],
+    "title": "TypedTaggedEventStreamEnvelope order.fired",
+    "type": "object"
+  },
+  "TypedTaggedEventStreamEnvelopeProjectIdentityStamped": {
+    "additionalProperties": false,
+    "properties": {
+      "actor": {
+        "type": "string"
+      },
+      "city": {
+        "type": "string"
+      },
+      "message": {
+        "type": "string"
+      },
+      "payload": {
+        "$ref": "#/components/schemas/ProjectIdentityStampedPayload"
+      },
+      "seq": {
+        "format": "int64",
+        "minimum": 0,
+        "type": "integer"
+      },
+      "subject": {
+        "type": "string"
+      },
+      "ts": {
+        "format": "date-time",
+        "type": "string"
+      },
+      "type": {
+        "const": "project.identity.stamped",
+        "type": "string"
+      },
+      "workflow": {
+        "$ref": "#/components/schemas/WorkflowEventProjection"
+      }
+    },
+    "required": [
+      "seq",
+      "type",
+      "ts",
+      "actor",
+      "payload",
+      "city"
+    ],
+    "title": "TypedTaggedEventStreamEnvelope project.identity.stamped",
+    "type": "object"
+  },
+  "TypedTaggedEventStreamEnvelopeProviderSwapped": {
+    "additionalProperties": false,
+    "properties": {
+      "actor": {
+        "type": "string"
+      },
+      "city": {
+        "type": "string"
+      },
+      "message": {
+        "type": "string"
+      },
+      "payload": {
+        "$ref": "#/components/schemas/NoPayload"
+      },
+      "seq": {
+        "format": "int64",
+        "minimum": 0,
+        "type": "integer"
+      },
+      "subject": {
+        "type": "string"
+      },
+      "ts": {
+        "format": "date-time",
+        "type": "string"
+      },
+      "type": {
+        "const": "provider.swapped",
+        "type": "string"
+      },
+      "workflow": {
+        "$ref": "#/components/schemas/WorkflowEventProjection"
+      }
+    },
+    "required": [
+      "seq",
+      "type",
+      "ts",
+      "actor",
+      "payload",
+      "city"
+    ],
+    "title": "TypedTaggedEventStreamEnvelope provider.swapped",
+    "type": "object"
+  },
+  "TypedTaggedEventStreamEnvelopeRequestFailed": {
+    "additionalProperties": false,
+    "properties": {
+      "actor": {
+        "type": "string"
+      },
+      "city": {
+        "type": "string"
+      },
+      "message": {
+        "type": "string"
+      },
+      "payload": {
+        "$ref": "#/components/schemas/RequestFailedPayload"
+      },
+      "seq": {
+        "format": "int64",
+        "minimum": 0,
+        "type": "integer"
+      },
+      "subject": {
+        "type": "string"
+      },
+      "ts": {
+        "format": "date-time",
+        "type": "string"
+      },
+      "type": {
+        "const": "request.failed",
+        "type": "string"
+      },
+      "workflow": {
+        "$ref": "#/components/schemas/WorkflowEventProjection"
+      }
+    },
+    "required": [
+      "seq",
+      "type",
+      "ts",
+      "actor",
+      "payload",
+      "city"
+    ],
+    "title": "TypedTaggedEventStreamEnvelope request.failed",
+    "type": "object"
+  },
+  "TypedTaggedEventStreamEnvelopeRequestResultCityCreate": {
+    "additionalProperties": false,
+    "properties": {
+      "actor": {
+        "type": "string"
+      },
+      "city": {
+        "type": "string"
+      },
+      "message": {
+        "type": "string"
+      },
+      "payload": {
+        "$ref": "#/components/schemas/CityCreateSucceededPayload"
+      },
+      "seq": {
+        "format": "int64",
+        "minimum": 0,
+        "type": "integer"
+      },
+      "subject": {
+        "type": "string"
+      },
+      "ts": {
+        "format": "date-time",
+        "type": "string"
+      },
+      "type": {
+        "const": "request.result.city.create",
+        "type": "string"
+      },
+      "workflow": {
+        "$ref": "#/components/schemas/WorkflowEventProjection"
+      }
+    },
+    "required": [
+      "seq",
+      "type",
+      "ts",
+      "actor",
+      "payload",
+      "city"
+    ],
+    "title": "TypedTaggedEventStreamEnvelope request.result.city.create",
+    "type": "object"
+  },
+  "TypedTaggedEventStreamEnvelopeRequestResultCityUnregister": {
+    "additionalProperties": false,
+    "properties": {
+      "actor": {
+        "type": "string"
+      },
+      "city": {
+        "type": "string"
+      },
+      "message": {
+        "type": "string"
+      },
+      "payload": {
+        "$ref": "#/components/schemas/CityUnregisterSucceededPayload"
+      },
+      "seq": {
+        "format": "int64",
+        "minimum": 0,
+        "type": "integer"
+      },
+      "subject": {
+        "type": "string"
+      },
+      "ts": {
+        "format": "date-time",
+        "type": "string"
+      },
+      "type": {
+        "const": "request.result.city.unregister",
+        "type": "string"
+      },
+      "workflow": {
+        "$ref": "#/components/schemas/WorkflowEventProjection"
+      }
+    },
+    "required": [
+      "seq",
+      "type",
+      "ts",
+      "actor",
+      "payload",
+      "city"
+    ],
+    "title": "TypedTaggedEventStreamEnvelope request.result.city.unregister",
+    "type": "object"
+  },
+  "TypedTaggedEventStreamEnvelopeRequestResultSessionCreate": {
+    "additionalProperties": false,
+    "properties": {
+      "actor": {
+        "type": "string"
+      },
+      "city": {
+        "type": "string"
+      },
+      "message": {
+        "type": "string"
+      },
+      "payload": {
+        "$ref": "#/components/schemas/SessionCreateSucceededPayload"
+      },
+      "seq": {
+        "format": "int64",
+        "minimum": 0,
+        "type": "integer"
+      },
+      "subject": {
+        "type": "string"
+      },
+      "ts": {
+        "format": "date-time",
+        "type": "string"
+      },
+      "type": {
+        "const": "request.result.session.create",
+        "type": "string"
+      },
+      "workflow": {
+        "$ref": "#/components/schemas/WorkflowEventProjection"
+      }
+    },
+    "required": [
+      "seq",
+      "type",
+      "ts",
+      "actor",
+      "payload",
+      "city"
+    ],
+    "title": "TypedTaggedEventStreamEnvelope request.result.session.create",
+    "type": "object"
+  },
+  "TypedTaggedEventStreamEnvelopeRequestResultSessionMessage": {
+    "additionalProperties": false,
+    "properties": {
+      "actor": {
+        "type": "string"
+      },
+      "city": {
+        "type": "string"
+      },
+      "message": {
+        "type": "string"
+      },
+      "payload": {
+        "$ref": "#/components/schemas/SessionMessageSucceededPayload"
+      },
+      "seq": {
+        "format": "int64",
+        "minimum": 0,
+        "type": "integer"
+      },
+      "subject": {
+        "type": "string"
+      },
+      "ts": {
+        "format": "date-time",
+        "type": "string"
+      },
+      "type": {
+        "const": "request.result.session.message",
+        "type": "string"
+      },
+      "workflow": {
+        "$ref": "#/components/schemas/WorkflowEventProjection"
+      }
+    },
+    "required": [
+      "seq",
+      "type",
+      "ts",
+      "actor",
+      "payload",
+      "city"
+    ],
+    "title": "TypedTaggedEventStreamEnvelope request.result.session.message",
+    "type": "object"
+  },
+  "TypedTaggedEventStreamEnvelopeRequestResultSessionSubmit": {
+    "additionalProperties": false,
+    "properties": {
+      "actor": {
+        "type": "string"
+      },
+      "city": {
+        "type": "string"
+      },
+      "message": {
+        "type": "string"
+      },
+      "payload": {
+        "$ref": "#/components/schemas/SessionSubmitSucceededPayload"
+      },
+      "seq": {
+        "format": "int64",
+        "minimum": 0,
+        "type": "integer"
+      },
+      "subject": {
+        "type": "string"
+      },
+      "ts": {
+        "format": "date-time",
+        "type": "string"
+      },
+      "type": {
+        "const": "request.result.session.submit",
+        "type": "string"
+      },
+      "workflow": {
+        "$ref": "#/components/schemas/WorkflowEventProjection"
+      }
+    },
+    "required": [
+      "seq",
+      "type",
+      "ts",
+      "actor",
+      "payload",
+      "city"
+    ],
+    "title": "TypedTaggedEventStreamEnvelope request.result.session.submit",
+    "type": "object"
+  },
+  "TypedTaggedEventStreamEnvelopeSessionCrashed": {
+    "additionalProperties": false,
+    "properties": {
+      "actor": {
+        "type": "string"
+      },
+      "city": {
+        "type": "string"
+      },
+      "message": {
+        "type": "string"
+      },
+      "payload": {
+        "$ref": "#/components/schemas/SessionLifecyclePayload"
+      },
+      "seq": {
+        "format": "int64",
+        "minimum": 0,
+        "type": "integer"
+      },
+      "subject": {
+        "type": "string"
+      },
+      "ts": {
+        "format": "date-time",
+        "type": "string"
+      },
+      "type": {
+        "const": "session.crashed",
+        "type": "string"
+      },
+      "workflow": {
+        "$ref": "#/components/schemas/WorkflowEventProjection"
+      }
+    },
+    "required": [
+      "seq",
+      "type",
+      "ts",
+      "actor",
+      "payload",
+      "city"
+    ],
+    "title": "TypedTaggedEventStreamEnvelope session.crashed",
+    "type": "object"
+  },
+  "TypedTaggedEventStreamEnvelopeSessionDrainAckedWithAssignedWork": {
+    "additionalProperties": false,
+    "properties": {
+      "actor": {
+        "type": "string"
+      },
+      "city": {
+        "type": "string"
+      },
+      "message": {
+        "type": "string"
+      },
+      "payload": {
+        "$ref": "#/components/schemas/SessionDrainAckedWithAssignedWorkPayload"
+      },
+      "seq": {
+        "format": "int64",
+        "minimum": 0,
+        "type": "integer"
+      },
+      "subject": {
+        "type": "string"
+      },
+      "ts": {
+        "format": "date-time",
+        "type": "string"
+      },
+      "type": {
+        "const": "session.drain_acked_with_assigned_work",
+        "type": "string"
+      },
+      "workflow": {
+        "$ref": "#/components/schemas/WorkflowEventProjection"
+      }
+    },
+    "required": [
+      "seq",
+      "type",
+      "ts",
+      "actor",
+      "payload",
+      "city"
+    ],
+    "title": "TypedTaggedEventStreamEnvelope session.drain_acked_with_assigned_work",
+    "type": "object"
+  },
+  "TypedTaggedEventStreamEnvelopeSessionDraining": {
+    "additionalProperties": false,
+    "properties": {
+      "actor": {
+        "type": "string"
+      },
+      "city": {
+        "type": "string"
+      },
+      "message": {
+        "type": "string"
+      },
+      "payload": {
+        "$ref": "#/components/schemas/NoPayload"
+      },
+      "seq": {
+        "format": "int64",
+        "minimum": 0,
+        "type": "integer"
+      },
+      "subject": {
+        "type": "string"
+      },
+      "ts": {
+        "format": "date-time",
+        "type": "string"
+      },
+      "type": {
+        "const": "session.draining",
+        "type": "string"
+      },
+      "workflow": {
+        "$ref": "#/components/schemas/WorkflowEventProjection"
+      }
+    },
+    "required": [
+      "seq",
+      "type",
+      "ts",
+      "actor",
+      "payload",
+      "city"
+    ],
+    "title": "TypedTaggedEventStreamEnvelope session.draining",
+    "type": "object"
+  },
+  "TypedTaggedEventStreamEnvelopeSessionIdleKilled": {
+    "additionalProperties": false,
+    "properties": {
+      "actor": {
+        "type": "string"
+      },
+      "city": {
+        "type": "string"
+      },
+      "message": {
+        "type": "string"
+      },
+      "payload": {
+        "$ref": "#/components/schemas/NoPayload"
+      },
+      "seq": {
+        "format": "int64",
+        "minimum": 0,
+        "type": "integer"
+      },
+      "subject": {
+        "type": "string"
+      },
+      "ts": {
+        "format": "date-time",
+        "type": "string"
+      },
+      "type": {
+        "const": "session.idle_killed",
+        "type": "string"
+      },
+      "workflow": {
+        "$ref": "#/components/schemas/WorkflowEventProjection"
+      }
+    },
+    "required": [
+      "seq",
+      "type",
+      "ts",
+      "actor",
+      "payload",
+      "city"
+    ],
+    "title": "TypedTaggedEventStreamEnvelope session.idle_killed",
+    "type": "object"
+  },
+  "TypedTaggedEventStreamEnvelopeSessionMaxAgeKilled": {
+    "additionalProperties": false,
+    "properties": {
+      "actor": {
+        "type": "string"
+      },
+      "city": {
+        "type": "string"
+      },
+      "message": {
+        "type": "string"
+      },
+      "payload": {
+        "$ref": "#/components/schemas/NoPayload"
+      },
+      "seq": {
+        "format": "int64",
+        "minimum": 0,
+        "type": "integer"
+      },
+      "subject": {
+        "type": "string"
+      },
+      "ts": {
+        "format": "date-time",
+        "type": "string"
+      },
+      "type": {
+        "const": "session.max_age_killed",
+        "type": "string"
+      },
+      "workflow": {
+        "$ref": "#/components/schemas/WorkflowEventProjection"
+      }
+    },
+    "required": [
+      "seq",
+      "type",
+      "ts",
+      "actor",
+      "payload",
+      "city"
+    ],
+    "title": "TypedTaggedEventStreamEnvelope session.max_age_killed",
+    "type": "object"
+  },
+  "TypedTaggedEventStreamEnvelopeSessionQuarantined": {
+    "additionalProperties": false,
+    "properties": {
+      "actor": {
+        "type": "string"
+      },
+      "city": {
+        "type": "string"
+      },
+      "message": {
+        "type": "string"
+      },
+      "payload": {
+        "$ref": "#/components/schemas/NoPayload"
+      },
+      "seq": {
+        "format": "int64",
+        "minimum": 0,
+        "type": "integer"
+      },
+      "subject": {
+        "type": "string"
+      },
+      "ts": {
+        "format": "date-time",
+        "type": "string"
+      },
+      "type": {
+        "const": "session.quarantined",
+        "type": "string"
+      },
+      "workflow": {
+        "$ref": "#/components/schemas/WorkflowEventProjection"
+      }
+    },
+    "required": [
+      "seq",
+      "type",
+      "ts",
+      "actor",
+      "payload",
+      "city"
+    ],
+    "title": "TypedTaggedEventStreamEnvelope session.quarantined",
+    "type": "object"
+  },
+  "TypedTaggedEventStreamEnvelopeSessionStopped": {
+    "additionalProperties": false,
+    "properties": {
+      "actor": {
+        "type": "string"
+      },
+      "city": {
+        "type": "string"
+      },
+      "message": {
+        "type": "string"
+      },
+      "payload": {
+        "$ref": "#/components/schemas/SessionLifecyclePayload"
+      },
+      "seq": {
+        "format": "int64",
+        "minimum": 0,
+        "type": "integer"
+      },
+      "subject": {
+        "type": "string"
+      },
+      "ts": {
+        "format": "date-time",
+        "type": "string"
+      },
+      "type": {
+        "const": "session.stopped",
+        "type": "string"
+      },
+      "workflow": {
+        "$ref": "#/components/schemas/WorkflowEventProjection"
+      }
+    },
+    "required": [
+      "seq",
+      "type",
+      "ts",
+      "actor",
+      "payload",
+      "city"
+    ],
+    "title": "TypedTaggedEventStreamEnvelope session.stopped",
+    "type": "object"
+  },
+  "TypedTaggedEventStreamEnvelopeSessionStranded": {
+    "additionalProperties": false,
+    "properties": {
+      "actor": {
+        "type": "string"
+      },
+      "city": {
+        "type": "string"
+      },
+      "message": {
+        "type": "string"
+      },
+      "payload": {
+        "$ref": "#/components/schemas/NoPayload"
+      },
+      "seq": {
+        "format": "int64",
+        "minimum": 0,
+        "type": "integer"
+      },
+      "subject": {
+        "type": "string"
+      },
+      "ts": {
+        "format": "date-time",
+        "type": "string"
+      },
+      "type": {
+        "const": "session.stranded",
+        "type": "string"
+      },
+      "workflow": {
+        "$ref": "#/components/schemas/WorkflowEventProjection"
+      }
+    },
+    "required": [
+      "seq",
+      "type",
+      "ts",
+      "actor",
+      "payload",
+      "city"
+    ],
+    "title": "TypedTaggedEventStreamEnvelope session.stranded",
+    "type": "object"
+  },
+  "TypedTaggedEventStreamEnvelopeSessionSuspended": {
+    "additionalProperties": false,
+    "properties": {
+      "actor": {
+        "type": "string"
+      },
+      "city": {
+        "type": "string"
+      },
+      "message": {
+        "type": "string"
+      },
+      "payload": {
+        "$ref": "#/components/schemas/NoPayload"
+      },
+      "seq": {
+        "format": "int64",
+        "minimum": 0,
+        "type": "integer"
+      },
+      "subject": {
+        "type": "string"
+      },
+      "ts": {
+        "format": "date-time",
+        "type": "string"
+      },
+      "type": {
+        "const": "session.suspended",
+        "type": "string"
+      },
+      "workflow": {
+        "$ref": "#/components/schemas/WorkflowEventProjection"
+      }
+    },
+    "required": [
+      "seq",
+      "type",
+      "ts",
+      "actor",
+      "payload",
+      "city"
+    ],
+    "title": "TypedTaggedEventStreamEnvelope session.suspended",
+    "type": "object"
+  },
+  "TypedTaggedEventStreamEnvelopeSessionUndrained": {
+    "additionalProperties": false,
+    "properties": {
+      "actor": {
+        "type": "string"
+      },
+      "city": {
+        "type": "string"
+      },
+      "message": {
+        "type": "string"
+      },
+      "payload": {
+        "$ref": "#/components/schemas/NoPayload"
+      },
+      "seq": {
+        "format": "int64",
+        "minimum": 0,
+        "type": "integer"
+      },
+      "subject": {
+        "type": "string"
+      },
+      "ts": {
+        "format": "date-time",
+        "type": "string"
+      },
+      "type": {
+        "const": "session.undrained",
+        "type": "string"
+      },
+      "workflow": {
+        "$ref": "#/components/schemas/WorkflowEventProjection"
+      }
+    },
+    "required": [
+      "seq",
+      "type",
+      "ts",
+      "actor",
+      "payload",
+      "city"
+    ],
+    "title": "TypedTaggedEventStreamEnvelope session.undrained",
+    "type": "object"
+  },
+  "TypedTaggedEventStreamEnvelopeSessionUpdated": {
+    "additionalProperties": false,
+    "properties": {
+      "actor": {
+        "type": "string"
+      },
+      "city": {
+        "type": "string"
+      },
+      "message": {
+        "type": "string"
+      },
+      "payload": {
+        "$ref": "#/components/schemas/NoPayload"
+      },
+      "seq": {
+        "format": "int64",
+        "minimum": 0,
+        "type": "integer"
+      },
+      "subject": {
+        "type": "string"
+      },
+      "ts": {
+        "format": "date-time",
+        "type": "string"
+      },
+      "type": {
+        "const": "session.updated",
+        "type": "string"
+      },
+      "workflow": {
+        "$ref": "#/components/schemas/WorkflowEventProjection"
+      }
+    },
+    "required": [
+      "seq",
+      "type",
+      "ts",
+      "actor",
+      "payload",
+      "city"
+    ],
+    "title": "TypedTaggedEventStreamEnvelope session.updated",
+    "type": "object"
+  },
+  "TypedTaggedEventStreamEnvelopeSessionWoke": {
+    "additionalProperties": false,
+    "properties": {
+      "actor": {
+        "type": "string"
+      },
+      "city": {
+        "type": "string"
+      },
+      "message": {
+        "type": "string"
+      },
+      "payload": {
+        "$ref": "#/components/schemas/NoPayload"
+      },
+      "seq": {
+        "format": "int64",
+        "minimum": 0,
+        "type": "integer"
+      },
+      "subject": {
+        "type": "string"
+      },
+      "ts": {
+        "format": "date-time",
+        "type": "string"
+      },
+      "type": {
+        "const": "session.woke",
+        "type": "string"
+      },
+      "workflow": {
+        "$ref": "#/components/schemas/WorkflowEventProjection"
+      }
+    },
+    "required": [
+      "seq",
+      "type",
+      "ts",
+      "actor",
+      "payload",
+      "city"
+    ],
+    "title": "TypedTaggedEventStreamEnvelope session.woke",
+    "type": "object"
+  },
+  "TypedTaggedEventStreamEnvelopeSessionWorkQueryFailed": {
+    "additionalProperties": false,
+    "properties": {
+      "actor": {
+        "type": "string"
+      },
+      "city": {
+        "type": "string"
+      },
+      "message": {
+        "type": "string"
+      },
+      "payload": {
+        "$ref": "#/components/schemas/SessionLifecyclePayload"
+      },
+      "seq": {
+        "format": "int64",
+        "minimum": 0,
+        "type": "integer"
+      },
+      "subject": {
+        "type": "string"
+      },
+      "ts": {
+        "format": "date-time",
+        "type": "string"
+      },
+      "type": {
+        "const": "session.work_query_failed",
+        "type": "string"
+      },
+      "workflow": {
+        "$ref": "#/components/schemas/WorkflowEventProjection"
+      }
+    },
+    "required": [
+      "seq",
+      "type",
+      "ts",
+      "actor",
+      "payload",
+      "city"
+    ],
+    "title": "TypedTaggedEventStreamEnvelope session.work_query_failed",
+    "type": "object"
+  },
+  "TypedTaggedEventStreamEnvelopeSupervisorFsPressureSkippedTick": {
+    "additionalProperties": false,
+    "properties": {
+      "actor": {
+        "type": "string"
+      },
+      "city": {
+        "type": "string"
+      },
+      "message": {
+        "type": "string"
+      },
+      "payload": {
+        "$ref": "#/components/schemas/SupervisorFSPressureSkippedTickPayload"
+      },
+      "seq": {
+        "format": "int64",
+        "minimum": 0,
+        "type": "integer"
+      },
+      "subject": {
+        "type": "string"
+      },
+      "ts": {
+        "format": "date-time",
+        "type": "string"
+      },
+      "type": {
+        "const": "supervisor.fs_pressure.skipped_tick",
+        "type": "string"
+      },
+      "workflow": {
+        "$ref": "#/components/schemas/WorkflowEventProjection"
+      }
+    },
+    "required": [
+      "seq",
+      "type",
+      "ts",
+      "actor",
+      "payload",
+      "city"
+    ],
+    "title": "TypedTaggedEventStreamEnvelope supervisor.fs_pressure.skipped_tick",
+    "type": "object"
+  },
+  "TypedTaggedEventStreamEnvelopeSupervisorShutdownRequested": {
+    "additionalProperties": false,
+    "properties": {
+      "actor": {
+        "type": "string"
+      },
+      "city": {
+        "type": "string"
+      },
+      "message": {
+        "type": "string"
+      },
+      "payload": {
+        "$ref": "#/components/schemas/SupervisorShutdownPayload"
+      },
+      "seq": {
+        "format": "int64",
+        "minimum": 0,
+        "type": "integer"
+      },
+      "subject": {
+        "type": "string"
+      },
+      "ts": {
+        "format": "date-time",
+        "type": "string"
+      },
+      "type": {
+        "const": "supervisor.shutdown_requested",
+        "type": "string"
+      },
+      "workflow": {
+        "$ref": "#/components/schemas/WorkflowEventProjection"
+      }
+    },
+    "required": [
+      "seq",
+      "type",
+      "ts",
+      "actor",
+      "payload",
+      "city"
+    ],
+    "title": "TypedTaggedEventStreamEnvelope supervisor.shutdown_requested",
+    "type": "object"
+  },
+  "TypedTaggedEventStreamEnvelopeWorkerOperation": {
+    "additionalProperties": false,
+    "properties": {
+      "actor": {
+        "type": "string"
+      },
+      "city": {
+        "type": "string"
+      },
+      "message": {
+        "type": "string"
+      },
+      "payload": {
+        "$ref": "#/components/schemas/WorkerOperationEventPayload"
+      },
+      "seq": {
+        "format": "int64",
+        "minimum": 0,
+        "type": "integer"
+      },
+      "subject": {
+        "type": "string"
+      },
+      "ts": {
+        "format": "date-time",
+        "type": "string"
+      },
+      "type": {
+        "const": "worker.operation",
+        "type": "string"
+      },
+      "workflow": {
+        "$ref": "#/components/schemas/WorkflowEventProjection"
+      }
+    },
+    "required": [
+      "seq",
+      "type",
+      "ts",
+      "actor",
+      "payload",
+      "city"
+    ],
+    "title": "TypedTaggedEventStreamEnvelope worker.operation",
+    "type": "object"
+  },
   "UnboundEventPayload": {
     "additionalProperties": false,
     "properties": {
@@ -4163,6 +12986,45 @@ export const gcSupervisorComponentSchemas: Record<string, unknown> = {
       "status",
       "kind",
       "metadata"
+    ],
+    "type": "object"
+  },
+  "WorkflowDeleteResponse": {
+    "additionalProperties": false,
+    "properties": {
+      "closed": {
+        "description": "Number of beads closed.",
+        "format": "int64",
+        "type": "integer"
+      },
+      "deleted": {
+        "description": "Number of beads deleted.",
+        "format": "int64",
+        "type": "integer"
+      },
+      "partial": {
+        "description": "True when one or more teardown steps failed; Closed/Deleted still reflect what succeeded.",
+        "type": "boolean"
+      },
+      "partial_errors": {
+        "description": "Human-readable errors from failed teardown steps.",
+        "items": {
+          "type": "string"
+        },
+        "type": [
+          "array",
+          "null"
+        ]
+      },
+      "workflow_id": {
+        "description": "Workflow ID.",
+        "type": "string"
+      }
+    },
+    "required": [
+      "workflow_id",
+      "closed",
+      "deleted"
     ],
     "type": "object"
   },
@@ -4369,6 +13231,37 @@ export const gcSupervisorComponentSchemas: Record<string, unknown> = {
       "resolved_root_store",
       "stores_scanned",
       "snapshot_version"
+    ],
+    "type": "object"
+  },
+  "WorkspaceResponse": {
+    "additionalProperties": false,
+    "properties": {
+      "declared_name": {
+        "type": "string"
+      },
+      "declared_prefix": {
+        "type": "string"
+      },
+      "name": {
+        "type": "string"
+      },
+      "prefix": {
+        "type": "string"
+      },
+      "provider": {
+        "type": "string"
+      },
+      "session_template": {
+        "type": "string"
+      },
+      "suspended": {
+        "type": "boolean"
+      }
+    },
+    "required": [
+      "name",
+      "suspended"
     ],
     "type": "object"
   }

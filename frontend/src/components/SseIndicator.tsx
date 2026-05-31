@@ -8,7 +8,7 @@ import { StatusBadge, type StatusTone } from './StatusBadge';
 // hover title for parity with the rest of the StatusBadge usage.
 //
 // Originally inlined in /agents (gascity-dashboard-iew); extracted as
-// /workflows became the second SSE consumer (gascity-dashboard-bqn).
+// /runs became the second SSE consumer (gascity-dashboard-bqn).
 // State is sourced directly from useGcEventRefresh — keep them linked so
 // a new connection state added to the hook produces a compile error here.
 

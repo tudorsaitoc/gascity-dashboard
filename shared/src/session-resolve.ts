@@ -6,7 +6,7 @@ import type { GcSession } from './index.js';
 // flags in two places: SlungState.resolved_session_name (shared/src/index.ts)
 // and the maintainer sling resolver (backend/src/maintainer/resolve-target.ts,
 // which now delegates here). PRD risk R2 calls this join out as load-bearing
-// for the workflow-health engine — role-pool dispatch routinely fails it —
+// for the run-health engine — role-pool dispatch routinely fails it —
 // so it must not drift between consumers.
 //
 // A bead's `assignee`, a sling `target`, and a role label are the same kind

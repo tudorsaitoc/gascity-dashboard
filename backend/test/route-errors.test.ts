@@ -1,11 +1,11 @@
-import { describe, test } from 'node:test';
 import assert from 'node:assert/strict';
+import { describe, test } from 'node:test';
 import { GcClient } from '../src/gc-client.js';
 import { LOG_COMPONENT } from '../src/logging.js';
 import {
   routeInternalError,
-  routeValidationError,
   routeUpstreamError,
+  routeValidationError,
   writeRouteError,
 } from '../src/route-errors.js';
 
@@ -61,16 +61,16 @@ describe('route error adapter', () => {
 
   test('supports route-owned not-found mapping before generic upstream redaction', () => {
     const wire = routeUpstreamError(new Error('gc supervisor returned 404'), {
-      component: LOG_COMPONENT.workflows,
-      operation: 'failed to fetch workflow',
-      responseError: 'failed to fetch workflow',
+      component: LOG_COMPONENT.runs,
+      operation: 'failed to fetch run',
+      responseError: 'failed to fetch run',
       isTimeout: GcClient.isTimeoutError,
-      notFound: { error: 'workflow not found', kind: 'not_found' },
+      notFound: { error: 'run not found', kind: 'not_found' },
     });
 
     assert.deepEqual(wire, {
       status: 404,
-      body: { error: 'workflow not found', kind: 'not_found' },
+      body: { error: 'run not found', kind: 'not_found' },
     });
   });
 

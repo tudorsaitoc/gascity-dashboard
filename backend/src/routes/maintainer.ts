@@ -1,4 +1,3 @@
-import path from 'node:path';
 import { Router } from 'express';
 import type {
   ContributorStat,
@@ -10,15 +9,13 @@ import type {
   SlingResponse,
   TriageItem,
 } from 'gas-city-dashboard-shared';
+import path from 'node:path';
 import { recordAudit } from '../audit.js';
 import { AGENT_ALIAS_RE, ExecError } from '../exec.js';
 import { GcClient } from '../gc-client.js';
-import {
-  collectItems,
-  fetchTriage as defaultFetchTriage,
-  selectOneMark,
-} from '../maintainer/triage.js';
-import { readCache, writeCache, type CacheReadResult } from '../maintainer/storage.js';
+import { HTTP_STATUS } from '../lib/http-status.js';
+import { writeExecError } from '../lib/sanitise-error.js';
+import { LOG_COMPONENT, errorMessage, logWarn } from '../logging.js';
 import { isMarkCandidate } from '../maintainer/classifier.js';
 import { resolveTargetToSession } from '../maintainer/resolve-target.js';
 import {
@@ -27,10 +24,13 @@ import {
   writeSlungEntry,
 } from '../maintainer/slung-state.js';
 import { MaintainerSseHub } from '../maintainer/sse.js';
-import { HTTP_STATUS } from '../lib/http-status.js';
-import { writeExecError } from '../lib/sanitise-error.js';
+import { readCache, writeCache, type CacheReadResult } from '../maintainer/storage.js';
+import {
+  collectItems,
+  fetchTriage as defaultFetchTriage,
+  selectOneMark,
+} from '../maintainer/triage.js';
 import { asyncRoute } from '../middleware/async-route.js';
-import { LOG_COMPONENT, errorMessage, logWarn } from '../logging.js';
 import {
   routeInternalError,
   routeUpstreamError,
@@ -290,7 +290,7 @@ export function maintainerRouter({
       });
       // Persist active slung state so subsequent GET /triage requests
       // exclude this item from the One Mark and surface the inline
-      // workflow link (gascity-dashboard-9qs). Failed slings (above
+      // run link (gascity-dashboard-9qs). Failed slings (above
       // non-zero-exit branch) deliberately don't write — slung state
       // means "agent has the work."
       //

@@ -1,7 +1,7 @@
-import { test, describe } from 'node:test';
-import assert from 'node:assert/strict';
 import type { GcBead, GcSession } from 'gas-city-dashboard-shared';
 import { makeNodeKey } from 'gas-city-dashboard-shared';
+import assert from 'node:assert/strict';
+import { describe, test } from 'node:test';
 import { buildRelationIndex } from '../src/links/relation-index.js';
 
 // R1 + RK1 unit tests for the backend relation index.
@@ -55,7 +55,7 @@ describe('buildRelationIndex (R1)', () => {
 
   test('PR refs resolve from the deployed molecule evidence.* namespace', () => {
     // The real shapes the deployed molecule formulas write (mol-pr-from-issue,
-    // mol-pr-iterate) — NOT pr_review.*, which is a different workflow family.
+    // mol-pr-iterate) — NOT pr_review.*, which is a different run family.
     const beads: GcBead[] = [
       // mol-pr-from-issue step 8: evidence.pr_url (+ artifact_path).
       bead('from-issue', {
@@ -92,7 +92,7 @@ describe('buildRelationIndex (R1)', () => {
         'pr_review.pr_number': '999',
       }),
       // pr_review.* still resolves when no evidence.* key is present (the
-      // other workflow family relies on it).
+      // other run family relies on it).
       bead('review-fallback', {
         'pr_review.pr_number': '300',
         'pr_review.pr_url': 'https://github.com/gastownhall/gascity/pull/300',

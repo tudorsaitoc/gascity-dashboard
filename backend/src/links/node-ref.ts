@@ -18,7 +18,7 @@ export type ParsedRefType =
   | 'github_pr'
   | 'github_issue'
   | 'session'
-  | 'workflow_run';
+  | 'formula_run';
 
 const PR_RE = /^pr\/(\d{1,9})$/;
 const ISSUE_RE = /^issue\/(\d{1,9})$/;
@@ -27,7 +27,7 @@ const ISSUE_RE = /^issue\/(\d{1,9})$/;
  * Resolve a `:ref` path segment to its kind + canonical value. Accepts:
  *   - `pr/<n>`        → github_pr
  *   - `issue/<n>`     → github_issue
- *   - a bead id       → bead (also the focus for workflow-run / session
+ *   - a bead id       → bead (also the focus for formula-run / session
  *                       refs, which are bead-id-shaped and resolved by the
  *                       index against the bead set)
  *
@@ -47,7 +47,7 @@ export function parseRef(raw: string): ParsedRef {
   }
 
   // Everything else must be a bead-id-shaped token (which also covers
-  // session ids and workflow ids — they share the supervisor's id
+  // session ids and run ids — they share the supervisor's id
   // alphabet and are resolved against the bead set by the index).
   if (BEAD_ID_RE.test(value)) return { ok: true, type: 'bead', value };
 
@@ -57,7 +57,7 @@ export function parseRef(raw: string): ParsedRef {
 /**
  * R4 — every rendered cross-entity URL passes an `^https?://` allow-list.
  * Bead metadata is a trust boundary; React does not strip `javascript:`
- * from hrefs (cf. workflows.ts externalUrl, gascity-dashboard-4x3).
+ * from hrefs (cf. runs.ts externalUrl, gascity-dashboard-4x3).
  * Returns the URL unchanged when it is http(s), else null.
  */
 export function sanitiseUrl(raw: unknown): string | null {

@@ -1,18 +1,18 @@
 import { Router } from 'express';
 import type { GcBead, GcSession } from 'gas-city-dashboard-shared';
 import { GcClient } from '../gc-client.js';
-import { parseRef } from '../links/node-ref.js';
-import { buildRelationIndex } from '../links/relation-index.js';
+import { HTTP_STATUS } from '../lib/http-status.js';
 import { buildLinkView } from '../links/build-link-view.js';
 import { ResolutionRollup } from '../links/instrumentation.js';
-import { HTTP_STATUS } from '../lib/http-status.js';
+import { parseRef } from '../links/node-ref.js';
+import { buildRelationIndex } from '../links/relation-index.js';
 import { LOG_COMPONENT, errorMessage, logWarn } from '../logging.js';
 import { routeUpstreamError, writeRouteError } from '../route-errors.js';
 
 // GET /api/links/:ref — bead-ID cross-entity linked view (gascity-dashboard-j4x).
 //
 // Resolves any input ref (bead-id, pr/<n>, issue/<n>, session-id,
-// workflow-id) to its bead-id(s), builds the per-snapshot relation index
+// run-id) to its bead-id(s), builds the per-snapshot relation index
 // over the city bead set + session list, and returns a one-hop
 // EntityLinkView. Read-only; no gh fan-out (the bead→PR/issue edges are
 // authoritative numbers, but the PR/issue entities are rendered as honest
@@ -86,7 +86,7 @@ interface Sources {
 /**
  * Fetch the bead set + session list so a single failed source degrades the
  * view to `partial` rather than collapsing to a 5xx (mirrors
- * routes/workflows.ts). The bead list is the load-bearing source: if it
+ * routes/runs.ts). The bead list is the load-bearing source: if it
  * fails the request errors (no index is possible).
  *
  * Truncation is never silent: if the supervisor reports a `total` larger

@@ -2,7 +2,7 @@ import type { DashboardSnapshot, GcSessionList } from 'gas-city-dashboard-shared
 
 // Committed sample sessions for SNAPSHOT_USE_FIXTURES=1 mode
 // (gascity-dashboard-3ax). The shared sessions cache falls back to these
-// when the supervisor is unreachable, so the workflow-health engine can
+// when the supervisor is unreachable, so the run-health engine can
 // resolve the fixture lane's assignees (agent-1 / agent-2) and populate the
 // session-fact half of the health derivation instead of degrading every
 // fixture lane to unresolved. NOT placed on the /api/snapshot wire.
@@ -40,7 +40,7 @@ export const fixtureSessions: GcSessionList = {
 // unreachable. NOT test fixtures — tests use injected mocks. Operator-specific
 // names and paths are replaced by generic placeholders.
 //
-// City / workflows / resources are the snapshot sources this dashboard serves.
+// City / runs / resources are the snapshot sources this dashboard serves.
 // Sources stay out of the runtime contract until they have real collectors and
 // visible product surface.
 
@@ -56,7 +56,7 @@ export const fixtureSnapshot = {
     activeAgents: { status: 'available', value: 12 },
     maxAgents: { status: 'available', value: 100 },
     activeSessions: { status: 'available', value: 28 },
-    activeWorkflows: { status: 'available', value: 6 },
+    activeRuns: { status: 'available', value: 6 },
   },
   sources: {
     city: {
@@ -114,8 +114,8 @@ export const fixtureSnapshot = {
         ],
       },
     },
-    workflows: {
-      source: 'workflows',
+    runs: {
+      source: 'runs',
       status: 'fixture',
       fetchedAt: '2026-05-22T22:00:00.000Z',
       staleAt: '2026-05-22T22:01:00.000Z',
@@ -134,7 +134,7 @@ export const fixtureSnapshot = {
         lanes: [
           {
             id: 'lane-1',
-            title: 'Example workflow',
+            title: 'Example run',
             formula: { status: 'known', name: 'mol-example-v1' },
             scope: {
               status: 'available',
@@ -175,12 +175,12 @@ export const fixtureSnapshot = {
                 key: 'review',
                 label: 'Review',
               },
-              error: 'active workflow step unavailable',
+              error: 'active run step unavailable',
             },
             formulaStageResolved: false,
             health: {
               status: 'unavailable',
-              error: 'workflow health has not been derived',
+              error: 'run health has not been derived',
             },
           },
         ],
@@ -194,10 +194,10 @@ export const fixtureSnapshot = {
         ],
         // census + per-lane health are engine-derived at serve time
         // (gascity-dashboard-3ax); the stored fixture carries the pre-engine
-        // state and deriveWorkflowHealth replaces it in the snapshot read path.
+        // state and deriveRunHealth replaces it in the snapshot read path.
         census: {
           status: 'unavailable',
-          error: 'workflow health has not been derived',
+          error: 'run health has not been derived',
         },
       },
     },

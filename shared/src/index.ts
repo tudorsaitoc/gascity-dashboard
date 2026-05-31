@@ -6,15 +6,13 @@
 // Comments mark fields that gc supervisor MAY omit; treat them as
 // optional and never assume presence in render code.
 
-export type * from './snapshot/types.js';
-export {
-  resolveSessionForTarget,
-  matchesSessionTarget,
-  lastSegment,
-} from './session-resolve.js';
-export * from './workflow-detail.js';
-export type * from './workflow-snapshot.js';
 export * from './links.js';
+export * from './run-detail.js';
+export type * from './run-snapshot.js';
+export {
+  lastSegment, matchesSessionTarget, resolveSessionForTarget
+} from './session-resolve.js';
+export type * from './snapshot/types.js';
 
 export type IsoTimestamp = string;
 export type BeadId = string;
@@ -282,7 +280,7 @@ export interface SlingInput {
 export interface SlingResponse {
   root_bead_id?: string;
   bead?: string;
-  workflow_id?: string;
+  run_id?: string;
   target?: string;
   status?: string;
 }
@@ -450,13 +448,13 @@ export interface SupervisorHealth {
 
 export type SupervisorHealthState =
   | {
-      status: 'available';
-      data: SupervisorHealth;
-    }
+    status: 'available';
+    data: SupervisorHealth;
+  }
   | {
-      status: 'unavailable';
-      error: string;
-    };
+    status: 'unavailable';
+    error: string;
+  };
 
 export interface DoltNomsSample {
   ts: IsoTimestamp;
@@ -472,17 +470,17 @@ export type DoltNomsUnavailableReason =
 
 export type DoltNomsTrend =
   | {
-      available: true;
-      /** Up to 144 samples (24 h at 10-min cadence). */
-      samples: DoltNomsSample[];
-      source: string;
-    }
+    available: true;
+    /** Up to 144 samples (24 h at 10-min cadence). */
+    samples: DoltNomsSample[];
+    source: string;
+  }
   | {
-      available: false;
-      /** Historical samples, if the source became unavailable after sampling. */
-      samples: DoltNomsSample[];
-      reason: DoltNomsUnavailableReason;
-    };
+    available: false;
+    /** Historical samples, if the source became unavailable after sampling. */
+    samples: DoltNomsSample[];
+    reason: DoltNomsUnavailableReason;
+  };
 
 // ── Events (SSE; Phase C wires; type-locked early) ──────────────────────
 
@@ -757,11 +755,11 @@ export interface MaintainerTriage {
 /** Audit row written to .gc/events.jsonl on every privileged action. */
 export interface AdminAuditEvent {
   type:
-    | 'dashboard.exec'
-    | 'dashboard.fetch'
-    | 'dashboard.send_mail'
-    | 'dashboard.sling'
-    | string;
+  | 'dashboard.exec'
+  | 'dashboard.fetch'
+  | 'dashboard.send_mail'
+  | 'dashboard.sling'
+  | string;
   endpoint: string;
   actor: 'stephanie';
   /** Identity the parent was viewing AS at the time. NEVER affects sender. */

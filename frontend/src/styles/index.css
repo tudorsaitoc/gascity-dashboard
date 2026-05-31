@@ -94,6 +94,40 @@
   /* Tabular numerals utility — apply to any column of numbers. */
   .tnum { font-variant-numeric: tabular-nums; }
 
+  .formula-run-diff-view {
+    --diff-background-color: transparent;
+    --diff-text-color: oklch(var(--fg));
+    --diff-font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace;
+    --diff-selection-background-color: oklch(var(--surface-tint));
+    --diff-selection-text-color: oklch(var(--fg));
+    --diff-gutter-insert-background-color: oklch(var(--ok) / 0.10);
+    --diff-gutter-insert-text-color: oklch(var(--fg-muted));
+    --diff-gutter-delete-background-color: oklch(var(--warn) / 0.10);
+    --diff-gutter-delete-text-color: oklch(var(--fg-muted));
+    --diff-code-insert-background-color: oklch(var(--ok) / 0.10);
+    --diff-code-insert-text-color: oklch(var(--fg));
+    --diff-code-delete-background-color: oklch(var(--warn) / 0.10);
+    --diff-code-delete-text-color: oklch(var(--fg-muted));
+    --diff-code-insert-edit-background-color: oklch(var(--ok) / 0.18);
+    --diff-code-delete-edit-background-color: oklch(var(--warn) / 0.18);
+    --diff-code-selected-background-color: oklch(var(--surface-tint));
+    --diff-omit-gutter-line-color: oklch(var(--rule));
+  }
+
+  .formula-run-diff-view .diff {
+    font-size: 0.8125rem;
+  }
+
+  .formula-run-diff-view .diff-code {
+    word-break: normal;
+    overflow-wrap: anywhere;
+  }
+
+  .formula-run-diff-view .diff-gutter-sign {
+    display: block;
+    color: oklch(var(--fg-faint));
+  }
+
   /* Focus ring per DESIGN.md: 2px Maroon at 1px offset. */
   .focus-mark:focus-visible {
     outline: 2px solid oklch(var(--accent));
@@ -101,19 +135,19 @@
     border-radius: 2px;
   }
 
-  .workflow-node-shape-root {
+  .formula-run-node-shape-root {
     border-width: 3px;
     border-style: double;
     border-radius: 3px;
   }
 
-  .workflow-node-shape-step {
+  .formula-run-node-shape-step {
     border-width: 1px;
     border-style: solid;
     border-radius: 3px;
   }
 
-  .workflow-node-shape-retry {
+  .formula-run-node-shape-retry {
     border-width: 2px;
     border-style: double;
     border-radius: 9999px;
@@ -121,25 +155,25 @@
     outline-offset: 3px;
   }
 
-  .workflow-node-shape-check-loop {
+  .formula-run-node-shape-check-loop {
     border-width: 2px;
     border-style: double;
     border-radius: 9999px 4px 4px 9999px;
   }
 
-  .workflow-node-shape-scope {
+  .formula-run-node-shape-scope {
     border-width: 1px;
     border-style: dashed;
     border-radius: 3px 10px 10px 3px;
   }
 
-  .workflow-node-shape-condition {
+  .formula-run-node-shape-condition {
     border-width: 1px;
     border-style: dashed;
     border-radius: 18px 4px;
   }
 
-  .workflow-node-shape-fanout {
+  .formula-run-node-shape-fanout {
     border-width: 1px;
     border-style: dashed;
     border-radius: 6px;
@@ -152,7 +186,7 @@
     );
   }
 
-  .workflow-node-shape-expansion {
+  .formula-run-node-shape-expansion {
     border-width: 1px;
     border-style: dashed;
     border-radius: 6px;
@@ -160,7 +194,7 @@
     outline-offset: 3px;
   }
 
-  .workflow-node-shape-control {
+  .formula-run-node-shape-control {
     border-width: 1px;
     border-style: dotted;
     border-radius: 4px;

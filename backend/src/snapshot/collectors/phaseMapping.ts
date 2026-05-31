@@ -1,23 +1,23 @@
-// Pure phase-classification rules for the workflows collector
+// Pure phase-classification rules for the runs collector
 // (gascity-dashboard-0t6). Kept in their own module so the rules can be
 // tested independently of the lane builder and the transport layer.
 //
-// All exports here are deterministic functions over WorkflowIssue values;
+// All exports here are deterministic functions over RunIssue values;
 // no IO, no global state. The companion test file pins the upstream
-// classifier behavior so the React translation of WorkflowMap inherits a
+// classifier behavior so the React translation of RunMap inherits a
 // consistent phase grammar.
 //
-// GcBead has no first-class `parent` field, so `WorkflowIssue.parent` is
-// populated by the adapter (in workflows.ts) from metadata['gc.parent_bead_id']
+// GcBead has no first-class `parent` field, so `RunIssue.parent` is
+// populated by the adapter (in runs.ts) from metadata['gc.parent_bead_id']
 // when present. When that metadata key is absent, parent keyword scans simply
 // don't fire and classification falls back to title + description + metadata
 // text scans.
 
 import type {
-  WorkflowPhase as SharedWorkflowPhase,
+  RunPhase as SharedRunPhase,
 } from 'gas-city-dashboard-shared';
 
-export interface WorkflowIssue {
+export interface RunIssue {
   id: string;
   title: string;
   description?: string;
@@ -31,12 +31,12 @@ export interface WorkflowIssue {
 }
 
 export interface PhaseMapping {
-  phase: SharedWorkflowPhase;
+  phase: SharedRunPhase;
   label: string;
   reviewRound: number | null;
 }
 
-export function mapWorkflowPhase(issues: WorkflowIssue[]): PhaseMapping {
+export function mapRunPhase(issues: RunIssue[]): PhaseMapping {
   if (
     issues.some(
       (i) => i.status === 'blocked' || textForIssue(i).includes('blocked'),
@@ -112,7 +112,7 @@ export function mapWorkflowPhase(issues: WorkflowIssue[]): PhaseMapping {
  *   2. key like `*iteration` or `*attempt` with numeric value → value.
  *   3. value matching `*iteration.N` or `*attempt.N` → N (from value).
  */
-export function reviewRoundForIssue(issue: WorkflowIssue): number | null {
+export function reviewRoundForIssue(issue: RunIssue): number | null {
   const metadata = issue.metadata ?? {};
 
   // Capture group 1 in both ROUND_IN_KEY and ROUND_IN_VALUE is the digit
@@ -145,7 +145,7 @@ const ROUND_IN_KEY = /(?:^|\.)(?:iteration|attempt)\.(\d+)$/;
 const ROUND_IN_VALUE = /(?:^|\.)(?:iteration|attempt)\.(\d+)$/;
 const ROUND_KEY_NO_DIGITS = /(?:^|\.)(?:iteration|attempt)$/;
 
-export function reviewRoundForIssues(issues: WorkflowIssue[]): number | null {
+export function reviewRoundForIssues(issues: RunIssue[]): number | null {
   const rounds = issues
     .map(reviewRoundForIssue)
     .filter((r): r is number => r !== null);
@@ -153,14 +153,14 @@ export function reviewRoundForIssues(issues: WorkflowIssue[]): number | null {
   return Math.max(...rounds);
 }
 
-export function fallbackReviewRound(issues: WorkflowIssue[]): number {
+export function fallbackReviewRound(issues: RunIssue[]): number {
   const reviewIssueCount = issues.filter((i) =>
     textForIssue(i).includes('review'),
   ).length;
   return Math.max(reviewIssueCount, 1);
 }
 
-export function textForIssue(issue: WorkflowIssue): string {
+export function textForIssue(issue: RunIssue): string {
   const metadataText = Object.entries(issue.metadata ?? {})
     .map(([key, value]) => `${key} ${String(value)}`)
     .join(' ');
@@ -179,7 +179,7 @@ export function textForIssue(issue: WorkflowIssue): string {
     .toLowerCase();
 }
 
-export function containsAny(issues: WorkflowIssue[], needles: string[]): boolean {
+export function containsAny(issues: RunIssue[], needles: string[]): boolean {
   return issues.some((i) => {
     const text = textForIssue(i);
     return needles.some((n) => text.includes(n));

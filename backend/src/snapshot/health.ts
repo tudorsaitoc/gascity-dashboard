@@ -1,16 +1,16 @@
 import {
   resolveSessionForTarget,
   type GcSession,
-  type WorkflowCensus,
-  type WorkflowLane,
-  type WorkflowLaneHealth,
-  type WorkflowPhase,
+  type RunCensus,
+  type RunLane,
+  type RunLaneHealth,
+  type RunPhase,
 } from 'gas-city-dashboard-shared';
 
-// Workflow-health derivation engine (gascity-dashboard-3ax).
+// Run-health derivation engine (gascity-dashboard-3ax).
 //
 // One deterministic derivation, run once in the snapshot read path, that
-// annotates each WorkflowLane with health FACTS and computes a
+// annotates each RunLane with health FACTS and computes a
 // threshold-independent city census. PRD §6 + risks R1/R2/R5/R8/R9.
 //
 // R9-strict contract (the load-bearing design choice). The engine emits NO
@@ -27,10 +27,10 @@ import {
 // The engine is split into two pure functions so the cross-cycle state stays
 // honest under the cache's 60s freeze and concurrent reads (see service.ts):
 //   - advanceProgressMarks(prev, lanes) — the cross-cycle step. Called ONLY
-//     when the workflows cache produced a NEW generation (fetchedAt changed).
+//     when the runs cache produced a NEW generation (fetchedAt changed).
 //     Pure function of (prev, lanes); two concurrent builds reading the same
 //     inputs produce the same marks, so storing is idempotent.
-//   - deriveWorkflowHealth({ lanes, sessions, marks, … }) — the per-read
+//   - deriveRunHealth({ lanes, sessions, marks, … }) — the per-read
 //     derivation. Reads the (already-advanced) streak out of `marks`, so
 //     thrashingDetected is stable across every read of one cached generation
 //     rather than flipping on the second read.
@@ -69,24 +69,24 @@ export interface LaneProgressMark {
 
 export type LaneProgressComparison =
   | {
-      status: 'comparable';
-      stepId: string;
-      stageIndex: number;
-      attempt: number;
-    }
+    status: 'comparable';
+    stepId: string;
+    stageIndex: number;
+    attempt: number;
+  }
   | {
-      status: 'not_comparable';
-      error: string;
-    };
+    status: 'not_comparable';
+    error: string;
+  };
 
-export interface DeriveWorkflowHealthInput {
-  lanes: readonly WorkflowLane[];
+export interface DeriveRunHealthInput {
+  lanes: readonly RunLane[];
   sessions: readonly GcSession[];
   /**
    * Whether the sessions read succeeded. When false the join is impossible,
    * so EVERY lane degrades to unresolved → inferred → never drives the maroon
    * One Mark (PRD R2 fail-safe). A sessions failure must NOT throw into the
-   * workflows source — it degrades confidence, it does not blank the lanes.
+   * runs source — it degrades confidence, it does not blank the lanes.
    */
   sessionsAvailable: boolean;
   /** Cross-cycle marks for the LATEST generation (already advanced). */
@@ -94,9 +94,9 @@ export interface DeriveWorkflowHealthInput {
   thresholds?: Partial<HealthThresholds>;
 }
 
-export interface DeriveWorkflowHealthResult {
-  lanes: WorkflowLane[];
-  census: WorkflowCensus;
+export interface DeriveRunHealthResult {
+  lanes: RunLane[];
+  census: RunCensus;
 }
 
 /**
@@ -111,7 +111,7 @@ export interface DeriveWorkflowHealthResult {
  */
 export function advanceProgressMarks(
   previous: ReadonlyMap<string, LaneProgressMark>,
-  lanes: readonly WorkflowLane[],
+  lanes: readonly RunLane[],
   thresholds: Partial<HealthThresholds> = {},
 ): Map<string, LaneProgressMark> {
   const { attemptClimbMin } = { ...DEFAULT_THRESHOLDS, ...thresholds };
@@ -149,26 +149,26 @@ export function advanceProgressMarks(
  * marks). Annotates each lane with `health` and returns the threshold-
  * independent census.
  */
-export function deriveWorkflowHealth(
-  input: DeriveWorkflowHealthInput,
-): DeriveWorkflowHealthResult {
+export function deriveRunHealth(
+  input: DeriveRunHealthInput,
+): DeriveRunHealthResult {
   const { thrashDetectedStreak } = { ...DEFAULT_THRESHOLDS, ...input.thresholds };
 
   const lanes = input.lanes.map((lane) => {
     const session = input.sessionsAvailable
       ? resolveLaneSession(lane, input.sessions)
-      : { status: 'unresolved' as const, error: 'workflow session list unavailable' };
+      : { status: 'unresolved' as const, error: 'run session list unavailable' };
     const sessionResolved = session.status === 'resolved';
 
     // R2: an unresolved assignee can never be 'known' (must not drive maroon),
     // regardless of the bead-side provenance. Confidence = formula resolved
     // AND the assignee resolves to a live session.
-    const phaseConfidence: WorkflowLaneHealth['phaseConfidence'] =
+    const phaseConfidence: RunLaneHealth['phaseConfidence'] =
       lane.formulaStageResolved === true && sessionResolved ? 'known' : 'inferred';
 
     const thrashStreak = input.marks.get(lane.id)?.thrashStreak ?? 0;
 
-    const health: WorkflowLaneHealth = {
+    const health: RunLaneHealth = {
       phaseConfidence,
       // Decision-pending from bead state alone — threshold-independent. The
       // stalled-driven attention signal is added client-side from the facts.
@@ -191,19 +191,19 @@ export function deriveWorkflowHealth(
  * shared resolver). The lossy role→session join PRD R2 flags as load-bearing.
  */
 function resolveLaneSession(
-  lane: WorkflowLane,
+  lane: RunLane,
   sessions: readonly GcSession[],
 ): { status: 'resolved'; session: GcSession } | { status: 'unresolved'; error: string } {
   for (const assignee of lane.activeAssignees) {
     const session = resolveSessionForTarget(assignee, sessions);
     if (session !== null) return { status: 'resolved', session };
   }
-  return { status: 'unresolved', error: 'workflow session unresolved' };
+  return { status: 'unresolved', error: 'run session unresolved' };
 }
 
-function comparableProgress(lane: WorkflowLane): LaneProgressComparison {
+function comparableProgress(lane: RunLane): LaneProgressComparison {
   if (lane.progress.status !== 'active_step') {
-    return { status: 'not_comparable', error: 'workflow has no active step' };
+    return { status: 'not_comparable', error: 'run has no active step' };
   }
   if (lane.progress.stage.status !== 'available') {
     return { status: 'not_comparable', error: lane.progress.stage.error };
@@ -219,13 +219,13 @@ function comparableProgress(lane: WorkflowLane): LaneProgressComparison {
   };
 }
 
-function stuckNode(lane: WorkflowLane): WorkflowLaneHealth['stuckNode'] {
+function stuckNode(lane: RunLane): RunLaneHealth['stuckNode'] {
   return lane.progress.status === 'active_step'
     ? { status: 'available', id: lane.progress.stepId }
-    : { status: 'unavailable', error: 'active workflow step unavailable' };
+    : { status: 'unavailable', error: 'active run step unavailable' };
 }
 
-function sessionFacts(session: GcSession): WorkflowLaneHealth['session'] {
+function sessionFacts(session: GcSession): RunLaneHealth['session'] {
   return {
     status: 'resolved',
     lastActive:
@@ -246,11 +246,11 @@ function sessionFacts(session: GcSession): WorkflowLaneHealth['session'] {
 /**
  * Zero-initialised phase counts. Written as an explicit object literal (not
  * Object.fromEntries + cast) so the compiler enforces exhaustiveness: adding a
- * member to the WorkflowPhase union without a key here is a type error, rather
+ * member to the RunPhase union without a key here is a type error, rather
  * than silently producing an incomplete Record that increments `undefined` →
  * NaN at runtime (typescript-reviewer HIGH-1).
  */
-function zeroByPhase(): Record<WorkflowPhase, number> {
+function zeroByPhase(): Record<RunPhase, number> {
   return {
     intake: 0,
     implementation: 0,
@@ -269,7 +269,7 @@ function zeroByPhase(): Record<WorkflowPhase, number> {
  * partition the in-flight set; `thrashing` is gated to KNOWN confidence so an
  * unverifiable lane can never inflate the "failing"-class count (R2).
  */
-function buildCensus(lanes: readonly WorkflowLane[]): WorkflowCensus {
+function buildCensus(lanes: readonly RunLane[]): RunCensus {
   const byPhase = zeroByPhase();
 
   let totalInFlight = 0;

@@ -5,7 +5,7 @@ import { Button } from '../components/Button';
 import { PageHeader } from '../components/PageHeader';
 import { StatusBadge, type StatusTone } from '../components/StatusBadge';
 import { useCachedData } from '../hooks/useCachedData';
-import { useVisibleInterval } from '../hooks/useVisibleInterval';
+import { useVisibleRefresh } from '../hooks/useVisibleRefresh';
 import { formatHumanSize } from '../lib/format';
 
 // Health page fetches the two slow paths in parallel through the
@@ -31,7 +31,7 @@ export function HealthPage() {
   const trend = data?.trend ?? null;
   const hostHealthStatus = health ? hostStatus(health) : undefined;
 
-  useVisibleInterval(() => void refresh(), 30_000);
+  useVisibleRefresh(refresh, 30_000);
 
   return (
     <section>

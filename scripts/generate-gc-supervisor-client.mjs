@@ -1,7 +1,7 @@
+import { spawnSync } from 'node:child_process';
 import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
-import { spawnSync } from 'node:child_process';
 
 const checkOnly = process.argv.includes('--check');
 const schemaPath = path.resolve('backend/openapi/gc-supervisor.openapi.json');
@@ -13,17 +13,6 @@ const header = [
   '// Generated from backend/openapi/gc-supervisor.openapi.json. Do not edit.',
   '',
 ].join('\n');
-const runtimeSchemaRoots = [
-  'Bead',
-  'FormulaDetailResponse',
-  'HealthOutputBody',
-  'ListBodyBead',
-  'ListBodyWireEvent',
-  'MailListBody',
-  'ListBodySessionResponse',
-  'SessionTranscriptGetResponse',
-  'WorkflowSnapshotResponse',
-];
 
 async function generateTypes(toPath) {
   const result = spawnSync(
@@ -49,9 +38,10 @@ async function generateRuntimeSchemas(toPath) {
     throw new Error('OpenAPI schema is missing components.schemas');
   }
   applyRuntimeSchemaOverlays(allSchemas);
-  const names = collectSchemaClosure(allSchemas, runtimeSchemaRoots);
   const selected = Object.fromEntries(
-    names.map((name) => [name, normalizeJson(allSchemas[name])]),
+    Object.keys(allSchemas)
+      .sort()
+      .map((name) => [name, normalizeJson(allSchemas[name])]),
   );
   const source = [
     header,
@@ -103,43 +93,6 @@ if (checkOnly) {
   ]);
   console.log(`generated ${path.relative(process.cwd(), outputPath)}`);
   console.log(`generated ${path.relative(process.cwd(), schemaOutputPath)}`);
-}
-
-function collectSchemaClosure(allSchemas, rootNames) {
-  const visited = new Set();
-  const visitName = (name) => {
-    if (visited.has(name)) return;
-    const schema = allSchemas[name];
-    if (schema === undefined) {
-      throw new Error(`OpenAPI component schema ${name} not found`);
-    }
-    visited.add(name);
-    visitSchema(schema);
-  };
-  const visitSchema = (value) => {
-    if (Array.isArray(value)) {
-      for (const item of value) visitSchema(item);
-      return;
-    }
-    if (!isRecord(value)) return;
-    const ref = value.$ref;
-    if (typeof ref === 'string') {
-      visitName(componentNameFromRef(ref));
-    }
-    for (const nested of Object.values(value)) {
-      visitSchema(nested);
-    }
-  };
-  for (const name of rootNames) visitName(name);
-  return [...visited].sort();
-}
-
-function componentNameFromRef(ref) {
-  const prefix = '#/components/schemas/';
-  if (!ref.startsWith(prefix)) {
-    throw new Error(`unsupported OpenAPI ref ${ref}`);
-  }
-  return ref.slice(prefix.length);
 }
 
 function applyRuntimeSchemaOverlays(allSchemas) {

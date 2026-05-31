@@ -7,29 +7,29 @@ import type {
   DashboardSources,
   GcSessionList,
   ResourceSummary,
+  RunSummary,
   SourceAvailableState,
   SourceName,
   SourceState,
   SourceStatus,
-  WorkflowSummary,
 } from 'gas-city-dashboard-shared';
 
 import type { GcClient } from '../gc-client.js';
 import { SourceCache } from './cache.js';
 import { createCityStatusSourceCache } from './collectors/cityStatus.js';
 import { createResourcesSourceCache } from './collectors/resources.js';
-import { createWorkflowsSourceCache } from './collectors/workflows.js';
-import { fixtureSessions } from './fixtures/snapshot.js';
+import { createRunsSourceCache } from './collectors/runs.js';
 import { fixtureSourceLoader } from './fixtures/loader.js';
+import { fixtureSessions } from './fixtures/snapshot.js';
 import {
   advanceProgressMarks,
-  deriveWorkflowHealth,
+  deriveRunHealth,
   type LaneProgressMark,
 } from './health.js';
 
 /**
  * TTL for the shared sessions cache (gascity-dashboard-3ax). Matches the
- * city collector's 45s — the tighter of city(45s)/workflows(60s) — so the
+ * city collector's 45s — the tighter of city(45s)/runs(60s) — so the
  * bead×session join in the health engine never reads session liveness
  * staler than the city view already shows.
  */
@@ -39,19 +39,19 @@ export const SESSIONS_CACHE_TTL_MS = 45 * 1000;
 // behind one aggregate getSnapshot()/refresh() facade. Runtime collectors use
 // GcClient HTTP calls as the canonical supervisor contract. Only sources with
 // visible dashboard product surface participate in the snapshot contract.
-// Workflows runs the lane builder over gc.listBeads({ limit }) with the
-// co-located workflowBeadFilter.
+// Runs runs the lane builder over gc.listBeads({ limit }) with the
+// co-located runBeadFilter.
 
 export const SOURCE_NAMES = [
   'city',
   'resources',
-  'workflows',
+  'runs',
 ] as const satisfies readonly SourceName[];
 
 export interface SourceCacheMap {
   city: SourceCache<CityStatusSummary>;
   resources: SourceCache<ResourceSummary>;
-  workflows: SourceCache<WorkflowSummary>;
+  runs: SourceCache<RunSummary>;
 }
 
 export interface SnapshotHealth {
@@ -77,7 +77,7 @@ export interface CreateSnapshotServiceOptions {
   caches?: SourceCacheMap | undefined;
   /**
    * Shared sessions cache (gascity-dashboard-3ax). Feeds BOTH the city
-   * collector's listSessions seam and the workflow-health engine's
+   * collector's listSessions seam and the run-health engine's
    * bead×session join, so one gc.listSessions() per TTL window backs both —
    * never a 2nd independent fetch (PRD R2). NOT a wire-shape source: raw
    * sessions stay off /api/snapshot (payload size). Tests may inject a
@@ -108,11 +108,11 @@ export function createSnapshotService(
   // Cross-cycle progress marks for the monotonicity predicate (R1) +
   // hysteresis (R8). Ephemeral process state, NOT a persistence layer (R7):
   // it carries no historical baseline and resets on restart. Advanced ONLY
-  // when the workflows cache produces a new generation (fetchedAt identity),
+  // when the runs cache produces a new generation (fetchedAt identity),
   // so concurrent GET/POST builds reading one frozen generation can't clobber
   // the streak (architect review §2A). The advance is synchronous, so each
   // build runs it atomically before yielding — this safety holds ONLY because
-  // enrichWorkflows contains no `await`; do not introduce one inside it.
+  // enrichRuns contains no `await`; do not introduce one inside it.
   let progressMarks = new Map<string, LaneProgressMark>();
   let marksFetchedAt: string | null = null;
 
@@ -121,23 +121,23 @@ export function createSnapshotService(
   let lastRefreshAt: string | null = null;
   let lastRefreshDurationMs: number | null = null;
 
-  const enrichWorkflows = (
+  const enrichRuns = (
     sources: DashboardSources,
     sessionsState: SourceState<GcSessionList>,
   ): DashboardSources => {
-    const wf = sources.workflows;
+    const wf = sources.runs;
     if (!sourceIsAvailable(wf)) return sources;
     const sessionsAvailable = sourceIsAvailable(sessionsState);
 
     // A sessions read failure degrades confidence (all lanes inferred, no
     // maroon — R2 fail-safe); it never blanks the lanes. Only advance the
-    // monotonicity marks on a genuine new workflows generation.
+    // monotonicity marks on a genuine new runs generation.
     if (wf.fetchedAt !== marksFetchedAt) {
       progressMarks = advanceProgressMarks(progressMarks, wf.data.lanes);
       marksFetchedAt = wf.fetchedAt;
     }
 
-    const { lanes, census } = deriveWorkflowHealth({
+    const { lanes, census } = deriveRunHealth({
       lanes: wf.data.lanes,
       sessions: sessionsAvailable ? sessionsState.data.items : [],
       sessionsAvailable,
@@ -146,7 +146,7 @@ export function createSnapshotService(
 
     return {
       ...sources,
-      workflows: {
+      runs: {
         ...wf,
         data: { ...wf.data, lanes, census: { status: 'available', data: census } },
       },
@@ -157,7 +157,7 @@ export function createSnapshotService(
     refreshSources?: ReadonlySet<SourceName>,
   ): Promise<DashboardSnapshot> => {
     const startedAt = Date.now();
-    // Read sessions in the SAME mode as workflows so the bead×session join
+    // Read sessions in the SAME mode as runs so the bead×session join
     // samples one instant — a TTL desync would cross two clocks (R2).
     const [sources, sessionsState] = await Promise.all([
       readSources(caches, refreshSources),
@@ -165,7 +165,7 @@ export function createSnapshotService(
     ]);
     const snapshot = buildSnapshot(
       options.config,
-      enrichWorkflows(sources, sessionsState),
+      enrichRuns(sources, sessionsState),
       now(),
     );
     const durationMs = Date.now() - startedAt;
@@ -223,7 +223,7 @@ export function buildSnapshot(
  * SourceName because it IS the city's session list — but it is held privately
  * by the service and never placed in DashboardSources, so raw sessions stay
  * off the /api/snapshot wire. sanitizeErrorMessage:null mirrors the city/
- * workflows posture: GcClient already throws operator-safe messages.
+ * runs posture: GcClient already throws operator-safe messages.
  *
  * Without a live `gc` (test injection of `caches` only), returns an
  * empty-sessions cache so the health engine degrades every lane to
@@ -275,7 +275,7 @@ function buildDefaultCaches(
       loadFixture: useFixture ? fixtureSourceLoader('city') : undefined,
       // Read sessions from the shared cache (gascity-dashboard-3ax) instead
       // of calling gc.listSessions() directly, so the city aggregate and the
-      // workflow-health join share ONE underlying fetch per TTL window (R2).
+      // run-health join share ONE underlying fetch per TTL window (R2).
       // Throw on a sessions failure so the city source surfaces status='error'
       // exactly as it did when it owned the fetch — preserving failure
       // isolation rather than silently aggregating an empty list.
@@ -292,11 +292,11 @@ function buildDefaultCaches(
       useFixture,
       loadFixture: useFixture ? fixtureSourceLoader('resources') : undefined,
     }),
-    workflows: createWorkflowsSourceCache({
+    runs: createRunsSourceCache({
       gc,
       now,
       useFixture,
-      loadFixture: useFixture ? fixtureSourceLoader('workflows') : undefined,
+      loadFixture: useFixture ? fixtureSourceLoader('runs') : undefined,
     }),
   };
 }
@@ -343,21 +343,21 @@ async function readSources(
     }
   };
 
-  const [city, resources, workflows] = await Promise.all([
+  const [city, resources, runs] = await Promise.all([
     settle('city', caches.city),
     settle('resources', caches.resources),
-    settle('workflows', caches.workflows),
+    settle('runs', caches.runs),
   ]);
 
-  return { city, resources, workflows };
+  return { city, resources, runs };
 }
 
 /**
- * Read the shared sessions cache in the SAME mode the workflows source is
+ * Read the shared sessions cache in the SAME mode the runs source is
  * read (gascity-dashboard-3ax), so the bead×session join samples one instant:
  *   - normal GET (refreshSources undefined) → get() (TTL-driven)
- *   - POST /refresh including 'workflows' → refresh() (force same-instant)
- *   - POST /refresh excluding 'workflows' → snapshot() (read-only)
+ *   - POST /refresh including 'runs' → refresh() (force same-instant)
+ *   - POST /refresh excluding 'runs' → snapshot() (read-only)
  * A failure surfaces as a SourceState with status='error'; the health engine
  * then degrades every lane to unresolved/inferred (R2 fail-safe) — it never
  * throws here, so a sessions outage can't 500 the snapshot.
@@ -368,7 +368,7 @@ async function readSessions(
 ): Promise<SourceState<GcSessionList>> {
   try {
     if (refreshSources === undefined) return await cache.get();
-    if (refreshSources.has('workflows')) return await cache.refresh();
+    if (refreshSources.has('runs')) return await cache.refresh();
     return cache.snapshot();
   } catch (error) {
     return errorState(cache, error);
@@ -396,20 +396,20 @@ function buildHeadline(sources: DashboardSources): DashboardHeadline {
     activeAgents: cityMetric(sources.city, 'activeAgents'),
     maxAgents: cityMetricState(sources.city, (city) => city.maxSessions),
     activeSessions: cityMetric(sources.city, 'activeSessions'),
-    activeWorkflows: sourceMetric(
-      sources.workflows,
-      activeWorkflowCount,
-      'active workflow count',
+    activeRuns: sourceMetric(
+      sources.runs,
+      activeRunCount,
+      'active run count',
     ),
   };
 }
 
-function activeWorkflowCount(workflows: WorkflowSummary): number {
-  if (workflows.census.status === 'available') {
-    return workflows.census.data.totalInFlight;
+function activeRunCount(runs: RunSummary): number {
+  if (runs.census.status === 'available') {
+    return runs.census.data.totalInFlight;
   }
 
-  return workflows.lanes.filter((lane) => lane.phase !== 'complete').length;
+  return runs.lanes.filter((lane) => lane.phase !== 'complete').length;
 }
 
 function cityMetric(
@@ -467,6 +467,6 @@ function sourceStatuses(caches: SourceCacheMap): Record<SourceName, SourceStatus
   return {
     city: caches.city.snapshot().status,
     resources: caches.resources.snapshot().status,
-    workflows: caches.workflows.snapshot().status,
+    runs: caches.runs.snapshot().status,
   };
 }

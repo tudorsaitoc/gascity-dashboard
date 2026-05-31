@@ -1,20 +1,20 @@
-import { z } from 'zod';
 import type {
   GcBead,
   GcBeadList,
   GcEventList,
   GcFormulaDetail,
   GcMailList,
+  GcRunSnapshot,
   GcSessionList,
-  GcWorkflowSnapshot,
   SupervisorHealth,
   TranscriptTurn,
 } from 'gas-city-dashboard-shared';
-import type { components } from './generated/gc-supervisor.js';
+import { z } from 'zod';
 import {
   openApiIssuePath,
   validateGcSupervisorComponent,
 } from './gc-supervisor-schema-validator.js';
+import type { components } from './generated/gc-supervisor.js';
 
 type RawSupervisorSchema = components['schemas'];
 
@@ -27,6 +27,10 @@ export interface GcTranscriptResponse {
 }
 
 export type GcDecoder<RawValue, DecodedValue> = (value: RawValue) => DecodedValue;
+
+type GcWorkflowSnapshot = Omit<GcRunSnapshot, 'run_id'> & {
+  workflow_id: string;
+};
 
 const UnknownRecordSchema = z.record(z.string(), z.unknown());
 const StringRecordSchema = z.record(z.string(), z.string());
@@ -98,7 +102,7 @@ const EventSchema = z.object({
   payload: UnknownRecordSchema.optional(),
 }).passthrough();
 
-const WorkflowBeadSchema = z.object({
+const RunBeadSchema = z.object({
   id: z.string(),
   title: z.string(),
   status: z.string(),
@@ -111,7 +115,7 @@ const WorkflowBeadSchema = z.object({
   metadata: StringRecordSchema,
 }).passthrough();
 
-const WorkflowDepSchema = z.object({
+const RunDepSchema = z.object({
   from: z.string(),
   to: z.string(),
   kind: z.string().optional(),
@@ -129,8 +133,7 @@ const FormulaPreviewEdgeSchema = z.object({
   kind: z.string().optional(),
 }).passthrough();
 
-const WorkflowSnapshotSchema = z.object({
-  workflow_id: z.string(),
+const RunSnapshotBaseSchema = z.object({
   root_bead_id: z.string(),
   root_store_ref: z.string(),
   resolved_root_store: z.string(),
@@ -140,11 +143,15 @@ const WorkflowSnapshotSchema = z.object({
   snapshot_event_seq: z.number().finite().nullable().optional(),
   partial: z.boolean(),
   stores_scanned: z.array(z.string()).nullable(),
-  beads: z.array(WorkflowBeadSchema).nullable(),
-  deps: z.array(WorkflowDepSchema).nullable(),
+  beads: z.array(RunBeadSchema).nullable(),
+  deps: z.array(RunDepSchema).nullable(),
   logical_nodes: z.array(UnknownRecordSchema).nullable(),
-  logical_edges: z.array(WorkflowDepSchema).nullable(),
+  logical_edges: z.array(RunDepSchema).nullable(),
   scope_groups: z.array(UnknownRecordSchema).nullable(),
+}).passthrough();
+
+const WorkflowSnapshotSchema = RunSnapshotBaseSchema.extend({
+  workflow_id: z.string(),
 }).passthrough();
 
 const FormulaDetailSchema = z.object({
@@ -227,13 +234,26 @@ export const gcSupervisorDecoders = {
     );
   },
 
-  getWorkflow(value: RawSupervisorSchema['WorkflowSnapshotResponse']): GcWorkflowSnapshot {
-    return decodeSupervisorPayload(
+  getRun(value: RawSupervisorSchema['WorkflowSnapshotResponse']): GcRunSnapshot {
+    const wire = decodeSupervisorPayload<GcWorkflowSnapshot>(
       'WorkflowSnapshotResponse',
       WorkflowSnapshotSchema,
       value,
-      'getWorkflow',
+      'getRun',
     );
+    const {
+      workflow_id: workflowId,
+      snapshot_event_seq: snapshotEventSeq,
+      ...rest
+    } = wire;
+    const snapshot: GcRunSnapshot = {
+      ...rest,
+      run_id: workflowId,
+    };
+    if (snapshotEventSeq !== undefined) {
+      snapshot.snapshot_event_seq = snapshotEventSeq;
+    }
+    return snapshot;
   },
 
   getFormulaDetail(value: RawSupervisorSchema['FormulaDetailResponse']): GcFormulaDetail {

@@ -19,7 +19,7 @@ export const LOG_COMPONENT = {
   sessions: 'sessions',
   snapshot: 'snapshot',
   sse: 'sse',
-  workflows: 'workflows',
+  runs: 'runs',
 } as const;
 
 export const LOG_COMPONENTS = Object.values(LOG_COMPONENT);

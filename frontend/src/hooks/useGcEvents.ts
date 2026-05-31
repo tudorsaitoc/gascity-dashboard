@@ -10,7 +10,9 @@ import { reportClientError } from '../lib/clientErrorReporting';
 export type GcEventConnState = 'connecting' | 'open' | 'degraded' | 'closed';
 export type GcEventEnvelope = {
   type: string;
-  workflow?: Record<string, unknown>;
+  run_id?: string;
+  root_bead_id?: string;
+  run?: Record<string, unknown>;
   payload?: Record<string, unknown>;
   bead?: Record<string, unknown>;
   root?: Record<string, unknown>;

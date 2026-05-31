@@ -6,10 +6,10 @@ import type {
   LinkProvenance,
   LinkResolutionStat,
 } from 'gas-city-dashboard-shared';
-import type { IndexBead, RelationIndex } from './relation-index.js';
+import { recordResolution, type ResolutionRecorder } from './instrumentation.js';
 import type { ParsedRef } from './node-ref.js';
 import { nodeKey, sanitiseUrl } from './node-ref.js';
-import { recordResolution, type ResolutionRecorder } from './instrumentation.js';
+import type { IndexBead, RelationIndex } from './relation-index.js';
 
 // One-hop link-view assembly (R3). Resolves the focus ref to its bead
 // id(s), reads the index's authoritative reverse lookups, and decorates
@@ -23,7 +23,7 @@ export interface BuildLinkViewOptions {
   githubFetchedAt?: string | null;
   /** Supervisor snapshot fetch time. R7. */
   supervisorFetchedAt?: string | null;
-  /** True when any contributing fetch failed. Mirrors workflows partial. */
+  /** True when any contributing fetch failed. Mirrors runs partial. */
   partial?: boolean;
   now?: () => Date;
   recorder?: ResolutionRecorder;
@@ -135,7 +135,7 @@ export function buildLinkView(
     view,
     nodesByKey: new Map(),
     stats: new Map(),
-    recorder: opts.recorder ?? (() => {}),
+    recorder: opts.recorder ?? (() => { }),
   };
 
   // Focus node itself is always present.
@@ -188,7 +188,7 @@ interface FocusResult {
    */
   focusResolved: boolean;
   /**
-   * True when the focus is bead-shaped (bead / session id / workflow id).
+   * True when the focus is bead-shaped (bead / session id / run id).
    * A non-bead focus (PR/issue/session) links one hop to its candidate
    * bead(s) only; it does NOT expand those beads' own parent/molecule
    * edges (those are adjacent to the bead, not to the PR/session).
@@ -232,7 +232,7 @@ function resolveFocus(
     };
   }
 
-  // Bead-shaped focus (bead / session id / workflow id all share the
+  // Bead-shaped focus (bead / session id / run id all share the
   // alphabet). Prefer the live bead; fall back to a superseded bead so a
   // direct focus on a dead retry still resolves its title.
   const bead = index.beads.get(parsed.value) ?? index.allBeads.get(parsed.value);
@@ -336,8 +336,8 @@ function addBeadEdges(
     if (child) linkBead(acc, fromKey, child, 'child', supervisorFetchedAt);
   }
 
-  // molecule membership. `molecule_id` is the workflow ROOT bead id (see
-  // collectors/workflows.ts workflowRootId) and is usually a real
+  // molecule membership. `molecule_id` is the run ROOT bead id (see
+  // collectors/runs.ts runRootId) and is usually a real
   // navigable bead, so link the molecule root whenever it exists and isn't
   // the current bead — in addition to the peer members.
   if (bead.moleculeId) {

@@ -1,16 +1,16 @@
-import { test, describe } from 'node:test';
 import assert from 'node:assert/strict';
+import { describe, test } from 'node:test';
 
 import type {
   CityStatusSummary,
   GcSessionList,
   ResourceSummary,
+  RunLane,
+  RunLaneHealth,
+  RunPhase,
+  RunSummary,
   SourceAvailableState,
   SourceState,
-  WorkflowLane,
-  WorkflowLaneHealth,
-  WorkflowPhase,
-  WorkflowSummary,
 } from 'gas-city-dashboard-shared';
 
 import { SourceCache } from '../src/snapshot/cache.js';
@@ -19,19 +19,19 @@ import {
   type SourceCacheMap,
 } from '../src/snapshot/service.js';
 
-// End-to-end wiring of the workflow-health engine into the snapshot read
+// End-to-end wiring of the run-health engine into the snapshot read
 // path (gascity-dashboard-3ax). The pure engine is unit-tested in
-// snapshot-workflowHealth.test.ts; these tests prove the SERVICE actually
+// snapshot-runHealth.test.ts; these tests prove the SERVICE actually
 // runs it against the shared sessions cache and emits the result on the
-// snapshot's workflows source.
+// snapshot's runs source.
 
-function lane(partial: Partial<WorkflowLane> & { id: string }): WorkflowLane {
+function lane(partial: Partial<RunLane> & { id: string }): RunLane {
   return {
     title: partial.id,
-    formula: { status: 'unavailable', error: 'workflow formula unavailable in test' },
+    formula: { status: 'unavailable', error: 'run formula unavailable in test' },
     scope: { status: 'unavailable', error: 'not scoped in test' },
     external: { status: 'unavailable', error: 'external unavailable in test' },
-    phase: 'review' as WorkflowPhase,
+    phase: 'review' as RunPhase,
     phaseLabel: 'review',
     statusCounts: {},
     activeAssignees: [],
@@ -42,10 +42,10 @@ function lane(partial: Partial<WorkflowLane> & { id: string }): WorkflowLane {
     stages: [],
     progress: {
       status: 'unavailable',
-      error: 'workflow progress unavailable in test',
+      error: 'run progress unavailable in test',
     },
     formulaStageResolved: false,
-    health: { status: 'unavailable', error: 'workflow health has not been derived' },
+    health: { status: 'unavailable', error: 'run health has not been derived' },
     ...partial,
   };
 }
@@ -54,7 +54,7 @@ function activeProgress(
   stepId: string,
   stageIndex: number,
   attempt: number,
-): WorkflowLane['progress'] {
+): RunLane['progress'] {
   return {
     status: 'active_step',
     stepId,
@@ -90,29 +90,29 @@ const SAMPLE_RESOURCES: ResourceSummary = {
   samples: [],
 };
 
-function fresh<T>(source: 'city' | 'resources' | 'workflows', data: T): SourceCache<T> {
+function fresh<T>(source: 'city' | 'resources' | 'runs', data: T): SourceCache<T> {
   return new SourceCache<T>({ source, ttlMs: 60_000, sanitizeErrorMessage: null, load: () => data });
 }
 
-function buildCaches(workflows: WorkflowSummary): SourceCacheMap {
+function buildCaches(runs: RunSummary): SourceCacheMap {
   return {
     city: fresh('city', SAMPLE_CITY),
     resources: fresh('resources', SAMPLE_RESOURCES),
-    workflows: fresh('workflows', workflows),
+    runs: fresh('runs', runs),
   };
 }
 
-function summary(lanes: WorkflowLane[]): WorkflowSummary {
+function summary(lanes: RunLane[]): RunSummary {
   return {
     totalActive: lanes.length,
     runCounts: { total: lanes.length, visible: lanes.length, prReview: 0, designReview: 0, bugfix: 0, blocked: 0, other: 0 },
     lanes,
     recentChanges: [],
-    census: { status: 'unavailable', error: 'workflow health has not been derived' },
+    census: { status: 'unavailable', error: 'run health has not been derived' },
   };
 }
 
-function requireAvailableHealth(lane: WorkflowLane | undefined): WorkflowLaneHealth {
+function requireAvailableHealth(lane: RunLane | undefined): RunLaneHealth {
   assert.ok(lane, 'expected lane to exist');
   assert.equal(lane.health.status, 'available');
   if (lane.health.status !== 'available') assert.fail('expected available lane health');
@@ -137,7 +137,7 @@ describe('health engine wiring on /api/snapshot', () => {
       }),
       lane({ id: 'inferred-lane', formulaStageResolved: false, activeAssignees: ['nobody'] }),
     ];
-    const sessions = fresh<GcSessionList>('workflows', {
+    const sessions = fresh<GcSessionList>('runs', {
       items: [
         {
           id: 's1',
@@ -160,8 +160,8 @@ describe('health engine wiring on /api/snapshot', () => {
     });
 
     const snap = await service.getSnapshot();
-    assertSourceAvailable(snap.sources.workflows);
-    const wf = snap.sources.workflows.data;
+    assertSourceAvailable(snap.sources.runs);
+    const wf = snap.sources.runs.data;
 
     const known = wf.lanes.find((l) => l.id === 'known-lane');
     const inferred = wf.lanes.find((l) => l.id === 'inferred-lane');
@@ -193,7 +193,7 @@ describe('health engine wiring on /api/snapshot', () => {
     assert.equal(inferredHealth.phaseConfidence, 'inferred');
     assert.deepEqual(inferredHealth.session, {
       status: 'unresolved',
-      error: 'workflow session unresolved',
+      error: 'run session unresolved',
     });
 
     assert.deepEqual(wf.census, {
@@ -208,7 +208,7 @@ describe('health engine wiring on /api/snapshot', () => {
     });
   });
 
-  test('headline active workflow count excludes completed runs that remain visible', async () => {
+  test('headline active run count excludes completed runs that remain visible', async () => {
     const completed = lane({
       id: 'completed-run',
       phase: 'complete',
@@ -230,14 +230,14 @@ describe('health engine wiring on /api/snapshot', () => {
 
     const snap = await service.getSnapshot();
 
-    assertSourceAvailable(snap.sources.workflows);
-    assert.equal(snap.sources.workflows.data.runCounts.total, 1);
-    assert.equal(snap.sources.workflows.data.census.status, 'available');
-    if (snap.sources.workflows.data.census.status !== 'available') {
-      assert.fail('expected available workflow census');
+    assertSourceAvailable(snap.sources.runs);
+    assert.equal(snap.sources.runs.data.runCounts.total, 1);
+    assert.equal(snap.sources.runs.data.census.status, 'available');
+    if (snap.sources.runs.data.census.status !== 'available') {
+      assert.fail('expected available run census');
     }
-    assert.equal(snap.sources.workflows.data.census.data.totalInFlight, 0);
-    assert.deepEqual(snap.headline.activeWorkflows, {
+    assert.equal(snap.sources.runs.data.census.data.totalInFlight, 0);
+    assert.deepEqual(snap.headline.activeRuns, {
       status: 'available',
       value: 0,
     });
@@ -263,15 +263,15 @@ describe('health engine wiring on /api/snapshot', () => {
     });
 
     const snap = await service.getSnapshot();
-    assertSourceAvailable(snap.sources.workflows);
-    const wf = snap.sources.workflows.data;
+    assertSourceAvailable(snap.sources.runs);
+    const wf = snap.sources.runs.data;
     // Snapshot still served (no 500), lanes intact, but unverifiable.
-    assert.equal(snap.sources.workflows.status, 'fresh');
+    assert.equal(snap.sources.runs.status, 'fresh');
     const health = requireAvailableHealth(wf.lanes[0]);
     assert.equal(health.phaseConfidence, 'inferred');
     assert.deepEqual(health.session, {
       status: 'unresolved',
-      error: 'workflow session list unavailable',
+      error: 'run session list unavailable',
     });
     assert.equal(wf.census.status, 'available');
     assert.equal(wf.census.data.unverifiable, 1);

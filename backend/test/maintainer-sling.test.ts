@@ -1,17 +1,13 @@
-import { test, describe, afterEach } from 'node:test';
+import express from 'express';
 import assert from 'node:assert/strict';
 import fs from 'node:fs/promises';
+import type { AddressInfo } from 'node:net';
 import os from 'node:os';
 import path from 'node:path';
-import type { AddressInfo } from 'node:net';
-import express from 'express';
+import { afterEach, describe, test } from 'node:test';
 // ExecError is still used by the /refresh tests below — that route shells
 // `gh` (execGhIssueList) and maps ExecError kinds to wire codes. The /sling
 // path no longer throws ExecError (it POSTs to the supervisor via GcClient).
-import { ExecError } from '../src/exec.js';
-import { maintainerRouter } from '../src/routes/maintainer.js';
-import { setAuditLogPath } from '../src/audit.js';
-import { readSlungState, slungKey, writeSlungEntry } from '../src/maintainer/slung-state.js';
 import type {
   GcSession,
   MaintainerTriage,
@@ -19,6 +15,10 @@ import type {
   SlingResponse,
   TriageItem,
 } from 'gas-city-dashboard-shared';
+import { setAuditLogPath } from '../src/audit.js';
+import { ExecError } from '../src/exec.js';
+import { readSlungState, slungKey, writeSlungEntry } from '../src/maintainer/slung-state.js';
+import { maintainerRouter } from '../src/routes/maintainer.js';
 import { makePr } from './fixtures/triage-item.js';
 
 // Tests for POST /api/maintainer/sling (gascity-dashboard-ib5,
@@ -560,7 +560,7 @@ describe('POST /api/maintainer/sling', { concurrency: false }, () => {
 //
 // Successful slings must write the active-slung-state file so the
 // next GET /triage's overlay can move the One Mark + render the
-// inline workflow link. Failed slings must NOT write — slung state
+// inline run link. Failed slings must NOT write — slung state
 // means "agent has the work."
 
 function slungStatePathFor(handle: AppHandle): string {

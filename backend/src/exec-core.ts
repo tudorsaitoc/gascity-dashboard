@@ -2,7 +2,7 @@ import { spawn } from 'node:child_process';
 
 export const MAX_BYTES = 100 * 1024;
 export const MAX_BYTES_LARGE = 2 * 1024 * 1024;
-export const MAX_WORKFLOW_DIFF_BYTES = 512 * 1024;
+export const MAX_RUN_DIFF_BYTES = 512 * 1024;
 const MAX_CONCURRENT = 4;
 
 export const AGENT_ALIAS_RE = /^[a-z][a-z0-9_./-]{1,63}$/i;

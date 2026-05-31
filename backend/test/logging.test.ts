@@ -1,5 +1,5 @@
-import { describe, test } from 'node:test';
 import assert from 'node:assert/strict';
+import { describe, test } from 'node:test';
 import { LOG_COMPONENT, LOG_COMPONENTS } from '../src/logging.js';
 
 describe('logging component vocabulary', () => {
@@ -21,7 +21,7 @@ describe('logging component vocabulary', () => {
       LOG_COMPONENT.sessions,
       LOG_COMPONENT.snapshot,
       LOG_COMPONENT.sse,
-      LOG_COMPONENT.workflows,
+      LOG_COMPONENT.runs,
     ].sort());
   });
 });

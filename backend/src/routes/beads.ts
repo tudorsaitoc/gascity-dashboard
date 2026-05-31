@@ -1,20 +1,20 @@
-import { Router } from 'express';
 import type { Response } from 'express';
+import { Router } from 'express';
 import {
   OPERATOR_DISPLAY_ALIAS,
-  type GcBead,
   type BeadUpdateInput,
+  type GcBead,
 } from 'gas-city-dashboard-shared';
-import { GcClient } from '../gc-client.js';
-import { HTTP_STATUS } from '../lib/http-status.js';
+import { recordAudit } from '../audit.js';
+import type { ExecResult } from '../exec.js';
 import {
   execBeadAction as defaultExecBeadAction,
   ExecError,
 } from '../exec.js';
-import type { ExecResult } from '../exec.js';
-import { recordAudit } from '../audit.js';
+import { GcClient } from '../gc-client.js';
+import { HTTP_STATUS } from '../lib/http-status.js';
 import { writeExecError } from '../lib/sanitise-error.js';
-import { LOG_COMPONENT, errorMessage, logWarn } from '../logging.js';
+import { errorMessage, LOG_COMPONENT, logWarn } from '../logging.js';
 import {
   routeInternalError,
   routeUpstreamError,
@@ -129,7 +129,7 @@ export function beadsRouter(
         return;
       }
       const msg = (err as Error).message;
-      // Supervisor quirk: workflow/orchestration beads (gc-NNNN ids) are
+      // Supervisor quirk: run/orchestration beads (gc-NNNN ids) are
       // returned by /beads but 404 on /bead/{id}. Fall back to a list scan
       // so the modal works on every bead the user can see in any list.
       // The list call is coalesced by GcClient.getJson, so concurrent

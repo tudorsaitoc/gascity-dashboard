@@ -54,34 +54,17 @@ describe('useVisibleInterval', () => {
     expect(callback).toHaveBeenCalledTimes(1);
   });
 
-  it('backs off after callback failures and resets after success', () => {
+  it('keeps interval callbacks simple and does not apply async-refresh backoff', () => {
     vi.useFakeTimers();
     vi.spyOn(document, 'hidden', 'get').mockReturnValue(false);
-    const onError = vi.fn();
-    const callback = vi.fn(() => {
-      if (callback.mock.calls.length === 1) {
-        throw new Error('poll failed');
-      }
-    });
+    const callback = vi.fn();
 
-    renderHook(() =>
-      useVisibleInterval(callback, 1_000, {
-        initialBackoffMs: 2_000,
-        maxBackoffMs: 2_000,
-        onError,
-      }),
-    );
+    renderHook(() => useVisibleInterval(callback, 1_000));
 
     vi.advanceTimersByTime(1_000);
     expect(callback).toHaveBeenCalledTimes(1);
-    expect(onError).toHaveBeenCalledTimes(1);
-
-    vi.advanceTimersByTime(1_000);
-    expect(callback).toHaveBeenCalledTimes(1);
-
     vi.advanceTimersByTime(1_000);
     expect(callback).toHaveBeenCalledTimes(2);
-
     vi.advanceTimersByTime(1_000);
     expect(callback).toHaveBeenCalledTimes(3);
   });

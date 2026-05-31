@@ -1,43 +1,43 @@
 import express, { type Express } from 'express';
+import type { DashboardRuntimeConfig } from 'gas-city-dashboard-shared';
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import type { DashboardRuntimeConfig } from 'gas-city-dashboard-shared';
 
 import type { AdminConfig } from './config.js';
+import { GcClient } from './gc-client.js';
+import { raceWithTimeout } from './lib/race-with-timeout.js';
+import { LOG_COMPONENT, logInfo } from './logging.js';
+import { MaintainerSseHub } from './maintainer/sse.js';
+import {
+  createMaintainerRefresher,
+  type MaintainerRefresher,
+} from './maintainer/worker.js';
+import { apiErrorHandler } from './middleware/api-error-handler.js';
+import { csrfIssueCookie, csrfValidate, getCsrfToken } from './middleware/csrf.js';
+import { requestLog } from './middleware/request-log.js';
 import {
   hostHeaderAllowlistFactory,
   originCheck,
   securityHeaders,
 } from './middleware/security.js';
-import { requestLog } from './middleware/request-log.js';
-import { apiErrorHandler } from './middleware/api-error-handler.js';
-import { csrfIssueCookie, csrfValidate, getCsrfToken } from './middleware/csrf.js';
-import { GcClient } from './gc-client.js';
-import { raceWithTimeout } from './lib/race-with-timeout.js';
-import { sessionsRouter } from './routes/sessions.js';
-import { sessionStreamRouter } from './routes/session-stream.js';
 import { agentsRouter } from './routes/agents.js';
 import { beadsRouter } from './routes/beads.js';
-import { workflowsRouter } from './routes/workflows.js';
-import { linksRouter } from './routes/links.js';
-import { mailRouter } from './routes/mail.js';
-import { mailSendRouter } from './routes/mail-send.js';
-import { gitRouter } from './routes/git.js';
 import { buildsRouter } from './routes/builds.js';
-import { healthRouter } from './routes/health.js';
+import { clientErrorsRouter } from './routes/client-errors.js';
 import { createDoltNomsSampler, doltRouter } from './routes/dolt.js';
 import { eventsRouter } from './routes/events.js';
-import { clientErrorsRouter } from './routes/client-errors.js';
+import { gitRouter } from './routes/git.js';
+import { healthRouter } from './routes/health.js';
+import { linksRouter } from './routes/links.js';
+import { mailSendRouter } from './routes/mail-send.js';
+import { mailRouter } from './routes/mail.js';
 import { maintainerRouter } from './routes/maintainer.js';
+import { runsRouter } from './routes/runs.js';
+import { sessionStreamRouter } from './routes/session-stream.js';
+import { sessionsRouter } from './routes/sessions.js';
 import { snapshotRouter } from './routes/snapshot.js';
-import {
-  createMaintainerRefresher,
-  type MaintainerRefresher,
-} from './maintainer/worker.js';
-import { MaintainerSseHub } from './maintainer/sse.js';
 import { createSnapshotService } from './snapshot/service.js';
-import { LOG_COMPONENT, logInfo } from './logging.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -91,7 +91,7 @@ export function createDashboardApp(config: AdminConfig): DashboardApp {
     res.json(dashboardConfig);
   });
   writeRouter.use('/sessions', sessionsRouter(gc));
-  writeRouter.use('/workflows', workflowsRouter(gc, { rigRoot: config.cityPath }));
+  writeRouter.use('/runs', runsRouter(gc, { rigRoot: config.cityPath }));
   writeRouter.use('/links', linksRouter(gc));
   writeRouter.use('/agents', agentsRouter(config.cityPath));
   writeRouter.use('/beads', beadsRouter(gc, config.cityPath));
@@ -148,15 +148,15 @@ export function createDashboardApp(config: AdminConfig): DashboardApp {
   const refresherState: RefresherServerState =
     config.maintainerRefreshIntervalMs > 0
       ? {
-          status: 'active',
-          refresher: createMaintainerRefresher({
-            repo: config.maintainerRepo,
-            cachePath: config.maintainerCachePath,
-            slungStatePath: maintainerSlungStatePath,
-            intervalMs: config.maintainerRefreshIntervalMs,
-            sseHub: maintainerSseHub,
-          }),
-        }
+        status: 'active',
+        refresher: createMaintainerRefresher({
+          repo: config.maintainerRepo,
+          cachePath: config.maintainerCachePath,
+          slungStatePath: maintainerSlungStatePath,
+          intervalMs: config.maintainerRefreshIntervalMs,
+          sseHub: maintainerSseHub,
+        }),
+      }
       : { status: 'disabled' };
 
   mountFrontend(app, config.frontendDistPath);

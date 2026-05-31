@@ -1,4 +1,4 @@
-import type { Request, Response, NextFunction } from 'express';
+import type { NextFunction, Request, Response } from 'express';
 import { HTTP_STATUS } from '../lib/http-status.js';
 
 // DNS-rebinding defense + clickjacking defense + content-type lockdown.
@@ -6,7 +6,7 @@ import { HTTP_STATUS } from '../lib/http-status.js';
 
 // Always-allowed floor. Extra hosts (e.g. LAN names like 'my-vm' or
 // '192.168.1.58') are added at runtime via hostHeaderAllowlistFactory() —
-// see td-9u9im9 for the headless-VM workflow this supports.
+// see td-9u9im9 for the headless-VM run this supports.
 const ALLOWED_HOSTS_FLOOR: ReadonlyArray<string> = ['127.0.0.1', 'localhost'];
 const THEME_BOOT_SCRIPT_HASH =
   "'sha256-UwUdbc/TSVCB3Er6sM8M1BP5Fk3RrQVkswCUvEjf08g='";

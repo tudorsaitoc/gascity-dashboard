@@ -1,7 +1,7 @@
 // Bead-ID cross-entity linked view (gascity-dashboard-j4x).
 //
 // Wire shapes for the relation index that joins the dashboard's six
-// entity types (beads, workflow runs, sessions, GitHub PRs/issues,
+// entity types (beads, formula runs, sessions, GitHub PRs/issues,
 // formula/order runs) into a single bidirectional, provenance-tagged
 // adjacency view rendered as a typeset "Related" section.
 //
@@ -9,7 +9,7 @@
 // supervisor-provided bead metadata (ZFC-clean: structural inversion of
 // already-extracted fields, no read-time heuristics). The frontend
 // renders the EntityLinkView without recomputing anything — same posture
-// as the maintainer triage envelope and the workflow run detail.
+// as the maintainer triage envelope and the formula run detail.
 
 import type { IsoTimestamp } from './index.js';
 
@@ -21,7 +21,6 @@ import type { IsoTimestamp } from './index.js';
  */
 export type LinkNodeType =
   | 'bead'
-  | 'workflow_run'
   | 'session'
   | 'github_pr'
   | 'github_issue'
@@ -47,7 +46,7 @@ export interface LinkNodeRef {
   /** Namespaced identity (`<type>:<scope>:<ref>`). Stable for adjacency. */
   key: string;
   type: LinkNodeType;
-  /** Display/route handle (bead id, `pr/<n>`, session id, workflow id). */
+  /** Display/route handle (bead id, `pr/<n>`, session id, run id). */
   ref: string;
 }
 
@@ -121,7 +120,7 @@ export interface EntityLinkView {
   stats: LinkResolutionStat[];
   /**
    * True when any contributing fetch failed or the focus ref did not
-   * resolve to a known bead — mirrors routes/workflows.ts partial flag.
+   * resolve to a known bead — mirrors routes/runs.ts partial flag.
    */
   partial: boolean;
   /** When the view was assembled (server clock). */

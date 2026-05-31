@@ -1,12 +1,12 @@
-import { useEffect, useState } from 'react';
-import type { GcBead } from 'gas-city-dashboard-shared';
-import { api, ApiClientError } from '../api/client';
-import { Modal } from './Modal';
-import { StatusBadge, type StatusTone } from './StatusBadge';
-import { Field } from './Field';
-import { RelatedEntities } from './RelatedEntities';
-import { useEntityLinks } from '../hooks/useEntityLinks';
-import { formatDateTime } from '../lib/format';
+import type { GcBead } from "gas-city-dashboard-shared";
+import { useEffect, useState } from "react";
+import { api, ApiClientError } from "../api/client";
+import { useEntityLinks } from "../hooks/useEntityLinks";
+import { formatDateTime } from "../lib/format";
+import { Field } from "./Field";
+import { Modal } from "./Modal";
+import { RelatedEntities } from "./RelatedEntities";
+import { StatusBadge, type StatusTone } from "./StatusBadge";
 
 // Click-to-read modal for a single bead. Used from the Beads list
 // rows and the AgentDetail assigned-beads list. Pure read view;
@@ -44,7 +44,7 @@ export function BeadDetailModal({
   const links = useEntityLinks(open ? beadId : null);
 
   // Live clock for RelatedEntities staleness / "as of" (matches the
-  // setNow+interval pattern in AgentDetail / WorkflowRunDetail). A frozen
+  // setNow+interval pattern in AgentDetail / FormulaRunDetail). A frozen
   // Date.now() captured once would never re-tick while the modal stays
   // open, so the relative ages would silently go stale. Only tick while
   // the modal is open and the tab is visible.
@@ -63,7 +63,11 @@ export function BeadDetailModal({
     // If we already have the bead and it includes a description, skip the
     // refetch. Description is the primary thing this modal exists to
     // show, so its presence is the freshness signal.
-    if (initialBead && initialBead.id === beadId && initialBead.description !== undefined) {
+    if (
+      initialBead &&
+      initialBead.id === beadId &&
+      initialBead.description !== undefined
+    ) {
       setBead(initialBead);
       setError(null);
       return;
@@ -81,11 +85,11 @@ export function BeadDetailModal({
         const msg =
           err instanceof ApiClientError
             ? err.status === 404
-              ? 'Bead not found in the supervisor.'
+              ? "Bead not found in the supervisor."
               : `${err.status} ${err.message}`
             : err instanceof Error
               ? err.message
-              : 'fetch failed';
+              : "fetch failed";
         setError(msg);
       } finally {
         if (!cancelled) setLoading(false);
@@ -100,15 +104,15 @@ export function BeadDetailModal({
     <Modal
       open={open}
       onClose={onClose}
-      title={bead?.title ?? beadId ?? 'Bead'}
+      title={bead?.title ?? beadId ?? "Bead"}
       caption={
         bead ? (
           <span>
             <code className="text-fg-muted">{bead.id}</code>
-            {' · '}
+            {" · "}
             {bead.issue_type}
-            {' · P'}
-            {bead.priority === null ? '—' : bead.priority}
+            {" · P"}
+            {bead.priority === null ? "—" : bead.priority}
           </span>
         ) : beadId ? (
           <code className="text-fg-muted">{beadId}</code>
@@ -143,7 +147,7 @@ export function BeadDetailModal({
 // Gc has three bead shapes the modal needs to distinguish, all clarified
 // by the mayor (and not by the wire shape, which calls every one "task"):
 //
-//   1. Formula template: metadata['gc.kind'] === 'workflow'. NOT
+//   1. Formula template: metadata['gc.kind'] === 'run'. NOT
 //      actionable work — it's the recipe every wisp is instantiated
 //      from. `status=in_progress` is the gc-system convention for "this
 //      template is live and available". `gc.source_bead_id` is the
@@ -158,71 +162,79 @@ export function BeadDetailModal({
 //
 // The modal labels each honestly so the operator doesn't mistake
 // plumbing for actionable work.
-interface WorkflowMeta {
+interface RunMeta {
   kind?: string;
   originBeadId?: string;
   formulaContract?: string;
   runTarget?: string;
 }
 
-function readWorkflowMeta(bead: GcBead): WorkflowMeta {
+function readRunMeta(bead: GcBead): RunMeta {
   const md = bead.metadata;
-  if (!md || typeof md !== 'object') return {};
+  if (!md || typeof md !== "object") return {};
   const r = md as Record<string, unknown>;
-  const workflowMeta: WorkflowMeta = {};
-  if (typeof r['gc.kind'] === 'string') workflowMeta.kind = r['gc.kind'];
-  if (typeof r['gc.source_bead_id'] === 'string') {
-    workflowMeta.originBeadId = r['gc.source_bead_id'];
+  const runMeta: RunMeta = {};
+  if (typeof r["gc.kind"] === "string") runMeta.kind = r["gc.kind"];
+  if (typeof r["gc.source_bead_id"] === "string") {
+    runMeta.originBeadId = r["gc.source_bead_id"];
   }
-  if (typeof r['gc.formula_contract'] === 'string') {
-    workflowMeta.formulaContract = r['gc.formula_contract'];
+  if (typeof r["gc.formula_contract"] === "string") {
+    runMeta.formulaContract = r["gc.formula_contract"];
   }
-  if (typeof r['gc.run_target'] === 'string') {
-    workflowMeta.runTarget = r['gc.run_target'];
-  } else if (typeof r['gc.routed_to'] === 'string') {
-    workflowMeta.runTarget = r['gc.routed_to'];
+  if (typeof r["gc.run_target"] === "string") {
+    runMeta.runTarget = r["gc.run_target"];
+  } else if (typeof r["gc.routed_to"] === "string") {
+    runMeta.runTarget = r["gc.routed_to"];
   }
-  return workflowMeta;
+  return runMeta;
 }
 
-type BeadKind = 'template' | 'wisp' | 'work';
+type BeadKind = "template" | "wisp" | "work";
 
-function classifyBead(bead: GcBead, wf: WorkflowMeta): BeadKind {
-  if (wf.kind === 'workflow') return 'template';
-  if (bead.issue_type === 'molecule') return 'wisp';
-  return 'work';
+function classifyBead(bead: GcBead, wf: RunMeta): BeadKind {
+  if (wf.kind === "run") return "template";
+  if (bead.issue_type === "molecule") return "wisp";
+  return "work";
 }
 
 function BeadBody({ bead }: { bead: GcBead }) {
-  const wf = readWorkflowMeta(bead);
+  const wf = readRunMeta(bead);
   const kind = classifyBead(bead, wf);
 
   return (
     <div className="space-y-8">
-      {kind === 'template' && (
+      {kind === "template" && (
         <section>
           <h3 className="text-label uppercase tracking-wider text-fg-faint mb-3">
             Formula template
           </h3>
           <p className="text-body text-fg-muted max-w-prose">
-            This bead is a recipe, not actionable work. Every{' '}
-            {bead.ref ? <code className="text-fg-muted">{bead.ref}</code> : 'wisp'}{' '}
-            instance is instantiated from this template. The{' '}
+            This bead is a recipe, not actionable work. Every{" "}
+            {bead.ref ? (
+              <code className="text-fg-muted">{bead.ref}</code>
+            ) : (
+              "wisp"
+            )}{" "}
+            instance is instantiated from this template. The{" "}
             <span className="text-fg-muted">in_progress</span> status is the
-            gc-system convention for {'"'}available for instantiation{'"'} —
-            do not act on it, nudge it, or close it.
+            gc-system convention for {'"'}available for instantiation{'"'} — do
+            not act on it, nudge it, or close it.
           </p>
         </section>
       )}
 
-      {kind === 'wisp' && (
+      {kind === "wisp" && (
         <section>
           <h3 className="text-label uppercase tracking-wider text-fg-faint mb-3">
             Formula instance
           </h3>
           <p className="text-body text-fg-muted max-w-prose">
-            One run of the{' '}
-            {bead.title ? <code className="text-fg-muted">{bead.title}</code> : 'formula'}{' '}
+            One run of the{" "}
+            {bead.title ? (
+              <code className="text-fg-muted">{bead.title}</code>
+            ) : (
+              "formula"
+            )}{" "}
             recipe.
           </p>
         </section>
@@ -233,8 +245,8 @@ function BeadBody({ bead }: { bead: GcBead }) {
           <StatusBadge tone={statusTone(bead.status)} label={bead.status} />
         </Field>
         <Field label="Type">{bead.issue_type}</Field>
-        <Field label="Assignee">{bead.assignee || '·'}</Field>
-        <Field label="Owner">{bead.owner || '·'}</Field>
+        <Field label="Assignee">{bead.assignee || "·"}</Field>
+        <Field label="Owner">{bead.owner || "·"}</Field>
         <Field label="Created">
           <span className="tnum">{formatDateTime(bead.created_at)}</span>
         </Field>
@@ -248,54 +260,57 @@ function BeadBody({ bead }: { bead: GcBead }) {
             <span className="tnum">{formatDateTime(bead.closed_at)}</span>
           </Field>
         )}
-        {typeof bead.dependency_count === 'number' && bead.dependency_count > 0 && (
-          <Field label="Blocked by">
-            <span className="tnum">{bead.dependency_count}</span>
-          </Field>
-        )}
-        {typeof bead.dependent_count === 'number' && bead.dependent_count > 0 && (
-          <Field label="Blocks">
-            <span className="tnum">{bead.dependent_count}</span>
-          </Field>
-        )}
+        {typeof bead.dependency_count === "number" &&
+          bead.dependency_count > 0 && (
+            <Field label="Blocked by">
+              <span className="tnum">{bead.dependency_count}</span>
+            </Field>
+          )}
+        {typeof bead.dependent_count === "number" &&
+          bead.dependent_count > 0 && (
+            <Field label="Blocks">
+              <span className="tnum">{bead.dependent_count}</span>
+            </Field>
+          )}
       </dl>
 
-      {kind === 'template' && (wf.formulaContract || wf.originBeadId || wf.runTarget) && (
-        <section>
-          <h3 className="text-label uppercase tracking-wider text-fg-faint mb-3">
-            Template origin
-          </h3>
-          <p className="text-body text-fg-muted max-w-prose mb-4">
-            Where this formula came from, kept for traceability. The origin
-            bead and target may be stale; the formula itself is now used
-            wherever the pool dispatches it.
-          </p>
-          <dl className="grid grid-cols-2 sm:grid-cols-3 gap-x-8 gap-y-3">
-            {wf.formulaContract && (
-              <Field label="Contract">
-                <code className="text-fg-muted">{wf.formulaContract}</code>
-              </Field>
-            )}
-            {bead.ref && (
-              <Field label="Ref">
-                <code className="text-fg-muted">{bead.ref}</code>
-              </Field>
-            )}
-            {wf.originBeadId && (
-              <Field label="Origin bead">
-                <code className="text-fg-muted">{wf.originBeadId}</code>
-              </Field>
-            )}
-            {wf.runTarget && (
-              <Field label="Origin target">
-                <span className="text-fg-muted truncate" title={wf.runTarget}>
-                  {wf.runTarget}
-                </span>
-              </Field>
-            )}
-          </dl>
-        </section>
-      )}
+      {kind === "template" &&
+        (wf.formulaContract || wf.originBeadId || wf.runTarget) && (
+          <section>
+            <h3 className="text-label uppercase tracking-wider text-fg-faint mb-3">
+              Template origin
+            </h3>
+            <p className="text-body text-fg-muted max-w-prose mb-4">
+              Where this formula came from, kept for traceability. The origin
+              bead and target may be stale; the formula itself is now used
+              wherever the pool dispatches it.
+            </p>
+            <dl className="grid grid-cols-2 sm:grid-cols-3 gap-x-8 gap-y-3">
+              {wf.formulaContract && (
+                <Field label="Contract">
+                  <code className="text-fg-muted">{wf.formulaContract}</code>
+                </Field>
+              )}
+              {bead.ref && (
+                <Field label="Ref">
+                  <code className="text-fg-muted">{bead.ref}</code>
+                </Field>
+              )}
+              {wf.originBeadId && (
+                <Field label="Origin bead">
+                  <code className="text-fg-muted">{wf.originBeadId}</code>
+                </Field>
+              )}
+              {wf.runTarget && (
+                <Field label="Origin target">
+                  <span className="text-fg-muted truncate" title={wf.runTarget}>
+                    {wf.runTarget}
+                  </span>
+                </Field>
+              )}
+            </dl>
+          </section>
+        )}
 
       {Array.isArray(bead.labels) && bead.labels.length > 0 && (
         <section>
@@ -317,7 +332,7 @@ function BeadBody({ bead }: { bead: GcBead }) {
 
       <section>
         <h3 className="text-label uppercase tracking-wider text-fg-faint mb-3">
-          {kind === 'template' ? 'Recipe' : 'Description'}
+          {kind === "template" ? "Recipe" : "Description"}
         </h3>
         {bead.description && bead.description.length > 0 ? (
           <pre className="text-body whitespace-pre-wrap leading-relaxed text-fg font-sans">
@@ -333,15 +348,15 @@ function BeadBody({ bead }: { bead: GcBead }) {
 
 function statusTone(status: string): StatusTone {
   switch (status) {
-    case 'closed':
-      return 'neutral';
-    case 'in_progress':
-      return 'ok';
-    case 'blocked':
-      return 'stuck';
-    case 'open':
-    case 'deferred':
+    case "closed":
+      return "neutral";
+    case "in_progress":
+      return "ok";
+    case "blocked":
+      return "stuck";
+    case "open":
+    case "deferred":
     default:
-      return 'warn';
+      return "warn";
   }
 }

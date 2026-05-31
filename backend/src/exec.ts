@@ -8,7 +8,7 @@ import {
   ExecError,
   MAX_BYTES,
   MAX_BYTES_LARGE,
-  MAX_WORKFLOW_DIFF_BYTES,
+  MAX_RUN_DIFF_BYTES,
   runExec,
   type ExecResult,
 } from './exec-core.js';
@@ -42,9 +42,17 @@ const GIT_LOG_RECENT_LIMIT = '200';
 const BEAD_ACTION_TIMEOUT_MS = 15_000;
 const AGENT_PRIME_TIMEOUT_MS = 10_000;
 const GIT_LOG_TIMEOUT_MS = 10_000;
-const WORKFLOW_GIT_TIMEOUT_MS = 5_000;
+const RUN_GIT_TIMEOUT_MS = 5_000;
 const GH_LIST_TIMEOUT_MS = 30_000;
 const GH_HISTORY_LIST_TIMEOUT_MS = 60_000;
+const RUN_REVIEWABLE_PATHS = [
+  '--',
+  ':/',
+  ':(exclude,top).beads',
+  ':(exclude,top).beads/**',
+  ':(exclude,top).gc',
+  ':(exclude,top).gc/**',
+];
 
 function sanitiseTerminalOutput(raw: string): string {
   return raw
@@ -194,38 +202,118 @@ export async function execGitLog(view: string): Promise<ExecResult> {
   return runExec('git', ['-C', GIT_REPO_PATH, ...args], GIT_LOG_TIMEOUT_MS);
 }
 
-type WorkflowGitView = 'root' | 'status' | 'diff' | 'diff-cached';
+type RunGitView =
+  | 'root'
+  | 'status'
+  | 'untracked'
+  | 'upstream'
+  | 'merge-base-upstream'
+  | 'diff-head'
+  | 'name-status-head';
 
-const WORKFLOW_GIT_VIEWS: Record<WorkflowGitView, string[]> = {
+const RUN_GIT_VIEWS: Record<RunGitView, string[]> = {
   root: ['rev-parse', '--show-toplevel'],
-  status: ['status', '--porcelain=v1'],
-  diff: ['diff', '--no-ext-diff', '--no-color'],
-  'diff-cached': ['diff', '--cached', '--no-ext-diff', '--no-color'],
+  status: ['status', '--porcelain=v1', '--untracked-files=all', ...RUN_REVIEWABLE_PATHS],
+  untracked: ['ls-files', '--others', '--exclude-standard', '-z'],
+  upstream: ['rev-parse', '--abbrev-ref', '--symbolic-full-name', '@{upstream}'],
+  'merge-base-upstream': ['merge-base', 'HEAD', '@{upstream}'],
+  'diff-head': ['diff', '--no-ext-diff', '--no-color', 'HEAD', ...RUN_REVIEWABLE_PATHS],
+  'name-status-head': [
+    'diff',
+    '--name-status',
+    '--no-ext-diff',
+    '--no-color',
+    'HEAD',
+    ...RUN_REVIEWABLE_PATHS,
+  ],
 };
 
 /**
- * Whitelisted git reads for workflow run detail diffs. The execution path
+ * Whitelisted git reads for formula run detail diffs. The execution path
  * comes from supervisor-owned run metadata, not a browser parameter, but it is
  * still validated here so every subprocess boundary remains in this file.
  */
-export async function execWorkflowGit(
+export async function execRunGit(
   cwd: string,
-  view: WorkflowGitView,
+  view: RunGitView,
 ): Promise<ExecResult> {
-  if (!isValidWorkflowCwd(cwd)) {
-    throw new ExecError('invalid workflow cwd', 'validation');
+  if (!isValidRunCwd(cwd)) {
+    throw new ExecError('invalid run cwd', 'validation');
   }
-  const args = WORKFLOW_GIT_VIEWS[view];
+  const args = RUN_GIT_VIEWS[view];
   return runExec(
     'git',
     ['-C', cwd, ...args],
-    WORKFLOW_GIT_TIMEOUT_MS,
-    view === 'diff' || view === 'diff-cached' ? MAX_WORKFLOW_DIFF_BYTES : MAX_BYTES,
+    RUN_GIT_TIMEOUT_MS,
+    view === 'diff-head' ? MAX_RUN_DIFF_BYTES : MAX_BYTES,
   );
 }
 
-function isValidWorkflowCwd(cwd: string): boolean {
+export async function execRunGitDiffFrom(
+  cwd: string,
+  baseRevision: string,
+): Promise<ExecResult> {
+  if (!isValidRunCwd(cwd) || !/^[0-9a-f]{40,64}$/i.test(baseRevision)) {
+    throw new ExecError('invalid run git diff args', 'validation');
+  }
+  return runExec(
+    'git',
+    ['-C', cwd, 'diff', '--no-ext-diff', '--no-color', baseRevision, ...RUN_REVIEWABLE_PATHS],
+    RUN_GIT_TIMEOUT_MS,
+    MAX_RUN_DIFF_BYTES,
+  );
+}
+
+export async function execRunGitNameStatusFrom(
+  cwd: string,
+  baseRevision: string,
+): Promise<ExecResult> {
+  if (!isValidRunCwd(cwd) || !/^[0-9a-f]{40,64}$/i.test(baseRevision)) {
+    throw new ExecError('invalid run git name-status args', 'validation');
+  }
+  return runExec(
+    'git',
+    [
+      '-C',
+      cwd,
+      'diff',
+      '--name-status',
+      '--no-ext-diff',
+      '--no-color',
+      baseRevision,
+      ...RUN_REVIEWABLE_PATHS,
+    ],
+    RUN_GIT_TIMEOUT_MS,
+  );
+}
+
+export async function execRunGitNewFileDiff(
+  cwd: string,
+  filePath: string,
+  maxBytes = MAX_RUN_DIFF_BYTES,
+): Promise<ExecResult> {
+  if (!isValidRunCwd(cwd) || !isValidRunRelativePath(filePath)) {
+    throw new ExecError('invalid run git diff path', 'validation');
+  }
+  return runExec(
+    'git',
+    ['-C', cwd, 'diff', '--no-index', '--no-ext-diff', '--no-color', '--', '/dev/null', filePath],
+    RUN_GIT_TIMEOUT_MS,
+    maxBytes,
+  );
+}
+
+function isValidRunCwd(cwd: string): boolean {
   return cwd.startsWith('/') && !cwd.includes('\0') && !cwd.split('/').includes('..');
+}
+
+function isValidRunRelativePath(filePath: string): boolean {
+  return (
+    filePath.length > 0 &&
+    !filePath.startsWith('/') &&
+    !filePath.includes('\0') &&
+    !filePath.split('/').includes('..')
+  );
 }
 
 // ── Maintainer triage: gh CLI wrappers ───────────────────────────────

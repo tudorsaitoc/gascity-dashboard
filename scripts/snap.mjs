@@ -4,9 +4,9 @@
 //   node scripts/snap.mjs            # snap all routes × both themes
 //   node scripts/snap.mjs agents     # snap one route, both themes
 //   node scripts/snap.mjs agents light  # one route, one theme
-//   node scripts/snap.mjs workflows --test  # fail on API/browser errors
+//   node scripts/snap.mjs runs --test  # fail on API/browser errors
 //
-// SSE routes (/agents, /workflows) auto-wait longer so the live-connection
+// SSE routes (/agents, /runs) auto-wait longer so the live-connection
 // badge settles to 'live' before the shot. SNAP_WAIT_MS=<ms> overrides the
 // per-route wait for every route.
 //
@@ -19,7 +19,7 @@ import { argv, env, exit } from 'node:process';
 const BASE = 'http://127.0.0.1:5174';
 const OUT  = '/tmp/cp-snaps';
 
-const ROUTES = ['agents', 'beads', 'workflows', 'mail', 'activity', 'health', 'maintainer'];
+const ROUTES = ['agents', 'beads', 'runs', 'mail', 'activity', 'health', 'maintainer'];
 const THEMES = ['light', 'dark'];
 
 // Routes that subscribe to /api/events/stream via useGcEventRefresh and render
@@ -28,7 +28,7 @@ const THEMES = ['light', 'dark'];
 // plain mount + fetch. Keep this set in sync with the SseIndicator consumers
 // (see frontend/src/components/SseIndicator.tsx); a stale name here just means a
 // route silently reverts to the short wait.
-const SSE_ROUTES = new Set(['agents', 'workflows']);
+const SSE_ROUTES = new Set(['agents', 'runs']);
 
 // Post-mount settle waits (ms). SSE routes need enough time for the
 // SseIndicator to reach 'live'; non-SSE routes keep the short wait so the

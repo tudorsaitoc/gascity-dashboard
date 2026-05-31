@@ -8,7 +8,7 @@ import { useCachedData } from '../hooks/useCachedData';
 const ROUTES: { to: string; label: string }[] = [
   { to: '/agents', label: 'Agents' },
   { to: '/beads', label: 'Beads' },
-  { to: '/workflows', label: 'Workflows' },
+  { to: '/runs', label: 'Runs' },
   { to: '/mail', label: 'Mail' },
   { to: '/activity', label: 'Activity' },
   { to: '/health', label: 'Health' },

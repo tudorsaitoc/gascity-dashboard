@@ -1,18 +1,18 @@
-import { test, describe } from 'node:test';
 import assert from 'node:assert/strict';
+import { describe, test } from 'node:test';
 
 import {
-  mapWorkflowPhase,
+  mapRunPhase,
   reviewRoundForIssue,
-  type WorkflowIssue,
+  type RunIssue,
 } from '../src/snapshot/collectors/phaseMapping.js';
 
-// Phase-mapping rules ported from demo-dash src/server/collectors/workflows.ts
+// Phase-mapping rules ported from demo-dash src/server/collectors/runs.ts
 // (gascity-dashboard-0t6). Tests pin the upstream classifier behavior so the
-// React translation of WorkflowMap inherits a consistent phase grammar.
+// React translation of RunMap inherits a consistent phase grammar.
 //
 // Divergence from demo-dash (H3 in plan review): GcBead has no `parent` field.
-// The adapter populates WorkflowIssue.parent from metadata['gc.parent_bead_id']
+// The adapter populates RunIssue.parent from metadata['gc.parent_bead_id']
 // when present. Parent-derived classification falls back to keyword-search on
 // title/description/metadata when the parent string is absent. The skipped
 // test below documents the case explicitly.
@@ -23,11 +23,11 @@ const baseIssue = {
   issue_type: 'task',
   updated_at: '2026-05-10T20:00:00Z',
   metadata: {},
-} satisfies Partial<WorkflowIssue>;
+} satisfies Partial<RunIssue>;
 
 function issue(
-  overrides: Partial<WorkflowIssue> & Pick<WorkflowIssue, 'id' | 'title'>,
-): WorkflowIssue {
+  overrides: Partial<RunIssue> & Pick<RunIssue, 'id' | 'title'>,
+): RunIssue {
   return {
     ...baseIssue,
     ...overrides,
@@ -38,10 +38,10 @@ function issue(
   };
 }
 
-describe('mapWorkflowPhase', () => {
+describe('mapRunPhase', () => {
   test('blocked status wins over all other classifications', () => {
     assert.deepEqual(
-      mapWorkflowPhase([
+      mapRunPhase([
         issue({
           id: 'ga-blocked',
           title: 'Patch implementation',
@@ -54,7 +54,7 @@ describe('mapWorkflowPhase', () => {
 
   test('all-closed group resolves to complete', () => {
     assert.deepEqual(
-      mapWorkflowPhase([
+      mapRunPhase([
         issue({ id: 'a', title: 'Setup', status: 'closed' }),
         issue({ id: 'b', title: 'Implement', status: 'closed' }),
       ]),
@@ -64,20 +64,20 @@ describe('mapWorkflowPhase', () => {
 
   test('approval keywords map to approval phase', () => {
     assert.deepEqual(
-      mapWorkflowPhase([issue({ id: 'a', title: 'Wait on human approval' })]),
+      mapRunPhase([issue({ id: 'a', title: 'Wait on human approval' })]),
       { phase: 'approval', label: 'approval', reviewRound: null },
     );
   });
 
   test('post-merge keywords map to finalization phase', () => {
     assert.deepEqual(
-      mapWorkflowPhase([issue({ id: 'ga-final', title: 'Post-merge report' })]),
+      mapRunPhase([issue({ id: 'ga-final', title: 'Post-merge report' })]),
       { phase: 'finalization', label: 'finalization', reviewRound: null },
     );
   });
 
   test('review-round metadata produces "review round N" label', () => {
-    const result = mapWorkflowPhase([
+    const result = mapRunPhase([
       issue({
         id: 'r1',
         title: 'Run review loop',
@@ -91,7 +91,7 @@ describe('mapWorkflowPhase', () => {
   });
 
   test('review keyword without round falls back to count of review-mentioning issues', () => {
-    const result = mapWorkflowPhase([
+    const result = mapRunPhase([
       issue({ id: 'a', title: 'Review the diff' }),
       issue({ id: 'b', title: 'Second review pass' }),
     ]);
@@ -102,7 +102,7 @@ describe('mapWorkflowPhase', () => {
 
   test('implementation keywords map to implementation phase', () => {
     assert.deepEqual(
-      mapWorkflowPhase([issue({ id: 'a', title: 'Implement the fix' })]),
+      mapRunPhase([issue({ id: 'a', title: 'Implement the fix' })]),
       {
         phase: 'implementation',
         label: 'implementation',
@@ -113,21 +113,21 @@ describe('mapWorkflowPhase', () => {
 
   test('intake keywords map to intake phase', () => {
     assert.deepEqual(
-      mapWorkflowPhase([issue({ id: 'a', title: 'Load context for router' })]),
+      mapRunPhase([issue({ id: 'a', title: 'Load context for router' })]),
       { phase: 'intake', label: 'intake', reviewRound: null },
     );
   });
 
   test('unclassified work falls back to active phase', () => {
     assert.deepEqual(
-      mapWorkflowPhase([issue({ id: 'a', title: 'Refresh demo state' })]),
+      mapRunPhase([issue({ id: 'a', title: 'Refresh demo state' })]),
       { phase: 'active', label: 'active', reviewRound: null },
     );
   });
 
   test('blocked precedence beats finalization keyword', () => {
     assert.equal(
-      mapWorkflowPhase([
+      mapRunPhase([
         issue({
           id: 'a',
           title: 'Post-merge report',
@@ -142,7 +142,7 @@ describe('mapWorkflowPhase', () => {
     // Both "merge" and "review" appear; demo-dash's order checks finalization
     // before review and selects finalization.
     assert.equal(
-      mapWorkflowPhase([
+      mapRunPhase([
         issue({
           id: 'a',
           title: 'Run review pass before merge',
@@ -216,7 +216,7 @@ describe('reviewRoundForIssue', () => {
 
 describe('parent-derived classification (GcBead divergence note)', () => {
   // H3 plan note: GcBead has no first-class `parent`. The adapter populates
-  // WorkflowIssue.parent from metadata['gc.parent_bead_id'] when present.
+  // RunIssue.parent from metadata['gc.parent_bead_id'] when present.
   // When that metadata key is absent (the common case until upstream adds
   // it), parent-keyword scans cannot fire and classification falls back to
   // title/description/metadata text scans only. This test pins that fallback.
@@ -224,7 +224,7 @@ describe('parent-derived classification (GcBead divergence note)', () => {
     // The phase classifier scans textForIssue, which concatenates the parent
     // string into the keyword corpus. With parent === 'parent-review-bead',
     // the "review" substring inside the parent id surfaces the phase.
-    const result = mapWorkflowPhase([
+    const result = mapRunPhase([
       issue({
         id: 'ga-step',
         title: 'Apply fixes',
@@ -235,7 +235,7 @@ describe('parent-derived classification (GcBead divergence note)', () => {
   });
 
   test('issue without parent metadata classifies on title text alone', () => {
-    const result = mapWorkflowPhase([
+    const result = mapRunPhase([
       issue({ id: 'ga-step', title: 'Apply fixes' }),
     ]);
     // 'fix' is in the implementation keyword set.

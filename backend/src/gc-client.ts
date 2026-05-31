@@ -1,18 +1,18 @@
 import type {
-  GcSessionList,
+  BeadUpdateInput,
   GcBead,
   GcBeadList,
-  GcMailList,
   GcEventList,
   GcFormulaDetail,
-  GcWorkflowSnapshot,
-  SlingInput,
-  SlingResponse,
-  BeadUpdateInput,
+  GcMailList,
+  GcRunSnapshot,
+  GcSessionList,
   MailSendInput,
   MailSendResponse,
+  RunScopeKind,
+  SlingInput,
+  SlingResponse,
   SupervisorHealth,
-  WorkflowScopeKind,
 } from 'gas-city-dashboard-shared';
 import createClient, { type Client } from 'openapi-fetch';
 import {
@@ -407,11 +407,11 @@ export class GcClient {
     );
   }
 
-  async getWorkflow(
-    workflowId: string,
+  async getRun(
+    runId: string,
     signal?: AbortSignal,
-    scope?: { scopeKind: WorkflowScopeKind; scopeRef: string },
-  ): Promise<GcWorkflowSnapshot> {
+    scope?: { scopeKind: RunScopeKind; scopeRef: string },
+  ): Promise<GcRunSnapshot> {
     const query: { scope_kind?: string; scope_ref?: string } = {};
     if (scope !== undefined) {
       query.scope_kind = scope.scopeKind;
@@ -419,14 +419,14 @@ export class GcClient {
     }
     return this.getOperation(
       this.operationKey(SUPERVISOR_PATHS.workflow, [
-        workflowId,
+        runId,
         scope?.scopeKind,
         scope?.scopeRef,
       ]),
-      gcSupervisorDecoders.getWorkflow,
+      gcSupervisorDecoders.getRun,
       (upstreamSignal) => this.supervisor.GET(SUPERVISOR_PATHS.workflow, {
         params: {
-          path: { ...this.cityPathParams(), workflow_id: workflowId },
+          path: { ...this.cityPathParams(), workflow_id: runId },
           query,
         },
         signal: upstreamSignal,
@@ -437,7 +437,7 @@ export class GcClient {
 
   async getFormulaDetail(
     formulaName: string,
-    scope: { scopeKind: WorkflowScopeKind; scopeRef: string },
+    scope: { scopeKind: RunScopeKind; scopeRef: string },
     target: string,
     signal?: AbortSignal,
   ): Promise<GcFormulaDetail> {
