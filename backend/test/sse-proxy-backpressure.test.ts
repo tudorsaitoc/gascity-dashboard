@@ -37,11 +37,11 @@ interface FakeRes extends EventEmitter {
   acceptWrites: boolean;
   writes: string[];
   status(code: number): FakeRes;
-  setHeader(): void;
+  setHeader(name: string, value: string): void;
   flushHeaders(): void;
   write(chunk: string | Uint8Array): boolean;
   end(): void;
-  json(): void;
+  json(body: unknown): void;
 }
 
 function fakeRes(): FakeRes {

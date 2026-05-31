@@ -79,9 +79,10 @@ describe('deriveTier — spam_risk ordering (spam_risk before regular)', () => {
     );
   });
 
-  test('spam_risk wins over new when both could apply (5 opened, 0 accepted)', () => {
-    // total>=5 means the new (total<=1) branch is never reached — confirms
-    // ordering: spam_risk is tested before new.
+  test('spam_risk is reached before the regular fallback (5 opened, 0 accepted)', () => {
+    // 5 unaccepted contributions: not core/trusted, not new (total>1). Without
+    // the spam_risk check this would fall through to the final 'regular'
+    // return — so this confirms spam_risk is tested before that fallback.
     assert.equal(deriveTier(counts({ prs_opened: 5 })), 'spam_risk');
   });
 });

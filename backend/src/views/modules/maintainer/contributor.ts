@@ -34,12 +34,14 @@ interface GhListItemAuthor {
   login?: string;
 }
 
+/** @internal Exported for unit testing; not part of this module's public contract. */
 export interface GhListItem {
   number: number;
   author: GhListItemAuthor | null;
   state: string;
 }
 
+/** @internal Exported for unit testing; not part of this module's public contract. */
 export interface RawCounts {
   issues_opened: number;
   issues_accepted: number;
@@ -83,6 +85,7 @@ export async function computeContributorStats(
   return tally(issues, prs);
 }
 
+/** @internal Exported for unit testing; not part of this module's public contract. */
 export function tally(issues: GhListItem[], prs: GhListItem[]): Map<string, ContributorStat> {
 
   const counts = new Map<string, RawCounts>();
@@ -159,6 +162,8 @@ function buildStat(
  * Order matters: tested top-to-bottom, first match wins. spam_risk
  * has to test BEFORE new so a contributor with 5 unaccepted issues
  * gets the warning, not the benefit of the doubt.
+ *
+ * @internal Exported for unit testing; not part of this module's public contract.
  */
 export function deriveTier(c: RawCounts): ContributorTier {
   if (c.prs_merged >= 20) return 'core';

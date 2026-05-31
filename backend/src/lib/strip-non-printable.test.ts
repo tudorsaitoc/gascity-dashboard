@@ -44,10 +44,6 @@ describe('stripNonPrintable — CVE-2021-42574 bidi codepoints', () => {
     0x2067, 0x2068, 0x2069,
   ];
 
-  test('lists exactly the 12 CVE codepoints', () => {
-    assert.equal(BIDI_CODEPOINTS.length, 12);
-  });
-
   for (const cp of BIDI_CODEPOINTS) {
     const label = `U+${cp.toString(16).toUpperCase().padStart(4, '0')}`;
     test(`strips ${label}`, () => {

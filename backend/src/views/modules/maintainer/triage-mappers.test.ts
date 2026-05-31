@@ -37,7 +37,7 @@ interface PrInput {
   files?: { path?: string; additions?: number; deletions?: number }[];
 }
 
-async function ingestPrs(prs: PrInput[], issues: unknown[] = []): Promise<TriageItem[]> {
+async function ingestPrs(prs: PrInput[], issues: object[] = []): Promise<TriageItem[]> {
   const envelope: MaintainerTriage = await fetchTriage('owner/repo', {
     fetchIssues: async (): Promise<ExecResult> => OK(JSON.stringify(issues)),
     fetchPrs: async (): Promise<ExecResult> =>
