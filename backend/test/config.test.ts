@@ -59,6 +59,39 @@ describe('loadConfig', () => {
     assert.equal(loadConfig({ SNAPSHOT_USE_FIXTURES: '' }).useFixtures, false);
   });
 
+  test('runCwdAllowedRoots defaults to empty (shape-only, no regression) when unset', () => {
+    assert.deepEqual(loadConfig({}).runCwdAllowedRoots, []);
+  });
+
+  test('runCwdAllowedRoots parses a colon-separated list of absolute roots', () => {
+    const cfg = loadConfig({
+      RUN_CWD_ALLOWED_ROOTS: '/home/ds/gascity:/home/ds/gascity-dashboard',
+    });
+    assert.deepEqual(cfg.runCwdAllowedRoots, [
+      '/home/ds/gascity',
+      '/home/ds/gascity-dashboard',
+    ]);
+  });
+
+  test('runCwdAllowedRoots trims whitespace and drops empty/invalid entries', () => {
+    const cfg = loadConfig({
+      // leading/trailing space, an empty segment, a relative path, and a
+      // ..-bearing path are all dropped (only safe absolute roots survive).
+      RUN_CWD_ALLOWED_ROOTS: ' /home/ds/gascity : :relative/path:/a/../b:/srv/runs ',
+    });
+    assert.deepEqual(cfg.runCwdAllowedRoots, ['/home/ds/gascity', '/srv/runs']);
+  });
+
+  test('runCwdAllowedRoots drops a bare "/" root (would otherwise admit every path)', () => {
+    // A root of "/" passes the shape check but makes the prefix gate admit
+    // every absolute path — it is rejected so it can never defeat the allowlist.
+    assert.deepEqual(loadConfig({ RUN_CWD_ALLOWED_ROOTS: '/' }).runCwdAllowedRoots, []);
+    assert.deepEqual(
+      loadConfig({ RUN_CWD_ALLOWED_ROOTS: '/:/home/ds/gascity' }).runCwdAllowedRoots,
+      ['/home/ds/gascity'],
+    );
+  });
+
   test('maintainerTriageTarget defaults to mayor (always-present dispatcher)', () => {
     // gascity-dashboard-cus8: default was 'chief-of-staff' but that role
     // can be suspended in a deployment's agent roster (observed

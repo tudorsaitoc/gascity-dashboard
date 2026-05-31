@@ -21,6 +21,7 @@ function makeConfig(overrides: Partial<AdminConfig> = {}): AdminConfig {
     gcSupervisorUrl: 'http://127.0.0.1:1',
     cityName: 'test-city',
     cityPath: '',
+    runCwdAllowedRoots: [],
     auditLogPath: '.gc/events.jsonl',
     frontendDistPath: '../frontend/dist-does-not-exist',
     disabled: false,

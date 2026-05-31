@@ -177,6 +177,68 @@ describe('run diff route', () => {
     }
   });
 
+  // gascity-dashboard-k2b8: when RUN_CWD_ALLOWED_ROOTS is configured, a
+  // supervisor-supplied work_dir outside every sanctioned root must be
+  // refused before `git -C <cwd>` runs — defense-in-depth on the dashboard's
+  // last shell-read. The refusal surfaces as the existing not_git shape (the
+  // cwd validation throws and the root probe is the first git call).
+  test('k2b8: refuses a run cwd outside the configured allowlist', async () => {
+    const repo = await fs.mkdtemp(path.join(os.tmpdir(), 'run-allowlist-deny-'));
+    await execFileAsync('git', ['-C', repo, 'init']);
+    await fs.writeFile(path.join(repo, 'README.md'), 'base\n');
+    await execFileAsync('git', ['-C', repo, 'add', 'README.md']);
+    await commit(repo);
+    await fs.writeFile(path.join(repo, 'README.md'), 'base\nnext\n');
+
+    fake.setHandler((_req, res) => {
+      json(res, graphV2Snapshot(repo));
+    });
+    // The repo is a REAL git tree, but the allowlist sanctions an unrelated
+    // root, so the diff must be refused. Because the cwd is a genuine repo,
+    // `not_git` can only arise from the cwd refusal (the validation throws
+    // before git runs) — were enforcement absent, the paired allow-test below
+    // shows this exact setup yields kind 'ok'.
+    const { url, close } = await startApp(
+      buildApp(fake.baseUrl, '', ['/var/empty/sanctioned-root']),
+    );
+    try {
+      const res = await fetch(`${url}/api/runs/gc-root/diff`);
+      assert.equal(res.status, 200);
+      const body = await res.json();
+      assert.equal(body.kind, 'not_git', 'an out-of-allowlist cwd must not be read');
+      assert.deepEqual(body.changedFiles, []);
+      assert.equal(body.patch, '');
+    } finally {
+      await close();
+      await fs.rm(repo, { recursive: true, force: true });
+    }
+  });
+
+  test('k2b8: serves the diff when the run cwd is under a configured allowed root', async () => {
+    const repo = await fs.mkdtemp(path.join(os.tmpdir(), 'run-allowlist-allow-'));
+    await execFileAsync('git', ['-C', repo, 'init']);
+    await fs.writeFile(path.join(repo, 'README.md'), 'base\n');
+    await execFileAsync('git', ['-C', repo, 'add', 'README.md']);
+    await commit(repo);
+    await fs.writeFile(path.join(repo, 'README.md'), 'base\nnext\n');
+
+    fake.setHandler((_req, res) => {
+      json(res, graphV2Snapshot(repo));
+    });
+    // The cwd equals the sanctioned root, so the read proceeds normally.
+    const { url, close } = await startApp(buildApp(fake.baseUrl, '', [repo]));
+    try {
+      const res = await fetch(`${url}/api/runs/gc-root/diff`);
+      assert.equal(res.status, 200);
+      const body = await res.json();
+      assert.equal(body.kind, 'ok', 'an in-allowlist cwd must be served');
+      assert.match(body.patch, /^\+next$/m);
+    } finally {
+      await close();
+      await fs.rm(repo, { recursive: true, force: true });
+    }
+  });
+
   test('marks large local-change patches as truncated', async () => {
     const repo = await fs.mkdtemp(path.join(os.tmpdir(), 'run-large-diff-'));
     await execFileAsync('git', ['-C', repo, 'init']);
@@ -217,7 +279,11 @@ async function commit(repo: string, message = 'base'): Promise<void> {
   ]);
 }
 
-function buildApp(fakeUrl: string, rigRoot = ''): express.Express {
+function buildApp(
+  fakeUrl: string,
+  rigRoot = '',
+  runCwdAllowedRoots: readonly string[] = [],
+): express.Express {
   const gc = new GcClient({
     baseUrl: fakeUrl,
     cityName: 'racoon-city',
@@ -225,7 +291,7 @@ function buildApp(fakeUrl: string, rigRoot = ''): express.Express {
   });
   const app = express();
   app.use(express.json());
-  app.use('/api/runs', runsRouter(gc, { rigRoot }));
+  app.use('/api/runs', runsRouter(gc, { rigRoot, runCwdAllowedRoots }));
   return app;
 }
 

@@ -21,6 +21,7 @@ const CONTROL_PLANE_PATH_PREFIXES = ['.beads', '.gc'] as const;
 
 export async function readRunGitDiff(
   executionPath: RunExecutionPath,
+  allowedRoots: readonly string[] = [],
 ): Promise<RunDiffResponse> {
   if (executionPath.kind === 'unavailable') {
     return emptyDiff('path_unknown', unavailableRoot('path_unknown'));
@@ -29,7 +30,7 @@ export async function readRunGitDiff(
 
   let rootPath: string;
   try {
-    const result = await runGit(cwd, 'root');
+    const result = await runGit(cwd, 'root', allowedRoots);
     rootPath = result.stdout.trim();
     if (rootPath.length === 0) return emptyDiff('not_git', unavailableRoot('not_git'));
   } catch (err) {
@@ -39,9 +40,9 @@ export async function readRunGitDiff(
 
   try {
     const [statusResult, untrackedResult, comparison] = await Promise.all([
-      runGit(cwd, 'status'),
-      runGit(cwd, 'untracked'),
-      resolveComparison(cwd),
+      runGit(cwd, 'status', allowedRoots),
+      runGit(cwd, 'untracked', allowedRoots),
+      resolveComparison(cwd, allowedRoots),
     ]);
     const status = statusResult.stdout
       .split('\n')
@@ -51,14 +52,15 @@ export async function readRunGitDiff(
     const untrackedPaths = parseNulList(untrackedResult.stdout)
       .filter(isReviewableRunDiffPath);
     const [trackedPatch, trackedChangedFiles] = await Promise.all([
-      readTrackedPatch(cwd, comparison),
-      readTrackedChangedFiles(cwd, comparison),
+      readTrackedPatch(cwd, comparison, allowedRoots),
+      readTrackedChangedFiles(cwd, comparison, allowedRoots),
     ]);
     const trackedPatchBody = filterReviewablePatch(trackedPatch.stdout);
     const untrackedPatch = await readUntrackedPatch(
       cwd,
       untrackedPaths,
       trackedPatchBody.length,
+      allowedRoots,
     );
     return {
       kind: 'ok',
@@ -115,8 +117,9 @@ function unavailableRoot(
 async function runGit(
   cwd: string,
   view: Parameters<typeof execRunGit>[1],
+  allowedRoots: readonly string[],
 ): Promise<{ stdout: string; stderr: string; truncated: boolean }> {
-  const result = await execRunGit(cwd, view);
+  const result = await execRunGit(cwd, view, allowedRoots);
   const cappedDiff = result.truncated && view === 'diff-head';
   if (result.exitCode !== 0 && !cappedDiff) {
     throw new Error(`git ${view} failed`);
@@ -124,12 +127,15 @@ async function runGit(
   return result;
 }
 
-async function resolveComparison(cwd: string): Promise<RunDiffComparison> {
-  const upstream = await execRunGit(cwd, 'upstream');
+async function resolveComparison(
+  cwd: string,
+  allowedRoots: readonly string[],
+): Promise<RunDiffComparison> {
+  const upstream = await execRunGit(cwd, 'upstream', allowedRoots);
   if (upstream.exitCode !== 0 || upstream.stdout.trim().length === 0) {
     return { kind: 'head', reason: 'no_upstream' };
   }
-  const mergeBase = await execRunGit(cwd, 'merge-base-upstream');
+  const mergeBase = await execRunGit(cwd, 'merge-base-upstream', allowedRoots);
   const mergeBaseHash = mergeBase.stdout.trim();
   if (mergeBase.exitCode !== 0 || !/^[0-9a-f]{40,64}$/i.test(mergeBaseHash)) {
     return { kind: 'head', reason: 'upstream_lookup_failed' };
@@ -144,16 +150,17 @@ async function resolveComparison(cwd: string): Promise<RunDiffComparison> {
 async function readTrackedPatch(
   cwd: string,
   comparison: RunDiffComparison,
+  allowedRoots: readonly string[],
 ): Promise<{ stdout: string; truncated: boolean }> {
   if (comparison.kind === 'upstream') {
-    const result = await execRunGitDiffFrom(cwd, comparison.mergeBase);
+    const result = await execRunGitDiffFrom(cwd, comparison.mergeBase, allowedRoots);
     if (result.exitCode !== 0 && !result.truncated) {
       throw new Error('git diff from upstream merge base failed');
     }
     return result;
   }
   if (comparison.kind === 'head') {
-    const result = await execRunGit(cwd, 'diff-head');
+    const result = await execRunGit(cwd, 'diff-head', allowedRoots);
     if (result.exitCode !== 0 && !result.truncated) {
       logWarn(
         LOG_COMPONENT.runs,
@@ -169,11 +176,12 @@ async function readTrackedPatch(
 async function readTrackedChangedFiles(
   cwd: string,
   comparison: RunDiffComparison,
+  allowedRoots: readonly string[],
 ): Promise<RunChangedFile[]> {
   const result = comparison.kind === 'upstream'
-    ? await execRunGitNameStatusFrom(cwd, comparison.mergeBase)
+    ? await execRunGitNameStatusFrom(cwd, comparison.mergeBase, allowedRoots)
     : comparison.kind === 'head'
-      ? await execRunGit(cwd, 'name-status-head')
+      ? await execRunGit(cwd, 'name-status-head', allowedRoots)
       : null;
   if (result === null) return [];
   if (result.exitCode !== 0) {
@@ -197,6 +205,7 @@ async function readUntrackedPatch(
   cwd: string,
   paths: string[],
   usedBytes: number,
+  allowedRoots: readonly string[],
 ): Promise<{ stdout: string; truncated: boolean }> {
   const orderedPaths = [...paths]
     .filter(isSafeRelativeGitPath)
@@ -213,6 +222,7 @@ async function readUntrackedPatch(
     const result = await execRunGitNewFileDiff(
       cwd,
       filePath,
+      allowedRoots,
       Math.max(1, Math.min(remaining, MAX_UNTRACKED_FILE_DIFF_BYTES)),
     );
     if (![0, 1].includes(result.exitCode) && !result.truncated) {

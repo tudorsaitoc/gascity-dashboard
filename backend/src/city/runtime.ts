@@ -112,7 +112,11 @@ export function createCityRuntime(opts: CreateCityRuntimeOptions): CityRuntime {
   // and not a git repo — injecting it made runs with no worktree metadata render
   // the misleading "Execution folder is not a git work tree" instead of the
   // honest "Execution folder is unknown for this run."
-  router.use('/runs', runsRouter(gc));
+  // gascity-dashboard-k2b8: pass the configured cwd allowlist so the run-diff
+  // git reads are confined to sanctioned roots. Empty (default) keeps the
+  // prior shape-only validation. cityPath is deliberately NOT a member of this
+  // allowlist (a9yi: it's the city config dir, not a run worktree).
+  router.use('/runs', runsRouter(gc, { runCwdAllowedRoots: config.runCwdAllowedRoots }));
   router.use('/links', linksRouter(gc));
   router.use('/agents', agentsRouter({ cityPath, gc }));
   router.use('/beads', beadsRouter(gc, cityPath));

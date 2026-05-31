@@ -32,6 +32,13 @@ import { mergeRunRuntimeState } from '../runs/runtime-state.js';
 
 export interface RunsRouterOptions {
   rigRoot?: string;
+  /**
+   * Opt-in path-prefix allowlist for run-detail git reads
+   * (gascity-dashboard-k2b8). Threaded into readRunGitDiff so the cwd fed to
+   * `git -C` must live under a sanctioned root. Empty / omitted preserves the
+   * prior shape-only validation. Sourced from config.runCwdAllowedRoots.
+   */
+  runCwdAllowedRoots?: readonly string[];
 }
 
 export function runsRouter(
@@ -53,7 +60,7 @@ export function runsRouter(
         parsed.scope ?? defaultRunScope(gc.cityName),
       );
       const detail = enrichFormulaRun(raw, baseEnrichOptions(opts));
-      const diff = await readRunGitDiff(detail.executionPath);
+      const diff = await readRunGitDiff(detail.executionPath, opts.runCwdAllowedRoots ?? []);
       res.json(diff);
     } catch (err) {
       writeRunError(res, err, 'failed to fetch run diff');

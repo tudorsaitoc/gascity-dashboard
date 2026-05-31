@@ -3,7 +3,8 @@
 
 import { AGENT_ALIAS_RE } from './exec.js';
 import { isValidCityName } from './lib/cityName.js';
-import { LOG_COMPONENT, logWarn } from './logging.js';
+import { isValidHostPath } from './lib/hostPath.js';
+import { LOG_COMPONENT, logWarn, sanitizeForLog } from './logging.js';
 
 /**
  * Per-module configuration slices, scoped under AdminConfig.modules.<id>.
@@ -54,6 +55,19 @@ export interface AdminConfig {
    * for headless / systemd contexts where cwd is unrelated to the city tree.
    */
   cityPath: string;
+  /**
+   * Opt-in path-prefix allowlist for run-detail git reads (gascity-dashboard-k2b8).
+   * The run cwd fed to `git -C <cwd>` originates from supervisor run metadata
+   * (gc.cwd / gc.work_dir / gc.rig_root); when this list is non-empty the cwd
+   * must live under one of these absolute roots or the read is refused, so a
+   * buggy/compromised supervisor value cannot target an arbitrary host repo.
+   * Empty (the default) preserves the prior shape-only validation — no
+   * regression for deployments that don't configure it.
+   *
+   * Env: `RUN_CWD_ALLOWED_ROOTS` (colon-separated absolute paths, PATH-style).
+   * Whitespace tolerated; empty / relative / `..`-bearing entries are dropped.
+   */
+  runCwdAllowedRoots: ReadonlyArray<string>;
   /** Path to .gc/events.jsonl for audit-log append. */
   auditLogPath: string;
   /** Path to the dist/ of the frontend build, served by express.static. */
@@ -128,6 +142,44 @@ export function parseModulesEnabled(raw: string | undefined): ReadonlySet<string
   return new Set(ids);
 }
 
+/**
+ * Parse `RUN_CWD_ALLOWED_ROOTS` per the AdminConfig.runCwdAllowedRoots
+ * contract (gascity-dashboard-k2b8). Colon-separated, PATH-style. Each entry
+ * is trimmed; only safe, non-root absolute roots survive — empty, relative,
+ * NUL-bearing, and `..`-bearing entries are dropped via the shared
+ * isValidHostPath gate, and a bare `/` is rejected because it would make the
+ * prefix check admit every absolute path (defeating the allowlist). So a
+ * typo'd allowlist can never widen the prefix check beyond a real host root.
+ *
+ * Per "Don't Swallow Errors": when the env is SET but one or more entries are
+ * dropped, that is logged — a silently-emptied allowlist would leave the
+ * operator believing enforcement is active when it has degraded to shape-only.
+ * Returns `[]` when unset (shape-only validation, no regression).
+ */
+export function parseRunCwdAllowedRoots(raw: string | undefined): readonly string[] {
+  if (raw === undefined) return [];
+  const entries = raw
+    .split(':')
+    .map((s) => s.trim())
+    .filter((s) => s.length > 0);
+  const roots = entries.filter((s) => isValidHostPath(s) && s !== '/');
+  if (roots.length < entries.length) {
+    // sanitizeForLog each dropped entry: these are operator env values and
+    // could carry CR/LF that would otherwise forge a second structured log
+    // line (matches the logging discipline used across routes/collectors).
+    const dropped = entries.filter((s) => !roots.includes(s)).map(sanitizeForLog);
+    logWarn(
+      LOG_COMPONENT.admin,
+      `RUN_CWD_ALLOWED_ROOTS: dropped ${dropped.length} invalid root(s) [${dropped.join(', ')}]; ` +
+        `only safe absolute non-root paths are honored` +
+        (roots.length === 0
+          ? '. No valid roots remain — run cwd validation has degraded to shape-only.'
+          : `. Enforcing ${roots.length} root(s).`),
+    );
+  }
+  return roots;
+}
+
 export function loadConfig(env: NodeJS.ProcessEnv = process.env): AdminConfig {
   const portRaw = env.PORT ?? '8081';
   const port = Number.parseInt(portRaw, 10);
@@ -157,6 +209,7 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): AdminConfig {
     gcSupervisorUrl: (env.GC_SUPERVISOR_URL ?? 'http://127.0.0.1:8372').replace(/\/+$/, ''),
     cityName,
     cityPath: env.GC_CITY_PATH ?? '',
+    runCwdAllowedRoots: parseRunCwdAllowedRoots(env.RUN_CWD_ALLOWED_ROOTS),
     auditLogPath: env.ADMIN_AUDIT_LOG_PATH ?? defaultAuditLogPath(env),
     frontendDistPath: env.ADMIN_FRONTEND_DIST ?? '../frontend/dist',
     disabled: env.ADMIN_DASHBOARD_DISABLED === '1',

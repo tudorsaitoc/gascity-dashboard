@@ -256,11 +256,17 @@ const RUN_GIT_VIEWS: Record<RunGitView, string[]> = {
  * comes from supervisor-owned run metadata, not a browser parameter, but it is
  * still validated here so every subprocess boundary remains in this file.
  */
+// gascity-dashboard-k2b8: `allowedRoots` is REQUIRED on the run-git boundary
+// functions (not defaulted) so a caller cannot silently skip the cwd
+// prefix gate by omitting it. Pass `[]` only to deliberately opt into
+// shape-only validation — the single opt-in seam lives in readRunGitDiff /
+// RunsRouterOptions, sourced from config.runCwdAllowedRoots.
 export async function execRunGit(
   cwd: string,
   view: RunGitView,
+  allowedRoots: readonly string[],
 ): Promise<ExecResult> {
-  if (!isValidRunCwd(cwd)) {
+  if (!isValidRunCwd(cwd, allowedRoots)) {
     throw new ExecError('invalid run cwd', 'validation');
   }
   const args = RUN_GIT_VIEWS[view];
@@ -275,8 +281,9 @@ export async function execRunGit(
 export async function execRunGitDiffFrom(
   cwd: string,
   baseRevision: string,
+  allowedRoots: readonly string[],
 ): Promise<ExecResult> {
-  if (!isValidRunCwd(cwd) || !/^[0-9a-f]{40,64}$/i.test(baseRevision)) {
+  if (!isValidRunCwd(cwd, allowedRoots) || !/^[0-9a-f]{40,64}$/i.test(baseRevision)) {
     throw new ExecError('invalid run git diff args', 'validation');
   }
   return runExec(
@@ -290,8 +297,9 @@ export async function execRunGitDiffFrom(
 export async function execRunGitNameStatusFrom(
   cwd: string,
   baseRevision: string,
+  allowedRoots: readonly string[],
 ): Promise<ExecResult> {
-  if (!isValidRunCwd(cwd) || !/^[0-9a-f]{40,64}$/i.test(baseRevision)) {
+  if (!isValidRunCwd(cwd, allowedRoots) || !/^[0-9a-f]{40,64}$/i.test(baseRevision)) {
     throw new ExecError('invalid run git name-status args', 'validation');
   }
   return runExec(
@@ -313,9 +321,10 @@ export async function execRunGitNameStatusFrom(
 export async function execRunGitNewFileDiff(
   cwd: string,
   filePath: string,
+  allowedRoots: readonly string[],
   maxBytes = MAX_RUN_DIFF_BYTES,
 ): Promise<ExecResult> {
-  if (!isValidRunCwd(cwd) || !isValidRunRelativePath(filePath)) {
+  if (!isValidRunCwd(cwd, allowedRoots) || !isValidRunRelativePath(filePath)) {
     throw new ExecError('invalid run git diff path', 'validation');
   }
   return runExec(
@@ -326,8 +335,39 @@ export async function execRunGitNewFileDiff(
   );
 }
 
-function isValidRunCwd(cwd: string): boolean {
-  return cwd.startsWith('/') && !cwd.includes('\0') && !cwd.split('/').includes('..');
+/**
+ * Validate a run cwd before it is handed to `git -C <cwd>`. The cwd comes
+ * from supervisor run metadata (gc.cwd / gc.work_dir / gc.rig_root), so this
+ * is the dashboard's last shell-read gate (gascity-dashboard-k2b8).
+ *
+ * Two layers:
+ *  1. Shape — reuse the shared isValidHostPath gate (absolute, no NUL, no `..`
+ *     traversal segment), the same rule applied to supervisor host paths
+ *     elsewhere.
+ *  2. Prefix allowlist — when `allowedRoots` is non-empty the cwd must sit at
+ *     or under one sanctioned root, so a buggy/compromised supervisor value
+ *     cannot point git at an arbitrary host repo. An empty list (the default)
+ *     keeps the shape-only behavior, preserving deployments that don't
+ *     configure RUN_CWD_ALLOWED_ROOTS.
+ */
+export function isValidRunCwd(
+  cwd: string,
+  allowedRoots: readonly string[] = [],
+): boolean {
+  if (!isValidHostPath(cwd)) return false;
+  if (allowedRoots.length === 0) return true;
+  return allowedRoots.some((root) => isPathUnderRoot(cwd, root));
+}
+
+/**
+ * True when `cwd` equals `root` or is nested under it, matching on path
+ * SEGMENT boundaries — `/home/ds/gascity` admits `/home/ds/gascity/x` but not
+ * the sibling `/home/ds/gascity-evil`, which a naive startsWith would wrongly
+ * accept.
+ */
+function isPathUnderRoot(cwd: string, root: string): boolean {
+  const normalizedRoot = root.endsWith('/') ? root.slice(0, -1) : root;
+  return cwd === normalizedRoot || cwd.startsWith(`${normalizedRoot}/`);
 }
 
 function isValidRunRelativePath(filePath: string): boolean {
