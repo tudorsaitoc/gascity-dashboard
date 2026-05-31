@@ -34,13 +34,13 @@ interface GhListItemAuthor {
   login?: string;
 }
 
-interface GhListItem {
+export interface GhListItem {
   number: number;
   author: GhListItemAuthor | null;
   state: string;
 }
 
-interface RawCounts {
+export interface RawCounts {
   issues_opened: number;
   issues_accepted: number;
   prs_opened: number;
@@ -83,7 +83,7 @@ export async function computeContributorStats(
   return tally(issues, prs);
 }
 
-function tally(issues: GhListItem[], prs: GhListItem[]): Map<string, ContributorStat> {
+export function tally(issues: GhListItem[], prs: GhListItem[]): Map<string, ContributorStat> {
 
   const counts = new Map<string, RawCounts>();
   for (const it of issues) {
@@ -160,7 +160,7 @@ function buildStat(
  * has to test BEFORE new so a contributor with 5 unaccepted issues
  * gets the warning, not the benefit of the doubt.
  */
-function deriveTier(c: RawCounts): ContributorTier {
+export function deriveTier(c: RawCounts): ContributorTier {
   if (c.prs_merged >= 20) return 'core';
   if (c.prs_merged >= 5 || c.issues_accepted >= 10) return 'trusted';
   const total = c.issues_opened + c.prs_opened;
