@@ -4,6 +4,12 @@ An editorial-typographic ambient dashboard for a single [Gas City](https://githu
 
 The shape is forked from [Wldc4rd/citadel](https://github.com/Wldc4rd/citadel) (MIT, Charlie Coutts) which solved the orchestrator-tab problem first. The visual register is a full redesign, driven through [impeccable](https://impeccable.style/) with the design context captured in [`PRODUCT.md`](PRODUCT.md) and [`DESIGN.md`](DESIGN.md).
 
+## Repository status
+
+This repository is a temporary workspace for developing the next Gas City dashboard. The intended destination is to replace the existing `gc dashboard` implementation in [`gastownhall/gascity`](https://github.com/gastownhall/gascity) once the dashboard is ready to fold back into the main `gc` codebase.
+
+Until then, this repo exists so the dashboard can move quickly as a standalone Node/React application while preserving history, review, and CI separate from the main Gas City repo.
+
 ## What it shows
 
 - **Agents** — every session's state at a glance, with a Peek modal for `gc session peek` snapshots.
