@@ -1,6 +1,7 @@
 import { z } from 'zod';
 import { sanitiseTerminalOutput } from './exec.js';
 import type {
+  CityList,
   GcAgent,
   GcAgentList,
   GcBead,
@@ -123,6 +124,37 @@ const RigSchema = z.object({
   name: z.string(),
   path: z.string(),
 }).passthrough();
+
+// gascity-dashboard-ucc: GET /v0/cities item shape. The supervisor's
+// CityInfo carries an absolute host `path` (and `phases_completed`); the
+// dashboard NARROWS to name+running+status+error. Unlike the other
+// supervisor decoders this one deliberately STRIPS unknown keys (Zod's
+// default object behaviour — no `.passthrough()`) so the untrusted host
+// `path` is removed at the decoder edge and can never reach the browser
+// through `GET /api/cities`. A new supervisor field is dropped, not
+// leaked; adopting one requires an explicit shared-types + schema change.
+const CitySchema = z.object({
+  name: z.string(),
+  running: z.boolean(),
+  status: z.string().optional(),
+  error: z.string().optional(),
+});
+
+// Host-side city descriptor: same as CitySchema but RETAINS the untrusted
+// host `path` (required string). Used only by the per-city runtime registry,
+// never serialized to the browser. See `listSupervisorCities`.
+const SupervisorCitySchema = z.object({
+  name: z.string(),
+  path: z.string(),
+  running: z.boolean(),
+}).passthrough();
+
+/** Host-side city descriptor including the untrusted supervisor host path. */
+export interface SupervisorCity {
+  name: string;
+  path: string;
+  running: boolean;
+}
 
 // Per-agent wire shape from `GET /v0/city/{name}/agents` and
 // `GET /v0/city/{name}/agent/{base}`. Mirrors the supervisor's
@@ -423,6 +455,40 @@ export const gcSupervisorDecoders = {
       value,
       'listRigs',
     );
+  },
+
+  listCities(value: RawSupervisorSchema['SupervisorCitiesOutputBody']): CityList {
+    return decodeSupervisorPayload(
+      z.object({
+        items: listItemsField(CitySchema),
+        // SupervisorCitiesOutputBody declares total required.
+        total: z.number().finite(),
+      }).passthrough(),
+      value,
+      'listCities',
+    );
+  },
+
+  // Host-side variant of listCities that RETAINS the untrusted host `path`.
+  // The per-city runtime registry needs the path to build each city's
+  // CLI-shelling routes; it is kept host-side and NEVER serialized to the
+  // browser (the wire-shape `listCities` above strips it). Validates the
+  // SAME required fields plus a required string `path`.
+  listSupervisorCities(
+    value: RawSupervisorSchema['SupervisorCitiesOutputBody'],
+  ): readonly SupervisorCity[] {
+    const decoded = decodeSupervisorPayload<{
+      items: SupervisorCity[];
+      total: number;
+    }>(
+      z.object({
+        items: listItemsField(SupervisorCitySchema),
+        total: z.number().finite(),
+      }).passthrough(),
+      value,
+      'listSupervisorCities',
+    );
+    return decoded.items;
   },
 
   listAgents(value: RawSupervisorSchema['ListBodyAgentResponse']): GcAgentList {

@@ -15,10 +15,20 @@
 // cannot drift. Operators can pin the cache path via MAINTAINER_CACHE_PATH;
 // when set, the descriptor honours the pin AND skips the legacy-path
 // migration (operator location is sovereign).
+//
+// Multi-city note (gascity-dashboard-ucc): `cachePath` is process-global,
+// but the maintainer's `cache` + `slung-state` resources are declared
+// `perCity`. A bare pin would map EVERY city's runtime to the same two
+// JSON files and clobber across cities. So when a pin is set, the pinned
+// dir is treated as a per-city BASE: we join the CITY_NAME_RE-validated
+// `ctx.cityName` segment under it, keeping the perCity contract intact.
+// The cityName has already passed the dispatch-middleware guard, and we
+// re-validate here defensively before it lands in a path.join.
 
 import path from 'node:path';
 import os from 'node:os';
 import type { BackendModule, CityContext } from '../../types.js';
+import { isValidCityName } from '../../../lib/cityName.js';
 import { maintainerRouter } from './router.js';
 import { createMaintainerRefresher } from './worker.js';
 import { migrateLegacyMaintainerPaths } from './migrate-legacy-paths.js';
@@ -38,23 +48,62 @@ export interface MaintainerDeps {
  * refresher must agree on. Previously `mount()` and `workers()` each
  * computed `path.join(ctx.cityDataDir, ...)` independently with matching
  * string literals; extracting to a helper guarantees they always resolve
- * identically. When `deps.cachePath` is set, the cache file location is
- * operator-pinned and slung-state sits next to it.
+ * identically.
+ *
+ * When `deps.cachePath` is set, the operator pin is treated as a per-city
+ * BASE DIRECTORY (the file basename, if any, is discarded): both files
+ * live under `<pinnedDir>/<cityName>/` so two cities sharing one process
+ * resolve to DISTINCT paths and cannot clobber each other. The cityName is
+ * re-validated against CITY_NAME_RE here before it enters path.join.
  */
-function maintainerPaths(ctx: CityContext, deps: MaintainerDeps): {
+export function maintainerPaths(ctx: CityContext, deps: MaintainerDeps): {
   cachePath: string;
   slungStatePath: string;
 } {
   if (deps.cachePath !== undefined) {
+    if (!isValidCityName(ctx.cityName)) {
+      // Defensive: the dispatch middleware guards this before a runtime is
+      // ever built, but a per-city path segment must NEVER be derived from
+      // an unvalidated name. Fail loud rather than path.join a bad segment.
+      throw new Error(
+        `maintainer: refusing to derive a pinned per-city cache path for invalid cityName "${ctx.cityName}"`,
+      );
+    }
+    const pinnedDir = pinnedBaseDir(deps.cachePath);
+    const perCityDir = path.join(pinnedDir, ctx.cityName);
     return {
-      cachePath: deps.cachePath,
-      slungStatePath: path.join(path.dirname(deps.cachePath), 'slung-state.json'),
+      cachePath: path.join(perCityDir, 'maintainer-cache.json'),
+      slungStatePath: path.join(perCityDir, 'slung-state.json'),
     };
   }
   return {
     cachePath: path.join(ctx.cityDataDir, 'maintainer-cache.json'),
     slungStatePath: path.join(ctx.cityDataDir, 'slung-state.json'),
   };
+}
+
+/**
+ * Resolve the operator pin to a base directory. A pin ending in `.json`
+ * (the historic single-city contract) is read as a file and its dirname
+ * is taken; any other value is treated as a directory verbatim. Either
+ * way the per-city segment is joined under the result.
+ */
+function pinnedBaseDir(pin: string): string {
+  return path.extname(pin) === '.json' ? path.dirname(pin) : pin;
+}
+
+/**
+ * The legacy pre-modular files (`~/.gascity-dashboard/{maintainer-cache,
+ * slung-state}.json`) belong to exactly ONE city — the legacy GC_CITY_NAME
+ * carried on `config.cityName`. The migration may run only for that city,
+ * and only when the operator has NOT pinned a cache path. Any other city
+ * mounting first must NOT claim the legacy data (mis-attribution).
+ */
+export function shouldMigrateLegacyPaths(
+  ctx: CityContext,
+  deps: MaintainerDeps,
+): boolean {
+  return deps.cachePath === undefined && ctx.cityName === ctx.config.cityName;
 }
 
 /** Legacy pre-modular default location (before paths derived from cityDataDir). */
@@ -95,7 +144,14 @@ export const maintainerBackend: BackendModule<MaintainerDeps> = {
     // router starts reading. Synchronous by design — see migrate-legacy-paths
     // header comment for why fire-and-forget was rejected (Phase-4 security
     // MEDIUM: race vs. concurrent router/worker writes).
-    if (deps.cachePath === undefined) {
+    //
+    // Multi-city gate (gascity-dashboard-ucc): the legacy files belong to
+    // the single pre-modular city = the legacy GC_CITY_NAME (`config.cityName`).
+    // Without this gate, the FIRST city to mount (whatever its name) would
+    // renameSync the legacy data under its own cityDataDir — mis-attributing
+    // another city's maintainer cache + slung-state. Only the legacy city may
+    // claim them.
+    if (shouldMigrateLegacyPaths(ctx, deps)) {
       migrateLegacyMaintainerPaths(legacyDefaultDir(), ctx.cityDataDir);
     }
     return maintainerRouter({

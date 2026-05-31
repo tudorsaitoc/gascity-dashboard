@@ -19,7 +19,17 @@ import { argv, exit } from 'node:process';
 import { fileURLToPath } from 'node:url';
 import path from 'node:path';
 
-const BASE = 'http://127.0.0.1:5174';
+// BASE is env-configurable so an isolated worktree dev stack (its own
+// backend PORT + a vite instance proxying /api to it on an alternate port)
+// can be driven without touching the primary :5174 the user may be viewing.
+// Default keeps the historic single-tree behaviour.
+const BASE = process.env.SNAP_BASE || 'http://127.0.0.1:5174';
+// gascity-dashboard-ucc: the dashboard is now city-scoped. The browser route
+// carries a `/city/:cityName` basename and every city-scoped API call rides
+// `/api/city/:cityName/*`. The harness navigates under this city and mocks
+// the city-scoped request plane.
+const CITY = 'racoon-city';
+const CITY_BASE = `${BASE}/city/${CITY}`;
 const OUT = '/tmp/cp-snaps';
 const THEMES = ['light', 'dark'];
 const TEST_MODE = argv.includes('--test');
@@ -73,7 +83,7 @@ async function runTheme(browser, theme) {
 
   try {
     try {
-      await page.goto(`${BASE}/workflows`, {
+      await page.goto(`${CITY_BASE}/workflows`, {
         waitUntil: 'domcontentloaded',
         timeout: 5_000,
       });
@@ -89,7 +99,7 @@ async function runTheme(browser, theme) {
     await summaryLane.waitFor({ timeout: 5_000 });
     await summaryLane.click();
     await page.waitForURL(
-      `${BASE}/workflows/gc-adopt-pr-active?scope_kind=city&scope_ref=racoon-city`,
+      `${CITY_BASE}/workflows/gc-adopt-pr-active?scope_kind=city&scope_ref=racoon-city`,
       { timeout: 5_000 },
     );
     await page.getByRole('heading', { name: /adopt pr #42/i }).waitFor({ timeout: 5_000 });
@@ -217,13 +227,13 @@ async function runTheme(browser, theme) {
       result.errors.push('Session tab stayed available for a selected node with no session link');
     }
 
-    await page.goto(`${BASE}/workflows/gc-adopt-pr-partial`, {
+    await page.goto(`${CITY_BASE}/workflows/gc-adopt-pr-partial`, {
       waitUntil: 'domcontentloaded',
       timeout: 5_000,
     });
     await page.getByText(/partial snapshot/i).waitFor({ timeout: 5_000 });
 
-    await page.goto(`${BASE}/workflows/gc-adopt-pr-active?node=old-only-review`, {
+    await page.goto(`${CITY_BASE}/workflows/gc-adopt-pr-active?node=old-only-review`, {
       waitUntil: 'domcontentloaded',
       timeout: 5_000,
     });
@@ -237,25 +247,25 @@ async function runTheme(browser, theme) {
     await page.screenshot({ path: hiddenSnapPath, fullPage: false });
     result.info.hiddenSnap = hiddenSnapPath;
 
-    await page.goto(`${BASE}/workflows/gc-no-graph`, {
+    await page.goto(`${CITY_BASE}/workflows/gc-no-graph`, {
       waitUntil: 'domcontentloaded',
       timeout: 5_000,
     });
     await page.getByText(/no graph nodes have materialized/i).waitFor({ timeout: 5_000 });
 
-    await page.goto(`${BASE}/workflows/gc-not-git`, {
+    await page.goto(`${CITY_BASE}/workflows/gc-not-git`, {
       waitUntil: 'domcontentloaded',
       timeout: 5_000,
     });
     await page.getByText(/not a git work tree/i).waitFor({ timeout: 5_000 });
 
-    await page.goto(`${BASE}/workflows/gc-path-unknown`, {
+    await page.goto(`${CITY_BASE}/workflows/gc-path-unknown`, {
       waitUntil: 'domcontentloaded',
       timeout: 5_000,
     });
     await page.getByText(/execution folder is unknown/i).waitFor({ timeout: 5_000 });
 
-    await page.goto(`${BASE}/workflows/gc-clean-worktree`, {
+    await page.goto(`${CITY_BASE}/workflows/gc-clean-worktree`, {
       waitUntil: 'domcontentloaded',
       timeout: 5_000,
     });
@@ -295,7 +305,24 @@ function recordApiFailures(result, apiCalls, apiFailures) {
 }
 
 async function installApiFixtureRoutes(context) {
-  await context.route('**/api/snapshot', async (route) => {
+  // The city switcher (Header) lists managed cities via the non-city-scoped
+  // `/api/cities`. Mock it so the harness needs no live supervisor.
+  await context.route('**/api/cities', async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({
+        items: [{ name: CITY, running: true }],
+        total: 1,
+      }),
+    });
+  });
+
+  // All city-scoped endpoints now ride `/api/city/:cityName/*`. The glob
+  // `*` segment matches the city name. session-stream lives under its own
+  // `/session-stream/` prefix (distinct from the REST `/sessions/`), so the
+  // peek and stream mocks target different paths.
+  await context.route('**/api/city/*/snapshot', async (route) => {
     await route.fulfill({
       status: 200,
       contentType: 'application/json',
@@ -303,7 +330,7 @@ async function installApiFixtureRoutes(context) {
     });
   });
 
-  await context.route('**/api/events/stream', async (route) => {
+  await context.route('**/api/city/*/events/stream', async (route) => {
     await route.fulfill({
       status: 200,
       headers: {
@@ -314,7 +341,7 @@ async function installApiFixtureRoutes(context) {
     });
   });
 
-  await context.route('**/api/config', async (route) => {
+  await context.route('**/api/city/*/config', async (route) => {
     await route.fulfill({
       status: 200,
       contentType: 'application/json',
@@ -326,7 +353,7 @@ async function installApiFixtureRoutes(context) {
     });
   });
 
-  await context.route('**/api/workflows/gc-adopt-pr-partial**', async (route) => {
+  await context.route('**/api/city/*/workflows/gc-adopt-pr-partial**', async (route) => {
     if (INJECT_LATE_API_FAILURE && route.request().url().includes('/diff')) {
       await route.fulfill({
         status: 500,
@@ -345,7 +372,7 @@ async function installApiFixtureRoutes(context) {
     });
   });
 
-  await context.route('**/api/workflows/gc-adopt-pr-active**', async (route) => {
+  await context.route('**/api/city/*/workflows/gc-adopt-pr-active**', async (route) => {
     const payload = route.request().url().includes('/diff')
       ? fixture.diff
       : fixture.detail;
@@ -356,7 +383,7 @@ async function installApiFixtureRoutes(context) {
     });
   });
 
-  await context.route('**/api/workflows/gc-no-graph**', async (route) => {
+  await context.route('**/api/city/*/workflows/gc-no-graph**', async (route) => {
     const payload = route.request().url().includes('/diff')
       ? fixture.diff
       : {
@@ -377,7 +404,7 @@ async function installApiFixtureRoutes(context) {
     });
   });
 
-  await context.route('**/api/workflows/gc-not-git**', async (route) => {
+  await context.route('**/api/city/*/workflows/gc-not-git**', async (route) => {
     const payload = route.request().url().includes('/diff')
       ? {
           kind: 'not_git',
@@ -396,7 +423,7 @@ async function installApiFixtureRoutes(context) {
     });
   });
 
-  await context.route('**/api/workflows/gc-path-unknown**', async (route) => {
+  await context.route('**/api/city/*/workflows/gc-path-unknown**', async (route) => {
     const payload = route.request().url().includes('/diff')
       ? {
           kind: 'path_unknown',
@@ -419,7 +446,7 @@ async function installApiFixtureRoutes(context) {
     });
   });
 
-  await context.route('**/api/workflows/gc-clean-worktree**', async (route) => {
+  await context.route('**/api/city/*/workflows/gc-clean-worktree**', async (route) => {
     const payload = route.request().url().includes('/diff')
       ? {
           kind: 'ok',
@@ -444,7 +471,7 @@ async function installApiFixtureRoutes(context) {
   // and exactly ONE aggregate section-level maroon. Without this route the
   // --test harness would fail on the unmocked /api/links/* call the
   // WorkflowRunDetail Related section now makes.
-  await context.route('**/api/links/**', async (route) => {
+  await context.route('**/api/city/*/links/**', async (route) => {
     await route.fulfill({
       status: 200,
       contentType: 'application/json',
@@ -452,8 +479,11 @@ async function installApiFixtureRoutes(context) {
     });
   });
 
-  await context.route('**/api/sessions/*/peek', async (route) => {
-    const sessionId = route.request().url().match(/\/api\/sessions\/([^/]+)\/peek$/)?.[1];
+  await context.route('**/api/city/*/sessions/*/peek', async (route) => {
+    const sessionId = route
+      .request()
+      .url()
+      .match(/\/api\/city\/[^/]+\/sessions\/([^/]+)\/peek$/)?.[1];
     const transcript = sessionId ? fixture.transcripts[decodeURIComponent(sessionId)] : null;
     if (!transcript) {
       await route.fulfill({
@@ -470,8 +500,13 @@ async function installApiFixtureRoutes(context) {
     });
   });
 
-  await context.route('**/api/sessions/*/stream', async (route) => {
-    const sessionId = route.request().url().match(/\/api\/sessions\/([^/]+)\/stream$/)?.[1];
+  // Session SSE stream rides its own `/session-stream/` prefix (distinct from
+  // the REST `/sessions/`) — see city/runtime.ts + api.sessionStreamUrl.
+  await context.route('**/api/city/*/session-stream/*/stream', async (route) => {
+    const sessionId = route
+      .request()
+      .url()
+      .match(/\/api\/city\/[^/]+\/session-stream\/([^/]+)\/stream$/)?.[1];
     const turns = sessionId ? fixture.streamTurns[decodeURIComponent(sessionId)] ?? [] : [];
     const body = turns
       .map((turn) => `event: turn\ndata: ${JSON.stringify(turn)}\n\n`)

@@ -163,7 +163,7 @@ describe('LiveSessionPeek (streaming)', () => {
       'fetch',
       vi.fn(async (input: RequestInfo | URL) => {
         const url = String(input);
-        if (url === '/api/sessions/s1/peek') return jsonResponse(snapshot);
+        if (url === '/api/city/test-city/sessions/s1/peek') return jsonResponse(snapshot);
         throw new Error(`unexpected fetch: ${url}`);
       }),
     );

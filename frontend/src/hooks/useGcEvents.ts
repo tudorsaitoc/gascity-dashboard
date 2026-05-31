@@ -1,10 +1,12 @@
 import { useEffect, useRef, useState } from 'react';
+import { cityPath } from '../api/cityBase';
 
 // gascity-dashboard-iew: EventSource against the backend's same-origin
-// SSE proxy at /api/events/stream. The backend pipes the gc supervisor's
+// SSE proxy. The backend pipes the gc supervisor's
 // /v0/city/{name}/events/stream verbatim. Same-origin SSE means CSP
 // 'self' covers it and deployment only needs one port reachable from
-// the browser.
+// the browser. gascity-dashboard-ucc: the stream is city-scoped, so the
+// URL rides the active city's /api/city/:cityName/events/stream prefix.
 
 export type GcEventConnState = 'connecting' | 'open' | 'degraded' | 'closed';
 
@@ -73,7 +75,7 @@ export function useGcEventRefresh(
       }
       // Same-origin path; the browser will send Last-Event-ID automatically
       // on reconnect, and the backend proxy forwards it to upstream.
-      es = new EventSourceCtor('/api/events/stream');
+      es = new EventSourceCtor(cityPath('/events/stream'));
       setState('connecting');
       es.onopen = () => {
         if (cancelled) return;

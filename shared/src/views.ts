@@ -95,9 +95,11 @@ export interface ModuleResources {
 }
 
 /** Per-city-scoped runtime view passed to every BackendModule at mount
- *  time. Phase 1: one CityContext per process. Phase 2 (ucc):
- *  `Map<cityName, CityContext>`; the per-module mount signature does not
- *  change. */
+ *  time. Realized as a per-city registry in ucc: the backend keeps a lazy
+ *  `Map<cityName, CityRuntime>` (each runtime owns one CityContext) keyed
+ *  off `GET /v0/cities`, selected per request via the `/api/city/:cityName/`
+ *  path segment. The per-module mount signature is unchanged from the
+ *  single-city phase — a module still receives exactly one CityContext. */
 export interface CityContext<TGc extends GcClientLike = GcClientLike, TConfig = unknown> {
   cityName: string;
   cityPath: string;

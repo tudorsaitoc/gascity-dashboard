@@ -2,6 +2,7 @@
 // can audit the configurable surface.
 
 import { AGENT_ALIAS_RE } from './exec.js';
+import { isValidCityName } from './lib/cityName.js';
 import { LOG_COMPONENT, logWarn } from './logging.js';
 
 /**
@@ -143,7 +144,7 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): AdminConfig {
   // normalization. Per the modular-dashboard PRD § premortem #5 +
   // security review.
   const cityName = env.GC_CITY_NAME ?? 'racoon-city';
-  if (!/^[a-z0-9]([a-z0-9-]*[a-z0-9])?$/i.test(cityName)) {
+  if (!isValidCityName(cityName)) {
     throw new Error(
       `Invalid GC_CITY_NAME: "${cityName}" — must be alphanumeric with hyphens, no path separators or leading/trailing hyphen`,
     );

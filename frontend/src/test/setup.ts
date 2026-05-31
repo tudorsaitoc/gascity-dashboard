@@ -1,4 +1,12 @@
 import { afterAll, afterEach, beforeAll, beforeEach, vi } from 'vitest';
+import { setActiveCity } from '../api/cityBase';
+
+// gascity-dashboard-ucc: city-scoped `api.*` calls and EventSource URLs are
+// built off the module-level active city (set by the router from the URL
+// segment in production). Tests render components in isolation without the
+// router, so seed a deterministic active city here — every city-scoped
+// request then resolves to `/api/city/test-city/*`, which fetch mocks match.
+export const TEST_CITY = 'test-city';
 
 let warnSpy: ReturnType<typeof vi.spyOn>;
 let infoSpy: ReturnType<typeof vi.spyOn>;
@@ -10,6 +18,7 @@ beforeAll(() => {
 });
 
 beforeEach(() => {
+  setActiveCity(TEST_CITY);
   warnSpy = vi.spyOn(console, 'warn').mockImplementation((...args: unknown[]) => {
     throw new Error(`Unexpected console.warn: ${formatConsoleArgs(args)}`);
   });

@@ -25,7 +25,7 @@ function stubFetch() {
   vi.stubGlobal('fetch', vi.fn(async (input: RequestInfo | URL) => {
     const url = String(input);
     fetchUrls.push(url);
-    if (url === '/api/agents') {
+    if (url === '/api/city/test-city/agents') {
       return jsonResponse({
         items: [
           {
@@ -62,7 +62,7 @@ function stubFetch() {
         ],
       });
     }
-    if (url === '/api/sessions') {
+    if (url === '/api/city/test-city/sessions') {
       return jsonResponse({
         items: [
           {
@@ -78,7 +78,7 @@ function stubFetch() {
         ],
       });
     }
-    if (url === '/api/sessions/gc-2568/peek') {
+    if (url === '/api/city/test-city/sessions/gc-2568/peek') {
       return jsonResponse({
         session_id: 'gc-2568',
         turns: [{ role: 'assistant', text: 'mayor transcript snapshot' }],
@@ -139,14 +139,14 @@ describe('AgentsPage (post-ay6 regressions)', () => {
     const peekButton = await screen.findByRole('button', { name: /peek/i });
     fireEvent.click(peekButton);
 
-    // The peek modal must hit /api/sessions/gc-2568/peek — NOT
-    // /api/sessions/mayor/peek (the pre-fix bug). We wait for the POST to
+    // The peek modal must hit /api/city/test-city/sessions/gc-2568/peek — NOT
+    // /api/city/test-city/sessions/mayor/peek (the pre-fix bug). We wait for the POST to
     // land in fetchUrls because the resolution is async (sessions cache).
     await waitFor(() => {
-      expect(fetchUrls).toContain('/api/sessions/gc-2568/peek');
+      expect(fetchUrls).toContain('/api/city/test-city/sessions/gc-2568/peek');
     });
     // Belt-and-suspenders: assert the buggy URL was NEVER attempted.
-    expect(fetchUrls).not.toContain('/api/sessions/mayor/peek');
+    expect(fetchUrls).not.toContain('/api/city/test-city/sessions/mayor/peek');
   });
 
   it('orphan agent name-link carries a different title tooltip than a session-bound one (ay6.2)', async () => {

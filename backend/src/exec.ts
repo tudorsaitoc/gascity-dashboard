@@ -3,6 +3,7 @@
 // BEAD_ID_RE is shared with routes/beads.ts via lib/beadId.ts so any prefix
 // the read side accepts the write side can act on (gascity-dashboard-bwp).
 import { BEAD_ID_RE } from './lib/beadId.js';
+import { isValidHostPath } from './lib/hostPath.js';
 import {
   AGENT_ALIAS_RE,
   ExecError,
@@ -96,7 +97,7 @@ export async function execBeadAction(
   const cityArg =
     cityPath !== undefined && cityPath.length > 0
       ? (() => {
-          if (!cityPath.startsWith('/') || cityPath.includes('..')) {
+          if (!isValidHostPath(cityPath)) {
             throw new ExecError('invalid city path', 'validation');
           }
           return `--city=${cityPath}`;
@@ -149,7 +150,7 @@ export async function execAgentPrime(
   }
   const args: string[] = ['prime', '--strict'];
   if (cityPath !== undefined && cityPath.length > 0) {
-    if (!cityPath.startsWith('/') || cityPath.includes('..')) {
+    if (!isValidHostPath(cityPath)) {
       throw new ExecError('invalid city path', 'validation');
     }
     args.push(`--city=${cityPath}`);

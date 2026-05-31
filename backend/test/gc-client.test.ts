@@ -2092,6 +2092,86 @@ describe('GcClient formula/order run history', () => {
   });
 });
 
+// gascity-dashboard-ucc: GET /v0/cities is the supervisor's city registry.
+// The dashboard decodes it into the CityInfo subset (host `path` omitted
+// from the dashboard's own wire shape) to drive the per-city runtime
+// registry + the frontend switcher.
+describe('GcClient.listCities', () => {
+  let fake: Fake;
+  beforeEach(async () => {
+    fake = await startFake();
+  });
+  afterEach(async () => {
+    await fake.close();
+  });
+
+  test('decodes the supervisor cities array (host path stays host-side)', async () => {
+    let seenUrl = '';
+    fake.setHandler((req, res) => {
+      seenUrl = req.url ?? '';
+      res.statusCode = 200;
+      res.setHeader('content-type', 'application/json');
+      res.end(JSON.stringify({
+        items: [
+          { name: 'racoon-city', path: '/home/ds/racoon-city', running: true, status: 'ready' },
+          { name: 'gas-town', path: '/home/ds/gas-town', running: false },
+        ],
+        total: 2,
+      }));
+    });
+    const gc = new GcClient({ baseUrl: fake.baseUrl, cityName: 'racoon-city', defaultTimeoutMs: 5_000 });
+    const out = await gc.listCities();
+    assert.equal(seenUrl, '/v0/cities');
+    assert.equal(out.total, 2);
+    assert.equal(out.items.length, 2);
+    assert.equal(out.items[0]?.name, 'racoon-city');
+    assert.equal(out.items[0]?.running, true);
+    assert.equal(out.items[0]?.status, 'ready');
+    assert.equal(out.items[1]?.name, 'gas-town');
+    assert.equal(out.items[1]?.running, false);
+    // The untrusted host path must NOT survive onto the dashboard wire shape.
+    assert.equal((out.items[0] as unknown as { path?: string }).path, undefined);
+  });
+
+  test('rejects a malformed cities payload (item missing required name)', async () => {
+    fake.setHandler((_req, res) => {
+      res.statusCode = 200;
+      res.setHeader('content-type', 'application/json');
+      res.end(JSON.stringify({ items: [{ path: '/no/name', running: true }], total: 1 }));
+    });
+    const gc = new GcClient({ baseUrl: fake.baseUrl, cityName: 'test', defaultTimeoutMs: 5_000 });
+    await assert.rejects(
+      () => gc.listCities(),
+      /invalid gc supervisor listCities payload/i,
+    );
+  });
+
+  test('rejects a cities payload missing total', async () => {
+    fake.setHandler((_req, res) => {
+      res.statusCode = 200;
+      res.setHeader('content-type', 'application/json');
+      res.end(JSON.stringify({ items: [] }));
+    });
+    const gc = new GcClient({ baseUrl: fake.baseUrl, cityName: 'test', defaultTimeoutMs: 5_000 });
+    await assert.rejects(
+      () => gc.listCities(),
+      /invalid gc supervisor listCities payload.*total/i,
+    );
+  });
+
+  test('accepts items=null and normalizes to []', async () => {
+    fake.setHandler((_req, res) => {
+      res.statusCode = 200;
+      res.setHeader('content-type', 'application/json');
+      res.end(JSON.stringify({ items: null, total: 0 }));
+    });
+    const gc = new GcClient({ baseUrl: fake.baseUrl, cityName: 'test', defaultTimeoutMs: 5_000 });
+    const out = await gc.listCities();
+    assert.deepEqual(out.items, []);
+    assert.equal(out.total, 0);
+  });
+});
+
 function validBead(id: string) {
   return {
     id,

@@ -8,6 +8,7 @@ import type {
 import { filterTierByNeedsYou, NEEDS_YOU_VIEW_PARAM } from './needsYou';
 import { useNow } from '../../../contexts/NowContext';
 import { api } from '../../../api/client';
+import { cityPath } from '../../../api/cityBase';
 import { setCached } from '../../../api/cache';
 import { Button } from '../../../components/Button';
 import { PageHeader } from '../../../components/PageHeader';
@@ -250,13 +251,13 @@ export function MaintainerPage() {
     });
   }, []);
 
-  // Live updates: subscribe to /api/maintainer/events. Whenever the
-  // nightly worker (or anyone else's manual refresh) rewrites the
-  // cache, the server fires a 'refreshed' event and we refetch. The
+  // Live updates: subscribe to the city-scoped maintainer events stream.
+  // Whenever the nightly worker (or anyone else's manual refresh) rewrites
+  // the cache, the server fires a 'refreshed' event and we refetch. The
   // EventSource browser API auto-reconnects with backoff; only the
   // mount/unmount lifecycle needs manual handling here.
   useEffect(() => {
-    const es = new EventSource('/api/maintainer/events');
+    const es = new EventSource(cityPath('/maintainer/events'));
     const onRefresh = () => {
       void refresh();
     };

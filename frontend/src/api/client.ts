@@ -14,6 +14,7 @@ import type {
   MaintainerTriage,
   ContributorStat,
   ApiError,
+  CityList,
   DashboardSnapshot,
   SourceName,
   DashboardRuntimeConfig,
@@ -23,10 +24,17 @@ import type {
   EntityLinkView,
 } from 'gas-city-dashboard-shared';
 import { readCsrfToken } from './csrf';
+import { cityPath } from './cityBase';
 
-// Typed fetch client for the admin backend's /api/*. Shares types with
-// the backend via the workspace 'gas-city-dashboard-shared' import so wire-shape
+// Typed fetch client for the admin backend's API. Shares types with the
+// backend via the workspace 'gas-city-dashboard-shared' import so wire-shape
 // drift produces compile errors instead of runtime undefined.
+//
+// gascity-dashboard-ucc: the request plane is split. City-scoped reads/writes
+// address `/api/city/:cityName/*` via `cityPath()` (the active city is set by
+// the router from the URL segment). Non-city endpoints — health, csrf, the
+// city switcher list, client-error telemetry, git, builds — address `/api/*`
+// directly because they are supervisor- or host-global, not per-city.
 
 async function performRequest<T>(
   method: 'GET' | 'POST',
@@ -101,8 +109,25 @@ export class ApiClientError extends Error {
 
 
 export const api = {
+  // ── Non-city (supervisor / host-global) endpoints ──────────────────────
+  health(): Promise<{ ok: boolean; ts: string }> {
+    return request('GET', '/api/health');
+  },
+  // The city switcher source. Lists every managed city (host path stripped
+  // server-side). Not city-scoped — it is the registry the switcher reads.
+  listCities(): Promise<CityList> {
+    return request('GET', '/api/cities');
+  },
+  listCommits(view: GitView): Promise<GitCommitList> {
+    return request('GET', `/api/git/commits?view=${encodeURIComponent(view)}`);
+  },
+  listBuilds(): Promise<DeployList> {
+    return request('GET', '/api/builds');
+  },
+
+  // ── City-scoped endpoints (ride /api/city/:cityName/*) ─────────────────
   listSessions(): Promise<{ items: GcSession[] }> {
-    return request('GET', '/api/sessions');
+    return request('GET', cityPath('/sessions'));
   },
   // gascity-dashboard-ay6: canonical agent roster. Supersedes the
   // session-derived Agents-view path which under-counted configured
@@ -110,10 +135,10 @@ export const api = {
   // GcAgentList SSOT — `partial` + `partial_errors` are part of that
   // type and will widen automatically if upstream grows the envelope.
   listAgents(): Promise<GcAgentList> {
-    return request('GET', '/api/agents');
+    return request('GET', cityPath('/agents'));
   },
   peekSession(id: string): Promise<TranscriptResult> {
-    return request('POST', `/api/sessions/${encodeURIComponent(id)}/peek`, {});
+    return request('POST', cityPath(`/sessions/${encodeURIComponent(id)}/peek`), {});
   },
   listBeads(showAll?: boolean): Promise<{
     items: GcBead[];
@@ -123,57 +148,48 @@ export const api = {
     fetch_limit?: number;
   }> {
     const qs = showAll ? '?showAll=1' : '';
-    return request('GET', `/api/beads${qs}`);
+    return request('GET', cityPath(`/beads${qs}`));
   },
   getBead(id: string): Promise<GcBead> {
-    return request('GET', `/api/beads/${encodeURIComponent(id)}`);
+    return request('GET', cityPath(`/beads/${encodeURIComponent(id)}`));
   },
   claimBead(id: string): Promise<{ ok: true; stdout: string }> {
-    return request('POST', `/api/beads/${encodeURIComponent(id)}/claim`, {});
+    return request('POST', cityPath(`/beads/${encodeURIComponent(id)}/claim`), {});
   },
   closeBead(id: string, reason?: string): Promise<{ ok: true; stdout: string }> {
-    return request('POST', `/api/beads/${encodeURIComponent(id)}/close`, { reason });
+    return request('POST', cityPath(`/beads/${encodeURIComponent(id)}/close`), { reason });
   },
   nudgeBead(id: string): Promise<{ ok: true; stdout: string }> {
-    return request('POST', `/api/beads/${encodeURIComponent(id)}/nudge`, {});
+    return request('POST', cityPath(`/beads/${encodeURIComponent(id)}/nudge`), {});
   },
   listMail(box: 'inbox' | 'sent' | 'all', alias: string): Promise<{ items: GcMailItem[]; total: number }> {
     const qs = new URLSearchParams({ box, alias }).toString();
-    return request('GET', `/api/mail?${qs}`);
+    return request('GET', cityPath(`/mail?${qs}`));
   },
   getThread(threadId: string, alias: string): Promise<{ items: GcMailItem[] }> {
     const qs = new URLSearchParams({ alias }).toString();
-    return request('GET', `/api/mail/threads/${encodeURIComponent(threadId)}?${qs}`);
+    return request('GET', cityPath(`/mail/threads/${encodeURIComponent(threadId)}?${qs}`));
   },
   sendMail(payload: MailComposeRequest): Promise<MailSendResult> {
     // The client-side shape mirrors the server's: { to, subject, body }.
     // No `from` field. The architect's physical-separation rule means
     // this fetch hits a different router than reads.
-    return request('POST', '/api/mail-send', payload);
-  },
-  health(): Promise<{ ok: boolean; ts: string }> {
-    return request('GET', '/api/health');
+    return request('POST', cityPath('/mail-send'), payload);
   },
   config(): Promise<DashboardRuntimeConfig> {
-    return request('GET', '/api/config');
-  },
-  listCommits(view: GitView): Promise<GitCommitList> {
-    return request('GET', `/api/git/commits?view=${encodeURIComponent(view)}`);
-  },
-  listBuilds(): Promise<DeployList> {
-    return request('GET', '/api/builds');
+    return request('GET', cityPath('/config'));
   },
   systemHealth(): Promise<SystemHealth> {
-    return request('GET', '/api/health/system');
+    return request('GET', cityPath('/health/system'));
   },
   doltTrend(): Promise<DoltNomsTrend> {
-    return request('GET', '/api/dolt-noms/trend');
+    return request('GET', cityPath('/dolt-noms/trend'));
   },
   agentPrime(alias: string): Promise<{ agent: string; prompt: string; bytes: number }> {
-    return request('GET', `/api/agents/${encodeURIComponent(alias)}/prime`);
+    return request('GET', cityPath(`/agents/${encodeURIComponent(alias)}/prime`));
   },
   snapshot(): Promise<DashboardSnapshot> {
-    return request('GET', '/api/snapshot');
+    return request('GET', cityPath('/snapshot'));
   },
   // Bypasses the backend's per-source TTL — POSTs through
   // SnapshotService.refresh which forces a fresh upstream load on the
@@ -186,33 +202,35 @@ export const api = {
     // get a TypeScript-side no-op rather than a 400 from a stray empty
     // array. Pass undefined / non-empty arrays through.
     const body = sources && sources.length > 0 ? { sources } : {};
-    return request('POST', '/api/snapshot/refresh', body);
+    return request('POST', cityPath('/snapshot/refresh'), body);
   },
   workflowRun(
     workflowId: string,
     params?: { scopeKind?: WorkflowScopeKind; scopeRef?: string },
   ): Promise<WorkflowRunDetail> {
     const qs = workflowQuery(params);
-    return request('GET', `/api/workflows/${encodeURIComponent(workflowId)}${qs}`);
+    return request('GET', cityPath(`/workflows/${encodeURIComponent(workflowId)}${qs}`));
   },
   workflowDiff(
     workflowId: string,
     params?: { scopeKind?: WorkflowScopeKind; scopeRef?: string },
   ): Promise<WorkflowDiffResponse> {
     const qs = workflowQuery(params);
-    return request('GET', `/api/workflows/${encodeURIComponent(workflowId)}/diff${qs}`);
+    return request('GET', cityPath(`/workflows/${encodeURIComponent(workflowId)}/diff${qs}`));
   },
   sessionStreamUrl(id: string): string {
-    return `/api/sessions/${encodeURIComponent(id)}/stream`;
+    // Distinct from /sessions (REST) — the session SSE stream mounts under
+    // its own /session-stream prefix on the backend (see city/runtime.ts).
+    return cityPath(`/session-stream/${encodeURIComponent(id)}/stream`);
   },
   maintainerTriage(): Promise<MaintainerTriage> {
-    return request('GET', '/api/maintainer/triage');
+    return request('GET', cityPath('/maintainer/triage'));
   },
   maintainerRefresh(): Promise<MaintainerTriage> {
-    return request('POST', '/api/maintainer/refresh', {});
+    return request('POST', cityPath('/maintainer/refresh'), {});
   },
   maintainerContributor(login: string): Promise<ContributorStat> {
-    return request('GET', `/api/maintainer/contributor/${encodeURIComponent(login)}`);
+    return request('GET', cityPath(`/maintainer/contributor/${encodeURIComponent(login)}`));
   },
   // gascity-dashboard-0nn: per-item sling dispatch. The bulk-sling
   // action bar fans out one call per selected item via Promise.allSettled
@@ -220,7 +238,7 @@ export const api = {
   // Bead-ID cross-entity linked view (gascity-dashboard-j4x). `ref` is a
   // bead id, `pr/<n>`, `issue/<n>`, a session id, or a workflow id.
   entityLinks(ref: string): Promise<EntityLinkView> {
-    return request('GET', `/api/links/${encodeURIComponent(ref)}`);
+    return request('GET', cityPath(`/links/${encodeURIComponent(ref)}`));
   },
   maintainerSling(payload: {
     kind: 'pr' | 'issue';
@@ -229,7 +247,7 @@ export const api = {
     intent: 'review' | 'draft' | 'triage';
     target?: string;
   }): Promise<{ ok: true; bead_id?: string }> {
-    return request('POST', '/api/maintainer/sling', payload);
+    return request('POST', cityPath('/maintainer/sling'), payload);
   },
 };
 

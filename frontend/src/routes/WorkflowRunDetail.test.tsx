@@ -43,35 +43,35 @@ beforeEach(() => {
   vi.stubGlobal('fetch', vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
     const url = String(input);
     fetchUrls.push(url);
-    if (url.startsWith('/api/workflows/gc-adopt-pr-active/diff')) {
+    if (url.startsWith('/api/city/test-city/workflows/gc-adopt-pr-active/diff')) {
       return jsonResponse(currentDiff);
     }
-    if (url.startsWith('/api/workflows/gc-adopt-pr-active')) {
+    if (url.startsWith('/api/city/test-city/workflows/gc-adopt-pr-active')) {
       return jsonResponse(currentDetail);
     }
-    if (url === '/api/sessions/gc-session-review-i2/peek') {
+    if (url === '/api/city/test-city/sessions/gc-session-review-i2/peek') {
       expect(init?.method).toBe('POST');
       return jsonResponse(transcripts['gc-session-review-i2']);
     }
-    if (url === '/api/sessions/gc-session-rebase/peek') {
+    if (url === '/api/city/test-city/sessions/gc-session-rebase/peek') {
       return jsonResponse(transcripts['gc-session-rebase']);
     }
-    if (url === '/api/sessions/gc-session-rebase-a1/peek') {
+    if (url === '/api/city/test-city/sessions/gc-session-rebase-a1/peek') {
       return jsonResponse(transcripts['gc-session-rebase']);
     }
-    if (url === '/api/sessions/gc-session-rebase-a2/peek') {
+    if (url === '/api/city/test-city/sessions/gc-session-rebase-a2/peek') {
       return jsonResponse(transcripts['gc-session-rebase']);
     }
-    if (url === '/api/sessions/gc-session-review-i1/peek') {
+    if (url === '/api/city/test-city/sessions/gc-session-review-i1/peek') {
       return jsonResponse(transcripts['gc-session-review-i1']);
     }
-    if (url === '/api/sessions/gc-session-fix-i1/peek') {
+    if (url === '/api/city/test-city/sessions/gc-session-fix-i1/peek') {
       return jsonResponse(transcripts['gc-session-fix-i1']);
     }
-    if (url.startsWith('/api/links/')) {
+    if (url.startsWith('/api/city/test-city/links/')) {
       // RelatedEntities (gascity-dashboard-j4x) fetches its view on mount.
       // A focus-only view keeps this test scoped to the run-detail flow.
-      const ref = decodeURIComponent(url.slice('/api/links/'.length));
+      const ref = decodeURIComponent(url.slice('/api/city/test-city/links/'.length));
       return jsonResponse({
         focus: { key: `bead:c:${ref}`, type: 'bead', ref },
         nodes: [{ key: `bead:c:${ref}`, type: 'bead', ref, title: null, status: null, url: null, fetchedAt: null, unresolved: false }],
@@ -174,19 +174,19 @@ describe('WorkflowRunDetailPage', () => {
 
     await screen.findByRole('alert');
     expect(screen.getByText(/invalid workflow scope query/i)).toBeTruthy();
-    expect(fetchUrls.some((url) => url.startsWith('/api/workflows/'))).toBe(false);
+    expect(fetchUrls.some((url) => url.startsWith('/api/city/test-city/workflows/'))).toBe(false);
   });
 
   it('passes complete scope query params when loading detail and diff', async () => {
     renderPage('/workflows/gc-adopt-pr-active?scope_kind=city&scope_ref=racoon-city');
     await screen.findByRole('heading', { name: /adopt pr #42/i });
 
-    const workflowUrls = fetchUrls.filter((url) => url.startsWith('/api/workflows/'));
+    const workflowUrls = fetchUrls.filter((url) => url.startsWith('/api/city/test-city/workflows/'));
     expect(workflowUrls).toContain(
-      '/api/workflows/gc-adopt-pr-active?scope_kind=city&scope_ref=racoon-city',
+      '/api/city/test-city/workflows/gc-adopt-pr-active?scope_kind=city&scope_ref=racoon-city',
     );
     expect(workflowUrls).toContain(
-      '/api/workflows/gc-adopt-pr-active/diff?scope_kind=city&scope_ref=racoon-city',
+      '/api/city/test-city/workflows/gc-adopt-pr-active/diff?scope_kind=city&scope_ref=racoon-city',
     );
   });
 
@@ -195,7 +195,7 @@ describe('WorkflowRunDetailPage', () => {
 
     await screen.findByRole('alert');
     expect(screen.getByText(/invalid workflow scope query/i)).toBeTruthy();
-    expect(fetchUrls.some((url) => url.startsWith('/api/workflows/'))).toBe(false);
+    expect(fetchUrls.some((url) => url.startsWith('/api/city/test-city/workflows/'))).toBe(false);
   });
 
   it('rejects duplicated scope query params without loading the workflow', async () => {
@@ -203,7 +203,7 @@ describe('WorkflowRunDetailPage', () => {
 
     await screen.findByRole('alert');
     expect(screen.getByText(/invalid workflow scope query/i)).toBeTruthy();
-    expect(fetchUrls.some((url) => url.startsWith('/api/workflows/'))).toBe(false);
+    expect(fetchUrls.some((url) => url.startsWith('/api/city/test-city/workflows/'))).toBe(false);
   });
 
   it('shows loop iteration history in the session panel for a selected semantic node', async () => {

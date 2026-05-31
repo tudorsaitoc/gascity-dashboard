@@ -1,4 +1,5 @@
 import type {
+  CityList,
   GcAgent,
   GcAgentList,
   GcSessionList,
@@ -28,6 +29,7 @@ import {
   gcSupervisorDecoders,
   type GcDecoder,
   type GcTranscriptResponse,
+  type SupervisorCity,
 } from './gc-supervisor-decoders.js';
 import type { paths } from './generated/gc-supervisor.js';
 
@@ -61,6 +63,9 @@ const SUPERVISOR_PATHS = {
   agent: '/v0/city/{cityName}/agent/{base}',
   agents: '/v0/city/{cityName}/agents',
   bead: '/v0/city/{cityName}/bead/{id}',
+  // Non-city supervisor endpoint: the registry of managed cities. The
+  // only path here that is NOT city-scoped (gascity-dashboard-ucc).
+  cities: '/v0/cities',
   beads: '/v0/city/{cityName}/beads',
   events: '/v0/city/{cityName}/events',
   eventsStream: '/v0/city/{cityName}/events/stream',
@@ -364,6 +369,47 @@ export class GcClient {
       gcSupervisorDecoders.listRigs,
       (upstreamSignal) => this.supervisor.GET(SUPERVISOR_PATHS.rigs, {
         params: { path: this.cityPathParams() },
+        signal: upstreamSignal,
+      }),
+      signal,
+    );
+  }
+
+  /**
+   * `GET /v0/cities` — the supervisor's registry of managed cities
+   * (gascity-dashboard-ucc). This is the ONLY non-city-scoped GET on the
+   * client: it takes no `cityName` path param (the operationKey carries no
+   * cityName either, but that is harmless — a GcClient instance is bound to
+   * a single supervisor baseUrl, and the cities list is identical for every
+   * per-city client pointed at that supervisor). The decoder drops the
+   * untrusted host `path` so it never reaches the browser.
+   */
+  async listCities(signal?: AbortSignal): Promise<CityList> {
+    return this.getOperation(
+      this.operationKey(SUPERVISOR_PATHS.cities),
+      gcSupervisorDecoders.listCities,
+      (upstreamSignal) => this.supervisor.GET(SUPERVISOR_PATHS.cities, {
+        signal: upstreamSignal,
+      }),
+      signal,
+    );
+  }
+
+  /**
+   * Host-side variant of {@link listCities} that RETAINS the untrusted
+   * supervisor host `path` on each city (gascity-dashboard-ucc). Used ONLY
+   * by the per-city runtime registry to source each CityRuntime's rig root;
+   * the path is kept host-side and never serialized to the browser. A
+   * distinct operationKey from `listCities` so the two decodes don't share
+   * an inflight slot (different decoded shapes).
+   */
+  async listSupervisorCities(
+    signal?: AbortSignal,
+  ): Promise<readonly SupervisorCity[]> {
+    return this.getOperation(
+      this.operationKey(SUPERVISOR_PATHS.cities, ['supervisor']),
+      gcSupervisorDecoders.listSupervisorCities,
+      (upstreamSignal) => this.supervisor.GET(SUPERVISOR_PATHS.cities, {
         signal: upstreamSignal,
       }),
       signal,

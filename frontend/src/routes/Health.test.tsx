@@ -25,10 +25,10 @@ beforeEach(() => {
   currentTrend = baseTrend();
   vi.stubGlobal('fetch', vi.fn(async (input: RequestInfo | URL) => {
     const url = String(input);
-    if (url === '/api/health/system') {
+    if (url === '/api/city/test-city/health/system') {
       return jsonResponse(currentHealth);
     }
-    if (url === '/api/dolt-noms/trend') {
+    if (url === '/api/city/test-city/dolt-noms/trend') {
       return jsonResponse(currentTrend);
     }
     throw new Error(`unexpected fetch: ${url}`);

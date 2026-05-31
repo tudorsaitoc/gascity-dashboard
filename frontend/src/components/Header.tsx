@@ -1,6 +1,7 @@
 import { useMemo } from 'react';
 import { NavLink, useLocation } from 'react-router-dom';
 import { api } from '../api/client';
+import { getActiveCity } from '../api/cityBase';
 import { useTheme } from '../contexts/ThemeContext';
 import { useViewingAs, OPERATOR_ALIAS } from '../contexts/ViewingAsContext';
 import { displayLabel } from '../hooks/aliasPriority';
@@ -40,6 +41,19 @@ export function Header() {
   const { resolved, toggle } = useTheme();
   const { viewingAs } = useViewingAs();
   const { data: config } = useCachedData('config', () => api.config());
+  // City switcher source (gascity-dashboard-ucc). Lists every managed city;
+  // selecting one navigates (full reload) to that city's `/city/:name/`
+  // basename so the app remounts with the new active city. A bare full
+  // navigation — not client-side — keeps the active-city base, router
+  // basename, and every city-scoped fetch consistent without a per-fetch
+  // city argument.
+  const { data: cities } = useCachedData('cities', () => api.listCities());
+  const activeCity = getActiveCity();
+  const cityItems = cities?.items ?? [];
+  const onSwitchCity = (next: string): void => {
+    if (next === activeCity) return;
+    window.location.assign(`/city/${encodeURIComponent(next)}/`);
+  };
   // PR-C: filter the registry views by the backend-advertised
   // enabledModules so a disabled module's nav entry disappears in lockstep
   // with its route. While the config fetch is in flight `enabledModules`
@@ -70,9 +84,30 @@ export function Header() {
             gas city
           </span>
           <span className="text-fg-muted" aria-hidden="true">·</span>
-          <span className="text-label uppercase tracking-wider text-fg-muted">
-            {config?.cityName ?? 'city'}
-          </span>
+          {cityItems.length > 1 ? (
+            <label className="sr-only" htmlFor="city-switcher">
+              Switch city
+            </label>
+          ) : null}
+          {cityItems.length > 1 ? (
+            <select
+              id="city-switcher"
+              value={activeCity ?? config?.cityName ?? ''}
+              onChange={(e) => onSwitchCity(e.target.value)}
+              className="text-label uppercase tracking-wider text-fg-muted bg-transparent border-0 focus-mark cursor-pointer hover:text-fg transition-colors duration-150 ease-out-quart"
+            >
+              {cityItems.map((c) => (
+                <option key={c.name} value={c.name}>
+                  {c.name}
+                  {c.running ? '' : ' (stopped)'}
+                </option>
+              ))}
+            </select>
+          ) : (
+            <span className="text-label uppercase tracking-wider text-fg-muted">
+              {activeCity ?? config?.cityName ?? 'city'}
+            </span>
+          )}
           {showReadingAs && (
             <span className="text-label uppercase tracking-wider text-accent ml-3">
               · reading as {displayLabel(viewingAs.alias, OPERATOR_ALIAS)}

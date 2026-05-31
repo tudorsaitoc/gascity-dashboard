@@ -11,6 +11,7 @@ function makeConfig(overrides: Partial<AdminConfig> = {}): AdminConfig {
     port: 8081,
     bindHost: '127.0.0.1',
     extraAllowedHosts: [],
+    // Unroutable supervisor so /api/cities + city dispatch fail fast.
     gcSupervisorUrl: 'http://127.0.0.1:1',
     cityName: 'test-city',
     cityPath: '',
@@ -46,7 +47,7 @@ async function withApp<T>(app: Express, fn: (url: string) => Promise<T>): Promis
 }
 
 describe('createDashboardApp', () => {
-  test('assembles the Express app separately from process startup', async () => {
+  test('serves the top-level health endpoint independent of any city', async () => {
     const { app, runtime } = createDashboardApp(makeConfig());
     runtime.start();
     try {
@@ -56,16 +57,39 @@ describe('createDashboardApp', () => {
         const body = (await health.json()) as { ok: boolean; ts: string };
         assert.equal(body.ok, true);
         assert.equal(typeof body.ts, 'string');
+      });
+    } finally {
+      await runtime.stop();
+    }
+  });
 
-        const config = await fetch(`${url}/api/config`);
-        assert.equal(config.status, 200);
-        assert.deepEqual(await config.json(), {
-          cityName: 'test-city',
-          cityRoot: '',
-          useFixtures: false,
-          enabledModules: null,
-          defaultView: null,
-        });
+  test('rejects a path-traversal :cityName at the dispatch boundary (400)', async () => {
+    const { app, runtime } = createDashboardApp(makeConfig());
+    runtime.start();
+    try {
+      await withApp(app, async (url) => {
+        const res = await fetch(`${url}/api/city/%2e%2e%2fetc/config`);
+        assert.equal(res.status, 400);
+        const body = (await res.json()) as { kind?: string };
+        assert.equal(body.kind, 'validation');
+      });
+    } finally {
+      await runtime.stop();
+    }
+  });
+
+  test('city dispatch surfaces an upstream error when the supervisor registry is unreachable', async () => {
+    const { app, runtime } = createDashboardApp(makeConfig());
+    runtime.start();
+    try {
+      await withApp(app, async (url) => {
+        const res = await fetch(`${url}/api/city/test-city/config`);
+        // Unroutable supervisor -> the /v0/cities lookup fails, mapped to a
+        // 502/504 upstream error. NEVER a silent fallback / 200.
+        assert.ok(
+          res.status === 502 || res.status === 504,
+          `expected upstream error status, got ${res.status}`,
+        );
       });
     } finally {
       await runtime.stop();
