@@ -47,10 +47,30 @@ export async function readCache(cachePath: string): Promise<CacheReadResult> {
   return { status: 'ready', envelope: parsed };
 }
 
+// Serialise concurrent writers in this process. The background runRefresh
+// worker and the route POST /api/maintainer/refresh are two real writers; a
+// shared `${cachePath}.tmp-${pid}-${Date.now()}` can collide within one
+// millisecond, so atomic rename alone (which only guards readers from a
+// half-written tmp) is not enough. Single chain mirrors slung-state.ts: each
+// writer waits for the prior write+rename to finish before starting its own,
+// so no two writers ever share a tmp path or interleave their fs.writeFile.
+let writeChain: Promise<void> = Promise.resolve();
+
 export async function writeCache(
   cachePath: string,
   envelope: MaintainerTriage,
 ): Promise<void> {
+  const next = writeChain.then(() => persistAtomic(cachePath, envelope));
+  // Keep the chain alive after a failed write so the next enqueued writer
+  // still runs, but never swallow the failure — surface it to the awaiting
+  // caller below and log it for the operator (mirrors slung-state.ts).
+  writeChain = next.catch((err: unknown) => {
+    logWarn(LOG_COMPONENT.maintainer, `cache write failed: ${errorMessage(err)}`);
+  });
+  await next;
+}
+
+async function persistAtomic(cachePath: string, envelope: MaintainerTriage): Promise<void> {
   await fs.mkdir(path.dirname(cachePath), { recursive: true });
   const tmp = `${cachePath}.tmp-${process.pid}-${Date.now()}`;
   await fs.writeFile(tmp, JSON.stringify(envelope, null, 2), 'utf-8');
