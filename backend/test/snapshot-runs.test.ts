@@ -1051,6 +1051,20 @@ describe('buildRunSummary', () => {
       assert.equal(lane.phase, 'complete', `historicalLanes ${lane.id} must be complete`);
     }
   });
+
+  test('n6f1: omits lanesPartial by default and sets it only when partial=true', () => {
+    const issues = [issue({ id: 'a', title: 'Implement', metadata: graphRunMetadata() })];
+    assert.equal(
+      buildRunSummary(issues).lanesPartial,
+      undefined,
+      'clean snapshot must not carry the partial flag',
+    );
+    assert.equal(
+      buildRunSummary(issues, new Map(), true).lanesPartial,
+      true,
+      'partial=true must surface as lanesPartial',
+    );
+  });
 });
 
 // ── createRunsSourceCache (cache integration) ────────────────────────
@@ -1363,6 +1377,149 @@ describe('createRunsSourceCache', () => {
     if (result.status === 'fresh') {
       const ids = result.data.lanes.map((lane) => lane.id);
       assert.deepEqual(ids, ['city-root'], 'listBeads-discovered lane should still surface');
+    }
+  });
+
+  // gascity-dashboard-n6f1: the per-rig recent-run fan-out is best-effort.
+  // One rig's listBeads rejecting (timeout / 404 / transient flake) must
+  // NOT collapse the whole runs snapshot to status=error — the fulfilled
+  // rigs' lanes must still surface, and the result must flag itself partial
+  // so the operator sees a degraded indicator rather than silent loss.
+  test('n6f1: a single rig listBeads rejection degrades to a partial snapshot, not a total collapse', async () => {
+    const cache = createRunsSourceCache({
+      gc: {
+        listBeads: async (_signal: AbortSignal | undefined, params: ListBeadsParams) => {
+          assert.ok(params, 'collector must always pass an explicit params arg');
+          // Base city query surfaces two rigs via discovered children.
+          if (params.rig === undefined && params.type === undefined && params.all !== true) {
+            return {
+              items: [
+                gcBead({
+                  id: 'child-a',
+                  title: 'child pointing at rig-a',
+                  issue_type: 'spec',
+                  metadata: { 'gc.root_bead_id': 'root-a', 'gc.root_store_ref': 'rig:rig-a' },
+                }),
+                gcBead({
+                  id: 'child-b',
+                  title: 'child pointing at rig-b',
+                  issue_type: 'spec',
+                  metadata: { 'gc.root_bead_id': 'root-b', 'gc.root_store_ref': 'rig:rig-b' },
+                }),
+              ],
+              total: 2,
+            };
+          }
+          // rig-a's recent-run query succeeds with a full graph.v2 root.
+          if (params.rig === 'rig-a' && params.type === 'task' && params.all === true) {
+            return {
+              items: [
+                gcBead({
+                  id: 'root-a',
+                  title: 'mol-from-rig-a',
+                  status: 'in_progress',
+                  issue_type: 'task',
+                  metadata: graphRunMetadata({
+                    'gc.root_store_ref': 'rig:rig-a',
+                    'gc.scope_kind': 'rig',
+                    'gc.scope_ref': 'rig-a',
+                  }),
+                }),
+              ],
+              total: 1,
+            };
+          }
+          // rig-b's recent-run query rejects — the n6f1 fragility trigger.
+          if (params.rig === 'rig-b' && params.type === 'task' && params.all === true) {
+            throw new Error('simulated per-rig listBeads timeout');
+          }
+          if (params.type === 'molecule' && params.all === true) {
+            return { items: [], total: 0 };
+          }
+          assert.fail(`unexpected listBeads params: ${JSON.stringify(params)}`);
+        },
+        // Feed discovery is exercised but adds no rigs here; rig-a/rig-b are
+        // discovered from active.items. Stubbed explicitly so the collector's
+        // listFormulaRuns call resolves rather than throwing a swallowed
+        // TypeError inside discoverFromFeed.
+        listFormulaRuns: async () => ({ items: [], partial: false }),
+        cityName: 'test',
+      } satisfies GcClientMock as unknown as GcClient,
+      limit: 1000,
+    });
+
+    const result = await cache.get();
+
+    assert.equal(result.status, 'fresh', 'one rig failing must not collapse the snapshot');
+    if (result.status === 'fresh') {
+      const ids = result.data.lanes.map((lane) => lane.id);
+      assert.deepEqual(ids, ['root-a'], "the fulfilled rig's lane must still surface");
+      assert.equal(
+        result.data.lanesPartial,
+        true,
+        'a skipped rig must flag the summary partial (degraded, not silently dropped)',
+      );
+    }
+  });
+
+  // n6f1: the city molecule list shares the settle path with the per-rig
+  // sources, so its failure must also degrade-to-partial (not collapse).
+  test('n6f1: a failing city molecule list also degrades to a partial snapshot', async () => {
+    const cache = createRunsSourceCache({
+      gc: {
+        listBeads: async (_signal: AbortSignal | undefined, params: ListBeadsParams) => {
+          assert.ok(params, 'collector must always pass an explicit params arg');
+          // Base city query surfaces one rig whose recent-run query succeeds.
+          if (params.rig === undefined && params.type === undefined && params.all !== true) {
+            return {
+              items: [
+                gcBead({
+                  id: 'child-a',
+                  title: 'child pointing at rig-a',
+                  issue_type: 'spec',
+                  metadata: { 'gc.root_bead_id': 'root-a', 'gc.root_store_ref': 'rig:rig-a' },
+                }),
+              ],
+              total: 1,
+            };
+          }
+          if (params.rig === 'rig-a' && params.type === 'task' && params.all === true) {
+            return {
+              items: [
+                gcBead({
+                  id: 'root-a',
+                  title: 'mol-from-rig-a',
+                  status: 'in_progress',
+                  issue_type: 'task',
+                  metadata: graphRunMetadata({
+                    'gc.root_store_ref': 'rig:rig-a',
+                    'gc.scope_kind': 'rig',
+                    'gc.scope_ref': 'rig-a',
+                  }),
+                }),
+              ],
+              total: 1,
+            };
+          }
+          // The city-scoped molecule query rejects — the other settle branch.
+          if (params.type === 'molecule' && params.all === true) {
+            throw new Error('simulated molecule list timeout');
+          }
+          assert.fail(`unexpected listBeads params: ${JSON.stringify(params)}`);
+        },
+        listFormulaRuns: async () => ({ items: [], partial: false }),
+        cityName: 'test',
+      } satisfies GcClientMock as unknown as GcClient,
+      limit: 1000,
+    });
+
+    const result = await cache.get();
+
+    assert.equal(result.status, 'fresh', 'a molecule-list failure must not collapse the snapshot');
+    if (result.status === 'fresh') {
+      const ids = result.data.lanes.map((lane) => lane.id);
+      assert.deepEqual(ids, ['root-a'], "the fulfilled rig's lane must still surface");
+      assert.equal(result.data.lanesPartial, true, 'the molecule-list failure must flag partial');
     }
   });
 

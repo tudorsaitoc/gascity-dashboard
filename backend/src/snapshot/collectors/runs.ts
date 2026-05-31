@@ -108,6 +108,7 @@ export type RunFeedScopeMap = ReadonlyMap<string, RunFeedScope>;
 export function buildRunSummary(
   issues: RunIssue[],
   feedScopes: RunFeedScopeMap = new Map(),
+  partial = false,
 ): RunSummary {
   const groups = new Map<string, RunIssue[]>();
 
@@ -138,7 +139,7 @@ export function buildRunSummary(
   const visibleActive = activeLanes.slice(0, MAX_VISIBLE_ACTIVE_LANES);
   const visibleHistorical = historicalLanes.slice(0, MAX_VISIBLE_HISTORICAL_LANES);
 
-  return {
+  const summary: RunSummary = {
     totalActive: activeLanes.length,
     totalHistorical: historicalLanes.length,
     runCounts: runCounts(activeLanes, visibleActive.length),
@@ -150,6 +151,9 @@ export function buildRunSummary(
     // replaces this state in the snapshot read path.
     census: runCensusUnavailable(),
   };
+  // gascity-dashboard-n6f1: spread the partial flag in (never mutate) and
+  // only ever as `true`, holding the optional literal-`true` wire contract.
+  return partial ? { ...summary, lanesPartial: true } : summary;
 }
 
 function isGraphV2RunGroup(rootId: string, issues: RunIssue[]): boolean {
@@ -666,10 +670,10 @@ function buildDefaultLoad(
   }
   const limit = options.limit ?? RUNS_FETCH_LIMIT;
   return async () => {
-    const { beads, feedScopes } = await loadRunBeads(gc, limit);
+    const { beads, feedScopes, partial } = await loadRunBeads(gc, limit);
     const filtered = beads.filter(runBeadFilter);
     const adapted = filtered.map(fromGcBead);
-    return buildRunSummary(adapted, feedScopes);
+    return buildRunSummary(adapted, feedScopes, partial);
   };
 }
 
@@ -682,6 +686,13 @@ interface LoadedWorkflowBeads {
    * gc.scope_kind / gc.scope_ref (gascity-dashboard-d3xp).
    */
   feedScopes: RunFeedScopeMap;
+  /**
+   * True when one or more per-rig recent-run queries rejected and were
+   * skipped (gascity-dashboard-n6f1). Propagated into RunSummary.lanesPartial
+   * so a degraded fan-out surfaces as a partial indicator rather than
+   * collapsing the whole snapshot.
+   */
+  partial: boolean;
 }
 
 async function loadRunBeads(
@@ -700,28 +711,54 @@ async function loadRunBeads(
     discoverFromFeed(gc),
   ]);
   const rigNames = unionRigNames(runRigNames(active.items), feedDiscovery.rigNames);
-  const recentLists = await Promise.all([
-    ...rigNames.map((rig) =>
-      gc.listBeads(undefined, {
-        limit: RECENT_RUN_FETCH_LIMIT,
-        type: 'task',
-        rig,
-        all: true,
-      }),
-    ),
-    gc.listBeads(undefined, {
-      limit: RECENT_RUN_FETCH_LIMIT,
-      type: 'molecule',
-      all: true,
+  // gascity-dashboard-n6f1: the recent-run fan-out is best-effort per
+  // source — each is settled independently so a single rig's listBeads
+  // rejecting (timeout / 404 / transient flake) skips THAT source and
+  // flags the snapshot partial, rather than rejecting out of load() and
+  // collapsing the entire runs view to status=error. Mirrors the
+  // partial-handling convention already used for the feed discovery above
+  // and in collectors/cityStatus.ts. Per CLAUDE.md "Don't Swallow Errors":
+  // the skip is loudly logged and surfaced as RunSummary.lanesPartial.
+  const sources: Array<{ label: string; params: Parameters<GcClient['listBeads']>[1] }> = [
+    ...rigNames.map((rig) => ({
+      label: `rig '${rig}'`,
+      params: { limit: RECENT_RUN_FETCH_LIMIT, type: 'task' as const, rig, all: true },
+    })),
+    {
+      label: 'city molecule list',
+      params: { limit: RECENT_RUN_FETCH_LIMIT, type: 'molecule' as const, all: true },
+    },
+  ];
+  // Settle each source carrying its own label, so a rejection is reported
+  // against the rig that failed without a fragile index-zip back to `sources`.
+  const settled = await Promise.all(
+    sources.map(async ({ label, params }) => {
+      try {
+        return { ok: true as const, items: (await gc.listBeads(undefined, params)).items };
+      } catch (error) {
+        return { ok: false as const, label, error };
+      }
     }),
-  ]);
+  );
+
+  const recentItems: GcBead[] = [];
+  let partial = false;
+  for (const outcome of settled) {
+    if (outcome.ok) {
+      recentItems.push(...outcome.items);
+      continue;
+    }
+    partial = true;
+    logWarn(
+      LOG_COMPONENT.snapshot,
+      `recent-run fetch failed for ${outcome.label}: ${errorMessage(outcome.error)}; skipping (runs snapshot degraded to partial)`,
+    );
+  }
 
   return {
-    beads: uniqueBeads([
-      ...active.items,
-      ...recentLists.flatMap((list) => list.items),
-    ]),
+    beads: uniqueBeads([...active.items, ...recentItems]),
     feedScopes: feedDiscovery.scopes,
+    partial,
   };
 }
 

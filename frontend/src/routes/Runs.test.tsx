@@ -441,3 +441,25 @@ describe('RunsPage — SSE wiring (gascity-dashboard-bqn)', () => {
     expect(mockSnapshotRefresh).not.toHaveBeenCalled();
   });
 });
+
+describe('RunsPage — partial lane set (gascity-dashboard-n6f1)', () => {
+  it('surfaces a "runs partial" degraded signal when lanesPartial is set', async () => {
+    const envelope = buildEnvelope('fresh');
+    requireRunData(envelope).lanesPartial = true;
+    mockSnapshot.mockResolvedValue(envelope);
+
+    mount();
+    await waitForMount();
+
+    const marker = screen.getByText(/runs partial/i);
+    expect(marker).toBeTruthy();
+    expect(marker.getAttribute('role')).toBe('status');
+  });
+
+  it('omits the partial signal on a clean (non-partial) snapshot', async () => {
+    mount();
+    await waitForMount();
+
+    expect(screen.queryByText(/runs partial/i)).toBeNull();
+  });
+});

@@ -221,6 +221,19 @@ export interface RunSummary {
    * up to the cache TTL on a pure-time stall crossing.
    */
   census: RunCensusState;
+  /**
+   * True when one or more per-rig recent-run queries failed during the
+   * fan-out and were skipped, so the lane set may be incomplete
+   * (gascity-dashboard-n6f1). A single rig's listBeads rejecting degrades
+   * the snapshot rather than collapsing it to status=error; this flag lets
+   * the operator see "runs degraded" instead of an apparent full set.
+   *
+   * Optional literal `true` per the rigsPartial / agentsPartial convention
+   * (gascity-dashboard-19w.1.1): the collector only ever assigns `true`
+   * (else leaves the field absent), so consumers must check
+   * truthiness/presence, never `=== false`.
+   */
+  lanesPartial?: true;
 }
 
 export type RunCensusState =

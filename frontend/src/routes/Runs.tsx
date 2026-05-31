@@ -69,10 +69,16 @@ export function RunsPage() {
 
   const runs = data?.sources.runs ?? null;
   runsStatusRef.current = runs?.status ?? null;
-  const totalHistorical =
+  const runsData =
     runs?.status === 'fresh' || runs?.status === 'fixture' || runs?.status === 'stale'
-      ? runs.data.totalHistorical
-      : 0;
+      ? runs.data
+      : null;
+  const totalHistorical = runsData?.totalHistorical ?? 0;
+  // gascity-dashboard-n6f1: the backend now degrades (not collapses) when a
+  // single rig's recent-run query fails, flagging lanesPartial. Surface it
+  // so the operator reads a short lane set as "some rigs unavailable" rather
+  // than "everything's done." Mirrors the roster-partial signal in Agents.tsx.
+  const lanesPartial = runsData?.lanesPartial === true;
 
   const toggleHistory = useCallback(() => {
     setSearchParams(
@@ -143,6 +149,15 @@ export function RunsPage() {
                 }`}
               >
                 {freshnessLabel}
+              </span>
+            )}
+            {lanesPartial && (
+              <span
+                className="normal-case text-body text-warn"
+                role="status"
+                title="one or more rigs' recent runs were unavailable; the lane set may be incomplete"
+              >
+                runs partial
               </span>
             )}
             <SseIndicator state={sseState} />
