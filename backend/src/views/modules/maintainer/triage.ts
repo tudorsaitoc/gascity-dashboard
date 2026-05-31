@@ -7,7 +7,9 @@ import type {
   TriageTierSection,
 } from 'gas-city-dashboard-shared';
 import { execGhIssueList, execGhPrList, ExecError } from '../../../exec.js';
+import type { ExecResult } from '../../../exec-core.js';
 import { parseJsonArray } from '../../../lib/parse-json.js';
+import { LOG_COMPONENT, errorMessage, logError } from '../../../logging.js';
 import { classifyItem } from './classifier.js';
 import { computeContributorStats } from './contributor.js';
 import { buildClusters, inheritIssueFiles } from './blast-radius.js';
@@ -74,16 +76,37 @@ interface GhPr {
   files?: GhPrFile[];
 }
 
-export async function fetchTriage(repo: string): Promise<MaintainerTriage> {
-  // Four parallel gh calls: two for the open lists (361 ingest), two for
-  // the full lifetime history that drives contributor stats (alh). The
-  // contributor fetches are by far the biggest payloads but they're
-  // bounded by the repo's total history, not the number of unique
-  // authors — much cheaper than per-login round-trips would be.
+/**
+ * Seams for fetchTriage, mirroring the injected-fetchTriage pattern in
+ * router.ts / worker.ts. Defaults are the real implementations; tests
+ * override to drive the ingest and the (optional) contributor-stats
+ * enrichment independently. Optional, so existing callers keep fetchTriage(repo).
+ */
+interface FetchTriageDeps {
+  fetchIssues: (repo: string, limit: number) => Promise<ExecResult>;
+  fetchPrs: (repo: string, limit: number) => Promise<ExecResult>;
+  computeStats: (repo: string) => Promise<Map<string, ContributorStat>>;
+}
+
+export async function fetchTriage(
+  repo: string,
+  deps: FetchTriageDeps = {
+    fetchIssues: execGhIssueList,
+    fetchPrs: execGhPrList,
+    computeStats: computeContributorStats,
+  },
+): Promise<MaintainerTriage> {
+  // The two open-list gh calls (361 ingest) are the primary, cheap, and
+  // always-valid payload. Contributor stats (alh) are OPTIONAL enrichment
+  // on top — authors without a computed stat keep defaultContributor by
+  // design. computeContributorStats throws hard on a 2MB-cap truncation or
+  // any gh non-zero exit, so it runs on its own footing (loadContributorStats)
+  // and degrades to an empty Map rather than rejecting the whole refresh
+  // (gascity-dashboard-wplw). All three still run concurrently.
   const [issuesRaw, prsRaw, contributorStats] = await Promise.all([
-    execGhIssueList(repo, ITEM_FETCH_LIMIT),
-    execGhPrList(repo, ITEM_FETCH_LIMIT),
-    computeContributorStats(repo),
+    deps.fetchIssues(repo, ITEM_FETCH_LIMIT),
+    deps.fetchPrs(repo, ITEM_FETCH_LIMIT),
+    loadContributorStats(repo, deps.computeStats),
   ]);
 
   if (issuesRaw.truncated) {
@@ -150,6 +173,29 @@ export async function fetchTriage(repo: string): Promise<MaintainerTriage> {
   }
 
   return composeEnvelope(repo, [...issueItems, ...prItems]);
+}
+
+/**
+ * Run the optional contributor-stats enrichment on its own footing so a
+ * failure (2MB-cap truncation, gh non-zero exit, network) degrades to an
+ * empty Map and the cheap open-issue / open-PR ingest still renders —
+ * authors just keep defaultContributor (gascity-dashboard-wplw). The failure
+ * is logged loudly (Don't Swallow Errors), not swallowed silently: it's a
+ * real degradation the operator should see, just not a page-blackout.
+ */
+async function loadContributorStats(
+  repo: string,
+  computeStats: (repo: string) => Promise<Map<string, ContributorStat>>,
+): Promise<Map<string, ContributorStat>> {
+  try {
+    return await computeStats(repo);
+  } catch (err: unknown) {
+    logError(
+      LOG_COMPONENT.maintainer,
+      `contributor-stats enrichment failed for ${repo}, continuing with defaultContributor: ${errorMessage(err)}`,
+    );
+    return new Map<string, ContributorStat>();
+  }
 }
 
 function mapIssue(it: GhIssue): TriageItem {
