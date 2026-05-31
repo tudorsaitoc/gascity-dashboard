@@ -13,9 +13,9 @@ Primary implementation files:
 - `backend/src/runs/execution-instances.ts`
 - `backend/src/runs/display-state.ts`
 - `frontend/src/hooks/useFormulaRunDetail.ts`
+- `frontend/src/hooks/useRunDiff.ts`
 - `frontend/src/hooks/runEventIdentity.ts`
 - `frontend/src/routes/FormulaRunDetail.tsx`
-- `frontend/src/components/run/*`
 - `frontend/src/components/run/*`
 
 ## Purpose
