@@ -175,7 +175,12 @@ export function createDashboardApp(config: AdminConfig): DashboardApp {
       ` — resolution applied on the frontend (descriptor / fallback chain)`,
   );
 
-  const doltNomsSampler = createDoltNomsSampler({ cityPath: config.cityPath });
+  // dolt-noms trend source is the supervisor's store_health.size_bytes
+  // (GET /v0/city/{name}/status), read via the typed GcClient
+  // (gascity-dashboard-x82). No host-FS access.
+  const doltNomsSampler = createDoltNomsSampler({
+    fetchStatus: () => gc.getStatus(),
+  });
   writeRouter.use('/dolt-noms', doltRouter(doltNomsSampler));
 
   const snapshotService = createSnapshotService({

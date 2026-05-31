@@ -13,6 +13,7 @@ import type {
   GcOrderHistoryList,
   GcOrdersFeedResponse,
   GcRigList,
+  GcStatus,
   GcWorkflowSnapshot,
   SlingInput,
   SlingResponse,
@@ -75,6 +76,7 @@ const SUPERVISOR_PATHS = {
   sessionStream: '/v0/city/{cityName}/session/{id}/stream',
   sessions: '/v0/city/{cityName}/sessions',
   sling: '/v0/city/{cityName}/sling',
+  status: '/v0/city/{cityName}/status',
   transcript: '/v0/city/{cityName}/session/{id}/transcript',
   workflow: '/v0/city/{cityName}/workflow/{workflow_id}',
 } as const satisfies Record<string, keyof paths>;
@@ -320,6 +322,26 @@ export class GcClient {
       this.operationKey(SUPERVISOR_PATHS.sessions),
       gcSupervisorDecoders.listSessions,
       (upstreamSignal) => this.supervisor.GET(SUPERVISOR_PATHS.sessions, {
+        params: { path: this.cityPathParams() },
+        signal: upstreamSignal,
+      }),
+      signal,
+    );
+  }
+
+  /**
+   * `GET /v0/city/{name}/status` — supervisor city status. The dashboard
+   * reads `store_health.size_bytes` off this for the dolt-noms on-disk size
+   * trend (gascity-dashboard-x82). Mirrors `listSessions`: coalesced GET
+   * through the typed client, decoded at the wire-shape edge, default
+   * timeout. `store_health` is optional — a degraded supervisor omits it,
+   * and the sampler signals unavailable rather than reporting a fake zero.
+   */
+  async getStatus(signal?: AbortSignal): Promise<GcStatus> {
+    return this.getOperation(
+      this.operationKey(SUPERVISOR_PATHS.status),
+      gcSupervisorDecoders.getStatus,
+      (upstreamSignal) => this.supervisor.GET(SUPERVISOR_PATHS.status, {
         params: { path: this.cityPathParams() },
         signal: upstreamSignal,
       }),

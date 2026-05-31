@@ -1,18 +1,27 @@
 import { Router } from 'express';
-import fs from 'node:fs/promises';
-import path from 'node:path';
-import type { DoltNomsTrend, DoltNomsUnavailableReason } from 'gas-city-dashboard-shared';
+import type {
+  DoltNomsTrend,
+  DoltNomsUnavailableReason,
+  GcStatus,
+} from 'gas-city-dashboard-shared';
 import { recordAudit } from '../audit.js';
 import { LOG_COMPONENT, errorMessage, logWarn } from '../logging.js';
 
 // In-memory ring buffer of dolt-noms size samples — 24 h at 10-minute
-// cadence = 144 slots. The sampler reads the configured city root's
-// `.dolt/noms` directory directly. If the dashboard is started without a
-// city path, the endpoint reports unavailable rather than guessing from
-// the dashboard repo's cwd.
+// cadence = 144 slots. The metric source is the supervisor's already-exposed
+// store_health.size_bytes (GET /v0/city/{name}/status), read via the injected
+// status fetch (gascity-dashboard-x82). The ring buffer + /api/dolt-noms/trend
+// response shape are independent of the source.
 
 const SLOT_COUNT = 144;
 const SAMPLE_INTERVAL_MS = 10 * 60 * 1_000;
+
+// Stable label surfaced on the trend response so the UI can attribute the
+// metric to its upstream source.
+export const STORE_HEALTH_SOURCE = 'status.store_health.size_bytes';
+
+/** Fetches the supervisor city status (source of store_health.size_bytes). */
+export type FetchStatus = () => Promise<GcStatus>;
 
 interface RingSlot {
   ts: string;
@@ -56,14 +65,11 @@ export interface DoltNomsSample {
 
 export type DoltNomsSampleResult =
   | { kind: 'available'; sample: DoltNomsSample }
-  | { kind: 'unavailable'; reason: 'city_path_missing' }
-  | { kind: 'unavailable'; reason: 'city_path_not_absolute'; cityPath: string }
-  | { kind: 'unavailable'; reason: 'noms_directory_missing'; source: string }
-  | { kind: 'unavailable'; reason: 'noms_path_not_directory'; source: string };
+  | { kind: 'unavailable'; reason: 'store_health_absent' };
 
 export interface DoltNomsSamplerOptions {
-  cityPath: string;
-  sample?: (cityPath: string) => Promise<DoltNomsSampleResult>;
+  fetchStatus: FetchStatus;
+  sample?: (fetchStatus: FetchStatus) => Promise<DoltNomsSampleResult>;
   runtime?: DoltNomsRuntime;
   intervalMs?: number;
   slotCount?: number;
@@ -77,13 +83,13 @@ export function createDoltNomsSampler(opts: DoltNomsSamplerOptions): DoltNomsSam
   const ring: RingSlot[] = [];
   let availability: DoltNomsAvailability = {
     kind: 'unavailable',
-    reason: 'city_path_missing',
+    reason: 'store_health_absent',
   };
   let timerState: SamplerTimerState = { status: 'idle' };
 
   const sampleOnce = async (): Promise<void> => {
     try {
-      const result = await sample(opts.cityPath);
+      const result = await sample(opts.fetchStatus);
       if (result.kind === 'available') {
         ring.push({ ts: new Date().toISOString(), bytes: result.sample.bytes });
         if (ring.length > slotCount) ring.shift();
@@ -135,44 +141,31 @@ export function createDoltNomsSampler(opts: DoltNomsSamplerOptions): DoltNomsSam
   };
 }
 
-export async function sampleDoltNomsSize(cityPath: string): Promise<DoltNomsSampleResult> {
-  if (cityPath.length === 0) return { kind: 'unavailable', reason: 'city_path_missing' };
-  if (!path.isAbsolute(cityPath)) {
-    return { kind: 'unavailable', reason: 'city_path_not_absolute', cityPath };
-  }
-  const source = path.join(cityPath, '.dolt', 'noms');
-  try {
-    const stat = await fs.stat(source);
-    if (!stat.isDirectory()) {
-      return { kind: 'unavailable', reason: 'noms_path_not_directory', source };
-    }
-  } catch (err) {
-    if ((err as NodeJS.ErrnoException).code === 'ENOENT') {
-      return { kind: 'unavailable', reason: 'noms_directory_missing', source };
-    }
-    throw err;
+/**
+ * Read the dolt-noms on-disk size from the supervisor's
+ * store_health.size_bytes. Returns `unavailable` (store_health_absent) when
+ * the supervisor omits store_health (degraded status) so the endpoint can
+ * signal available=false rather than reporting a fake zero.
+ *
+ * Validates at the supervisor trust boundary: a non-finite or negative
+ * size_bytes (Infinity / NaN / -1) is meaningless as a byte count and would
+ * either serialise as JSON `null` (silent corruption) or render as garbage in
+ * the trend, so it is treated as absent. A failed status fetch is NOT caught
+ * here — it propagates to the sampler's non-fatal handler, which records the
+ * `sample_failed` reason.
+ */
+export async function sampleDoltNomsSize(
+  fetchStatus: FetchStatus,
+): Promise<DoltNomsSampleResult> {
+  const status = await fetchStatus();
+  const sizeBytes = status.store_health?.size_bytes;
+  if (typeof sizeBytes !== 'number' || !Number.isFinite(sizeBytes) || sizeBytes < 0) {
+    return { kind: 'unavailable', reason: 'store_health_absent' };
   }
   return {
     kind: 'available',
-    sample: {
-      bytes: await directoryByteSize(source),
-      source,
-    },
+    sample: { bytes: sizeBytes, source: STORE_HEALTH_SOURCE },
   };
-}
-
-async function directoryByteSize(dir: string): Promise<number> {
-  let total = 0;
-  const entries = await fs.readdir(dir, { withFileTypes: true });
-  for (const entry of entries) {
-    const child = path.join(dir, entry.name);
-    if (entry.isDirectory()) {
-      total += await directoryByteSize(child);
-    } else if (entry.isFile()) {
-      total += (await fs.stat(child)).size;
-    }
-  }
-  return total;
 }
 
 export function doltRouter(sampler: DoltNomsSampler): Router {

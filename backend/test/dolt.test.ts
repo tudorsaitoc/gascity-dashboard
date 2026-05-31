@@ -1,87 +1,80 @@
 import { test, describe } from 'node:test';
 import assert from 'node:assert/strict';
-import fs from 'node:fs/promises';
-import path from 'node:path';
-import os from 'node:os';
 
 import {
   createDoltNomsSampler,
+  STORE_HEALTH_SOURCE,
   type DoltNomsRuntime,
   type DoltNomsTimer,
-  sampleDoltNomsSize,
 } from '../src/routes/dolt.js';
 
 describe('dolt-noms sampler', () => {
-  test('returns the recursive byte size of a city .dolt/noms directory', async () => {
-    const root = await fs.mkdtemp(path.join(os.tmpdir(), 'gcd-dolt-'));
-    await fs.mkdir(path.join(root, '.dolt', 'noms', 'nested'), { recursive: true });
-    await fs.writeFile(path.join(root, '.dolt', 'noms', 'chunk-1'), 'abcd');
-    await fs.writeFile(path.join(root, '.dolt', 'noms', 'nested', 'chunk-2'), 'abcdef');
-
-    const sample = await sampleDoltNomsSize(root);
-
-    assert.deepEqual(sample, {
-      kind: 'available',
-      sample: {
-        bytes: 10,
-        source: path.join(root, '.dolt', 'noms'),
-      },
+  test('records store_health.size_bytes from the injected status fetch', async () => {
+    const sampler = createDoltNomsSampler({
+      fetchStatus: () =>
+        Promise.resolve({ store_health: { size_bytes: 4096 } }),
     });
+
+    await sampler.sampleOnce();
+    const trend = sampler.trend();
+
+    assert.equal(trend.available, true);
+    assert.equal(trend.samples.length, 1);
+    assert.equal(trend.samples[0]?.bytes, 4096);
+    if (trend.available) assert.equal(trend.source, STORE_HEALTH_SOURCE);
   });
 
-  test('returns an explicit unavailable reason when no city path or noms directory is available', async () => {
-    const root = await fs.mkdtemp(path.join(os.tmpdir(), 'gcd-no-dolt-'));
+  test('reports unavailable (store_health_absent) when the supervisor omits store_health', async () => {
+    const sampler = createDoltNomsSampler({
+      fetchStatus: () => Promise.resolve({}),
+    });
 
-    assert.deepEqual(await sampleDoltNomsSize(''), {
-      kind: 'unavailable',
-      reason: 'city_path_missing',
+    await sampler.sampleOnce();
+    const trend = sampler.trend();
+
+    assert.equal(trend.available, false);
+    assert.deepEqual(trend.samples, []);
+    if (!trend.available) assert.equal(trend.reason, 'store_health_absent');
+  });
+
+  test('reports sample_failed when the status fetch throws', async () => {
+    const sampler = createDoltNomsSampler({
+      fetchStatus: () => Promise.reject(new Error('gc supervisor returned 503')),
     });
-    assert.deepEqual(await sampleDoltNomsSize(root), {
-      kind: 'unavailable',
-      reason: 'noms_directory_missing',
-      source: path.join(root, '.dolt', 'noms'),
-    });
+
+    await sampler.sampleOnce();
+    const trend = sampler.trend();
+
+    assert.equal(trend.available, false);
+    if (!trend.available) assert.equal(trend.reason, 'sample_failed');
   });
 
   test('keeps sample history per sampler instance', async () => {
     const first = createDoltNomsSampler({
-      cityPath: '/city-one',
-      sample: async () => ({
-        kind: 'available',
-        sample: { bytes: 42, source: '/city-one/.dolt/noms' },
-      }),
+      fetchStatus: () =>
+        Promise.resolve({ store_health: { size_bytes: 42 } }),
     });
     const second = createDoltNomsSampler({
-      cityPath: '/city-two',
-      sample: async () => ({
-        kind: 'available',
-        sample: { bytes: 99, source: '/city-two/.dolt/noms' },
-      }),
+      fetchStatus: () => Promise.resolve({}),
     });
 
     await first.sampleOnce();
 
-    assert.deepEqual(first.trend(), {
-      available: true,
-      samples: [{ ts: first.trend().samples[0]?.ts ?? '', bytes: 42 }],
-      source: '/city-one/.dolt/noms',
-    });
-    assert.deepEqual(second.trend(), {
-      available: false,
-      samples: [],
-      reason: 'city_path_missing',
-    });
+    const firstTrend = first.trend();
+    assert.equal(firstTrend.available, true);
+    assert.equal(firstTrend.samples[0]?.bytes, 42);
+
+    const secondTrend = second.trend();
+    assert.equal(secondTrend.available, false);
+    assert.deepEqual(secondTrend.samples, []);
   });
 
   test('starts idempotently and clears its sampling interval on stop', () => {
     const runtime = new FakeDoltNomsRuntime();
     const sampler = createDoltNomsSampler({
-      cityPath: '/city',
       runtime,
-      sample: async () => ({
-        kind: 'available',
-        sample: { bytes: 1, source: '/city/.dolt/noms' },
-      }),
+      fetchStatus: () =>
+        Promise.resolve({ store_health: { size_bytes: 1 } }),
     });
 
     assert.equal(sampler.running, false);

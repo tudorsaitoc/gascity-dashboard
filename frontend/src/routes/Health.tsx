@@ -239,16 +239,10 @@ function doltUnavailableCopy(
   reason: Extract<DoltNomsTrend, { available: false }>['reason'],
 ): string {
   switch (reason) {
-    case 'city_path_missing':
-      return 'city path is not configured';
-    case 'city_path_not_absolute':
-      return 'city path is not absolute';
-    case 'noms_directory_missing':
-      return '.dolt/noms directory was not found';
-    case 'noms_path_not_directory':
-      return '.dolt/noms exists but is not a directory';
+    case 'store_health_absent':
+      return 'supervisor is not reporting store_health; samples resume when it recovers';
     case 'sample_failed':
-      return 'latest sampler read failed; check the backend log';
+      return 'latest supervisor status read failed; check the backend log';
   }
 }
 

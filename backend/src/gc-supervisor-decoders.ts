@@ -15,6 +15,7 @@ import type {
   GcOrdersFeedResponse,
   GcRigList,
   GcSessionList,
+  GcStatus,
   GcWorkflowSnapshot,
   SupervisorHealth,
   TranscriptTurn,
@@ -358,6 +359,23 @@ const HealthSchema = z.object({
   uptime_sec: z.number().finite(),
 }).passthrough();
 
+// gascity-dashboard-x82: the supervisor's StatusBody.store_health summary.
+// `size_bytes` is the only field the dashboard reads (dolt-noms trend); the
+// rest are surfaced for the single-source-of-truth shape but unused today.
+// `.finite()` on size_bytes rejects a malformed Infinity/NaN at the decoder
+// edge; the sampler additionally rejects negative values (see routes/dolt.ts).
+// store_health is optional on StatusBody — a degraded supervisor omits it.
+const StatusStoreHealthSchema = z.object({
+  size_bytes: z.number().finite(),
+  live_rows: z.number().finite().optional(),
+  ratio_mb_per_row: z.number().finite().optional(),
+  last_gc_at: z.string().optional(),
+}).passthrough();
+
+const StatusSchema = z.object({
+  store_health: StatusStoreHealthSchema.optional(),
+}).passthrough();
+
 // izgc F3: every ListBody* envelope in the supervisor's OpenAPI declares
 // `items: T[] | null` for partial/degraded responses, correlated with
 // `partial: true` and `partial_errors`. Build the list-decoder fields once
@@ -574,6 +592,10 @@ export const gcSupervisorDecoders = {
 
   health(value: RawSupervisorSchema['HealthOutputBody']): SupervisorHealth {
     return decodeSupervisorPayload(HealthSchema, value, 'health');
+  },
+
+  getStatus(value: RawSupervisorSchema['StatusBody']): GcStatus {
+    return decodeSupervisorPayload(StatusSchema, value, 'getStatus');
   },
 } as const;
 
