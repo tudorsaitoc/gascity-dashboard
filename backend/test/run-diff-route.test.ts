@@ -36,6 +36,22 @@ describe('run diff route', () => {
     await fake.close();
   });
 
+  test('does not serve the old dashboard formula-run detail mirror', async () => {
+    let called = false;
+    fake.setHandler((_req, res) => {
+      called = true;
+      json(res, graphV2Snapshot());
+    });
+    const { url, close } = await startApp(buildApp(fake.baseUrl));
+    try {
+      const res = await fetch(`${url}/api/runs/gc-root`);
+      assert.equal(res.status, 404);
+      assert.equal(called, false);
+    } finally {
+      await close();
+    }
+  });
+
   test('returns unpushed, working tree, staged, and untracked changes for the server-owned execution path', async () => {
     const remote = await fs.mkdtemp(path.join(os.tmpdir(), 'run-diff-remote-'));
     const repo = await fs.mkdtemp(path.join(os.tmpdir(), 'run-diff-'));

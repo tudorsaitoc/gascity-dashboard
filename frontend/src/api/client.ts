@@ -1,22 +1,16 @@
 import type {
-  GcAgentList,
-  GcSession,
-  GcBead,
-  GcMailItem,
-  TranscriptResult,
-  MailComposeRequest,
-  MailSendResult,
+  GitCommitList,
+  GitView,
+  DeployList,
   SystemHealth,
   DoltNomsTrend,
   MaintainerTriage,
   ContributorStat,
   ApiError,
-  CityList,
   DashboardSnapshot,
   SourceName,
   DashboardRuntimeConfig,
   RunDiffResponse,
-  FormulaRunDetail,
   RunScopeKind,
   EntityLinkView,
 } from 'gas-city-dashboard-shared';
@@ -29,9 +23,9 @@ import { cityPath } from './cityBase';
 //
 // gascity-dashboard-ucc: the request plane is split. City-scoped reads/writes
 // address `/api/city/:cityName/*` via `cityPath()` (the active city is set by
-// the router from the URL segment). Non-city endpoints — health, csrf, the
-// city switcher list, client-error telemetry, git, builds — address `/api/*`
-// directly because they are supervisor- or host-global, not per-city.
+// the router from the URL segment). Non-city dashboard-service endpoints —
+// health, csrf, client-error telemetry, git, builds — address `/api/*`
+// directly because they are dashboard-local, not GC-owned supervisor resources.
 
 async function performRequest<T>(
   method: 'GET' | 'POST',
@@ -178,10 +172,6 @@ function requireBooleanField(record: JsonRecord, url: string, label: string, fie
   if (typeof record[field] !== 'boolean') failDecode(url, `${label}.${field} must be a boolean`);
 }
 
-function requireNumberField(record: JsonRecord, url: string, label: string, field: string): void {
-  if (typeof record[field] !== 'number') failDecode(url, `${label}.${field} must be a number`);
-}
-
 function requireArrayField(record: JsonRecord, url: string, label: string, field: string): void {
   if (!Array.isArray(record[field])) failDecode(url, `${label}.${field} must be an array`);
 }
@@ -218,17 +208,6 @@ function requireOptionalStringField(
   }
 }
 
-function requireOptionalNumberField(
-  record: JsonRecord,
-  url: string,
-  label: string,
-  field: string,
-): void {
-  if (record[field] !== undefined && typeof record[field] !== 'number') {
-    failDecode(url, `${label}.${field} must be a number when present`);
-  }
-}
-
 function objectDecoder<T>(
   label: string,
   validate?: (record: JsonRecord, url: string) => void,
@@ -247,56 +226,17 @@ function itemsDecoder<T>(label: string, validate?: (record: JsonRecord, url: str
   });
 }
 
-function countedItemsDecoder<T>(
-  label: string,
-  validate?: (record: JsonRecord, url: string) => void,
-): ResponseDecoder<T> {
-  return itemsDecoder<T>(label, (record, url) => {
-    requireNumberField(record, url, label, 'total');
-    validate?.(record, url);
-  });
-}
-
 const decodeHealth = objectDecoder<{ ok: boolean; ts: string }>('health', (record, url) => {
   requireBooleanField(record, url, 'health', 'ok');
   requireStringField(record, url, 'health', 'ts');
 });
 
-const decodeCityList = countedItemsDecoder<CityList>('cities');
-const decodeSessionList = itemsDecoder<{ items: GcSession[] }>('sessions');
-const decodeAgentList = itemsDecoder<GcAgentList>('agents');
-const decodeTranscript = objectDecoder<TranscriptResult>('transcript', (record, url) => {
-  requireStringField(record, url, 'transcript', 'session_id');
-  requireArrayField(record, url, 'transcript', 'turns');
-  requireNumberField(record, url, 'transcript', 'total_chars');
-  requireStringField(record, url, 'transcript', 'captured_at');
-  requireBooleanField(record, url, 'transcript', 'truncated');
+const decodeCommitList = itemsDecoder<GitCommitList>('commits', (record, url) => {
+  requireStringField(record, url, 'commits', 'view');
 });
-const decodeBeadList = countedItemsDecoder<{
-  items: GcBead[];
-  total: number;
-  upstream_total?: number;
-  upstream_fetched?: number;
-  fetch_limit?: number;
-}>('beads', (record, url) => {
-  requireOptionalNumberField(record, url, 'beads', 'upstream_total');
-  requireOptionalNumberField(record, url, 'beads', 'upstream_fetched');
-  requireOptionalNumberField(record, url, 'beads', 'fetch_limit');
-});
-const decodeBead = objectDecoder<GcBead>('bead', (record, url) => {
-  requireStringField(record, url, 'bead', 'id');
-  requireStringField(record, url, 'bead', 'title');
-  requireStringField(record, url, 'bead', 'status');
-});
-const decodeBeadAction = objectDecoder<{ ok: true; stdout: string }>('bead action', (record, url) => {
-  requireTrueField(record, url, 'bead action', 'ok');
-  requireStringField(record, url, 'bead action', 'stdout');
-});
-const decodeMailList = countedItemsDecoder<{ items: GcMailItem[]; total: number }>('mail');
-const decodeThread = itemsDecoder<{ items: GcMailItem[] }>('thread');
-const decodeMailSend = objectDecoder<MailSendResult>('mail send', (record, url) => {
-  requireTrueField(record, url, 'mail send', 'ok');
-  requireOptionalStringField(record, url, 'mail send', 'message_id');
+const decodeBuildList = itemsDecoder<DeployList>('builds', (record, url) => {
+  requireNullableStringField(record, url, 'builds', 'source');
+  requireBooleanField(record, url, 'builds', 'failed_marker');
 });
 const decodeRuntimeConfig = objectDecoder<DashboardRuntimeConfig>('config', (record, url) => {
   requireStringField(record, url, 'config', 'cityName');
@@ -308,33 +248,16 @@ const decodeRuntimeConfig = objectDecoder<DashboardRuntimeConfig>('config', (rec
 const decodeSystemHealth = objectDecoder<SystemHealth>('system health', (record, url) => {
   requireObjectField(record, url, 'system health', 'admin');
   requireObjectField(record, url, 'system health', 'host');
-  requireObjectField(record, url, 'system health', 'supervisor');
 });
 const decodeDoltTrend = objectDecoder<DoltNomsTrend>('dolt trend', (record, url) => {
   requireBooleanField(record, url, 'dolt trend', 'available');
   requireArrayField(record, url, 'dolt trend', 'samples');
-});
-const decodeAgentPrime = objectDecoder<{ agent: string; prompt: string; bytes: number }>('agent prime', (record, url) => {
-  requireStringField(record, url, 'agent prime', 'agent');
-  requireStringField(record, url, 'agent prime', 'prompt');
-  requireNumberField(record, url, 'agent prime', 'bytes');
 });
 const decodeSnapshot = objectDecoder<DashboardSnapshot>('snapshot', (record, url) => {
   requireStringField(record, url, 'snapshot', 'generatedAt');
   requireObjectField(record, url, 'snapshot', 'config');
   requireObjectField(record, url, 'snapshot', 'headline');
   requireObjectField(record, url, 'snapshot', 'sources');
-});
-const decodeFormulaRun = objectDecoder<FormulaRunDetail>('formula run', (record, url) => {
-  requireStringField(record, url, 'formula run', 'runId');
-  requireStringField(record, url, 'formula run', 'rootBeadId');
-  requireStringField(record, url, 'formula run', 'title');
-  requireNumberField(record, url, 'formula run', 'snapshotVersion');
-  requireObjectField(record, url, 'formula run', 'formula');
-  requireObjectField(record, url, 'formula run', 'formulaDetail');
-  requireArrayField(record, url, 'formula run', 'nodes');
-  requireArrayField(record, url, 'formula run', 'edges');
-  requireArrayField(record, url, 'formula run', 'lanes');
 });
 const decodeRunDiff = objectDecoder<RunDiffResponse>('run diff', (record, url) => {
   requireStringField(record, url, 'run diff', 'kind');
@@ -393,74 +316,22 @@ export const api = {
   health(): Promise<{ ok: boolean; ts: string }> {
     return request('GET', '/api/health', decodeHealth);
   },
-  // The city switcher source. Lists every managed city (host path stripped
-  // server-side). Not city-scoped — it is the registry the switcher reads.
-  listCities(): Promise<CityList> {
-    return request('GET', '/api/cities', decodeCityList);
+  listCommits(view: GitView): Promise<GitCommitList> {
+    return request('GET', `/api/git/commits?view=${encodeURIComponent(view)}`, decodeCommitList);
+  },
+  listBuilds(): Promise<DeployList> {
+    return request('GET', '/api/builds', decodeBuildList);
   },
 
   // ── City-scoped endpoints (ride /api/city/:cityName/*) ─────────────────
-  listSessions(): Promise<{ items: GcSession[] }> {
-    return request('GET', cityPath('/sessions'), decodeSessionList);
-  },
-  // gascity-dashboard-ay6: canonical agent roster. Supersedes the
-  // session-derived Agents-view path which under-counted configured
-  // agents that were not currently running. Return type IS the shared
-  // GcAgentList SSOT — `partial` + `partial_errors` are part of that
-  // type and will widen automatically if upstream grows the envelope.
-  listAgents(): Promise<GcAgentList> {
-    return request('GET', cityPath('/agents'), decodeAgentList);
-  },
-  peekSession(id: string): Promise<TranscriptResult> {
-    return request('POST', cityPath(`/sessions/${encodeURIComponent(id)}/peek`), decodeTranscript, {});
-  },
-  listBeads(showAll?: boolean): Promise<{
-    items: GcBead[];
-    total: number;
-    upstream_total?: number;
-    upstream_fetched?: number;
-    fetch_limit?: number;
-  }> {
-    const qs = showAll ? '?showAll=1' : '';
-    return request('GET', cityPath(`/beads${qs}`), decodeBeadList);
-  },
-  getBead(id: string): Promise<GcBead> {
-    return request('GET', cityPath(`/beads/${encodeURIComponent(id)}`), decodeBead);
-  },
-  claimBead(id: string): Promise<{ ok: true; stdout: string }> {
-    return request('POST', cityPath(`/beads/${encodeURIComponent(id)}/claim`), decodeBeadAction, {});
-  },
-  closeBead(id: string, reason?: string): Promise<{ ok: true; stdout: string }> {
-    return request('POST', cityPath(`/beads/${encodeURIComponent(id)}/close`), decodeBeadAction, { reason });
-  },
-  nudgeBead(id: string): Promise<{ ok: true; stdout: string }> {
-    return request('POST', cityPath(`/beads/${encodeURIComponent(id)}/nudge`), decodeBeadAction, {});
-  },
-  listMail(box: 'inbox' | 'sent' | 'all', alias: string): Promise<{ items: GcMailItem[]; total: number }> {
-    const qs = new URLSearchParams({ box, alias }).toString();
-    return request('GET', cityPath(`/mail?${qs}`), decodeMailList);
-  },
-  getThread(threadId: string, alias: string): Promise<{ items: GcMailItem[] }> {
-    const qs = new URLSearchParams({ alias }).toString();
-    return request('GET', cityPath(`/mail/threads/${encodeURIComponent(threadId)}?${qs}`), decodeThread);
-  },
-  sendMail(payload: MailComposeRequest): Promise<MailSendResult> {
-    // The client-side shape mirrors the server's: { to, subject, body }.
-    // No `from` field. The architect's physical-separation rule means
-    // this fetch hits a different router than reads.
-    return request('POST', cityPath('/mail-send'), decodeMailSend, payload);
-  },
   config(): Promise<DashboardRuntimeConfig> {
     return request('GET', cityPath('/config'), decodeRuntimeConfig);
   },
   systemHealth(): Promise<SystemHealth> {
-    return request('GET', cityPath('/health/system'), decodeSystemHealth);
+    return request('GET', '/api/health/system', decodeSystemHealth);
   },
   doltTrend(): Promise<DoltNomsTrend> {
     return request('GET', cityPath('/dolt-noms/trend'), decodeDoltTrend);
-  },
-  agentPrime(alias: string): Promise<{ agent: string; prompt: string; bytes: number }> {
-    return request('GET', cityPath(`/agents/${encodeURIComponent(alias)}/prime`), decodeAgentPrime);
   },
   snapshot(): Promise<DashboardSnapshot> {
     return request('GET', cityPath('/snapshot'), decodeSnapshot);
@@ -478,24 +349,12 @@ export const api = {
     const body = sources && sources.length > 0 ? { sources } : {};
     return request('POST', cityPath('/snapshot/refresh'), decodeSnapshot, body);
   },
-  formulaRun(
-    runId: string,
-    params?: { scopeKind?: RunScopeKind; scopeRef?: string; refresh?: boolean },
-  ): Promise<FormulaRunDetail> {
-    const qs = runQuery(params);
-    return request('GET', cityPath(`/runs/${encodeURIComponent(runId)}${qs}`), decodeFormulaRun);
-  },
   runDiff(
     runId: string,
-    params?: { scopeKind?: RunScopeKind; scopeRef?: string; refresh?: boolean },
+    params?: { scopeKind?: RunScopeKind; scopeRef?: string },
   ): Promise<RunDiffResponse> {
     const qs = runQuery(params);
     return request('GET', cityPath(`/runs/${encodeURIComponent(runId)}/diff${qs}`), decodeRunDiff);
-  },
-  sessionStreamUrl(id: string): string {
-    // Distinct from /sessions (REST) — the session SSE stream mounts under
-    // its own /session-stream prefix on the backend (see city/runtime.ts).
-    return cityPath(`/session-stream/${encodeURIComponent(id)}/stream`);
   },
   maintainerTriage(): Promise<MaintainerTriage> {
     return request('GET', cityPath('/maintainer/triage'), decodeMaintainerTriage);
@@ -525,20 +384,12 @@ export const api = {
   },
 };
 
-function runQuery(params?: {
-  scopeKind?: RunScopeKind;
-  scopeRef?: string;
-  refresh?: boolean;
-}): string {
+function runQuery(params?: { scopeKind?: RunScopeKind; scopeRef?: string }): string {
   const search = new URLSearchParams();
   if (params?.scopeKind && params.scopeRef) {
     search.set('scope_kind', params.scopeKind);
     search.set('scope_ref', params.scopeRef);
   }
-  // `refresh=1` forces the backend run-detail cache to re-fetch from the
-  // supervisor (gascity-dashboard-wqsk) — used by the detail page's explicit
-  // Refresh + SSE-driven refresh so a deliberate refresh never serves stale.
-  if (params?.refresh) search.set('refresh', '1');
   const qs = search.toString();
   return qs.length > 0 ? `?${qs}` : '';
 }

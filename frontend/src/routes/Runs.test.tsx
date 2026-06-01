@@ -8,6 +8,8 @@ import {
 } from 'gas-city-dashboard-shared';
 import { api } from '../api/client';
 import { invalidateKey } from '../api/cache';
+import { AttentionProvider } from '../attention/context';
+import type { AttentionContributor } from '../attention/compose';
 import { RunsPage } from './Runs';
 import { MemoryRouter } from 'react-router-dom';
 import { NowProvider } from '../contexts/NowContext';
@@ -165,6 +167,36 @@ function requireRunData(envelope: DashboardSnapshot) {
   return runs.data;
 }
 
+function activeLane(overrides: Partial<RunLane> = {}): RunLane {
+  return {
+    ...completedLane(),
+    id: 'active-root',
+    title: 'Active formula run',
+    phase: 'implementation',
+    phaseLabel: 'implementation',
+    statusCounts: { in_progress: 1 },
+    health: {
+      status: 'available',
+      data: {
+        phaseConfidence: 'known',
+        needsOperator: false,
+        stuckNode: { status: 'unavailable', error: 'run stuck node unavailable' },
+        thrashingDetected: false,
+        session: { status: 'unresolved', error: 'run session unresolved' },
+      },
+    },
+    ...overrides,
+  };
+}
+
+function contributor(items: ReturnType<AttentionContributor['getItems']>): AttentionContributor {
+  return {
+    id: 'runs:test',
+    domain: 'runs',
+    getItems: () => items,
+  };
+}
+
 beforeEach(() => {
   mockSnapshot.mockReset();
   mockSnapshotRefresh.mockReset();
@@ -180,14 +212,19 @@ afterEach(() => {
   vi.useRealTimers();
 });
 
-function mount(initialPath = '/runs') {
+function mount(
+  initialPath = '/runs',
+  contributors: readonly AttentionContributor[] = [],
+) {
   return render(
     <MemoryRouter
       initialEntries={[initialPath]}
       future={{ v7_relativeSplatPath: true, v7_startTransition: true }}
     >
       <NowProvider intervalMs={1_000_000}>
-        <RunsPage />
+        <AttentionProvider contributors={contributors}>
+          <RunsPage />
+        </AttentionProvider>
       </NowProvider>
     </MemoryRouter>,
   );
@@ -217,6 +254,55 @@ describe('RunsPage — SSE wiring (gascity-dashboard-bqn)', () => {
     await waitForMount();
     // SseIndicator with state='open' renders a StatusBadge with label 'live'.
     expect(screen.getByText(/^live$/i)).toBeTruthy();
+  });
+
+  it('marks run lanes that match composed run attention without hiding other runs', async () => {
+    const envelope = buildEnvelope('fresh');
+    const runs = requireRunData(envelope);
+    const blocked = activeLane({
+      id: 'blocked-root',
+      title: 'Blocked formula run',
+      phase: 'blocked',
+      phaseLabel: 'blocked',
+      statusCounts: { blocked: 1 },
+      health: {
+        status: 'available',
+        data: {
+          phaseConfidence: 'known',
+          needsOperator: true,
+          stuckNode: { status: 'unavailable', error: 'run stuck node unavailable' },
+          thrashingDetected: false,
+          session: { status: 'unresolved', error: 'run session unresolved' },
+        },
+      },
+    });
+    const calm = activeLane({
+      id: 'calm-root',
+      title: 'Calm formula run',
+      phase: 'implementation',
+      phaseLabel: 'implementation',
+      statusCounts: { in_progress: 1 },
+    });
+    runs.totalActive = 2;
+    runs.runCounts.total = 2;
+    runs.runCounts.blocked = 1;
+    runs.lanes = [blocked, calm];
+    mockSnapshot.mockResolvedValue(envelope);
+
+    mount('/runs', [
+      contributor([{
+        id: 'runs:blocked-root:needs-operator',
+        domain: 'runs',
+        severity: 'attention',
+        title: 'Blocked formula run needs operator',
+      }]),
+    ]);
+
+    const blockedLink = await screen.findByRole('link', { name: /Blocked formula run/i });
+    const calmLink = await screen.findByRole('link', { name: /Calm formula run/i });
+
+    expect(blockedLink.closest('li')?.getAttribute('data-attention-severity')).toBe('attention');
+    expect(calmLink.closest('li')?.getAttribute('data-attention-severity')).toBeNull();
   });
 
   it('does not flatten an unavailable run count into zero', async () => {

@@ -1,7 +1,7 @@
 # Direct Supervisor Client Migration
 
 Date: 2026-06-01
-Status: Planned architecture pivot
+Status: In progress
 
 ## Goal
 
@@ -21,7 +21,7 @@ Use a generated supervisor client for:
 - cities and runtime config that come from supervisor state
 - health, agents, sessions, transcripts, and session streams
 - beads and bead mutations
-- mail reads, threads, and sends
+- mail reads, threads, sends, replies, archive, and read-state mutations
 - activity/events and snapshot refresh signals
 - formula feeds, formula run snapshots, formula detail, and run event streams
 - any future GC primitive once it is exposed in supervisor OpenAPI
@@ -41,9 +41,11 @@ Keep dashboard-service `/api/*` only for data the supervisor should not own:
 - static runtime config needed to discover the supervisor URL or enabled local
   dashboard modules
 
-The dashboard service may also provide a transport-only proxy for `/v0/*` when
-same-origin development, CSP, or SSH forwarding requires it. Such a proxy must
-not validate, map, strip, cache, rename, or otherwise own supervisor DTOs.
+The dashboard service may also provide a transport-only proxy for supervisor
+paths when same-origin development, CSP, or SSH forwarding requires it. In this
+standalone repo that proxy is mounted at `/gc-supervisor/*` and forwards
+supervisor `/health` plus `/v0/*`. Such a proxy must not validate, map, strip,
+cache, rename, or otherwise own supervisor DTOs.
 
 ## Non-Goals
 
@@ -78,6 +80,11 @@ glue, but that glue must include a deletion condition tied to the upstream gap.
    - In this standalone repo, use Vite or the dashboard service as a
      transport-only proxy when direct browser access to `127.0.0.1:8372` is
      inconvenient.
+   - The standalone dashboard-service proxy is mounted under
+     `/gc-supervisor/*`, forwarding only supervisor `/health` and `/v0/*`
+     paths. The prefix avoids colliding with the dashboard application's own
+     `/health` route while preserving generated supervisor paths below the
+     prefix.
    - Keep CSP explicit. If `connect-src` includes the supervisor origin, name
      it; if the proxy is used, keep `connect-src 'self'`.
 
@@ -96,8 +103,14 @@ glue, but that glue must include a deletion condition tied to the upstream gap.
 
 5. **Writes**
    - Migrate claim/send and any already-supported writes directly.
-   - Migrate close-with-reason, agent nudge, and agent prime only after the
-     supervisor gaps `GC-10`, `GC-11`, and `GC-12` are implemented upstream.
+   - Close-with-reason is implemented after `GC-10`: the Beads page calls the
+     generated supervisor close endpoint with the optional reason body and the
+     dashboard close route is gone.
+   - Agent nudge is implemented after `GC-11`: the Beads page calls the
+     generated supervisor agent action endpoint with the mutation header and
+     the dashboard nudge route is gone.
+   - Agent prime is implemented after `GC-12`: Agent Detail calls the
+     generated supervisor prime endpoint and the dashboard prime route is gone.
 
 6. **Formula Run Detail**
    - Prefer supervisor-owned run snapshot, formula detail, session identity,
@@ -121,7 +134,7 @@ glue, but that glue must include a deletion condition tied to the upstream gap.
 Deliverables:
 
 - Add an architecture test or lint/grep check that classifies routes as either
-  dashboard-local `/api/*` or transport-only `/v0/*`.
+  dashboard-local `/api/*` or transport-only `/gc-supervisor/*`.
 - Document the allowed dashboard-local route inventory in code:
   `git`, `gh`/maintainer, builds, host/process/dolt health, config,
   client-errors, and static frontend serving.
@@ -137,12 +150,16 @@ Acceptance:
 
 Deliverables:
 
-- Add frontend supervisor OpenAPI generation.
+- Add frontend supervisor OpenAPI generation. **Implemented for the committed
+  schema; `openapi:gc-supervisor:check` now checks backend and frontend
+  generated clients.**
 - Add a tiny `frontend/src/supervisor/client.ts` wrapper for base URL discovery,
-  mutation headers, error shape normalization, and test injection.
+  mutation headers, error shape normalization, and test injection. **Implemented
+  for health and city discovery as the first call sites.**
 - Decide standalone transport:
   - direct `GC_SUPERVISOR_URL` in `connect-src`, or
-  - dashboard-service transport-only `/v0/*` proxy.
+  - dashboard-service transport-only `/gc-supervisor/*` proxy. **Implemented
+    for standalone: the proxy forwards supervisor `/health` and `/v0/*` only.**
 - Add generated-client drift check to CI.
 
 Acceptance:
@@ -155,12 +172,73 @@ Acceptance:
 
 Order:
 
-1. health/cities
-2. sessions/transcript reads
-3. agents
-4. beads list/detail
-5. mail list/thread
-6. activity/events reads
+1. health/cities. **Implemented: browser city discovery now uses
+   `/gc-supervisor/v0/cities`; Health composes generated supervisor
+   `/v0/city/{cityName}/health` with dashboard-local `/api/health/system`.
+   The dashboard city health mirror route, `GcClient.health`, shared
+   `SupervisorHealth` DTO, and health decoder were removed.**
+2. sessions/transcript reads. **Implemented for browser-facing reads:
+   Agents, Agent Detail, Beads live-run resolution, Viewing-As alias
+   prefetch, LiveSessionPeek, and Formula Run Detail transcript snapshots
+   call the generated supervisor client for `/v0/city/{cityName}/sessions`
+   and `/v0/city/{cityName}/session/{id}/transcript`. Agents pending
+   interaction reads also call
+   `/v0/city/{cityName}/session/{id}/pending` through the generated client,
+   and pending approve/deny writes call
+   `/v0/city/{cityName}/session/{id}/respond` directly through the generated
+   client with the dashboard mutation header. The dashboard
+   `/api/city/:cityName/sessions` mirror and `/peek` route were removed.
+   `GcClient.listSessions()` / `fetchTranscript()` remain transitional
+   backend-only dependencies for composed dashboard-local routes and
+   snapshot/run enrichment until those surfaces migrate.**
+3. agents. **Implemented for browser-facing reads: the Agents page now calls
+   the generated supervisor client for `/v0/city/{cityName}/agents`, and the
+   dashboard `GET /api/city/:cityName/agents` roster mirror was removed.
+   `GcClient.listAgents()` remains a transitional backend-only dependency for
+   snapshot/city-status enrichment until that surface migrates.**
+4. beads list/detail. **Implemented for browser-facing reads: Beads and
+   Agent Detail now call the generated supervisor client for
+   `/v0/city/{cityName}/beads`, and bead detail fetches
+   `/v0/city/{cityName}/bead/{id}` with the existing list-fallback behavior
+   preserved client-side for supervisor detail 404s. The dashboard
+   `GET /api/city/:cityName/beads` and
+   `GET /api/city/:cityName/beads/:id` mirrors were removed. Claim and
+   targeted create-and-sling now use generated supervisor writes directly.
+   Rig filtering uses the generated supervisor `rig` query rather than a
+   dashboard-owned filter route.
+   Close now uses the generated supervisor endpoint with an optional reason
+   body after `GC-10`; nudge now uses the generated supervisor agent action
+   endpoint after `GC-11`; the dashboard close and nudge routes were removed.
+   `GcClient.listBeads()` and `getBead()` remain transitional backend-only
+   dependencies for links, snapshots, and runs until the composed surfaces
+   migrate.**
+5. mail list/thread. **Implemented for browser-facing reads: Mail,
+   Viewing-As alias prefetch, and Agent Detail chat now call the generated
+   supervisor client for `/v0/city/{cityName}/mail` and
+   `/v0/city/{cityName}/mail/thread/{id}`. The dashboard
+   `GET /api/city/:cityName/mail` and
+   `GET /api/city/:cityName/mail/threads/:id` mirrors were removed.
+   Mailbox alias/box filtering remains a frontend view selector over
+   generated `Message` objects so the browser keeps the supervisor wire type
+   instead of receiving a dashboard-owned mail DTO. All-traffic mode is also a
+   frontend selector over the same generated list, not a dashboard DTO. Mail
+   now has an explicit history-depth selector that changes the generated
+   supervisor `limit` query. Mail send is implemented directly through the
+   generated supervisor client; the dashboard `/api/city/:cityName/mail-send`
+   route and mail-send DTOs were removed.**
+   Focused-route attention highlighting for Runs, Agents, Beads, and Mail now
+   keys off generated supervisor entities or their transitional client-side
+   run projection directly and adds no dashboard DTO strip/projection layer.
+6. activity/events reads. **Implemented for both existing event refresh and
+   human-facing event history: `useGcEventRefresh` now opens
+   `/gc-supervisor/v0/city/{cityName}/events/stream` through the supervisor
+   transport path, and Activity reads `/v0/city/{cityName}/events` through the
+   generated supervisor client. Activity event attention deep-links to the
+   route's generated-query event type filter instead of requiring a dashboard
+   event DTO projection. The dashboard
+   `GET /api/city/:cityName/events/stream` mirror was removed. Activity's
+   dashboard-local `/api/*` usage is now limited to project/dev activity
+   (`git` commits and deploy logs).**
 
 Per-surface red-green loop:
 
@@ -181,10 +259,16 @@ Acceptance:
 Deliverables:
 
 - Move city event streams to direct supervisor EventSource where transport
-  allows.
-- Move selected-session streams the same way.
-- If the proxy remains, rename/shape it as a `/v0/*` transport relay and remove
-  event payload parsing from the dashboard service.
+  allows. **Implemented for `useGcEventRefresh` via the `/gc-supervisor`
+  transport path.**
+- Move selected-session streams the same way. **Implemented for
+  `useSessionStream`: selected transcript panels now open
+  `/gc-supervisor/v0/city/{cityName}/session/{id}/stream`, and the dashboard
+  `/api/city/:cityName/session-stream/:id/stream` proxy was removed.**
+- If the proxy remains, keep it on a transport-named path and remove event
+  payload parsing from the dashboard service. **Implemented for city and
+  selected-session events; the standalone transport relay is
+  `/gc-supervisor/*`.**
 
 Acceptance:
 
@@ -196,15 +280,44 @@ Acceptance:
 
 Order:
 
-1. claim and existing supervisor-supported writes
-2. mail send
-3. close-with-reason after `GC-10`
-4. agent nudge after `GC-11`
-5. agent prime after `GC-12`
+1. claim and existing supervisor-supported writes. **Claim implemented:
+   Beads now PATCHes `/gc-supervisor/v0/city/{cityName}/bead/{id}` with
+   generated supervisor types and `X-GC-Request`; the dashboard
+   `/api/city/:cityName/beads/:id/claim` route and backend `GcClient.updateBead`
+   helper were removed.**
+2. targeted bead create-and-sling. **Implemented: Beads creates a bead through
+   `/gc-supervisor/v0/city/{cityName}/beads` and dispatches it through
+   `/gc-supervisor/v0/city/{cityName}/sling`, using generated request/response
+   types and `X-GC-Request`. No dashboard-service DTO or route was added.**
+3. mail send. **Implemented: Compose posts
+   `/gc-supervisor/v0/city/{cityName}/mail` with generated supervisor types,
+   `from: "human"`, and `X-GC-Request`; the dashboard
+   `/api/city/:cityName/mail-send` route, backend `GcClient.sendMail`, and
+   shared mail-send DTOs were removed.**
+4. mail reply/archive/read-state. **Implemented: Mail thread actions call the
+   generated supervisor endpoints for reply, archive, mark-read, and
+   mark-unread with generated request/response validation and `X-GC-Request`.
+   No dashboard-service mail action DTO or route was added.**
+5. close-with-reason after `GC-10`. **Implemented: the browser calls
+   `/gc-supervisor/v0/city/{cityName}/bead/{id}/close` with the generated
+   optional reason body and `X-GC-Request`; the dashboard
+   `/api/city/:cityName/beads/:id/close` route and close subprocess wrapper
+   were removed.**
+6. agent nudge after `GC-11`. **Implemented: the browser calls
+   `/gc-supervisor/v0/city/{cityName}/agent/{base}/nudge` or the qualified
+   `{dir}/{base}` variant with `X-GC-Request`; the dashboard
+   `/api/city/:cityName/beads/:id/nudge` route and nudge subprocess wrapper
+   were removed.**
+7. agent prime after `GC-12`. **Implemented: Agent Detail calls
+   `/gc-supervisor/v0/city/{cityName}/agent/{base}/prime` or the qualified
+   `{dir}/{base}` variant through the generated browser supervisor client.
+   The dashboard `/api/city/:cityName/agents/:alias/prime` route and
+   `execAgentPrime` subprocess wrapper were removed.**
 
 Acceptance:
 
-- No `gc` subprocess wrapper remains in `backend/src/exec.ts`.
+- No `gc` subprocess wrapper remains in `backend/src/exec.ts`; close, nudge,
+  and prime are off the dashboard subprocess path.
 - Dashboard-service writes are limited to local dashboard resources.
 - Supervisor mutation calls use generated request types and the supervisor's
   browser-safe mutation header/auth model.
@@ -213,13 +326,30 @@ Acceptance:
 
 Deliverables:
 
+- Fetch formula feed data through the generated supervisor client for
+  city-wide Runs attention. **Implemented for the App-level attention model:
+  Home/nav Runs attention reads
+  `/v0/city/{cityName}/formulas/feed` through the browser supervisor wrapper.
+  The focused `/runs` list route still uses the transitional dashboard
+  snapshot route and remains cleanup work.**
 - Fetch run snapshot, formula detail, sessions, and event identity through the
-  generated supervisor client.
-- Keep local git diff as a separate dashboard-service resource.
+  generated supervisor client. **Implemented for the page's supervisor-owned
+  inputs: `useFormulaRunDetail()` now calls the browser supervisor wrapper for
+  `/v0/city/{cityName}/workflow/{workflow_id}`, session list/transcript
+  resolution, formula detail, city event invalidation, and selected-session
+  streams.**
+- Keep local git diff as a separate dashboard-service resource. **Implemented:
+  `useRunDiff()` is still the independent `/api/city/:cityName/runs/:runId/diff`
+  resource because it reads local execution-folder git state.**
 - Move projection logic client-side only where still necessary, or delete it
   when `GC-1` through `GC-7` provide canonical upstream presentation.
+  **Implemented as transitional shared projection code in `shared/src/runs/*`,
+  consumed by the browser so the dashboard service no longer mirrors the run
+  detail DTO.**
 - Delete `/api/runs/:runId` once the browser can compose the page from
-  supervisor data plus local diff.
+  supervisor data plus local diff. **Implemented: the old dashboard
+  formula-run detail mirror is no longer mounted; the runs route only serves
+  local diff.**
 
 Acceptance:
 
@@ -241,10 +371,49 @@ Deliverables:
 - Remove route-level tests that mocked supervisor mirrors; replace with
   generated-client wrapper tests and component tests.
 
+Implementation status:
+
+- Mail/event cleanup is implemented for the migrated surfaces:
+  `GcClient.listMail()`, `GcClient.listEvents()`,
+  `gcSupervisorDecoders.listMail()`, `gcSupervisorDecoders.listEvents()`,
+  the backend hand-rolled mail/event schemas, and shared `gc-mail` /
+  `gc-events` DTO leaves were deleted. Structure tests now prevent
+  reintroducing those dashboard-server mirrors.
+- Agent roster cleanup is implemented for the transitional backend reads:
+  `GcClient.listAgents()` and `getAgent()` now return generated supervisor
+  `ListBodyAgentResponse` / `AgentResponse` types, frontend agent helpers use
+  the generated browser `AgentResponse`, and the shared `gc-agents` DTO leaf
+  was deleted. Structure tests prevent reintroducing that shared mirror.
+- Rig roster cleanup is implemented for the transitional city-status read:
+  `GcClient.listRigs()` now returns generated supervisor
+  `ListBodyRigResponse`, the city-status collector projects generated
+  `RigResponse` to its dashboard-owned `CityRig` shape, and the shared
+  `gc-rigs` DTO leaf was deleted. Structure tests prevent reintroducing that
+  shared mirror.
+- Status cleanup is implemented for the transitional dolt-noms sampler:
+  `GcClient.getStatus()` now returns generated supervisor `StatusBody`, the
+  sampler depends on that generated type, and the shared `GcStatus` /
+  `StatusStoreHealth` mirror was deleted from `gc-health`. Structure tests
+  prevent reintroducing that shared mirror.
+- Formula/order cleanup is implemented for the transitional run discovery
+  path: `GcClient.listFormulaRuns()` now returns generated supervisor
+  `FormulaFeedBody`, run discovery consumes `workflow_id` directly, the shared
+  `formula-runs` DTO leaf was deleted, and the unused future-pinned
+  `listFormulaRunsByName`, `listOrdersFeed`, `listOrderHistory`, and
+  `getOrderHistoryDetail` wrappers were removed. Structure tests prevent
+  reintroducing those dashboard-server mirrors.
+- Remaining cleanup is intentionally transitional: `GcClient`,
+  `gc-supervisor-decoders`, and the remaining shared GC leaves still support
+  composed dashboard-local surfaces such as snapshots, runs, links, and local
+  health enrichment until the upstream gaps or client-side composition work are
+  finished. Agent prime is no longer part of that backend tail.
+
 Acceptance:
 
 - `rg "GcClient|gc-supervisor-decoders|/api/city/.*/(agents|beads|mail|sessions|events|snapshot)"` is clean except for archived docs or explicit migration notes.
-- `shared/` contains no supervisor wire mirror types.
+- `shared/` contains no supervisor wire mirror types. **Partially achieved:
+  mail/event/agent/rig/status/formula/order mirror leaves are gone; remaining
+  GC/shared leaves are tracked by the transitional cleanup item above.**
 - The LOC deletion target in this plan is materially achieved.
 
 ## Expected Simplification
@@ -264,6 +433,15 @@ That gives a conservative production-code simplification of **3.8k-5.4k LOC
 net removed**, before counting tests. Test and fixture deletion should be
 larger, likely **4k-7k LOC**, because mocked backend routes for supervisor
 resources disappear.
+
+Measured progress in this branch already removes about **2.4k+ LOC** from the
+main deletion pool before counting tests: selected GC mirror routes shrink by
+about 1.2k LOC, shared supervisor mirror leaves by about 420 LOC,
+`GcClient`/decoder code by about 670 LOC, and GC-specific frontend API client
+code by about 140 LOC before the final prime-route deletion. The remaining
+savings come from deleting the transitional `GcClient`/decoder tail and
+composed backend snapshot/run mirrors once their client-side or
+upstream-supervisor replacements are complete.
 
 The reliability improvement is qualitative as much as numeric:
 

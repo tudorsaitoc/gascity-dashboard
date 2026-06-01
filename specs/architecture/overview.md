@@ -16,9 +16,10 @@ back into `gastownhall/gascity` as the replacement for the existing
 - Missing GC data or writes are upstream supervisor API gaps, tracked in
   [`../gc-supervisor-api-gaps.md`](../gc-supervisor-api-gaps.md). Do not create
   permanent dashboard-server GC facades to compensate.
-- A same-origin `/v0/*` proxy is acceptable for standalone development, CSP, or
-  SSH forwarding, but only as a transport relay. It must not parse, validate,
-  map, strip, cache, or rename supervisor DTOs.
+- A same-origin supervisor proxy is acceptable for standalone development, CSP,
+  or SSH forwarding, but only as a transport relay. In this repo the proxy is
+  mounted at `/gc-supervisor/*` and forwards supervisor `/health` plus `/v0/*`.
+  It must not parse, validate, map, strip, cache, or rename supervisor DTOs.
 
 Current code still contains a dashboard-server GC mirror layer. The migration
 plan to delete it lives in
@@ -60,10 +61,10 @@ path:
 
 Migration flow:
 
-- Replace dashboard `/api/events/stream` and `/api/sessions/:id/stream`
-  consumers with supervisor EventSource URLs where practical.
-- If a same-origin proxy remains, mount it as `/v0/*` or another explicitly
-  transport-named path, not as a dashboard DTO endpoint.
+- City event consumers and selected-session stream consumers now use supervisor
+  EventSource URLs through the transport path.
+- If a same-origin proxy remains, mount it on an explicitly transport-named
+  path such as `/gc-supervisor/*`, not as a dashboard DTO endpoint.
 - Agents, Beads, Runs, and Formula Run Detail subscribe to supervisor event
   prefixes and refresh generated-client queries directly.
 - Belt-and-braces still applies: every panel has a manual Refresh button for the tab-sleep / laptop-close case.
@@ -124,7 +125,7 @@ systemd is boring, well-understood, and `journalctl`-debuggable. `ExecStartPre` 
    │  Express server      │  ← single process, supervised by systemd
    │  - local /api/*      │
    │  - SPA at /          │  (express.static, immutable cache on hashed assets)
-   │  - optional /v0/*    │  (transport-only supervisor proxy)
+   │  - /gc-supervisor/*  │  (transport-only supervisor proxy)
    │  - Audit → events.jsonl
    └──────────┬───────────┘
               │

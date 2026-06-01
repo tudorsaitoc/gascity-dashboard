@@ -4,7 +4,7 @@
 // agent-diagnostics-y84, td-7t24i6, etc.); the gc-CLI BEAD_ID_RE
 // /^(td|th|jt)-[a-z0-9-]{3,32}$/ is too narrow for any prefix outside
 // td/th/jt. Read paths historically worked around this with a permissive
-// regex inline; the write paths (claim/close/nudge) did not, which is the
+// regex inline; the write paths (close/nudge) did not, which is the
 // gascity-dashboard-bwp bug.
 //
 // Posture: subprocess args are passed as argv (no shell:true), so the

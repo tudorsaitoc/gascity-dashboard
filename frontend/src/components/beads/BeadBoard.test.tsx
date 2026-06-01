@@ -1,6 +1,7 @@
 import { cleanup, fireEvent, render, screen, within } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import type { GcBead, BeadStatus } from 'gas-city-dashboard-shared';
+import type { BeadStatus } from 'gas-city-dashboard-shared';
+import type { SupervisorBead } from '../../supervisor/beadReads';
 import { buildBeadGraph } from '../../lib/beadGraph';
 import { assertAtMostOneMark } from '../../test/assertions/oneMarkRule';
 import { BeadBoard } from './BeadBoard';
@@ -10,21 +11,20 @@ afterEach(() => cleanup());
 function bead(
   id: string,
   status: BeadStatus,
-  extra: Partial<GcBead> = {},
-): GcBead {
+  extra: Partial<SupervisorBead> = {},
+): SupervisorBead {
   return {
     id,
     title: `bead ${id}`,
     status,
     issue_type: 'task',
-    priority: null,
     created_at: '2026-05-01T00:00:00Z',
     ...extra,
   };
 }
 
 function renderBoard(
-  beads: GcBead[],
+  beads: SupervisorBead[],
   selectedId: string | null = null,
   onSelect = vi.fn(),
 ) {

@@ -17,6 +17,12 @@ import {
 } from 'gas-city-dashboard-shared';
 import rawFormulaRunDetailFixture from '../test/fixtures/formula-run-detail.json';
 
+const loadSupervisorFormulaRunDetail = vi.hoisted(() => vi.fn());
+
+vi.mock('../supervisor/runDetail', () => ({
+  loadSupervisorFormulaRunDetail,
+}));
+
 const eventSources: FakeEventSource[] = [];
 
 interface FormulaRunDetailFixture {
@@ -43,36 +49,33 @@ beforeEach(() => {
   eventSources.length = 0;
   fetchUrls.length = 0;
   invalidate('formula-run');
+  loadSupervisorFormulaRunDetail.mockReset();
+  loadSupervisorFormulaRunDetail.mockImplementation(async () => currentDetail);
   currentDetail = detail;
   currentDiff = diff;
   vi.stubGlobal('EventSource', FakeEventSource);
   vi.stubGlobal('fetch', vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
-    const url = String(input);
+    const url = requestUrl(input);
     fetchUrls.push(url);
     if (url.startsWith('/api/city/test-city/runs/gc-adopt-pr-active/diff')) {
       return jsonResponse(currentDiff);
     }
     if (url.startsWith('/api/city/test-city/runs/gc-adopt-pr-active')) {
-      return jsonResponse(currentDetail);
+      throw new Error(`old dashboard formula-run mirror should not be called: ${url}`);
     }
-    if (url === '/api/city/test-city/sessions/gc-session-review-i2/peek') {
-      expect(init?.method).toBe('POST');
-      return jsonResponse(transcripts['gc-session-review-i2']);
+    const transcriptPrefix = '/gc-supervisor/v0/city/test-city/session/';
+    if (url.startsWith(transcriptPrefix) && url.endsWith('/transcript?format=conversation')) {
+      expect(init?.method ?? (input instanceof Request ? input.method : 'GET')).toBe('GET');
+      const id = decodeURIComponent(
+        url.slice(transcriptPrefix.length, -'/transcript?format=conversation'.length),
+      );
+      const transcript = transcripts[id] ?? transcripts[sessionTranscriptFixtureId(id)];
+      if (transcript !== undefined) {
+        return jsonResponse(toSupervisorTranscript(transcript));
+      }
     }
-    if (url === '/api/city/test-city/sessions/gc-session-rebase/peek') {
-      return jsonResponse(transcripts['gc-session-rebase']);
-    }
-    if (url === '/api/city/test-city/sessions/gc-session-rebase-a1/peek') {
-      return jsonResponse(transcripts['gc-session-rebase']);
-    }
-    if (url === '/api/city/test-city/sessions/gc-session-rebase-a2/peek') {
-      return jsonResponse(transcripts['gc-session-rebase']);
-    }
-    if (url === '/api/city/test-city/sessions/gc-session-review-i1/peek') {
-      return jsonResponse(transcripts['gc-session-review-i1']);
-    }
-    if (url === '/api/city/test-city/sessions/gc-session-fix-i1/peek') {
-      return jsonResponse(transcripts['gc-session-fix-i1']);
+    if (url.includes('/sessions/') && url.endsWith('/peek')) {
+      throw new Error('old dashboard session peek route should not be called');
     }
     if (url.startsWith('/api/city/test-city/links/')) {
       // RelatedEntities (gascity-dashboard-j4x) fetches its view on mount.
@@ -377,8 +380,10 @@ describe('FormulaRunDetailPage', () => {
     await screen.findByRole('heading', { name: /adopt pr #42/i });
 
     const runUrls = fetchUrls.filter((url) => url.startsWith('/api/city/test-city/runs/'));
-    expect(runUrls).toContain(
-      '/api/city/test-city/runs/gc-adopt-pr-active?scope_kind=city&scope_ref=racoon-city',
+    expect(loadSupervisorFormulaRunDetail).toHaveBeenCalledWith(
+      'gc-adopt-pr-active',
+      'city',
+      'racoon-city',
     );
     expect(runUrls).toContain(
       '/api/city/test-city/runs/gc-adopt-pr-active/diff?scope_kind=city&scope_ref=racoon-city',
@@ -731,6 +736,36 @@ function jsonResponse(payload: unknown): Response {
   });
 }
 
+function requestUrl(input: RequestInfo | URL): string {
+  const url = input instanceof Request
+    ? input.url
+    : input instanceof URL
+      ? input.toString()
+      : String(input);
+  return stripSameOrigin(url);
+}
+
+function stripSameOrigin(url: string): string {
+  const origin = window.location.origin;
+  return url.startsWith(origin) ? url.slice(origin.length) : url;
+}
+
+function sessionTranscriptFixtureId(id: string): string {
+  return id === 'gc-session-rebase-a1' || id === 'gc-session-rebase-a2'
+    ? 'gc-session-rebase'
+    : id;
+}
+
+function toSupervisorTranscript(transcript: TranscriptResult) {
+  return {
+    id: transcript.session_id,
+    template: transcript.template ?? '',
+    provider: transcript.provider ?? '',
+    format: transcript.format ?? 'conversation',
+    turns: transcript.turns,
+  };
+}
+
 function nodePressed(name: RegExp): string | null {
   return screen.getByRole('button', { name }).getAttribute('aria-pressed');
 }
@@ -746,7 +781,7 @@ function requireCityEventSource(): FakeEventSource {
 }
 
 function sessionEventSources(): FakeEventSource[] {
-  return eventSources.filter((eventSource) => eventSource.url.includes('session-stream'));
+  return eventSources.filter((eventSource) => eventSource.url.includes('/session/'));
 }
 
 function runUrls(): string[] {

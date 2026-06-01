@@ -8,8 +8,8 @@
 //
 // Starts at /runs, clicks the deterministic scoped lane, then validates
 // the run detail view, active session evidence, partial snapshots, and
-// historical-only transcripts. In --test mode, any /api/* failure across the
-// full journey fails the run.
+// historical-only transcripts. In --test mode, any dashboard API or supervisor
+// proxy failure across the full journey fails the run.
 //
 // Output: /tmp/cp-snaps/<theme>-formula-run-detail*.png at 1440x900.
 
@@ -62,7 +62,7 @@ async function runTheme(browser, theme) {
   const apiFailures = [];
   page.on('response', (response) => {
     const url = new URL(response.url());
-    if (url.pathname.startsWith('/api/')) {
+    if (isObservedApiPath(url.pathname)) {
       apiCalls.push({
         url: url.toString(),
         method: response.request().method(),
@@ -72,7 +72,7 @@ async function runTheme(browser, theme) {
   });
   page.on('requestfailed', (request) => {
     const url = new URL(request.url());
-    if (url.pathname.startsWith('/api/')) {
+    if (isObservedApiPath(url.pathname)) {
       apiFailures.push({
         url: url.toString(),
         method: request.method(),
@@ -106,7 +106,9 @@ async function runTheme(browser, theme) {
     await page.getByText(/v11 · seq 91/i).waitFor({ timeout: 5_000 });
     await page.getByRole('heading', { name: /formula graph/i }).waitFor({ timeout: 5_000 });
     await page.getByRole('heading', { name: /local changes/i }).waitFor({ timeout: 5_000 });
-    await page.getByText('preserve failed attempt transcript links').waitFor({ timeout: 5_000 });
+    await page
+      .getByText('preserve failed attempt transcript links', { exact: true })
+      .waitFor({ timeout: 5_000 });
     await page.getByText('old session guard').waitFor({ timeout: 5_000 });
     // Related section (gascity-dashboard-j4x) — RK3 density gate. The
     // high-volume fixture (40 molecule members + 3 unresolved links) must
@@ -202,6 +204,7 @@ async function runTheme(browser, theme) {
       waitUntil: 'domcontentloaded',
       timeout: 5_000,
     });
+    await page.getByRole('tab', { name: /session/i }).click();
     await page.getByText(/historical-only/i).waitFor({ timeout: 5_000 });
     await page.getByText(/found two issues/i).waitFor({ timeout: 5_000 });
     const hiddenCount = await page.getByRole('button', { name: /old-only review/i }).count();
@@ -216,24 +219,27 @@ async function runTheme(browser, theme) {
       waitUntil: 'domcontentloaded',
       timeout: 5_000,
     });
-    await page.getByText(/no graph nodes have materialized/i).waitFor({ timeout: 5_000 });
+    await page.getByText(/run is not a graph\.v2 run/i).waitFor({ timeout: 5_000 });
 
     await page.goto(`${CITY_BASE}/runs/gc-not-git`, {
       waitUntil: 'domcontentloaded',
       timeout: 5_000,
     });
+    await page.getByRole('tab', { name: /diff/i }).click();
     await page.getByText(/not a git work tree/i).waitFor({ timeout: 5_000 });
 
     await page.goto(`${CITY_BASE}/runs/gc-path-unknown`, {
       waitUntil: 'domcontentloaded',
       timeout: 5_000,
     });
+    await page.getByRole('tab', { name: /diff/i }).click();
     await page.getByText(/execution folder is unknown/i).waitFor({ timeout: 5_000 });
 
     await page.goto(`${CITY_BASE}/runs/gc-clean-worktree`, {
       waitUntil: 'domcontentloaded',
       timeout: 5_000,
     });
+    await page.getByRole('tab', { name: /diff/i }).click();
     await page.getByText(/no renderable patch/i).waitFor({ timeout: 5_000 });
 
     recordApiFailures(result, apiCalls, apiFailures);
@@ -270,9 +276,9 @@ function recordApiFailures(result, apiCalls, apiFailures) {
 }
 
 async function installApiFixtureRoutes(context) {
-  // The city switcher (Header) lists managed cities via the non-city-scoped
-  // `/api/cities`. Mock it so the harness needs no live supervisor.
-  await context.route('**/api/cities', async (route) => {
+  // The city switcher (Header) lists managed cities directly through the
+  // supervisor transport proxy. Mock it so the harness needs no live supervisor.
+  await context.route('**/gc-supervisor/v0/cities', async (route) => {
     await route.fulfill({
       status: 200,
       contentType: 'application/json',
@@ -283,10 +289,8 @@ async function installApiFixtureRoutes(context) {
     });
   });
 
-  // All city-scoped endpoints now ride `/api/city/:cityName/*`. The glob
-  // `*` segment matches the city name. session-stream lives under its own
-  // `/session-stream/` prefix (distinct from the REST `/sessions/`), so the
-  // peek and stream mocks target different paths.
+  // Dashboard-local city-scoped endpoints ride `/api/city/:cityName/*`.
+  // Supervisor-owned session reads use `/gc-supervisor/v0/city/:cityName/*`.
   await context.route('**/api/city/*/snapshot', async (route) => {
     await route.fulfill({
       status: 200,
@@ -295,7 +299,7 @@ async function installApiFixtureRoutes(context) {
     });
   });
 
-  await context.route('**/api/city/*/events/stream', async (route) => {
+  await context.route('**/gc-supervisor/v0/city/*/events/stream', async (route) => {
     await route.fulfill({
       status: 200,
       headers: {
@@ -318,7 +322,14 @@ async function installApiFixtureRoutes(context) {
     });
   });
 
-  await context.route('**/api/city/*/runs/gc-adopt-pr-partial**', async (route) => {
+  await context.route('**/api/client-errors', async (route) => {
+    await route.fulfill({
+      status: 204,
+      body: '',
+    });
+  });
+
+  await context.route('**/api/city/*/runs/gc-adopt-pr-partial/diff**', async (route) => {
     if (INJECT_LATE_API_FAILURE && route.request().url().includes('/diff')) {
       await route.fulfill({
         status: 500,
@@ -327,106 +338,93 @@ async function installApiFixtureRoutes(context) {
       });
       return;
     }
-    const payload = route.request().url().includes('/diff')
-      ? fixture.diff
-      : { ...fixture.detail, runId: 'gc-adopt-pr-partial', completeness: { kind: 'partial', reasons: ['supervisor_snapshot_partial'] } };
     await route.fulfill({
       status: 200,
       contentType: 'application/json',
-      body: JSON.stringify(payload),
+      body: JSON.stringify(fixture.diff),
     });
   });
 
-  await context.route('**/api/city/*/runs/gc-adopt-pr-active**', async (route) => {
-    const payload = route.request().url().includes('/diff')
-      ? fixture.diff
-      : fixture.detail;
+  await context.route('**/api/city/*/runs/gc-adopt-pr-active/diff**', async (route) => {
     await route.fulfill({
       status: 200,
       contentType: 'application/json',
-      body: JSON.stringify(payload),
+      body: JSON.stringify(fixture.diff),
     });
   });
 
-  await context.route('**/api/city/*/runs/gc-no-graph**', async (route) => {
-    const payload = route.request().url().includes('/diff')
-      ? fixture.diff
-      : {
+  await context.route('**/api/city/*/runs/gc-no-graph/diff**', async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify(fixture.diff),
+    });
+  });
+
+  await context.route('**/api/city/*/runs/gc-not-git/diff**', async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify(unavailableDiff('not_git')),
+    });
+  });
+
+  await context.route('**/api/city/*/runs/gc-path-unknown/diff**', async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify(unavailableDiff('path_unknown')),
+    });
+  });
+
+  await context.route('**/api/city/*/runs/gc-clean-worktree/diff**', async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify(cleanWorktreeDiff()),
+    });
+  });
+
+  await context.route('**/gc-supervisor/v0/city/*/workflow/**', async (route) => {
+    const runId = workflowRunId(route.request().url());
+    if (runId === 'gc-no-graph') {
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify(workflowSnapshot({ ...fixture.detail, runId }, { graph: false })),
+      });
+      return;
+    }
+    const partial = runId === 'gc-adopt-pr-partial';
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify(workflowSnapshot(
+        {
           ...fixture.detail,
-          runId: 'gc-no-graph',
-          nodes: fixture.detail.nodes.map((node) => ({
-            ...node,
-            visibleInGraph: false,
-            historicalOnly: true,
-          })),
-          edges: [],
-          lanes: [],
-        };
-    await route.fulfill({
-      status: 200,
-      contentType: 'application/json',
-      body: JSON.stringify(payload),
+          runId,
+          completeness: partial
+            ? { kind: 'partial', reasons: ['supervisor_snapshot_partial'] }
+            : fixture.detail.completeness,
+        },
+        { partial },
+      )),
     });
   });
 
-  await context.route('**/api/city/*/runs/gc-not-git**', async (route) => {
-    const payload = route.request().url().includes('/diff')
-      ? {
-          kind: 'not_git',
-          rootPath: { kind: 'unavailable', reason: 'not_git' },
-          status: [],
-          changedFiles: [],
-          unstagedDiff: '',
-          stagedDiff: '',
-          truncated: false,
-        }
-      : { ...fixture.detail, runId: 'gc-not-git' };
+  await context.route('**/gc-supervisor/v0/city/*/formulas/**', async (route) => {
     await route.fulfill({
       status: 200,
       contentType: 'application/json',
-      body: JSON.stringify(payload),
+      body: JSON.stringify(formulaDetailFixture()),
     });
   });
 
-  await context.route('**/api/city/*/runs/gc-path-unknown**', async (route) => {
-    const payload = route.request().url().includes('/diff')
-      ? {
-          kind: 'path_unknown',
-          rootPath: { kind: 'unavailable', reason: 'path_unknown' },
-          status: [],
-          changedFiles: [],
-          unstagedDiff: '',
-          stagedDiff: '',
-          truncated: false,
-        }
-      : {
-          ...fixture.detail,
-          runId: 'gc-path-unknown',
-          executionPath: { kind: 'unavailable', reason: 'missing_cwd_and_rig_root' },
-        };
+  await context.route('**/gc-supervisor/v0/city/*/sessions', async (route) => {
     await route.fulfill({
       status: 200,
       contentType: 'application/json',
-      body: JSON.stringify(payload),
-    });
-  });
-
-  await context.route('**/api/city/*/runs/gc-clean-worktree**', async (route) => {
-    const payload = route.request().url().includes('/diff')
-      ? {
-          kind: 'ok',
-          rootPath: { kind: 'known', path: '/tmp/gascity/adopt-pr-42' },
-          status: [],
-          changedFiles: [],
-          unstagedDiff: '',
-          stagedDiff: '',
-          truncated: false,
-        }
-      : { ...fixture.detail, runId: 'gc-clean-worktree' };
-    await route.fulfill({
-      status: 200,
-      contentType: 'application/json',
-      body: JSON.stringify(payload),
+      body: JSON.stringify(sessionListFixture()),
     });
   });
 
@@ -444,11 +442,11 @@ async function installApiFixtureRoutes(context) {
     });
   });
 
-  await context.route('**/api/city/*/sessions/*/peek', async (route) => {
+  await context.route('**/gc-supervisor/v0/city/*/session/*/transcript**', async (route) => {
     const sessionId = route
       .request()
       .url()
-      .match(/\/api\/city\/[^/]+\/sessions\/([^/]+)\/peek$/)?.[1];
+      .match(/\/gc-supervisor\/v0\/city\/[^/]+\/session\/([^/]+)\/transcript(?:\?|$)/)?.[1];
     const transcript = sessionId ? fixture.transcripts[decodeURIComponent(sessionId)] : null;
     if (!transcript) {
       await route.fulfill({
@@ -461,17 +459,15 @@ async function installApiFixtureRoutes(context) {
     await route.fulfill({
       status: 200,
       contentType: 'application/json',
-      body: JSON.stringify(transcript),
+      body: JSON.stringify(toSupervisorTranscript(transcript)),
     });
   });
 
-  // Session SSE stream rides its own `/session-stream/` prefix (distinct from
-  // the REST `/sessions/`) — see city/runtime.ts + api.sessionStreamUrl.
-  await context.route('**/api/city/*/session-stream/*/stream', async (route) => {
+  await context.route('**/gc-supervisor/v0/city/*/session/*/stream', async (route) => {
     const sessionId = route
       .request()
       .url()
-      .match(/\/api\/city\/[^/]+\/session-stream\/([^/]+)\/stream$/)?.[1];
+      .match(/\/gc-supervisor\/v0\/city\/[^/]+\/session\/([^/]+)\/stream(?:\?|$)/)?.[1];
     const turns = sessionId ? fixture.streamTurns[decodeURIComponent(sessionId)] ?? [] : [];
     const body = turns
       .map((turn) => `event: turn\ndata: ${JSON.stringify(turn)}\n\n`)
@@ -485,6 +481,255 @@ async function installApiFixtureRoutes(context) {
       body,
     });
   });
+}
+
+function isObservedApiPath(pathname) {
+  if (pathname === '/api/client-errors') return false;
+  return pathname.startsWith('/api/') || pathname.startsWith('/gc-supervisor/');
+}
+
+function toSupervisorTranscript(transcript) {
+  return {
+    id: transcript.session_id,
+    template: transcript.template ?? '',
+    provider: transcript.provider ?? '',
+    format: transcript.format ?? 'conversation',
+    turns: transcript.turns,
+  };
+}
+
+function unavailableDiff(kind) {
+  return {
+    kind,
+    rootPath: { kind: 'unavailable', reason: kind },
+    comparison: { kind: 'unavailable', reason: kind },
+    status: [],
+    changedFiles: [],
+    patch: '',
+    truncated: false,
+  };
+}
+
+function cleanWorktreeDiff() {
+  return {
+    kind: 'ok',
+    rootPath: { kind: 'known', path: '/tmp/gascity/adopt-pr-42' },
+    comparison: { kind: 'head', reason: 'no_upstream' },
+    status: [],
+    changedFiles: [],
+    patch: '',
+    truncated: false,
+  };
+}
+
+function workflowRunId(url) {
+  return decodeURIComponent(
+    new URL(url).pathname.match(/\/workflow\/([^/?#]+)/)?.[1] ?? 'gc-adopt-pr-active',
+  );
+}
+
+function workflowSnapshot(detail, options = {}) {
+  const graph = options.graph !== false;
+  const snapshot = {
+    workflow_id: detail.runId,
+    root_bead_id: detail.runId,
+    root_store_ref: detail.rootStoreRef,
+    resolved_root_store: detail.resolvedRootStore,
+    scope_kind: detail.scopeKind,
+    scope_ref: detail.scopeRef,
+    snapshot_version: detail.snapshotVersion,
+    partial: options.partial ?? detail.completeness.kind === 'partial',
+    stores_scanned: [detail.rootStoreRef],
+    beads: workflowBeads(detail, graph),
+    deps: detail.edges,
+    logical_nodes: [],
+    logical_edges: detail.edges,
+    scope_groups: [],
+  };
+  if (detail.snapshotEventSeq.kind === 'known') {
+    snapshot.snapshot_event_seq = detail.snapshotEventSeq.seq;
+  }
+  return snapshot;
+}
+
+function workflowBeads(detail, graph) {
+  const beads = [];
+  for (const node of detail.nodes) {
+    for (const instance of node.executionInstances) {
+      beads.push(workflowBead(detail, node, instance, graph));
+    }
+    for (const badge of node.controlBadges ?? []) {
+      beads.push(controlBead(detail, node, badge));
+    }
+  }
+  return beads;
+}
+
+function workflowBead(detail, node, instance, graph) {
+  const isRoot = node.semanticNodeId === detail.rootBeadId;
+  const id = isRoot ? detail.runId : instance.beadId;
+  const metadata = {
+    'gc.kind': workflowKind(node.constructKind),
+    'gc.step_id': node.semanticNodeId,
+    'gc.step_ref': stepRefFor(node, instance),
+  };
+  if (isRoot) {
+    metadata['gc.scope_kind'] = detail.scopeKind;
+    metadata['gc.scope_ref'] = detail.scopeRef;
+    metadata['gc.root_store_ref'] = detail.rootStoreRef;
+    if (detail.executionPath.kind === 'known') {
+      metadata['gc.work_dir'] = detail.executionPath.path;
+    }
+    if (graph) {
+      metadata['gc.formula_contract'] = 'graph.v2';
+      metadata['gc.formula'] = 'mol-adopt-pr-v2';
+      metadata['gc.run_target'] = 'racoon-city/codex';
+    }
+  } else {
+    metadata['gc.logical_bead_id'] = node.semanticNodeId;
+  }
+  if (node.scope.kind === 'scoped') {
+    metadata['gc.scope_ref'] = node.scope.ref;
+  }
+  if (instance.iteration.kind === 'loop') {
+    metadata['gc.iteration'] = String(instance.iteration.value);
+  }
+  if (instance.attempt.kind === 'attempt') {
+    metadata['gc.attempt'] = String(instance.attempt.value);
+  }
+  const maxAttempts = maxAttemptsFor(node);
+  if (maxAttempts !== null) {
+    metadata['gc.max_attempts'] = String(maxAttempts);
+  }
+  if (instance.session.kind === 'attached') {
+    metadata['gc.session_id'] = instance.session.link.sessionId;
+    metadata['session_name'] = instance.session.link.sessionName;
+  }
+
+  return {
+    id,
+    title: node.title,
+    status: supervisorStatus(instance.status),
+    kind: workflowKind(node.constructKind),
+    step_ref: metadata['gc.step_ref'],
+    ...(instance.attempt.kind === 'attempt' ? { attempt: instance.attempt.value } : {}),
+    ...(isRoot ? {} : { logical_bead_id: node.semanticNodeId }),
+    ...(node.scope.kind === 'scoped' ? { scope_ref: node.scope.ref } : {}),
+    ...(instance.session.kind === 'attached'
+      ? { assignee: instance.session.link.assignee }
+      : {}),
+    metadata,
+  };
+}
+
+function controlBead(detail, node, badge) {
+  return {
+    id: badge.id,
+    title: badge.label,
+    status: supervisorStatus(badge.status),
+    kind: 'run-finalize',
+    step_ref: `${node.semanticNodeId}.${badge.label}`,
+    logical_bead_id: node.semanticNodeId,
+    metadata: {
+      'gc.kind': 'run-finalize',
+      'gc.control_for': node.semanticNodeId === detail.rootBeadId ? detail.runId : node.semanticNodeId,
+      'gc.step_id': badge.id,
+      'gc.step_ref': `${node.semanticNodeId}.${badge.label}`,
+    },
+  };
+}
+
+function workflowKind(constructKind) {
+  return constructKind === 'check-loop' ? 'ralph' : constructKind;
+}
+
+function stepRefFor(node, instance) {
+  if (node.semanticNodeId === fixture.detail.rootBeadId) {
+    return node.semanticNodeId;
+  }
+  if (instance.iteration.kind === 'loop' && node.iterationSummary.control.kind === 'known') {
+    return `${node.iterationSummary.control.id}.iteration.${instance.iteration.value}.${node.semanticNodeId}`;
+  }
+  if (instance.attempt.kind === 'attempt') {
+    return `${node.semanticNodeId}.attempt.${instance.attempt.value}`;
+  }
+  return node.semanticNodeId;
+}
+
+function maxAttemptsFor(node) {
+  if (node.attemptSummary.kind !== 'tracked') return null;
+  if (node.attemptSummary.badge.kind !== 'bounded') return null;
+  const max = Number.parseInt(node.attemptSummary.badge.label.split('/')[1] ?? '', 10);
+  return Number.isSafeInteger(max) && max > 0 ? max : null;
+}
+
+function supervisorStatus(status) {
+  switch (status) {
+    case 'active':
+    case 'running':
+      return 'in_progress';
+    case 'completed':
+    case 'done':
+      return 'closed';
+    case 'ready':
+    case 'blocked':
+    case 'failed':
+    case 'skipped':
+      return status;
+    case 'pending':
+    default:
+      return 'open';
+  }
+}
+
+function formulaDetailFixture() {
+  const nodes = fixture.detail.nodes
+    .filter((node) => node.constructKind !== 'run-root')
+    .map((node) => ({
+      id: node.semanticNodeId,
+      title: node.title,
+      kind: node.constructKind,
+    }));
+  return {
+    name: 'mol-adopt-pr-v2',
+    description: 'Fixture formula detail for the direct supervisor smoke.',
+    version: 'fixture',
+    preview: {
+      nodes,
+      edges: fixture.detail.edges,
+    },
+    steps: nodes,
+    deps: fixture.detail.edges,
+    var_defs: [],
+  };
+}
+
+function sessionListFixture() {
+  const sessions = new Map();
+  for (const node of fixture.detail.nodes) {
+    for (const instance of node.executionInstances) {
+      if (instance.session.kind !== 'attached') continue;
+      const link = instance.session.link;
+      sessions.set(link.sessionId, {
+        id: link.sessionId,
+        template: link.sessionName,
+        title: link.sessionName,
+        provider: 'codex',
+        session_name: link.sessionName,
+        state: instance.session.streamable ? 'active' : 'closed',
+        created_at: '2026-05-24T10:00:00.000Z',
+        attached: true,
+        running: instance.session.streamable,
+        alias: link.sessionName,
+        last_active: '2026-05-24T11:00:00.000Z',
+      });
+    }
+  }
+  return {
+    items: [...sessions.values()],
+    partial: false,
+    total: sessions.size,
+  };
 }
 
 function highVolumeLinkView() {

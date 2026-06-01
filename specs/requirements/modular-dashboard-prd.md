@@ -168,7 +168,7 @@ export interface BackendModule<Deps = void> {
 import path from 'node:path'
 import { maintainerRouter } from '../../routes/maintainer.js'
 import { createMaintainerRefresher } from '../../maintainer/worker.js'
-import { raceWithTimeout } from '../../routes/sessions.js'
+import { raceWithTimeout } from '../../lib/race-with-timeout.js'
 import type { BackendModule } from 'gas-city-dashboard-shared'
 
 interface MaintainerDeps {
@@ -373,7 +373,7 @@ Default-install bundle (Maintainer omitted) is smaller than pre-migration by at 
 
 ### Stays core
 
-`/` (ambient home), `/agents` + `/agents/:slug`, `/runs` + `/runs/:id`, `/health`, plus `/api/sessions`/`/api/snapshot`/`/api/events`/session peek modal.
+`/` (ambient home), `/agents` + `/agents/:slug`, `/runs` + `/runs/:id`, `/health`, plus `/api/snapshot` and `/api/events`. Session lists, transcript reads, and session streams are supervisor-owned and should be consumed through `/gc-supervisor/v0/...`, not mirrored through dashboard DTOs.
 
 ### Becomes a module (Phase 1 ports one)
 
@@ -425,7 +425,7 @@ Each module declares `resources` posture so Phase 2 verifies lifetime statically
 **Required before PR-A merges.** Written inventory of every cross-boundary touch Maintainer makes today:
 - SSE client registry held as module-singleton state in `maintainer/sse.ts`.
 - `slungStatePath` duplicated in `app.ts:109` and `routes/maintainer.ts:480`.
-- `routes/maintainer.ts` imports `raceWithTimeout` from `routes/sessions.js`.
+- Maintainer's session-list injection uses the shared `raceWithTimeout` helper from `backend/src/lib/race-with-timeout.ts`.
 - `maintainer/worker.ts:6` imports `notifyRefresh`/`sendHeartbeat` from `./sse.js`.
 - `gc-client.ts:273` comment-references slung-state.
 - The `MaintainerRefresher` shape vs the new `BackgroundWorker` shape — adapter required in PR-A.
@@ -458,7 +458,7 @@ Each entry gets a disposition: kept inside module / promoted to `CityContext` / 
 ### Acceptance criteria (verifiable)
 
 - After PR-B2: `App.tsx`, `Header.tsx`, `app.ts` contain zero hand-maintained per-module lists. `grep -n "app\\.use\\(['\"]\\/maintainer" backend/src/app.ts` returns zero hits.
-- After PR-D: `curl /api/agents` works; `curl /api/maintainer/...` returns 404; Header has no "Triage" entry; JS bundle smaller by the Maintainer chunk size; `MODULES_ENABLED=maintainer,...` restores pre-migration behavior byte-for-byte.
+- After PR-D: direct supervisor agent reads continue to work; `curl /api/maintainer/...` returns 404; Header has no "Triage" entry; JS bundle smaller by the Maintainer chunk size; `MODULES_ENABLED=maintainer,...` restores pre-migration behavior byte-for-byte.
 - Two-CityContext smoke test (§5) passes.
 - Audience-hypothesis bead exists with target date ≤6mo from PR-A merge.
 

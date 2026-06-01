@@ -14,7 +14,6 @@ describe('logging component vocabulary', () => {
       LOG_COMPONENT.health,
       LOG_COMPONENT.links,
       LOG_COMPONENT.mail,
-      LOG_COMPONENT.mailSend,
       LOG_COMPONENT.maintainer,
       LOG_COMPONENT.sessions,
       LOG_COMPONENT.snapshot,

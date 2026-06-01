@@ -66,30 +66,3 @@ export interface GcBead {
 }
 
 export type GcBeadList = GcCountedList<GcBead>;
-
-/** Frontend-side filter contract. v0 hardcodes; ?showAll=1 disables. */
-export interface BeadFilterParams {
-  showAll?: boolean;
-}
-
-export type BeadAction = 'claim' | 'close' | 'nudge';
-
-export interface BeadActionRequest {
-  /** Optional reason / note attached to the action. */
-  reason?: string;
-}
-
-/**
- * Body for `PATCH /v0/city/{city}/bead/{id}` (gascity-dashboard-mq2;
- * replaces the `gc bd update` CLI subprocess on the bead-CLAIM path). Mirrors
- * the supervisor's `BeadUpdateBody` schema. The dashboard's claim action sets
- * `status: 'in_progress'` + `assignee: 'stephanie'`; the rest of the upstream
- * schema (title/description/labels/priority/…) is unused by the dashboard and
- * left off this type until a use case needs it. NOTE: bead CLOSE deliberately
- * stays on the CLI — the supervisor's `/bead/{id}/close` endpoint has no reason
- * field and the dashboard's close-reason UI would silently lose it.
- */
-export interface BeadUpdateInput {
-  status?: BeadStatus;
-  assignee?: string;
-}

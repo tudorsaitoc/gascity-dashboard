@@ -1,11 +1,14 @@
 import {
   GC_EVENT_PREFIX,
   type DashboardSnapshot,
+  type RunLane,
   type SourceStatus,
 } from 'gas-city-dashboard-shared';
 import { useCallback, useRef } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { api } from '../api/client';
+import { useAttentionModel } from '../attention/context';
+import { resourceAttentionSeverity } from '../attention/routeHighlight';
 import { Button } from '../components/Button';
 import { PageHeader } from '../components/PageHeader';
 import { PartialDataNotice } from '../components/PartialDataNotice';
@@ -29,7 +32,8 @@ import { useGcEventRefresh } from '../hooks/useGcEvents';
 // latest force-refresh — no last-write-wins race between concurrent
 // mount-GET and event-driven POST.
 //
-// Live updates: useGcEventRefresh subscribes to /api/events/stream and
+// Live updates: useGcEventRefresh subscribes to the direct supervisor city
+// event stream and
 // fires onMatch when a bead.* event arrives. The hook coalesces its
 // own bursts to ~1 fire per 2.5s; we layer a 10s in-component debounce
 // floor on top because runs refresh triggers a full upstream
@@ -49,6 +53,7 @@ const HISTORY_QUERY_PARAM = 'history';
 const HISTORY_QUERY_VALUE = '1';
 
 export function RunsPage() {
+  const attention = useAttentionModel();
   const { data, loading, error, refresh } = useCachedData(
     "snapshot",
     () => api.snapshot(),
@@ -113,6 +118,10 @@ export function RunsPage() {
   }, [refresh]);
 
   const sseState = useGcEventRefresh([GC_EVENT_PREFIX.bead], onSseMatch);
+  const runAttentionSeverity = useCallback(
+    (lane: RunLane) => resourceAttentionSeverity(attention, 'runs', lane.id),
+    [attention],
+  );
 
   const synopsis = runSynopsis(data);
 
@@ -193,7 +202,12 @@ export function RunsPage() {
       {data === undefined || runs === null ? (
         <p className="text-body text-fg-muted italic">Loading formula runs.</p>
       ) : (
-        <RunMap source={runs} now={now} showHistory={showHistory} />
+        <RunMap
+          source={runs}
+          now={now}
+          showHistory={showHistory}
+          attentionSeverity={runAttentionSeverity}
+        />
       )}
     </section>
   );

@@ -128,8 +128,9 @@ npm --workspace shared run build    # types only (build:shared also at root)
 
 `scripts/snap-peek.mjs --test` is the regression guard for the Peek modal — it
 catches transparency regressions (the modal must render opaque against the
-scrim, per `Modal.tsx`) and CSRF / Vite-changeOrigin regressions (the POST to
-`/api/sessions/<id>/peek` must return 200, not 403).
+scrim, per `Modal.tsx`) and direct-supervisor transcript regressions (the
+browser must fetch `/gc-supervisor/v0/city/<city>/session/<id>/transcript`,
+not the deleted dashboard `/api/.../sessions/<id>/peek` mirror).
 
 ```bash
 # Backend + frontend must both be up:

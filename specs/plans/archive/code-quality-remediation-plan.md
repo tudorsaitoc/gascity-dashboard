@@ -354,7 +354,12 @@ These are current, validated against `main` after the earlier completed workstre
 
 #### WS-18 — Split bead close from agent nudge  *(TN backend behavior bug)*
 
-- **Implementation status (2026-06-01):** Complete. The exec layer now exposes `execCloseBead(beadId, reason, cityPath)` and `execNudgeAgent(alias, cityPath)` as separate wrappers. The nudge route keeps the bead id as route/audit context but requires an explicit agent alias in the request body, and the Beads page sends the row assignee alias. Focused backend tests prove the nudge runner receives the alias, not the bead id.
+- **Archived status (2026-06-01):** Superseded by the direct-supervisor
+  migration plan. Bead close moved out of the dashboard service after `GC-10`;
+  nudge remains temporary dashboard-service migration debt until `GC-11` adds a
+  supervisor HTTP endpoint. The historical "split the combined exec helper"
+  guidance below remains useful only as context for why nudge must not overload
+  bead ids as agent aliases.
 - **Why:** The API path says "nudge this bead", the backend route validates a bead ID, and the exec layer then treats the same value as an agent alias. That is both a behavior bug and a bad abstraction: two different command domains are forced through one function.
 - **Evidence:** Frontend posts `api.nudgeBead(bead.id)` at `frontend/src/api/client.ts:452` and `frontend/src/routes/Beads.tsx:117`; the route validates the path param as a bead ID at `backend/src/routes/beads.ts:230`; `execBeadAction(beadId, 'nudge')` then validates that same value as an agent alias at `backend/src/exec.ts:118`.
 - **Change:** Replace `execBeadAction(beadId, action)` with `execCloseBead(beadId, reason, deps)` and `execNudgeAgent(alias, deps)`. The nudge endpoint should pass an explicit assignee/alias in the body or route to a clearly named agent endpoint; do not overload bead IDs as aliases.

@@ -1,4 +1,7 @@
-import type { GcAgent, GcBead, GcMailItem, GcSession } from 'gas-city-dashboard-shared';
+import type { GcSession } from 'gas-city-dashboard-shared';
+import type { AgentResponse } from '../generated/gc-supervisor-client/types.gen';
+import type { SupervisorBead } from '../supervisor/beadReads';
+import type { SupervisorMailItem } from '../supervisor/mailReads';
 
 // Per-source project derivation. There is no explicit project field
 // on any of the three wire shapes, so we derive from observable
@@ -23,7 +26,7 @@ import type { GcAgent, GcBead, GcMailItem, GcSession } from 'gas-city-dashboard-
 
 const BEAD_ID_RX = /^(.+?)-[a-z0-9]+(?:\.\d+)?$/i;
 
-export function beadProject(bead: GcBead): string {
+export function beadProject(bead: SupervisorBead): string {
   const m = BEAD_ID_RX.exec(bead.id);
   return m?.[1] ?? bead.id;
 }
@@ -79,14 +82,14 @@ export function sessionProject(session: GcSession): ProjectBucket {
   return { key: normalizeRigKey(basename), label: basename };
 }
 
-export function mailProject(mail: GcMailItem): string {
+export function mailProject(mail: SupervisorMailItem): string {
   if (mail.rig && mail.rig.length > 0) return mail.rig;
   return '(no rig)';
 }
 
 // ── Agent grouping (gascity-dashboard-ay6) ───────────────────────────────
 //
-// Parallel to the session-derived helpers above. GcAgent has no `template`
+// Parallel to the session-derived helpers above. AgentResponse has no `template`
 // field (which sessionProject uses to detect cross-rig orchestration), so
 // the agent-side analog keys on `name` (the alias) instead. Cross-rig
 // agents — mayor, the global control dispatcher, oversight-rig.chief-of-staff
@@ -102,7 +105,7 @@ const ORCHESTRATION_AGENT_NAMES: ReadonlySet<string> = new Set([
   'oversight-rig.chief-of-staff',
 ]);
 
-export function isOrchestrationAgent(a: GcAgent): boolean {
+export function isOrchestrationAgent(a: AgentResponse): boolean {
   if (a.rig && a.rig.length > 0) return false;
   return ORCHESTRATION_AGENT_NAMES.has(a.name);
 }
@@ -112,12 +115,12 @@ export function isOrchestrationAgent(a: GcAgent): boolean {
  * the dispatcher role. Mirrors `isPerRigDispatcher` for sessions, but keys
  * on the agent's `name` (the alias) rather than `session.alias`.
  */
-export function isPerRigDispatcherAgent(a: GcAgent): boolean {
+export function isPerRigDispatcherAgent(a: AgentResponse): boolean {
   if (!a.rig || a.rig.length === 0) return false;
   return PER_RIG_DISPATCHER_RX.test(a.name);
 }
 
-export function agentProject(agent: GcAgent): ProjectBucket {
+export function agentProject(agent: AgentResponse): ProjectBucket {
   if (isOrchestrationAgent(agent)) {
     return { key: ORCHESTRATION_PROJECT, label: ORCHESTRATION_PROJECT };
   }

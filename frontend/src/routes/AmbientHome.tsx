@@ -5,6 +5,7 @@ import type {
   RunSummary,
 } from 'gas-city-dashboard-shared';
 import { api } from '../api/client';
+import { AttentionSummaryPanel } from '../attention/AttentionSummaryPanel';
 import { PageHeader } from '../components/PageHeader';
 import { ConcernRegion, type ConcernRow } from '../components/ambient/ConcernRegion';
 import { PhaseCensus } from '../components/ambient/PhaseCensus';
@@ -166,14 +167,17 @@ function AmbientBody({ fresh, cycleKey }: BodyProps) {
   return (
     <section>
       <PageHeader title="Home" synopsis={synopsis} />
-      <div className="mt-6 space-y-4">
-        <PhaseCensus
-          census={summary.census.data}
-          waitingCount={countWaiting(summary.lanes)}
-          failingCount={failing}
-        />
-        {top !== undefined && <StatusSentence topConcern={top} />}
-        <ConcernRegion rows={rows} />
+      <div className="mt-6 space-y-6">
+        <AttentionSummaryPanel />
+        <div className="space-y-4">
+          <PhaseCensus
+            census={summary.census.data}
+            waitingCount={countWaiting(summary.lanes)}
+            failingCount={failing}
+          />
+          {top !== undefined && <StatusSentence topConcern={top} />}
+          <ConcernRegion rows={rows} />
+        </div>
       </div>
     </section>
   );
