@@ -1,8 +1,9 @@
 # GC Supervisor API Gap Analysis For Future Dashboard Work
 
-Date: 2026-05-31
+Date: 2026-06-01
 Status: Consolidated from current architecture and remediation specs; extended
-with `gc` CLI-elimination gaps (GC-10..GC-12)
+with `gc` CLI-elimination gaps (GC-10..GC-12) and the direct-supervisor
+dashboard replacement direction
 
 ## Purpose
 
@@ -13,17 +14,19 @@ into `gastownhall/gascity` before it becomes the future `gc dashboard`.
 It is separate from `specs/feature-gap-analysis.md`: that file tracks features
 present in the legacy built-in dashboard but missing from this standalone
 dashboard. This file tracks upstream data/API capabilities needed so the
-standalone dashboard can delete local derivation, temporary adapters, and broad
-refresh behavior, and so it can reach Gas City **exclusively through the
-supervisor API**.
+standalone dashboard can delete local derivation, temporary adapters, broad
+refresh behavior, and dashboard-server GC proxy routes, and so the browser can
+reach Gas City **directly through the supervisor API** for every GC-owned
+resource.
 
 A goal of this work: the dashboard service **never invokes `gc` commands as a
-subprocess** — every supervisor operation, read or write, goes through the
-supervisor HTTP/WS API. The backend's only remaining subprocesses are
-host-local evidence the supervisor does not own (`git` diffs/log, `gh`
-maintainer triage), never `gc` itself. The three `gc` CLI calls that exist
-today (GC-10..GC-12) are tracked here as supervisor-API holes to close, not as
-accepted behavior.
+subprocess** and does not own GC DTOs. Every supervisor operation, read or
+write, goes through the supervisor HTTP/WS API from the browser-generated
+client whenever browser transport allows. The backend's only remaining
+subprocesses are host-local evidence the supervisor does not own (`git`
+diffs/log, `gh` maintainer triage), never `gc` itself. The three `gc` CLI calls
+that exist today (GC-10..GC-12) are tracked here as supervisor-API holes to
+close, not as accepted behavior.
 
 This repo should not patch `~/Code/gastownhall/gascity` as part of dashboard
 work. When a gap below is hit, document it here, keep the dashboard behavior
@@ -37,7 +40,7 @@ Sources consolidated:
 - `specs/plans/code-quality-remediation-plan.md`
 - archived run-detail planning notes under `specs/plans/archive/`
 - current dashboard implementation constraints implied by generated supervisor
-  client usage and Formula Run Detail projection
+  client usage, direct browser use, and Formula Run Detail projection
 - backend `gc` CLI subprocess wrappers in `backend/src/exec.ts` and their
   routes (`backend/src/routes/beads.ts`, `backend/src/routes/agents.ts`)
 
@@ -48,6 +51,8 @@ Validation rules:
   package.
 - Dashboard-only presentation, routing, styling, local git diff behavior, and
   frontend ergonomics stay out of this file.
+- Dashboard-server proxy convenience also stays out unless the supervisor lacks
+  a browser-safe API capability. Transport is not a data/API gap.
 - Existing `gc.*` metadata is treated as authoritative data. The gap is not
   "metadata is weak"; the gap is where the supervisor omits a canonical field,
   leaves a presentation shape empty, fails to attach identity to every event,
@@ -85,8 +90,8 @@ Highest-impact upstream work:
    robust ambient staleness detection.
 7. Provide HTTP equivalents for the three operations the backend still shells
    out to the `gc` CLI for — bead close-with-reason, agent nudge, and agent
-   prime — so the dashboard service can reach Gas City exclusively through the
-   supervisor API and stop invoking `gc` as a subprocess.
+   prime — so the browser can reach Gas City through the supervisor API and the
+   dashboard service can stop invoking `gc` as a subprocess.
 
 ## Gap Matrix
 
@@ -216,13 +221,14 @@ Why:
 
 Current state:
 
-- The dashboard generates a backend-only supervisor SDK, types, and Zod
-  response validators from the committed OpenAPI.
+- The dashboard currently generates supervisor SDK/types/validators from the
+  committed OpenAPI for backend use, and the migration target adds a
+  browser-consumable generated supervisor client.
 - The committed dashboard schema has been corrected enough for current
   validators to run, but the upstream Gas City Huma/OpenAPI source still needs
   source-of-truth fixes.
 - Temporary dashboard DTO normalization remains in `gc-supervisor-decoders.ts`
-  until generated validators plus typed DTO mapping can replace it.
+  until direct browser use and generated types delete the mirror layer.
 
 Needed upstream change:
 
@@ -304,15 +310,16 @@ Why:
 
 ## CLI-Backed Operations Requiring HTTP Equivalents
 
-The dashboard backend reaches the supervisor over HTTP for every read and for
-the claim, sling, and mail-send writes. Three operations remain on the `gc` CLI
-(`backend/src/exec.ts`, via `runExec('gc', ...)`) because the supervisor HTTP
-API has no equivalent today. These are the **complete set** of `gc` subprocess
-calls in the backend: closing GC-10, GC-11, and GC-12 removes the dashboard's
-`gc` CLI dependency entirely and satisfies the goal that the dashboard service
-always reaches Gas City through the API. (The remaining `git`/`gh` subprocesses
-are host-local evidence the supervisor does not own and are tracked as
-non-gaps.)
+The current dashboard backend reaches the supervisor over HTTP for every read
+and for the claim, sling, and mail-send writes. The target dashboard reaches
+those same supervisor capabilities from the browser-generated client. Three
+operations remain on the `gc` CLI (`backend/src/exec.ts`, via
+`runExec('gc', ...)`) because the supervisor HTTP API has no equivalent today.
+These are the **complete set** of `gc` subprocess calls in the backend: closing
+GC-10, GC-11, and GC-12 removes the dashboard's `gc` CLI dependency entirely
+and satisfies the goal that the dashboard service never shells out to Gas City.
+(The remaining `git`/`gh` subprocesses are host-local evidence the supervisor
+does not own and are tracked as non-gaps.)
 
 Both the in-process `gc dashboard` and the from-scratch `gasworks-gui`
 ("Mission Control") consumer avoid these CLI calls, but for opposite reasons,
@@ -433,10 +440,12 @@ These are intentionally not tracked as current GC supervisor API gaps:
 Once these upstream gaps are closed and this repo refreshes
 `backend/openapi/gc-supervisor.openapi.json`, the dashboard should:
 
-1. Delete temporary hand-Zod supervisor adapters and any `SchemaOutputFor`
-   machinery that duplicates generated response validation.
-2. Move any remaining raw supervisor mirror types out of `shared`; keep
-   `shared` for dashboard-owned `/api/*` DTOs only.
+1. Delete temporary hand-Zod supervisor adapters, `GcClient` mirror methods,
+   and any `SchemaOutputFor` machinery that duplicates generated response
+   validation.
+2. Move raw supervisor mirror types out of `shared`; keep `shared` for
+   dashboard-owned local service DTOs, UI/module contracts, and local/composed
+   view models only.
 3. Replace local graph.v2 presentation derivation with canonical Gas City or
    shared presentation output.
 4. Remove broad run-detail invalidation for identity-less events.

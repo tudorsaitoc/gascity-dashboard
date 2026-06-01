@@ -4,6 +4,13 @@
 > **Beads in scope:** gascity-dashboard-9yj (P2 modularity), gascity-dashboard-ucc (P2 multi-city, design seams only), gascity-dashboard-dw8 (P3 default view).
 > **Companion file:** `premortem_modular-dashboard.md` — full risk registry + failure narratives.
 
+> **2026-06-01 architecture note:** this PRD predates the direct-supervisor
+> replacement direction. Its module registry and `CityContext` ideas still
+> apply to dashboard-local modules, but `CityContext.gc` and backend-mounted
+> GC data modules are transitional. GC-owned resources should move to the
+> generated browser supervisor client described in
+> [`../plans/direct-supervisor-client-migration.md`](../plans/direct-supervisor-client-migration.md).
+
 ## Pipeline resolutions applied
 
 This PRD has been through 3 refinement passes. Resolutions:
@@ -14,7 +21,9 @@ This PRD has been through 3 refinement passes. Resolutions:
 - Frontend registry + `/api/config.enabledModules` hierarchically (fail-soft on mismatch).
 - `defaultRoute: true` descriptor flag + `DEFAULT_VIEW` env override (env wins).
 - Audience hypothesis: scheduled bead + CI gate, not human-memory revisit.
-- `CityContext.gc` is raw `GcClient` in Phase 1 with JSDoc seam flag.
+- `CityContext.gc` was raw `GcClient` in Phase 1 with JSDoc seam flag. Under
+  the direct-supervisor direction, this is migration debt for GC-owned
+  resources, not a target module dependency.
 
 **Premortem (/premortem — 6 failure lenses → 6 PRD changes):**
 - **`needs` is REQUIRED (not optional)** + iterator uses existential `bind<D>()` wrapper, **no `as never`** anywhere. Boot-time validation enforces.
@@ -40,7 +49,7 @@ The dashboard ships three contradictions:
 
 - **G1 (Phase 1):** Replace the three parallel view registries with a single `ViewDescriptor` + `BackendModule` contract **exported from `shared/`**. The compile-time edit IS the design-review checkpoint.
 - **G2 (Phase 1):** Make Maintainer opt-in via `MODULES_ENABLED` env. Default install has no `/maintainer` nav, no `/maintainer` route, no Maintainer worker, no Maintainer cache I/O.
-- **G3 (Phase 1):** Introduce `CityContext` as the city-scoping seam at module mount time so `ucc` (Phase 2) does not require re-signing every router factory. Acceptance includes a two-CityContext smoke test against real (non-mocked) `GcClient`.
+- **G3 (Phase 1):** Introduce `CityContext` as the city-scoping seam at module mount time so `ucc` (Phase 2) does not require re-signing every router factory. Acceptance includes a two-CityContext smoke test against real (non-mocked) `GcClient` for the legacy backend GC facade. Under the direct-supervisor migration, new GC-owned module data should use the generated browser supervisor client instead.
 - **G4 (Phase 1):** Preserve every existing primary value loop. No regressions to the snap harness, the One Mark Rule, any DESIGN.md invariant.
 - **G5 (Phase 2, gated on outcome):** Implement multi-city. **Trigger: a documented Phase-1 contract limitation in a bead.**
 - **G6 (Phase 3, sketched only):** Open the contract to third-party modules. **Trigger softened (premortem #6):** a single external operator filing a non-fork extension request OPENS a Phase 2/3 design bead. Two-signal gates where signal #1 is told to wait don't generate signal #2.
@@ -49,7 +58,10 @@ The dashboard ships three contradictions:
 
 - Runtime module loader, frontend CDN, third-party signing, marketplace, sandbox isolation, descriptor-level permission grants, per-tab-per-city UX, cross-module event bus, `/modules` admin view.
 - Migrating Mail, Beads, Activity, or any other core view to a module in this PRD. Only Maintainer.
-- Replacing `shared/` as wire-shape SSOT, Layout/Header/NowProvider/ViewingAsProvider editorial frame, or `app.listen(...,'127.0.0.1',...)` network surface.
+- Replacing `shared/` as the dashboard-local service/UI contract package,
+  Layout/Header/NowProvider/ViewingAsProvider editorial frame, or
+  `app.listen(...,'127.0.0.1',...)` network surface. `shared/` is no longer the
+  target SSOT for supervisor wire shapes; generated supervisor OpenAPI types are.
 
 ## 1. Plugin API surface (Phase 1)
 
@@ -109,10 +121,10 @@ export interface CityContext {
    *  #5 found (per-city MaintainerRefresher writing the same global path). */
   cityDataDir: string
   /**
-   * Raw GcClient. Phase 1: full surface. Phase 2: per-city-instantiated;
-   * modules MUST NOT assume singleton pooling, rate-limit sharing, or
-   * cross-city cache state. Phase 3 may narrow to a capability-scoped
-   * wrapper for third-party modules — see future bead.
+   * Transitional raw GcClient for backend modules that have not yet moved to
+   * the direct browser supervisor client. Do not add new GC-owned module data
+   * dependencies here; add supervisor OpenAPI and frontend generated-client
+   * calls instead.
    */
   gc: GcClient
   config: DashboardRuntimeConfig

@@ -1,8 +1,10 @@
 # Formula Run Detail Type Architecture
 
 Status: product naming boundary documented, current implementation aligned
-with dashboard run/formula-run vocabulary, and upstream GC supervisor gaps
-centralized in [`../gc-supervisor-api-gaps.md`](../gc-supervisor-api-gaps.md).
+with dashboard run/formula-run vocabulary, upstream GC supervisor gaps
+centralized in [`../gc-supervisor-api-gaps.md`](../gc-supervisor-api-gaps.md),
+and target architecture reset to direct browser use of the generated supervisor
+client wherever the supervisor can own the data.
 
 Primary implementation files:
 
@@ -34,9 +36,12 @@ supervisor-facing pieces into one display-ready projection:
 - execution folder identity
 - aggregate progress counts
 
-The frontend should not infer run semantics from raw beads, raw sessions,
-raw dependency rows, or formula files. The backend owns that interpretation and
-returns a single, browser-safe Formula Run Detail DTO.
+The frontend should not infer run semantics from raw strings or formula files.
+Target ownership is: the supervisor or a shared Gas City presentation package
+owns canonical graph/run semantics; the browser consumes generated supervisor
+types directly; dashboard code derives only the view model still missing from
+the supervisor contract. The dashboard service should not be the permanent
+Formula Run Detail DTO translation layer.
 
 The product vocabulary is:
 
@@ -56,8 +61,10 @@ tests, scripts, CSS classes, and fixtures use run/formula-run vocabulary.
 Dashboard-facing names:
 
 - Browser routes are `/runs` and `/runs/:runId`.
-- Backend dashboard routes are `/api/runs/:runId` and
-  `/api/runs/:runId/diff`.
+- Transitional backend dashboard routes are `/api/runs/:runId` and
+  `/api/runs/:runId/diff`. Target state moves the run snapshot/detail inputs
+  to the generated supervisor client and keeps only local git diff evidence on
+  the dashboard service.
 - UI page copy says **Formula Run**.
 - Dashboard DTO identity is `runId`.
 - There are no dashboard `/workflows` routes or legacy redirects.
@@ -74,25 +81,17 @@ Supervisor-facing names:
   `gc.kind: "workflow"` because that is supervisor graph metadata, not
   product copy.
 
-`GcClient` is the naming translation edge. It must call the supervisor's
-`workflow/{workflow_id}` endpoint, validate `WorkflowSnapshotResponse`, and
-normalize that payload to the dashboard-internal `GcRunSnapshot.run_id` shape
-before any route, enrichment, or React code sees it. Likewise, event identity
-collection must normalize `workflow_id`/`gc.workflow_id` into run identity.
+During migration, `GcClient` is the backend naming translation edge. In the
+target architecture, the generated browser supervisor client calls the
+supervisor's `workflow/{workflow_id}` endpoint directly. Dashboard run/formula
+vocabulary is then a view-model concern at the browser edge or in a shared Gas
+City presentation package, not a permanent dashboard-server DTO layer.
 
-`GcClient` is a thin policy facade over a **generated** supervisor SDK, not a
-hand-written HTTP client. The supervisor client, endpoint SDK, and
-request/response types are generated from
-`backend/openapi/gc-supervisor.openapi.json` by `@hey-api/openapi-ts` (the same
-generator the upstream `gc dashboard` uses). `GcClient` owns only what the
-generator cannot: single-flight URL-keyed coalescing, topology-safe error
-redaction, timeouts/output caps, the `workflow_id → run_id` vocabulary
-normalization, and sane method names. Strict generated Zod response validation
-is enabled through the generated SDK. The legacy hand-Zod module is now only a
-temporary dashboard DTO adapter/normalizer over generated hey-api response
-types and should not remain a second schema authority. The migration and its
-remaining cleanup live in `specs/plans/code-quality-remediation-plan.md`
-(WS-10).
+Any temporary backend normalization of `workflow_id → run_id` must have a
+deletion condition tied to
+[`../plans/direct-supervisor-client-migration.md`](../plans/direct-supervisor-client-migration.md)
+and the upstream gaps in
+[`../gc-supervisor-api-gaps.md`](../gc-supervisor-api-gaps.md).
 
 ## Design Goals
 
@@ -250,7 +249,13 @@ This split is the load-bearing part of the design. The graph selects semantic
 nodes; the session panel can then expose individual iterations/attempts for the
 selected semantic node.
 
-## Backend Projection
+## Transitional Backend Projection
+
+This section describes current implementation, not the target owner. The
+direct-supervisor migration should move supervisor reads to the browser and
+delete the server-side projection where upstream presentation fields make that
+possible. Until then, this projection is the compatibility layer that keeps the
+page working.
 
 The backend's internal aggregate is `RunningFormulaRun` in
 `backend/src/runs/formula-run.ts`. It is intentionally richer than the
@@ -638,40 +643,41 @@ Local dashboard limitations that are not upstream API gaps:
 
 ## Ideal Target State
 
-The ideal design keeps the same public concept but moves more ownership to
-stable backend boundaries:
+The ideal design keeps the same public concept but moves ownership to the GC
+supervisor or shared Gas City presentation code:
 
-1. Supervisor client generation owns endpoint paths, params, and response
-   shapes. The client, types, and runtime validators are generated from the
-   committed OpenAPI by `@hey-api/openapi-ts` (plugins `client-fetch`,
-   `typescript`, `sdk`, plus the `zod` plugin); `GcClient` is a thin facade for
-   dashboard-only policy (coalescing, redaction, timeouts, `workflow_id → run_id`).
-2. Runtime deserialization at `GcClient` rejects malformed supervisor payloads
-   before run projection sees them, via the generated Zod response validators
-   wired into the SDK (`validator: { response: 'zod' }`) — not hand-written
-   decoders. Schema-accuracy gaps are fixed **upstream in the Gas City OpenAPI
-   source** so generation stays faithful, rather than papered over with a
-   dashboard-side validation overlay; the consolidated list lives in
+1. Browser supervisor client generation owns endpoint paths, params, and
+   response shapes. The client, types, and any runtime validators are generated
+   from supervisor OpenAPI by `@hey-api/openapi-ts`, modeled on the existing
+   `gascity` dashboard.
+2. Runtime deserialization and type accuracy come from generated supervisor
+   OpenAPI artifacts, not hand-written dashboard decoders. Schema-accuracy gaps
+   are fixed **upstream in the Gas City OpenAPI source** so generation stays
+   faithful, rather than papered over with a dashboard-side validation overlay;
+   the consolidated list lives in
    [`../gc-supervisor-api-gaps.md`](../gc-supervisor-api-gaps.md).
 3. Gas City or a shared presentation package owns graph.v2 display semantics:
    semantic nodes, logical edges, scope groups, display graph, loop/retry
    collapsing, and session-link hints.
-4. The dashboard backend maps that canonical presentation data into
-   `RunningFormulaRun`, adds dashboard-local evidence such as git diff and
-   transcript streamability, then emits Formula Run Detail.
+4. Dashboard frontend hooks/selectors map canonical presentation data into the
+   page view model. Dashboard-local evidence such as git diff remains a separate
+   dashboard-service resource.
 5. The detail page subscribes to city events only as refresh invalidation,
    filters by canonical run/root event identity when present, coalesces
-   refreshes, and always re-renders from a newly fetched Formula Run Detail.
+   refreshes, and re-renders from newly fetched supervisor data plus local diff
+   evidence.
 6. Session transcript streaming remains separate from graph projection refresh,
    but selected-node session availability is refreshed by the detail projection
    when bead/session events arrive.
 
 ## Invariants
 
-- Formula Run Detail is dashboard-owned. Do not expose raw supervisor run
-  snapshots directly to React for run detail rendering.
-- `RunningFormulaRun` is the single backend aggregation point for run-detail
-  state.
+- Formula Run Detail presentation is dashboard-owned until the supervisor or a
+  shared Gas City presentation package exposes a canonical display shape. Do not
+  create a permanent dashboard-server wire contract for supervisor snapshots.
+- `RunningFormulaRun` is the current backend aggregation point for run-detail
+  state; the direct-supervisor migration should delete or shrink it as upstream
+  presentation fields land.
 - `RunDisplayNode.id` is the semantic node id used by selection and graph
   rendering.
 - `RunDisplayNode.executionInstances` are the only place loop iterations
@@ -694,12 +700,11 @@ stable backend boundaries:
 - Evidence-tab selection is explicit user state. It is driven only by user
   clicks and route initialization, never derived from node selection.
 - The supervisor client, types, and runtime response validators are generated
-  from the committed OpenAPI by `@hey-api/openapi-ts`. `GcClient` is a thin
-  policy facade; it does not hand-roll HTTP or per-endpoint response
-  validation. Any remaining hand code at this boundary must be explicit
-  dashboard DTO mapping/normalization, not an independent schema authority.
-  Supervisor schema-accuracy fixes belong upstream in the Gas City OpenAPI
-  source, not in a dashboard-side validation overlay.
+  from OpenAPI by `@hey-api/openapi-ts`. Browser-facing supervisor resources use
+  that client directly. Any remaining backend hand code at this boundary is
+  transitional and must not become an independent schema authority. Supervisor
+  schema-accuracy fixes belong upstream in the Gas City OpenAPI source, not in a
+  dashboard-side validation overlay.
 
 ## Architectural Risks
 
