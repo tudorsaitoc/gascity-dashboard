@@ -6,8 +6,9 @@ import { fileURLToPath } from 'node:url';
 const SAFE_ID = /^[A-Za-z0-9._-]+$/;
 const SAFE_PATH = /^[A-Za-z0-9._/-]+$/;
 
-// peek-run.sh lives next to this workspace's src/ (tui/peek-run.sh).
+// Helper scripts live next to this workspace's src/ (tui/*.sh).
 const RUN_SCRIPT = fileURLToPath(new URL('../peek-run.sh', import.meta.url));
+const AGENT_SCRIPT = fileURLToPath(new URL('../peek-agent.sh', import.meta.url));
 
 export function insideTmux(): boolean {
   return Boolean(process.env.TMUX);
@@ -47,7 +48,9 @@ export function buildCommand(req: PeekRequest): string | { error: string } {
   const root = req.cityRoot;
   switch (req.kind) {
     case 'agent':
-      return `gc --city ${root} session logs ${req.id} -f; exec $SHELL`;
+      // peek-agent.sh follows the transcript if one exists, else watches pane
+      // snapshots (works for non-transcript sessions like dispatchers).
+      return `bash '${AGENT_SCRIPT}' '${root}' '${req.id}'`;
     case 'bead':
       return `gc --city ${root} bd show ${req.id}; exec $SHELL`;
     case 'run':
