@@ -49,13 +49,14 @@ export interface DashboardRuntimeConfig {
   cityRoot: string;
   useFixtures: boolean;
   /**
-   * Operator-enabled `firstParty` module ids (PRD §2 / bead 9yj.5).
-   * `null` = unset, i.e. ALL firstParty modules are enabled (backwards-compat
-   * default — preserves pre-PR-C behaviour). `[]` = explicitly disabled all
-   * firstParty modules. A CSV-ish set like `['health','maintainer']` enables
-   * exactly those firstParty ids. `core` modules are ALWAYS mounted and never
-   * appear in this filter — operators cannot disable a core module by leaving
-   * it off this list.
+   * Resolved `firstParty` module ids that are mounted (PRD §2 / bead 9yj.5).
+   * The backend always emits an explicit array — `[]` for a core-only
+   * default install (PR-D), or e.g. `['maintainer']` when opted in via
+   * `MODULES_ENABLED`. `core` modules are ALWAYS mounted and never appear
+   * in this list — operators cannot disable a core module.
+   *
+   * `null` remains in the type only for the frontend's pre-load state
+   * (config not yet fetched), which the frontend treats as core-only.
    *
    * The frontend's view registry filters `ALL_VIEWS` by this set so a
    * backend-disabled module's route does not render a React Router 404; the

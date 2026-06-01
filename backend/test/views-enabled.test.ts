@@ -29,9 +29,9 @@ const registry: ReadonlyArray<BackendModule<unknown>> = [
 ];
 
 describe('resolveEnabledFirstPartyIds', () => {
-  test('null env → every firstParty id enabled (backwards-compat default)', () => {
+  test('null env (unset) → no firstParty ids enabled — core-only default (PR-D)', () => {
     const enabled = resolveEnabledFirstPartyIds(registry, null);
-    assert.deepEqual([...enabled].sort(), ['maintainer', 'something']);
+    assert.equal(enabled.size, 0);
   });
 
   test('empty set env → no firstParty ids enabled', () => {

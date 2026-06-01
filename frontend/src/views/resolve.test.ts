@@ -63,9 +63,9 @@ const descriptorWithLegacyPaths = {
 void descriptorWithLegacyPaths;
 
 describe('filterEnabledViews', () => {
-  it('returns the full list when enabledModules is null (backwards-compat default)', () => {
+  it('keeps only core views when enabledModules is null (unset/not-yet-loaded → core-only, PR-D)', () => {
     const result = filterEnabledViews([core, maintainer], null);
-    expect(result.map((v) => v.id)).toEqual(['health', 'maintainer']);
+    expect(result.map((v) => v.id)).toEqual(['health']);
   });
 
   it('keeps core views even when enabledModules is the empty set', () => {

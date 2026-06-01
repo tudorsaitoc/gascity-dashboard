@@ -94,15 +94,15 @@ export interface AdminConfig {
   useFixtures: boolean;
   /**
    * Operator-enabled `firstParty` module ids (PRD §2, bead 9yj.5).
-   * `null` = unset, i.e. ALL firstParty modules mount (backwards-compat
-   * with pre-PR-C behaviour). An EMPTY set = no firstParty modules mount.
-   * Non-empty = exactly those `firstParty` ids mount. `core` modules
-   * ignore this filter entirely.
+   * `null` = unset, resolved to core-only — NO firstParty modules mount
+   * (PR-D: a default install is general-purpose, Triage et al. are opt-in).
+   * An EMPTY set = same effect, reached explicitly. Non-empty = exactly
+   * those `firstParty` ids mount. `core` modules ignore this filter.
    *
-   * The wire-shape `DashboardRuntimeConfig.enabledModules` mirrors this
-   * field as `string[] | null` so the frontend can apply the same filter
-   * to `ALL_VIEWS` (otherwise a backend-disabled module's path 404s in
-   * React Router).
+   * The wire-shape `DashboardRuntimeConfig.enabledModules` mirrors the
+   * RESOLVED firstParty id list (always an explicit array, never null) so
+   * the frontend applies the same membership filter to `ALL_VIEWS`
+   * (otherwise a backend-disabled module's path 404s in React Router).
    *
    * Env: `MODULES_ENABLED` (CSV — `MODULES_ENABLED=health,maintainer`).
    * Whitespace tolerated around each entry; empty entries dropped. Casing
@@ -123,9 +123,11 @@ export interface AdminConfig {
 
 /**
  * Parse `MODULES_ENABLED` CSV per the AdminConfig.enabledModules contract.
- * Returns `null` when the env is UNSET (preserves pre-PR-C behaviour);
- * returns an empty set when the env is the empty string (operator explicitly
- * disables all firstParty modules); returns a populated set otherwise.
+ * Returns `null` when the env is UNSET; returns an empty set when the env
+ * is the empty string; returns a populated set otherwise. Note: `null`
+ * (unset) and the empty set both resolve to core-only downstream (PR-D) —
+ * the distinction is kept here only so callers can tell "operator said
+ * nothing" from "operator explicitly cleared the list".
  *
  * Whitespace around each entry is trimmed; empty entries (from leading /
  * trailing / doubled commas) are dropped. Casing is preserved — module ids

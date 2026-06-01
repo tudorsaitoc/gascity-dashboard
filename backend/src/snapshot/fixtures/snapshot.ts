@@ -55,7 +55,11 @@ export const fixtureSnapshot = {
     cityName: 'example-city',
     cityRoot: '/tmp/example-city',
     useFixtures: true,
-    enabledModules: null,
+    // Fixtures explicitly opt the maintainer (Triage) module in so the
+    // fixture-driven dev/snapshot surface still exercises it after the
+    // core-only default flip (PR-D); a real install must opt in via
+    // MODULES_ENABLED.
+    enabledModules: ['maintainer'],
     defaultView: null,
   },
   headline: {

@@ -195,7 +195,7 @@ describe('MAINTAINER_REPO deprecation warning is warn-once per process', () => {
 });
 
 describe('parseModulesEnabled (PR-C / bead 9yj.5)', () => {
-  test('returns null when env is unset — preserves "all firstParty enabled" default', () => {
+  test('returns null when env is unset — distinct from explicit-empty; both resolve core-only (PR-D)', () => {
     assert.equal(parseModulesEnabled(undefined), null);
   });
 

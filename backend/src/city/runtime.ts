@@ -79,8 +79,10 @@ export function createCityRuntime(opts: CreateCityRuntimeOptions): CityRuntime {
     cityName,
     cityRoot: cityPath,
     useFixtures: config.useFixtures,
-    enabledModules:
-      config.enabledModules === null ? null : [...enabledFirstPartyIds],
+    // Always emit the explicit resolved firstParty id list (possibly empty)
+    // so the wire is unambiguous and the frontend filter never has to guess
+    // what an unset env meant. Core-only default (PR-D) surfaces as `[]`.
+    enabledModules: [...enabledFirstPartyIds],
     defaultView: config.defaultView,
   };
 

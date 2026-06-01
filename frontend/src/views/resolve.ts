@@ -21,16 +21,18 @@ import { NEEDS_YOU_VIEW_PARAM } from './modules/maintainer/needsYou';
  * Filter `ALL_VIEWS` down to what should mount in this deployment.
  *
  *   - `core` views always mount (operators cannot disable a core view).
- *   - When `enabledModules` is `null` (env unset), every `firstParty` view
- *     also mounts — preserves pre-PR-C behaviour.
+ *   - When `enabledModules` is `null` (config not yet loaded), only `core`
+ *     views mount — a default install is core-only (PR-D), so the
+ *     pre-load state matches the steady state and no firstParty nav
+ *     flashes in then disappears. The backend always sends an explicit
+ *     list, so `null` here only ever means "config still loading".
  *   - When `enabledModules` is a list, only those `firstParty` ids mount.
  */
 export function filterEnabledViews(
   views: ReadonlyArray<FrontendViewDescriptor>,
   enabledModules: ReadonlyArray<string> | null,
 ): ReadonlyArray<FrontendViewDescriptor> {
-  if (enabledModules === null) return views;
-  const enabled = new Set(enabledModules);
+  const enabled = new Set(enabledModules ?? []);
   return views.filter((v) => v.kind === 'core' || enabled.has(v.id));
 }
 

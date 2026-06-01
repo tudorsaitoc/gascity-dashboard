@@ -13,8 +13,9 @@ import { LOG_COMPONENT, logWarn } from '../logging.js';
  * Given the registry's modules and the parsed `enabledModules` env value,
  * return the set of `firstParty` module ids that SHOULD mount.
  *
- *   - `enabled === null` (env unset): every `firstParty` id is enabled
- *     (preserves pre-PR-C behaviour).
+ *   - `enabled === null` (env unset): no `firstParty` ids are enabled —
+ *     a default install is core-only (PR-D). firstParty modules (e.g.
+ *     maintainer/Triage) require an explicit `MODULES_ENABLED` opt-in.
  *   - `enabled` is an empty set: no `firstParty` ids are enabled.
  *   - `enabled` is non-empty: every member that matches a `firstParty` id
  *     in the registry is enabled. Members that name a `core` id are
@@ -31,7 +32,7 @@ export function resolveEnabledFirstPartyIds(
   const firstPartyIds = new Set(
     registry.filter((m) => m.kind === 'firstParty').map((m) => m.id),
   );
-  if (enabled === null) return firstPartyIds;
+  if (enabled === null) return new Set();
 
   const coreIds = new Set(
     registry.filter((m) => m.kind === 'core').map((m) => m.id),
