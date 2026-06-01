@@ -81,6 +81,12 @@ export interface AdminConfig {
    * MAINTAINER_REFRESH_INTERVAL_MS, MAINTAINER_SLING_TARGET,
    * MAINTAINER_TRIAGE_TARGET. `MAINTAINER_REPO` is a deprecated alias for
    * MAINTAINER_GITHUB_REPO (warn-once at boot).
+   *
+   * A slice's env is read ONLY when its module is enabled. A disabled
+   * maintainer gets an inert default slice and reads none of its
+   * MAINTAINER_* env (no deprecation warn either) — the host carries no
+   * opt-out module state derived from operator env (bead
+   * gascity-dashboard-nged / audit C6).
    */
   modules: ModulesConfig;
   /**
@@ -204,6 +210,14 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): AdminConfig {
       `Invalid GC_CITY_NAME: "${cityName}" — must be alphanumeric with hyphens, no path separators or leading/trailing hyphen`,
     );
   }
+  // Resolve module-enable up front so a DISABLED maintainer reads none of its
+  // MAINTAINER_* env (and fires no deprecation warn) at boot — the host must
+  // not parse an opt-out module's surface (bead gascity-dashboard-nged /
+  // audit C6). `enabledModules` is null (unset → core-only, PR-D) or an
+  // explicit set; maintainer is firstParty, so it is enabled iff the set
+  // names it.
+  const enabledModules = parseModulesEnabled(env.MODULES_ENABLED);
+  const maintainerEnabled = enabledModules?.has('maintainer') ?? false;
   return {
     port,
     bindHost: parseBindHost(env.HOST),
@@ -216,10 +230,12 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): AdminConfig {
     frontendDistPath: env.ADMIN_FRONTEND_DIST ?? '../frontend/dist',
     disabled: env.ADMIN_DASHBOARD_DISABLED === '1',
     modules: {
-      maintainer: loadMaintainerModuleConfig(env),
+      maintainer: maintainerEnabled
+        ? loadMaintainerModuleConfig(env)
+        : defaultMaintainerModuleConfig(),
     },
     useFixtures: env.SNAPSHOT_USE_FIXTURES === '1',
-    enabledModules: parseModulesEnabled(env.MODULES_ENABLED),
+    enabledModules,
     // DEFAULT_VIEW: pass through verbatim. Validation (unknown id, disabled
     // module) lives on the frontend's resolver so the warn is emitted in the
     // same console where the operator sees the dashboard load. The backend
@@ -247,12 +263,38 @@ export function __resetMaintainerAliasWarnState(): void {
   warnedLegacyAliasUsed = false;
 }
 
+/** Maintainer slice defaults, shared by the inert (disabled) slice and the
+ *  env-driven loader so the two can never drift. */
+const DEFAULT_MAINTAINER_REPO = 'gastownhall/gascity';
+const DEFAULT_MAINTAINER_TARGET = 'mayor';
+const DEFAULT_MAINTAINER_REFRESH_MS = 6 * 60 * 60 * 1_000;
+
+/**
+ * Inert maintainer slice used when the module is NOT enabled. Reads no env
+ * and fires no deprecation warn, so a disabled maintainer leaves no trace at
+ * boot (bead gascity-dashboard-nged / audit C6). The slice stays present so
+ * `AdminConfig.modules.maintainer` keeps its non-optional type, but it is
+ * never consumed because the module isn't bound.
+ */
+function defaultMaintainerModuleConfig(): MaintainerModuleConfig {
+  return {
+    githubRepo: DEFAULT_MAINTAINER_REPO,
+    slingTarget: DEFAULT_MAINTAINER_TARGET,
+    triageTarget: DEFAULT_MAINTAINER_TARGET,
+    refreshIntervalMs: DEFAULT_MAINTAINER_REFRESH_MS,
+  };
+}
+
 /**
  * Resolve the maintainer module's config slice from env. Implements the
  * MAINTAINER_REPO → MAINTAINER_GITHUB_REPO migration per audit-C8: the
  * new name wins; the legacy name still works but emits a single warn at
  * boot so operators know to rename. When BOTH are set, MAINTAINER_GITHUB_REPO
  * takes precedence and the legacy value is logged as ignored.
+ *
+ * Only called when the maintainer module is enabled — see loadConfig's
+ * `maintainerEnabled` gate. A disabled install uses
+ * `defaultMaintainerModuleConfig()` and reads none of this env.
  */
 function loadMaintainerModuleConfig(env: NodeJS.ProcessEnv): MaintainerModuleConfig {
   const newRepo = env.MAINTAINER_GITHUB_REPO;
@@ -277,23 +319,23 @@ function loadMaintainerModuleConfig(env: NodeJS.ProcessEnv): MaintainerModuleCon
       );
     }
   } else {
-    githubRepo = 'gastownhall/gascity';
+    githubRepo = DEFAULT_MAINTAINER_REPO;
   }
   const slice: MaintainerModuleConfig = {
     githubRepo,
     slingTarget: parseSlingTarget(
       'MAINTAINER_SLING_TARGET',
       env.MAINTAINER_SLING_TARGET,
-      'mayor',
+      DEFAULT_MAINTAINER_TARGET,
     ),
     triageTarget: parseSlingTarget(
       'MAINTAINER_TRIAGE_TARGET',
       env.MAINTAINER_TRIAGE_TARGET,
-      'mayor',
+      DEFAULT_MAINTAINER_TARGET,
     ),
     refreshIntervalMs: parseIntervalMs(
       env.MAINTAINER_REFRESH_INTERVAL_MS,
-      6 * 60 * 60 * 1_000,
+      DEFAULT_MAINTAINER_REFRESH_MS,
     ),
   };
   if (env.MAINTAINER_CACHE_PATH !== undefined && env.MAINTAINER_CACHE_PATH.length > 0) {

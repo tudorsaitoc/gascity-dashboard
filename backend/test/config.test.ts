@@ -92,18 +92,26 @@ describe('loadConfig', () => {
     );
   });
 
+  // The maintainer slice is only env-driven when the module is ENABLED
+  // (gascity-dashboard-nged / audit C6): a disabled maintainer reads none of
+  // its MAINTAINER_* env. These tests therefore opt the module in via
+  // MODULES_ENABLED=maintainer; the disabled-path defaults are covered by the
+  // 'disabled maintainer reads none of its env' block below.
   test('maintainerTriageTarget defaults to mayor (always-present dispatcher)', () => {
     // gascity-dashboard-cus8: default was 'chief-of-staff' but that role
     // can be suspended in a deployment's agent roster (observed
     // 2026-05-29 with oversight-rig.chief-of-staff: suspended), causing
     // slings to silently fail. mayor is the top-level dispatcher present
     // in every Gas City deployment.
-    const cfg = loadConfig({});
+    const cfg = loadConfig({ MODULES_ENABLED: 'maintainer' });
     assert.equal(cfg.modules.maintainer.triageTarget, 'mayor');
   });
 
   test('maintainerTriageTarget honours MAINTAINER_TRIAGE_TARGET when valid', () => {
-    const cfg = loadConfig({ MAINTAINER_TRIAGE_TARGET: 'project-lead' });
+    const cfg = loadConfig({
+      MODULES_ENABLED: 'maintainer',
+      MAINTAINER_TRIAGE_TARGET: 'project-lead',
+    });
     assert.equal(cfg.modules.maintainer.triageTarget, 'project-lead');
   });
 
@@ -111,19 +119,26 @@ describe('loadConfig', () => {
     // Deployments where chief-of-staff IS provisioned can still opt in.
     // The default change in cus8 is about safe fresh-install behaviour,
     // not about removing chief-of-staff as a valid target.
-    const cfg = loadConfig({ MAINTAINER_TRIAGE_TARGET: 'chief-of-staff' });
+    const cfg = loadConfig({
+      MODULES_ENABLED: 'maintainer',
+      MAINTAINER_TRIAGE_TARGET: 'chief-of-staff',
+    });
     assert.equal(cfg.modules.maintainer.triageTarget, 'chief-of-staff');
   });
 
   test('maintainerTriageTarget warns and falls back on invalid env without a startup crash', () => {
     // Same precedent as maintainerSlingTarget: a typo in one optional env
     // should not dark the dashboard.
-    const cfg = loadConfig({ MAINTAINER_TRIAGE_TARGET: 'bad alias!!' });
+    const cfg = loadConfig({
+      MODULES_ENABLED: 'maintainer',
+      MAINTAINER_TRIAGE_TARGET: 'bad alias!!',
+    });
     assert.equal(cfg.modules.maintainer.triageTarget, 'mayor');
   });
 
   test('maintainerSlingTarget and maintainerTriageTarget resolve independently', () => {
     const cfg = loadConfig({
+      MODULES_ENABLED: 'maintainer',
       MAINTAINER_SLING_TARGET: 'mayor',
       MAINTAINER_TRIAGE_TARGET: 'project-lead',
     });
@@ -132,23 +147,30 @@ describe('loadConfig', () => {
   });
 
   test('modules.maintainer.githubRepo defaults to gastownhall/gascity', () => {
-    const cfg = loadConfig({});
+    const cfg = loadConfig({ MODULES_ENABLED: 'maintainer' });
     assert.equal(cfg.modules.maintainer.githubRepo, 'gastownhall/gascity');
   });
 
   test('modules.maintainer.githubRepo honours MAINTAINER_GITHUB_REPO (the new env name)', () => {
-    const cfg = loadConfig({ MAINTAINER_GITHUB_REPO: 'acme/widget' });
+    const cfg = loadConfig({
+      MODULES_ENABLED: 'maintainer',
+      MAINTAINER_GITHUB_REPO: 'acme/widget',
+    });
     assert.equal(cfg.modules.maintainer.githubRepo, 'acme/widget');
   });
 
   test('modules.maintainer.githubRepo accepts the deprecated MAINTAINER_REPO alias', () => {
     // Backwards-compat: existing operator envs keep working with a warn at boot.
-    const cfg = loadConfig({ MAINTAINER_REPO: 'legacy/repo' });
+    const cfg = loadConfig({
+      MODULES_ENABLED: 'maintainer',
+      MAINTAINER_REPO: 'legacy/repo',
+    });
     assert.equal(cfg.modules.maintainer.githubRepo, 'legacy/repo');
   });
 
   test('MAINTAINER_GITHUB_REPO wins when both are set', () => {
     const cfg = loadConfig({
+      MODULES_ENABLED: 'maintainer',
       MAINTAINER_REPO: 'old/value',
       MAINTAINER_GITHUB_REPO: 'new/value',
     });
@@ -159,13 +181,60 @@ describe('loadConfig', () => {
     // The descriptor uses ctx.cityDataDir as the default; cachePath stays
     // undefined so the maintainer module knows to run the legacy-path
     // migration instead of treating the default as an operator pin.
-    const cfg = loadConfig({});
+    const cfg = loadConfig({ MODULES_ENABLED: 'maintainer' });
     assert.equal(cfg.modules.maintainer.cachePath, undefined);
   });
 
   test('modules.maintainer.cachePath honours MAINTAINER_CACHE_PATH when set', () => {
-    const cfg = loadConfig({ MAINTAINER_CACHE_PATH: '/var/cache/maintainer.json' });
+    const cfg = loadConfig({
+      MODULES_ENABLED: 'maintainer',
+      MAINTAINER_CACHE_PATH: '/var/cache/maintainer.json',
+    });
     assert.equal(cfg.modules.maintainer.cachePath, '/var/cache/maintainer.json');
+  });
+});
+
+describe('disabled maintainer reads none of its env (gascity-dashboard-nged / audit C6)', () => {
+  test('a core-only install (MODULES_ENABLED unset) yields the inert default slice', () => {
+    // Even with MAINTAINER_* set, a disabled maintainer must ignore them so
+    // the host carries no opt-out module state derived from operator env.
+    const cfg = loadConfig({
+      MAINTAINER_GITHUB_REPO: 'acme/widget',
+      MAINTAINER_TRIAGE_TARGET: 'project-lead',
+      MAINTAINER_CACHE_PATH: '/var/cache/maintainer.json',
+    });
+    assert.equal(cfg.modules.maintainer.githubRepo, 'gastownhall/gascity');
+    assert.equal(cfg.modules.maintainer.triageTarget, 'mayor');
+    assert.equal(cfg.modules.maintainer.slingTarget, 'mayor');
+    assert.equal(cfg.modules.maintainer.cachePath, undefined);
+  });
+
+  test('explicit MODULES_ENABLED without maintainer also yields the inert default slice', () => {
+    const cfg = loadConfig({
+      MODULES_ENABLED: 'health',
+      MAINTAINER_GITHUB_REPO: 'acme/widget',
+    });
+    assert.equal(cfg.modules.maintainer.githubRepo, 'gastownhall/gascity');
+  });
+
+  test('no MAINTAINER_REPO deprecation warn fires when maintainer is disabled', () => {
+    __resetMaintainerAliasWarnState();
+    const calls: string[] = [];
+    const origStderr = process.stderr.write.bind(process.stderr);
+    process.stderr.write = ((chunk: string | Uint8Array): boolean => {
+      const text = typeof chunk === 'string' ? chunk : Buffer.from(chunk).toString('utf8');
+      if (text.includes('MAINTAINER_REPO is deprecated')) calls.push(text);
+      return origStderr(chunk);
+    }) as typeof process.stderr.write;
+    try {
+      // Legacy alias set but module disabled — the host must not parse it,
+      // so the deprecation warn must NOT fire for an opted-out module.
+      loadConfig({ MAINTAINER_REPO: 'legacy/repo' });
+    } finally {
+      process.stderr.write = origStderr;
+    }
+    assert.equal(calls.length, 0, `expected no warn for disabled module, got ${calls.length}`);
+    __resetMaintainerAliasWarnState();
   });
 });
 
@@ -183,9 +252,9 @@ describe('MAINTAINER_REPO deprecation warning is warn-once per process', () => {
       return origStderr(chunk);
     }) as typeof process.stderr.write;
     try {
-      loadConfig({ MAINTAINER_REPO: 'legacy/one' });
-      loadConfig({ MAINTAINER_REPO: 'legacy/two' });
-      loadConfig({ MAINTAINER_REPO: 'legacy/three' });
+      loadConfig({ MODULES_ENABLED: 'maintainer', MAINTAINER_REPO: 'legacy/one' });
+      loadConfig({ MODULES_ENABLED: 'maintainer', MAINTAINER_REPO: 'legacy/two' });
+      loadConfig({ MODULES_ENABLED: 'maintainer', MAINTAINER_REPO: 'legacy/three' });
     } finally {
       process.stderr.write = origStderr;
     }
