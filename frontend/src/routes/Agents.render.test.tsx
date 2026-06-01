@@ -47,10 +47,6 @@ function stubFetch() {
           // bound live session. AgentDetail will show "no session
           // matches" for these; the name-link in this view must
           // pre-empt the confusion with a distinct title tooltip.
-          // Uses `control-dispatcher` so the agent lands in the
-          // non-collapsible Orchestration group (otherwise the row
-          // would be hidden behind a collapsed `(no rig)` header in
-          // the test render).
           {
             name: 'control-dispatcher',
             available: true,
@@ -162,6 +158,11 @@ describe('AgentsPage (post-ay6 regressions)', () => {
         </NowProvider>
       </MemoryRouter>,
     );
+
+    // The orphan agent (asleep, no session) is hidden by the active-only
+    // default; toggle "Running only" off to bring the full roster into view.
+    const runningToggle = await screen.findByRole('checkbox', { name: /running/i });
+    fireEvent.click(runningToggle);
 
     // Both rows render their alias as a Link, but the title must
     // differ — session-bound agents promise a real drilldown; orphan

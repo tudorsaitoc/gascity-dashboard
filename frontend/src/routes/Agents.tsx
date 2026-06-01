@@ -7,27 +7,19 @@ import {
 } from 'gas-city-dashboard-shared';
 import { api } from '../api/client';
 import { Button } from '../components/Button';
-import { FilterChips } from '../components/FilterChips';
-import { GroupedTable } from '../components/GroupedTable';
 import { ListSearchBar } from '../components/ListSearchBar';
 import { Modal } from '../components/Modal';
 import { PageHeader } from '../components/PageHeader';
 import { PartialDataNotice } from '../components/PartialDataNotice';
 import { LiveSessionPeek, isAgentStreamable } from '../components/LiveSessionPeek';
-import { SortToggle } from '../components/SortToggle';
 import { SseIndicator } from '../components/SseIndicator';
 import { StatusBadge, type StatusTone } from '../components/StatusBadge';
-import { type TableColumn } from '../components/Table';
+import { Table, type TableColumn } from '../components/Table';
 import { useNow } from '../contexts/NowContext';
 import { useCachedData } from '../hooks/useCachedData';
 import { useGcEventRefresh } from '../hooks/useGcEvents';
-import { useListFilters, type FilterChip, type SortMode } from '../hooks/useListFilters';
 import { formatRelative } from '../hooks/time';
-import {
-  ORCHESTRATION_PROJECT,
-  agentProject,
-  isPerRigDispatcherAgent,
-} from '../hooks/projectOf';
+import { agentProject, isPerRigDispatcherAgent } from '../hooks/projectOf';
 import { agentSlug } from '../hooks/sessionSlug';
 
 // gascity-dashboard-ay6: the Agents view consumes the supervisor's
@@ -39,87 +31,41 @@ import { agentSlug } from '../hooks/sessionSlug';
 // The cityStatus snapshot collector continues to aggregate over sessions
 // for now — sessionsByProvider migration is sd4's territory.
 
-const PINNED_PROJECTS = [ORCHESTRATION_PROJECT];
-const NON_COLLAPSIBLE_PROJECTS = new Set([ORCHESTRATION_PROJECT]);
-
-// Activity ordering uses the agent's bound session's last_activity. Agents
-// with no session (orphans) return undefined so the list-filter sink sends
-// them to the bottom under activity-sort rather than ranking them at the
-// epoch.
-function agentActivity(a: GcAgent): number | undefined {
-  const raw = a.session?.last_activity;
-  if (!raw) return undefined;
-  const t = Date.parse(raw);
-  return Number.isFinite(t) ? t : undefined;
+// "Actively running" is the dashboard's single definition of an agent
+// the operator should see by default: not suspended, and either the gc
+// supervisor reports an active/running lifecycle state or the underlying
+// process flag is set. Exported so the test asserts the contract directly
+// rather than re-encoding a magic state string.
+export function isActivelyRunning(a: GcAgent): boolean {
+  return (
+    !a.suspended &&
+    (a.state === 'active' || a.state === 'running' || a.running === true)
+  );
 }
 
-const SORT_OPTIONS: ReadonlyArray<{ id: SortMode; label: string }> = [
-  { id: 'activity', label: 'activity' },
-  { id: 'alpha', label: 'alphabetical' },
-];
+// Sentinel for the rig dropdown's "all rigs" option. Empty string can't
+// collide with a real rig key because agentProject() never returns one.
+const RIG_FILTER_ALL = '';
 
-// Agent state chips collapse the gc supervisor's many states into buckets
-// the operator actually filters by. Every state an agent can carry must
-// match at least one chip — otherwise agents in that state vanish silently
-// when any chip is active (parallels gascity-dashboard-9yb's invariant for
-// sessions). Exported so tests can assert full state coverage.
-// Non-suspended chips all gate on `!a.suspended` so the chip filter
-// matches `stateBucket`'s priority order — `stateBucket` returns
-// 'suspended' before checking state, so a suspended-asleep agent is
-// counted in the suspended bucket only. Without the guard, the idle
-// chip would also surface suspended-asleep agents and the operator's
-// "what's idle?" filter would be over-broad. Same reasoning applies
-// to running/detached/stopped (a suspended agent that also reads as
-// running/detached/stopped via raw state should still only count as
-// suspended).
-export const AGENT_CHIPS: ReadonlyArray<FilterChip<GcAgent>> = [
-  {
-    id: 'running',
-    label: 'running',
-    match: (a) =>
-      !a.suspended &&
-      (a.state === 'active' || a.state === 'running' || a.running === true),
-  },
-  {
-    id: 'idle',
-    label: 'idle',
-    match: (a) =>
-      !a.suspended &&
-      (a.state === 'asleep' || a.state === 'idle' || a.state === 'creating'),
-  },
-  {
-    id: 'detached',
-    label: 'detached',
-    match: (a) => !a.suspended && a.state === 'detached',
-  },
-  {
-    id: 'stopped',
-    label: 'stopped',
-    match: (a) =>
-      !a.suspended &&
-      (a.state === 'failed' ||
-        a.state === 'closed' ||
-        a.state === 'errored' ||
-        a.state === 'stuck'),
-  },
-  {
-    id: 'suspended',
-    label: 'suspended',
-    // The agent roster surfaces suspended agents that the session list
-    // never did — a distinct chip lets the operator slice by them
-    // without conflating with stopped/idle.
-    match: (a) => a.suspended === true,
-  },
-];
+// Display label + stable key for a row's rig, reusing agentProject so the
+// Rig column, dropdown, and sort all agree (folds case/separator drift and
+// lifts cross-rig agents into the Orchestration bucket).
+function agentRigLabel(a: GcAgent): string {
+  return agentProject(a).label;
+}
 
-const AGENT_SEARCH_FIELDS = (a: GcAgent): ReadonlyArray<string | undefined> => [
-  a.name,
-  a.display_name,
-  a.pool,
-  a.rig,
-  a.provider,
-  a.model,
-];
+function agentRigKey(a: GcAgent): string {
+  return agentProject(a).key;
+}
+
+function matchesSearch(a: GcAgent, needle: string): boolean {
+  if (needle.length === 0) return true;
+  const fields = [a.name, a.display_name, a.pool, a.rig, a.provider, a.model];
+  for (const field of fields) {
+    if (field && field.toLowerCase().includes(needle)) return true;
+  }
+  return false;
+}
 
 export function AgentsPage() {
   const { data, loading, error, refresh } = useCachedData(
@@ -159,18 +105,30 @@ export function AgentsPage() {
 
   const synopsis = useMemo(() => buildAgentSynopsis(rows), [rows]);
 
-  const filters = useListFilters<GcAgent>({
-    viewKey: 'agents',
-    rows,
-    projectOf: agentProject,
-    searchOf: AGENT_SEARCH_FIELDS,
-    chips: AGENT_CHIPS,
-    defaultCollapsed: true,
-    activityOf: agentActivity,
-    defaultSortMode: 'activity',
-    pinnedProjects: PINNED_PROJECTS,
-    nonCollapsibleProjects: NON_COLLAPSIBLE_PROJECTS,
-  });
+  const [search, setSearch] = useState('');
+  // Default to actively-running only — the operator's "what's working right
+  // now?" view. Toggling off reveals the full roster (idle/stopped/orphans).
+  const [runningOnly, setRunningOnly] = useState(true);
+  const [rigFilter, setRigFilter] = useState<string>(RIG_FILTER_ALL);
+
+  // Rig options for the dropdown: every rig present in the roster, by stable
+  // key with its display label, sorted alphabetically by label.
+  const rigOptions = useMemo(() => {
+    const byKey = new Map<string, string>();
+    for (const a of rows) byKey.set(agentRigKey(a), agentRigLabel(a));
+    return Array.from(byKey, ([key, label]) => ({ key, label })).sort((a, b) =>
+      a.label.localeCompare(b.label),
+    );
+  }, [rows]);
+
+  const visibleRows = useMemo(() => {
+    const needle = search.trim().toLowerCase();
+    return rows.filter((a) => {
+      if (runningOnly && !isActivelyRunning(a)) return false;
+      if (rigFilter !== RIG_FILTER_ALL && agentRigKey(a) !== rigFilter) return false;
+      return matchesSearch(a, needle);
+    });
+  }, [rows, search, runningOnly, rigFilter]);
 
   const columns = useMemo<ReadonlyArray<TableColumn<GcAgent>>>(() => [
     {
@@ -228,6 +186,16 @@ export function AgentsPage() {
           </div>
         );
       },
+    },
+    {
+      key: 'rig',
+      label: 'Rig',
+      sortable: true,
+      // Sort by the display label so the column's visual order matches the
+      // sort order (the key is lowercased/normalized and would diverge).
+      sortValue: (r) => agentRigLabel(r),
+      render: (r) => <span className="text-fg-muted">{agentRigLabel(r)}</span>,
+      className: 'w-40',
     },
     {
       key: 'state',
@@ -356,41 +324,54 @@ export function AgentsPage() {
 
       <div className="mb-6 space-y-3">
         <ListSearchBar
-          value={filters.search}
-          onChange={filters.setSearch}
+          value={search}
+          onChange={setSearch}
           placeholder="Search agents by alias, rig, pool, provider"
-          matchCount={filters.totalMatches}
+          matchCount={visibleRows.length}
           totalCount={rows.length}
           ariaLabel="Search agents"
         />
         <div className="flex flex-wrap items-baseline gap-x-8 gap-y-3">
-          <FilterChips
-            chips={AGENT_CHIPS}
-            activeIds={filters.activeChipIds}
-            onToggle={filters.toggleChip}
-            legend="State"
-          />
-          <SortToggle<SortMode>
-            value={filters.sortMode}
-            options={SORT_OPTIONS}
-            onChange={filters.setSortMode}
-            legend="Sort"
-          />
+          <label className="flex items-baseline gap-2 text-label">
+            <span className="uppercase tracking-wider text-fg-muted">Rig</span>
+            <select
+              value={rigFilter}
+              onChange={(e) => setRigFilter(e.target.value)}
+              aria-label="Filter by rig"
+              className="text-label uppercase tracking-wider text-fg-muted bg-transparent border-0 focus-mark cursor-pointer hover:text-fg transition-colors duration-150 ease-out-quart"
+            >
+              <option value={RIG_FILTER_ALL}>all rigs</option>
+              {rigOptions.map((opt) => (
+                <option key={opt.key} value={opt.key}>
+                  {opt.label}
+                </option>
+              ))}
+            </select>
+          </label>
+          <label className="flex items-baseline gap-2 text-label">
+            <input
+              type="checkbox"
+              checked={runningOnly}
+              onChange={(e) => setRunningOnly(e.target.checked)}
+              className="focus-mark cursor-pointer"
+            />
+            <span className="uppercase tracking-wider text-fg-muted">
+              Running only
+            </span>
+          </label>
         </div>
       </div>
 
-      <GroupedTable
-        groups={filters.groups}
+      <Table
         columns={columns}
+        rows={visibleRows}
         rowKey={(r) => r.name}
-        onToggleProject={filters.toggleProject}
-        emptyMessage={
-          filters.search.length > 0 || filters.activeChipIds.size > 0
+        initialSort={{ key: 'last_active', dir: 'desc' }}
+        empty={
+          search.length > 0 || rigFilter !== RIG_FILTER_ALL || runningOnly
             ? 'No agents match the current search or filter.'
             : 'No agents configured.'
         }
-        perProjectEmpty="No agents in this project."
-        initialSort={{ key: 'last_active', dir: 'desc' }}
       />
 
       <Modal
