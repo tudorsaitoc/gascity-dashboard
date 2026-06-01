@@ -75,17 +75,16 @@ export function runsRouter(
       return;
     }
     try {
-      const { raw, partial: runtimePartial } = await getRunWithRuntimeState(
-        gc,
-        parsed.runId,
-        parsed.scope ?? defaultRunScope(gc.cityName),
-      );
-      const sessionsLookup = await getRunSessions(gc);
-      const formulaDetailLookup = await getRunFormulaDetail(
-        gc,
-        raw,
-        parsed.scope ?? defaultRunScope(gc.cityName),
-      );
+      const scope = parsed.scope ?? defaultRunScope(gc.cityName);
+      // getRunSessions is a city-wide listSessions independent of this run, so
+      // overlap it with the run+runtime-state fetch instead of serializing it
+      // after (gascity-dashboard-ey8i). getRunFormulaDetail genuinely depends
+      // on the run's raw root bead, so it stays sequential after the run fetch.
+      const [{ raw, partial: runtimePartial }, sessionsLookup] = await Promise.all([
+        getRunWithRuntimeState(gc, parsed.runId, scope),
+        getRunSessions(gc),
+      ]);
+      const formulaDetailLookup = await getRunFormulaDetail(gc, raw, scope);
       const detail = enrichFormulaRun(raw, enrichOptions(
         opts,
         sessionsLookup,
