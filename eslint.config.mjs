@@ -48,6 +48,11 @@ export default tseslint.config(
       '**/node_modules/**',
       '**/coverage/**',
       '**/.claude/**',
+      // The `tui/` workspace is a prototype deliberately outside root CI (see
+      // tui/README.md §Status); `tsFiles` already omits it, so its source is
+      // unlinted. Ignore it explicitly so a colocated `*.test.ts` can't get
+      // caught by the global `**/*.test` rule blocks with no TS parser.
+      'tui/**',
     ],
   },
   {

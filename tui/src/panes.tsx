@@ -4,6 +4,8 @@ import type { RunLane } from 'gas-city-dashboard-shared';
 import type { GcBead } from './api.ts';
 import {
   ctxPct,
+  kindGlyph,
+  kindLabel,
   laneNeedsOperator,
   laneRig,
   peekCommands,
@@ -47,10 +49,22 @@ export function AgentRow({ view, selected, dim, now }: AgentRowProps): React.JSX
       <Box width={2}>
         {selected ? <Text color="cyan">▸</Text> : <Text> </Text>}
       </Box>
-      <Box width={40} marginRight={2}>
+      {/* Kind sigil + word are the greyscale-readable carriers of agent type
+          (DESIGN.md Greyscale Test): a glyph and a short word, no hue. The
+          orchestration glyph is bold — the one layer worth catching at a
+          glance — as the restrained weight-only accelerator. */}
+      <Box width={2}>
+        <Text bold={view.kind === 'orch'} dimColor={view.kind !== 'orch'}>
+          {kindGlyph(view.kind)}
+        </Text>
+      </Box>
+      <Box width={30} marginRight={1}>
         <Text wrap="truncate-end" bold={selected} inverse={selected} dimColor={dim && !selected}>
           {view.agent}
         </Text>
+      </Box>
+      <Box width={4} marginRight={1}>
+        <Text dimColor>{kindLabel(view.kind)}</Text>
       </Box>
       <Box width={4} marginRight={1} justifyContent="flex-end">
         <Text dimColor>{ctx}</Text>
@@ -60,7 +74,7 @@ export function AgentRow({ view, selected, dim, now }: AgentRowProps): React.JSX
           {activity}
         </Text>
       </Box>
-      <Box width={10} marginRight={1}>
+      <Box width={9} marginRight={1}>
         <Text wrap="truncate-end" dimColor>
           {shortModel(s.model) || s.provider}
         </Text>
@@ -137,16 +151,18 @@ export function RunRow({ lane, selected }: RunRowProps): React.JSX.Element {
 
 // ── detail / peek pane for the selected agent ───────────────────────────────
 
+export type DetailTab = 'overview' | 'config';
+
 interface DetailPaneProps {
   readonly view: AgentView;
   readonly beads: readonly GcBead[];
   readonly lanes: readonly RunLane[];
   readonly now: number;
+  readonly tab: DetailTab;
 }
 
-export function DetailPane({ view, beads, lanes, now }: DetailPaneProps): React.JSX.Element {
+export function DetailPane({ view, beads, lanes, now, tab }: DetailPaneProps): React.JSX.Element {
   const s = view.session;
-  const cmds = peekCommands(s);
   const pct = ctxPct(s);
   const ctx = pct !== undefined ? `${pct}%` : '—';
   return (
@@ -160,8 +176,33 @@ export function DetailPane({ view, beads, lanes, now }: DetailPaneProps): React.
         {s.model ? ` · ${shortModel(s.model)}` : ''} · ctx {ctx} · last {relativeTime(s.last_active, now)}
         {s.attached ? ' · attached' : ''}
       </Text>
+      {tab === 'config' ? (
+        <ConfigSection view={view} />
+      ) : (
+        <OverviewSection view={view} beads={beads} lanes={lanes} />
+      )}
+      <Box marginTop={1}>
+        <Text dimColor>
+          ↑↓ change agent · c {tab === 'config' ? 'overview' : 'config'} · enter peek · x close
+          peek · p close · q quit
+        </Text>
+      </Box>
+    </Box>
+  );
+}
+
+interface OverviewSectionProps {
+  readonly view: AgentView;
+  readonly beads: readonly GcBead[];
+  readonly lanes: readonly RunLane[];
+}
+
+function OverviewSection({ view, beads, lanes }: OverviewSectionProps): React.JSX.Element {
+  const cmds = peekCommands(view.session);
+  return (
+    <>
       <Text dimColor>
-        id {s.id} · pool {s.pool ?? '—'} · kind {s.agent_kind ?? '—'}
+        id {view.session.id} · pool {view.session.pool ?? '—'} · kind {view.kind}
       </Text>
 
       <Box marginTop={1}>
@@ -202,11 +243,56 @@ export function DetailPane({ view, beads, lanes, now }: DetailPaneProps): React.
           </Box>
         ))
       )}
+    </>
+  );
+}
 
+interface ConfigRow {
+  readonly label: string;
+  readonly value: string;
+}
+
+/** Agent configuration as surfaced by the backend /api/*. The supervisor's
+ *  session API exposes config metadata but NOT the launch prompt/instructions
+ *  (only a config-side template path it does not serialise), so that line is
+ *  shown honestly as unavailable rather than faked. */
+function ConfigSection({ view }: { readonly view: AgentView }): React.JSX.Element {
+  const s = view.session;
+  const rows: readonly ConfigRow[] = [
+    { label: 'kind', value: view.kind },
+    { label: 'template', value: s.template || '—' },
+    { label: 'pool', value: s.pool ?? '—' },
+    { label: 'rig', value: view.rig },
+    { label: 'session', value: s.session_name },
+    { label: 'alias', value: s.alias ?? '—' },
+    { label: 'display', value: s.display_name ?? '—' },
+    { label: 'provider', value: s.provider },
+    { label: 'model', value: s.model ?? '—' },
+    { label: 'ctx window', value: s.context_window ? `${s.context_window}` : '—' },
+    { label: 'agent_kind', value: s.agent_kind ?? '—' },
+    { label: 'created', value: s.created_at },
+    { label: 'id', value: s.id },
+  ];
+  return (
+    <>
       <Box marginTop={1}>
-        <Text dimColor>↑↓ change agent · enter peek · x close peek · p close · q quit</Text>
+        <Text bold>config</Text>
       </Box>
-    </Box>
+      {rows.map((r) => (
+        <Box key={r.label}>
+          <Box width={11}>
+            <Text dimColor>{r.label}</Text>
+          </Box>
+          <Text wrap="truncate-end">{r.value}</Text>
+        </Box>
+      ))}
+      <Box marginTop={1}>
+        <Box width={11}>
+          <Text dimColor>prompt</Text>
+        </Box>
+        <Text dimColor>not exposed by supervisor API</Text>
+      </Box>
+    </>
   );
 }
 

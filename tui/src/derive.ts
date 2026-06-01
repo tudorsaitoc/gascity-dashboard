@@ -21,6 +21,19 @@ export function ctxPct(s: GcSession): number | undefined {
 
 export type Category = 'failed' | 'active' | 'idle';
 
+/**
+ * Agent kind, derived from the wire data (the supervisor does not label kinds
+ * directly — see classification rules in `agentKind`):
+ * - `pool`: a multi-session worker (a "polecat"); the `pool` field is set, or
+ *   the template names the polecat pool.
+ * - `role`: a named, single-purpose agent (project-lead, reviewer, deacon, …).
+ * - `orch`: city/orchestration layer (mayor, control-dispatcher) that directs
+ *   the rest; rig-less, or a control-dispatcher.
+ */
+export type AgentKind = 'pool' | 'role' | 'orch';
+
+export const AGENT_KINDS: readonly AgentKind[] = ['pool', 'role', 'orch'];
+
 export interface AgentView {
   readonly session: GcSession;
   /** Rig basename, e.g. `gascity` from `/home/ds/gascity`. */
@@ -28,6 +41,7 @@ export interface AgentView {
   /** Agent basename, e.g. `polecat-4` or `oversight-rig.project-lead`. */
   readonly agent: string;
   readonly category: Category;
+  readonly kind: AgentKind;
 }
 
 export function basename(path: string | null | undefined): string {
@@ -41,6 +55,67 @@ export function categorize(s: GcSession): Category {
   if (s.state === 'failed') return 'failed';
   if (s.state === 'active' || s.state === 'creating') return 'active';
   return 'idle';
+}
+
+const CONTROL_DISPATCHER = 'control-dispatcher';
+
+/**
+ * Classifies an agent's kind from the wire fields. The supervisor does not
+ * carry a pool/role label (its `agent_kind` is the unrelated agent/provider
+ * axis), so we derive it: orchestration first (a control-dispatcher or a
+ * rig-less agent like the mayor directs the rest, regardless of any pool
+ * bucket), then a pool worker (a multi-session "polecat", identified by the
+ * `pool` field or the polecat template), else a named role agent.
+ */
+export function agentKind(s: GcSession): AgentKind {
+  const template = s.template ?? '';
+  const isDispatcher =
+    template === CONTROL_DISPATCHER || template.endsWith(`/${CONTROL_DISPATCHER}`) ||
+    template.endsWith(`.${CONTROL_DISPATCHER}`);
+  if (isDispatcher || rigLabel(s.rig) === ORCHESTRATION) return 'orch';
+  if ((s.pool && s.pool.length > 0) || template === 'polecat' || template.endsWith('/polecat')) {
+    return 'pool';
+  }
+  return 'role';
+}
+
+/** Leading sigil per kind. The glyph is the primary, greyscale-readable signal
+ *  (DESIGN.md Greyscale Test) — not a color. */
+export function kindGlyph(kind: AgentKind): string {
+  switch (kind) {
+    case 'pool':
+      return '·';
+    case 'role':
+      return '◆';
+    case 'orch':
+      return '△';
+  }
+}
+
+/** Short type word shown beside the agent, pairing with the glyph so the kind
+ *  reads without color. */
+export function kindLabel(kind: AgentKind): string {
+  return kind;
+}
+
+// ── status filter (operator hides idle/active noise; failed never hides) ─────
+
+export type StatusFilter = 'active+idle' | 'active' | 'idle';
+
+export const STATUS_FILTERS: readonly StatusFilter[] = ['active+idle', 'active', 'idle'];
+
+/** Whether a category is visible under the current filter. Failed always shows
+ *  so a problem can never be filtered out of sight. */
+export function matchesStatusFilter(category: Category, filter: StatusFilter): boolean {
+  if (category === 'failed') return true;
+  if (filter === 'active+idle') return true;
+  return category === filter;
+}
+
+/** Cycles the filter: active+idle → active → idle → active+idle. */
+export function nextStatusFilter(filter: StatusFilter): StatusFilter {
+  const i = STATUS_FILTERS.indexOf(filter);
+  return STATUS_FILTERS[(i + 1) % STATUS_FILTERS.length] ?? 'active+idle';
 }
 
 /** Label for the city-level (rig-less) agents: mayor, city control-dispatcher. */
@@ -64,6 +139,7 @@ export function toAgentView(s: GcSession): AgentView {
     rig: rigLabel(s.rig),
     agent: basename(s.title ?? s.alias ?? s.id) || s.id,
     category: categorize(s),
+    kind: agentKind(s),
   };
 }
 

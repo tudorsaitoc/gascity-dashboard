@@ -2,7 +2,7 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Box, Text, useApp, useInput, useStdout } from 'ink';
 import { useCity } from './useCity.ts';
 import { useMouseWheel } from './useMouseWheel.ts';
-import { AgentRow, BeadRow, DetailPane, HealthPane, RunRow } from './panes.tsx';
+import { AgentRow, BeadRow, DetailPane, HealthPane, RunRow, type DetailTab } from './panes.tsx';
 import {
   buildCommand,
   closePeek,
@@ -20,10 +20,13 @@ import {
   groupRuns,
   lanesForRig,
   laneNeedsOperator,
+  matchesStatusFilter,
   neverActiveByRig,
+  nextStatusFilter,
   systemHealth,
   type AgentView,
   type Category,
+  type StatusFilter,
 } from './derive.ts';
 import type { GcBead, GcSession, RunLane } from './api.ts';
 
@@ -67,6 +70,7 @@ function buildNav(
   sessions: readonly GcSession[],
   beads: readonly GcBead[],
   lanes: readonly RunLane[],
+  filter: StatusFilter,
 ): Nav {
   const entries: Entry[] = [];
   const renderRows: Row[] = [];
@@ -99,8 +103,10 @@ function buildNav(
     return { entries, renderRows };
   }
 
-  // list (and detail, which navigates the same agent list underneath)
-  for (const g of groupByRig(sessions)) {
+  // list (and detail, which navigates the same agent list underneath).
+  // Failed agents always pass the filter so a problem is never hidden.
+  const filtered = sessions.filter((s) => matchesStatusFilter(categorize(s), filter));
+  for (const g of groupByRig(filtered)) {
     const group: GroupInfo = {
       label: g.rig,
       sub: `${g.failed > 0 ? `${g.failed} failed · ` : ''}${g.active} active · ${g.idle} idle`,
@@ -139,6 +145,8 @@ export function App({ baseUrl, city }: AppProps): React.JSX.Element {
   const rows = useTerminalRows();
 
   const [view, setView] = useState<ViewMode>('list');
+  const [statusFilter, setStatusFilter] = useState<StatusFilter>('active+idle');
+  const [detailTab, setDetailTab] = useState<DetailTab>('overview');
   const [cursorId, setCursorId] = useState<string | null>(null);
   const [scrollTop, setScrollTop] = useState(0);
   const [status, setStatus] = useState<string | null>(null);
@@ -151,8 +159,11 @@ export function App({ baseUrl, city }: AppProps): React.JSX.Element {
   // detail navigates the same agent list as 'list' underneath.
   const navView: ViewMode = view === 'detail' ? 'list' : view;
   const { entries, renderRows } = useMemo(
-    () => (navView === 'health' ? EMPTY_NAV : buildNav(navView, sessions, beads, health.lanes)),
-    [navView, sessions, beads, health.lanes],
+    () =>
+      navView === 'health'
+        ? EMPTY_NAV
+        : buildNav(navView, sessions, beads, health.lanes, statusFilter),
+    [navView, sessions, beads, health.lanes, statusFilter],
   );
 
   const cursorIndex = Math.max(0, entries.findIndex((e) => e.id === cursorId));
@@ -267,6 +278,18 @@ export function App({ baseUrl, city }: AppProps): React.JSX.Element {
         if (navView === 'list') setView((v) => (v === 'detail' ? 'list' : 'detail'));
         return;
       }
+      if (input === 'a') {
+        // Status filter only governs the agent list/detail; ignore elsewhere.
+        if (navView === 'list') {
+          setStatusFilter(nextStatusFilter);
+          setScrollTop(0);
+        }
+        return;
+      }
+      if (input === 'c') {
+        if (view === 'detail') setDetailTab((t) => (t === 'config' ? 'overview' : 'config'));
+        return;
+      }
       if (input === 'x') {
         closeActivePeek();
         setStatus('peek closed');
@@ -311,6 +334,9 @@ export function App({ baseUrl, city }: AppProps): React.JSX.Element {
         ) : null}
         <Text>{counts.active} active</Text>
         <Text dimColor> · {counts.idle} idle · {sessions.length} agents</Text>
+        {statusFilter !== 'active+idle' ? (
+          <Text dimColor> · showing {statusFilter}</Text>
+        ) : null}
       </Text>
     );
 
@@ -347,6 +373,7 @@ export function App({ baseUrl, city }: AppProps): React.JSX.Element {
             beads={beadsForRig(beads, selectedAgent.rig)}
             lanes={lanesForRig(health.lanes, selectedAgent.rig)}
             now={now}
+            tab={detailTab}
           />
         </Box>
       ) : (
@@ -402,7 +429,7 @@ export function App({ baseUrl, city }: AppProps): React.JSX.Element {
                 {below > 0 ? `↓ ${below}` : ''}
               </Text>
             )}
-            <Text dimColor>↑↓ · enter drill · x close · b/f/h views · p detail · q quit</Text>
+            <Text dimColor>↑↓ · enter drill · a filter · x close · b/f/h views · p detail · q quit</Text>
           </Box>
         </>
       )}
