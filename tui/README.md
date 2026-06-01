@@ -25,21 +25,45 @@ persists across the live refresh. `enter` drills the selected row into a single
 reused tmux split (see Peek).
 
 - **Agents** (default): grouped by rig (orchestration layer first; within a rig,
-  active before idle), one line each as `agent · ctx% · activity · model ·
-  last-active`. Dormant agents show their transition reason (e.g. `city-stop`).
-  Greyscale-first, one red mark for what's worth a glance.
+  active before idle), one line each as `glyph · agent · kind · ctx% · activity ·
+  model · last-active`. A leading glyph + short word carries the agent kind so it
+  reads in greyscale (no color-as-signal, per `DESIGN.md`): `△ orch` (mayor,
+  control-dispatcher), `◆ role` (named agents: project-lead, reviewer, …), `· pool`
+  (polecat workers). Dormant agents show their transition reason (e.g. `city-stop`).
+  `a` cycles the status filter (active+idle → active → idle) so idle noise can be
+  hidden; failed agents always show regardless of the filter. Greyscale-first, one
+  red mark for what's worth a glance.
 - **Beads** (`b`): grouped by status (open → in_progress → blocked → closed),
   priority-ordered. `enter` opens `gc bd show <id>` in the split — the bead's
   instructions/description/labels.
 - **Formula runs** (`f`): run lanes grouped by rig, needs-operator first (one red
   mark). `enter` opens the run's bead (`gc bd show`) plus its code diff in the
   split.
+- **Sessions** (`s`): a flat "live now" feed of the active sessions, most-recently
+  active first, each with a mechanical phrase for what it's doing right now (the
+  supervisor's coarse activity hint, e.g. `running a tool` / `thinking`). This is
+  the honest non-LLM signal — no per-session transcript is exposed as data, so a
+  model-written task summary is a deliberately deferred follow-up, not faked here.
+  `enter` peeks the session log; `p` opens its detail like the Agents view.
+- **Ledger** (`l`): an "open ledger" of things waiting on the operator — mail
+  escalated by the orchestration layer (the mayor) and run lanes flagged
+  needs-operator. The inbox is a firehose of worker status reports the mayor
+  digests, and the wire's `read`/`priority` flags are unusable as a "needs you"
+  signal (priority is never set; mail is never marked read), so the ledger filters
+  by **sender role** — it shows mail from the mayor / orchestration agents and
+  folds the pool-worker chatter away (reporting the folded count, never silently).
+  Read-only summary (the TUI does no writes); each section shows a `+ N more` line
+  rather than capping a long backlog.
 - **Health** (`h`): host resources, headline counts, runs needing an operator,
   context-pressure agents (≥75%), and a never-active-by-rig reallocation rollup.
   Costs are shown as *not measured* (the supervisor exposes none yet — see
   `specs/architecture/cost-token-feasibility.md`); never faked.
 - **Detail** (`p`, agents only): in-TUI detail for the selected agent — ids, the
-  peek commands, that rig's beads and active run lanes.
+  peek commands, that rig's beads and active run lanes. `c` toggles a **config**
+  tab showing the agent's fetchable session config (template, pool, kind, model,
+  provider, session name, alias, context window, …). The launch prompt is shown as
+  `not exposed by supervisor API` — the session HTTP surface carries config but not
+  the prompt text, and the prototype never fakes a value it can't read.
 
 ## Peek (tmux split)
 
@@ -53,8 +77,9 @@ it. Quitting (`q`) tears the peek pane down. All drill-ins READ (logs/show/diff)
 ## Controls
 
 `↑`/`↓` or `j`/`k` move the selection · **mouse wheel** scrolls · `PageUp`/`PageDown`
-· `g`/`G` top/bottom · `enter` drill into split · `x` close split · `b` beads ·
-`f` runs · `h` health · `p` agent detail · `q` (or `esc`) quit.
+· `g`/`G` top/bottom · `enter` drill into split · `x` close split · `a` cycle agent
+status filter · `b` beads · `f` runs · `s` sessions · `l` ledger · `h` health · `p`
+agent detail · `c` toggle config tab (in detail) · `q` (or `esc`) quit.
 
 ## Run
 

@@ -2,7 +2,16 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Box, Text, useApp, useInput, useStdout } from 'ink';
 import { useCity } from './useCity.ts';
 import { useMouseWheel } from './useMouseWheel.ts';
-import { AgentRow, BeadRow, DetailPane, HealthPane, RunRow } from './panes.tsx';
+import {
+  AgentRow,
+  BeadRow,
+  DetailPane,
+  HealthPane,
+  LedgerPane,
+  RunRow,
+  SessionRow,
+  type DetailTab,
+} from './panes.tsx';
 import {
   buildCommand,
   closePeek,
@@ -20,10 +29,17 @@ import {
   groupRuns,
   lanesForRig,
   laneNeedsOperator,
+  foldedMailCount,
+  matchesStatusFilter,
   neverActiveByRig,
+  nextStatusFilter,
+  operatorMail,
+  runningSessions,
   systemHealth,
+  toAgentView,
   type AgentView,
   type Category,
+  type StatusFilter,
 } from './derive.ts';
 import type { GcBead, GcSession, RunLane } from './api.ts';
 
@@ -32,7 +48,7 @@ interface AppProps {
   readonly city: string;
 }
 
-type ViewMode = 'list' | 'beads' | 'runs' | 'detail' | 'health';
+type ViewMode = 'list' | 'beads' | 'runs' | 'detail' | 'health' | 'sessions' | 'ledger';
 
 type Entry =
   | { readonly kind: 'agent'; readonly id: string; readonly agent: AgentView }
@@ -67,6 +83,7 @@ function buildNav(
   sessions: readonly GcSession[],
   beads: readonly GcBead[],
   lanes: readonly RunLane[],
+  filter: StatusFilter,
 ): Nav {
   const entries: Entry[] = [];
   const renderRows: Row[] = [];
@@ -99,8 +116,20 @@ function buildNav(
     return { entries, renderRows };
   }
 
-  // list (and detail, which navigates the same agent list underneath)
-  for (const g of groupByRig(sessions)) {
+  if (view === 'sessions') {
+    // Flat "live now" feed: active sessions, most-recently-active first. Reuses
+    // the agent entry kind so enter-peek and p-detail work unchanged.
+    const live = runningSessions(sessions);
+    const group: GroupInfo = { label: 'live now', sub: `${live.length}`, alert: false };
+    renderRows.push({ kind: 'heading', group });
+    for (const s of live) push({ kind: 'agent', id: s.id, agent: toAgentView(s) }, false, group);
+    return { entries, renderRows };
+  }
+
+  // list (and detail, which navigates the same agent list underneath).
+  // Failed agents always pass the filter so a problem is never hidden.
+  const filtered = sessions.filter((s) => matchesStatusFilter(categorize(s), filter));
+  for (const g of groupByRig(filtered)) {
     const group: GroupInfo = {
       label: g.rig,
       sub: `${g.failed > 0 ? `${g.failed} failed · ` : ''}${g.active} active · ${g.idle} idle`,
@@ -135,10 +164,12 @@ function useTerminalRows(): number {
 
 export function App({ baseUrl, city }: AppProps): React.JSX.Element {
   const { exit } = useApp();
-  const { sessions, snapshot, beads, error, conn } = useCity(baseUrl, city);
+  const { sessions, snapshot, beads, mail, error, conn } = useCity(baseUrl, city);
   const rows = useTerminalRows();
 
   const [view, setView] = useState<ViewMode>('list');
+  const [statusFilter, setStatusFilter] = useState<StatusFilter>('active+idle');
+  const [detailTab, setDetailTab] = useState<DetailTab>('overview');
   const [cursorId, setCursorId] = useState<string | null>(null);
   const [scrollTop, setScrollTop] = useState(0);
   const [status, setStatus] = useState<string | null>(null);
@@ -151,8 +182,11 @@ export function App({ baseUrl, city }: AppProps): React.JSX.Element {
   // detail navigates the same agent list as 'list' underneath.
   const navView: ViewMode = view === 'detail' ? 'list' : view;
   const { entries, renderRows } = useMemo(
-    () => (navView === 'health' ? EMPTY_NAV : buildNav(navView, sessions, beads, health.lanes)),
-    [navView, sessions, beads, health.lanes],
+    () =>
+      navView === 'health' || navView === 'ledger'
+        ? EMPTY_NAV
+        : buildNav(navView, sessions, beads, health.lanes, statusFilter),
+    [navView, sessions, beads, health.lanes, statusFilter],
   );
 
   const cursorIndex = Math.max(0, entries.findIndex((e) => e.id === cursorId));
@@ -263,8 +297,22 @@ export function App({ baseUrl, city }: AppProps): React.JSX.Element {
       if (input === 'h') return toggle('health');
       if (input === 'b') return toggle('beads');
       if (input === 'f') return toggle('runs');
+      if (input === 's') return toggle('sessions');
+      if (input === 'l') return toggle('ledger');
       if (input === 'p') {
         if (navView === 'list') setView((v) => (v === 'detail' ? 'list' : 'detail'));
+        return;
+      }
+      if (input === 'a') {
+        // Status filter only governs the agent list/detail; ignore elsewhere.
+        if (navView === 'list') {
+          setStatusFilter(nextStatusFilter);
+          setScrollTop(0);
+        }
+        return;
+      }
+      if (input === 'c') {
+        if (view === 'detail') setDetailTab((t) => (t === 'config' ? 'overview' : 'config'));
         return;
       }
       if (input === 'x') {
@@ -290,6 +338,8 @@ export function App({ baseUrl, city }: AppProps): React.JSX.Element {
   for (const s of sessions) counts[categorize(s)] += 1;
   const openBeads = beads.filter((b) => b.status === 'open').length;
   const needsOpRuns = health.lanes.filter(laneNeedsOperator).length;
+  const ledgerMail = operatorMail(mail, sessions);
+  const mailFolded = foldedMailCount(mail, ledgerMail);
 
   const summary =
     view === 'beads' ? (
@@ -299,6 +349,13 @@ export function App({ baseUrl, city }: AppProps): React.JSX.Element {
     ) : view === 'runs' ? (
       <Text dimColor>
         runs · {health.lanes.length} active
+        {needsOpRuns > 0 ? <Text color="red"> · {needsOpRuns} need operator</Text> : null}
+      </Text>
+    ) : view === 'sessions' ? (
+      <Text dimColor>sessions · {counts.active} live</Text>
+    ) : view === 'ledger' ? (
+      <Text dimColor>
+        ledger · {ledgerMail.length} for you
         {needsOpRuns > 0 ? <Text color="red"> · {needsOpRuns} need operator</Text> : null}
       </Text>
     ) : (
@@ -311,6 +368,9 @@ export function App({ baseUrl, city }: AppProps): React.JSX.Element {
         ) : null}
         <Text>{counts.active} active</Text>
         <Text dimColor> · {counts.idle} idle · {sessions.length} agents</Text>
+        {statusFilter !== 'active+idle' ? (
+          <Text dimColor> · showing {statusFilter}</Text>
+        ) : null}
       </Text>
     );
 
@@ -340,6 +400,14 @@ export function App({ baseUrl, city }: AppProps): React.JSX.Element {
             now={now}
           />
         </Box>
+      ) : view === 'ledger' ? (
+        <Box marginTop={1}>
+          <LedgerPane
+            mail={ledgerMail}
+            mailFolded={mailFolded}
+            runs={health.lanes.filter(laneNeedsOperator)}
+          />
+        </Box>
       ) : view === 'detail' && selectedAgent ? (
         <Box marginTop={1}>
           <DetailPane
@@ -347,6 +415,7 @@ export function App({ baseUrl, city }: AppProps): React.JSX.Element {
             beads={beadsForRig(beads, selectedAgent.rig)}
             lanes={lanesForRig(health.lanes, selectedAgent.rig)}
             now={now}
+            tab={detailTab}
           />
         </Box>
       ) : (
@@ -388,6 +457,7 @@ export function App({ baseUrl, city }: AppProps): React.JSX.Element {
                     selected={row.index === cursorIndex}
                     dim={row.dim}
                     now={now}
+                    sessionRow={navView === 'sessions'}
                   />
                 ),
               )
@@ -402,7 +472,7 @@ export function App({ baseUrl, city }: AppProps): React.JSX.Element {
                 {below > 0 ? `↓ ${below}` : ''}
               </Text>
             )}
-            <Text dimColor>↑↓ · enter drill · x close · b/f/h views · p detail · q quit</Text>
+            <Text dimColor>↑↓ · enter drill · a filter · s/b/f/l/h views · p detail · x close · q quit</Text>
           </Box>
         </>
       )}
@@ -413,6 +483,7 @@ export function App({ baseUrl, city }: AppProps): React.JSX.Element {
 function emptyLabel(view: ViewMode): string {
   if (view === 'beads') return 'no beads';
   if (view === 'runs') return 'no active runs';
+  if (view === 'sessions') return 'no live sessions';
   return 'no sessions';
 }
 
@@ -421,11 +492,18 @@ interface EntryRowProps {
   readonly selected: boolean;
   readonly dim: boolean;
   readonly now: number;
+  /** Render an agent entry as the activity-forward Sessions row instead of the
+   *  grouped Agents row. */
+  readonly sessionRow: boolean;
 }
 
-function EntryRow({ entry, selected, dim, now }: EntryRowProps): React.JSX.Element {
+function EntryRow({ entry, selected, dim, now, sessionRow }: EntryRowProps): React.JSX.Element {
   if (entry.kind === 'agent') {
-    return <AgentRow view={entry.agent} selected={selected} dim={dim} now={now} />;
+    return sessionRow ? (
+      <SessionRow view={entry.agent} selected={selected} now={now} />
+    ) : (
+      <AgentRow view={entry.agent} selected={selected} dim={dim} now={now} />
+    );
   }
   if (entry.kind === 'bead') {
     return <BeadRow bead={entry.bead} selected={selected} dim={dim} />;

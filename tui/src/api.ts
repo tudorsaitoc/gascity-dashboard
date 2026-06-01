@@ -5,15 +5,17 @@
 // truth for the shapes, so a contract drift is a compile error here, not a
 // runtime undefined.
 
-import type {
-  GcSession,
-  GcSessionList,
-  GcBead,
-  DashboardSnapshot,
-  RunLane,
+import {
+  OPERATOR_DISPLAY_ALIAS,
+  type GcSession,
+  type GcSessionList,
+  type GcBead,
+  type GcMailItem,
+  type DashboardSnapshot,
+  type RunLane,
 } from 'gas-city-dashboard-shared';
 
-export type { GcSession, GcBead, DashboardSnapshot, RunLane };
+export type { GcSession, GcBead, GcMailItem, DashboardSnapshot, RunLane };
 
 function cityBase(baseUrl: string, city: string): string {
   return `${baseUrl}/api/city/${encodeURIComponent(city)}`;
@@ -56,6 +58,28 @@ export async function fetchBeads(
   signal?: AbortSignal,
 ): Promise<GcBead[]> {
   const list = await getJson<BeadList>(`${cityBase(baseUrl, city)}/beads`, signal);
+  return list.items;
+}
+
+interface MailListResponse {
+  readonly items: GcMailItem[];
+}
+
+/**
+ * GET /api/city/:cityName/mail?box=inbox&alias=<operator> → the operator's
+ * inbox. The backend resolves the operator's display alias to gc's wire alias
+ * and filters server-side (see backend/src/routes/mail.ts); unread filtering
+ * is applied in the view layer.
+ */
+export async function fetchMail(
+  baseUrl: string,
+  city: string,
+  signal?: AbortSignal,
+): Promise<GcMailItem[]> {
+  const url = `${cityBase(baseUrl, city)}/mail?box=inbox&alias=${encodeURIComponent(
+    OPERATOR_DISPLAY_ALIAS,
+  )}`;
+  const list = await getJson<MailListResponse>(url, signal);
   return list.items;
 }
 

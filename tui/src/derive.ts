@@ -6,6 +6,7 @@ import {
   effectiveContextPct,
   type GcSession,
   type GcBead,
+  type GcMailItem,
   type DashboardSnapshot,
   type RunLane,
 } from 'gas-city-dashboard-shared';
@@ -21,6 +22,19 @@ export function ctxPct(s: GcSession): number | undefined {
 
 export type Category = 'failed' | 'active' | 'idle';
 
+/**
+ * Agent kind, derived from the wire data (the supervisor does not label kinds
+ * directly — see classification rules in `agentKind`):
+ * - `pool`: a multi-session worker (a "polecat"); the `pool` field is set, or
+ *   the template names the polecat pool.
+ * - `role`: a named, single-purpose agent (project-lead, reviewer, deacon, …).
+ * - `orch`: city/orchestration layer (mayor, control-dispatcher) that directs
+ *   the rest; rig-less, or a control-dispatcher.
+ */
+export type AgentKind = 'pool' | 'role' | 'orch';
+
+export const AGENT_KINDS: readonly AgentKind[] = ['pool', 'role', 'orch'];
+
 export interface AgentView {
   readonly session: GcSession;
   /** Rig basename, e.g. `gascity` from `/home/ds/gascity`. */
@@ -28,6 +42,7 @@ export interface AgentView {
   /** Agent basename, e.g. `polecat-4` or `oversight-rig.project-lead`. */
   readonly agent: string;
   readonly category: Category;
+  readonly kind: AgentKind;
 }
 
 export function basename(path: string | null | undefined): string {
@@ -41,6 +56,67 @@ export function categorize(s: GcSession): Category {
   if (s.state === 'failed') return 'failed';
   if (s.state === 'active' || s.state === 'creating') return 'active';
   return 'idle';
+}
+
+const CONTROL_DISPATCHER = 'control-dispatcher';
+
+/**
+ * Classifies an agent's kind from the wire fields. The supervisor does not
+ * carry a pool/role label (its `agent_kind` is the unrelated agent/provider
+ * axis), so we derive it: orchestration first (a control-dispatcher or a
+ * rig-less agent like the mayor directs the rest, regardless of any pool
+ * bucket), then a pool worker (a multi-session "polecat", identified by the
+ * `pool` field or the polecat template), else a named role agent.
+ */
+export function agentKind(s: GcSession): AgentKind {
+  const template = s.template ?? '';
+  const isDispatcher =
+    template === CONTROL_DISPATCHER || template.endsWith(`/${CONTROL_DISPATCHER}`) ||
+    template.endsWith(`.${CONTROL_DISPATCHER}`);
+  if (isDispatcher || rigLabel(s.rig) === ORCHESTRATION) return 'orch';
+  if ((s.pool && s.pool.length > 0) || template === 'polecat' || template.endsWith('/polecat')) {
+    return 'pool';
+  }
+  return 'role';
+}
+
+/** Leading sigil per kind. The glyph is the primary, greyscale-readable signal
+ *  (DESIGN.md Greyscale Test) — not a color. */
+export function kindGlyph(kind: AgentKind): string {
+  switch (kind) {
+    case 'pool':
+      return '·';
+    case 'role':
+      return '◆';
+    case 'orch':
+      return '△';
+  }
+}
+
+/** Short type word shown beside the agent, pairing with the glyph so the kind
+ *  reads without color. */
+export function kindLabel(kind: AgentKind): string {
+  return kind;
+}
+
+// ── status filter (operator hides idle/active noise; failed never hides) ─────
+
+export type StatusFilter = 'active+idle' | 'active' | 'idle';
+
+export const STATUS_FILTERS: readonly StatusFilter[] = ['active+idle', 'active', 'idle'];
+
+/** Whether a category is visible under the current filter. Failed always shows
+ *  so a problem can never be filtered out of sight. */
+export function matchesStatusFilter(category: Category, filter: StatusFilter): boolean {
+  if (category === 'failed') return true;
+  if (filter === 'active+idle') return true;
+  return category === filter;
+}
+
+/** Cycles the filter: active+idle → active → idle → active+idle. */
+export function nextStatusFilter(filter: StatusFilter): StatusFilter {
+  const i = STATUS_FILTERS.indexOf(filter);
+  return STATUS_FILTERS[(i + 1) % STATUS_FILTERS.length] ?? 'active+idle';
 }
 
 /** Label for the city-level (rig-less) agents: mayor, city control-dispatcher. */
@@ -64,6 +140,7 @@ export function toAgentView(s: GcSession): AgentView {
     rig: rigLabel(s.rig),
     agent: basename(s.title ?? s.alias ?? s.id) || s.id,
     category: categorize(s),
+    kind: agentKind(s),
   };
 }
 
@@ -350,4 +427,85 @@ export function contextPressure(
     .map((s) => ({ session: s, pct: ctxPct(s) }))
     .filter((e): e is ContextPressureEntry => e.pct !== undefined && e.pct >= thresholdPct)
     .sort((a, b) => b.pct - a.pct);
+}
+
+// ── sessions live feed ("what each is doing", mechanical) ────────────────────
+
+/** Currently-running sessions (active/creating), most-recently-active first.
+ *  The flat "live now" feed behind the Sessions view. */
+export function runningSessions(sessions: readonly GcSession[]): GcSession[] {
+  return sessions
+    .filter((s) => categorize(s) === 'active')
+    .slice()
+    .sort((a, b) => Date.parse(b.last_active ?? '') - Date.parse(a.last_active ?? ''));
+}
+
+/**
+ * A readable, mechanical phrase for what a session is doing right now. This is
+ * the honest non-LLM signal: the supervisor's coarse `activity` hint while
+ * active, or the dormant transition reason. A model-written task summary is a
+ * separate future layer — no per-session transcript is exposed as data today,
+ * so we never fabricate one.
+ */
+export function activityPhrase(s: GcSession): string {
+  if (categorize(s) !== 'active') {
+    return s.attached ? 'attached' : (s.reason ?? s.state);
+  }
+  if (!s.activity) return 'active';
+  switch (s.activity) {
+    case 'tool_use':
+      return 'running a tool';
+    case 'thinking':
+      return 'thinking';
+    case 'idle':
+      return 'active, between steps';
+    default:
+      return s.activity;
+  }
+}
+
+// ── operator ledger (things waiting on the user) ─────────────────────────────
+
+/** The operator's canonical mail triager. By Gas City convention the mayor
+ *  digests the worker firehose and forwards only what needs the human. */
+const MAYOR = 'mayor';
+
+/**
+ * Mail the operator should actually see: escalations from the orchestration
+ * layer (the mayor), not the worker firehose. The wire's `read`/`priority`
+ * flags are unusable as a "needs you" signal here — the supervisor never sets
+ * priority and the operator never marks mail read (the mayor handles it) — so
+ * we filter by SENDER ROLE instead: keep mail from an orchestration-kind agent
+ * (resolved against the live session list) or the mayor, fold away pool-worker
+ * chatter. Newest first.
+ */
+export function operatorMail(
+  mail: readonly GcMailItem[],
+  sessions: readonly GcSession[],
+): GcMailItem[] {
+  const orchSenders = new Set<string>([MAYOR]);
+  for (const s of sessions) {
+    if (agentKind(s) === 'orch') orchSenders.add(basename(s.title ?? s.alias ?? s.id) || s.id);
+  }
+  return mail
+    .filter((m) => !m.read && orchSenders.has(basename(m.from)))
+    .slice()
+    .sort((a, b) => (b.created_at ?? '').localeCompare(a.created_at ?? ''));
+}
+
+/** Count of unread mail folded away by {@link operatorMail} — the worker
+ *  reports the mayor handles. Surfaced so the filter is never silent. */
+export function foldedMailCount(
+  mail: readonly GcMailItem[],
+  shown: readonly GcMailItem[],
+): number {
+  const unread = mail.filter((m) => !m.read).length;
+  return Math.max(0, unread - shown.length);
+}
+
+/** One-line snippet of a mail body: whitespace collapsed, hard-truncated with
+ *  an ellipsis so a long body can't blow out the ledger row. */
+export function mailSnippet(body: string, max = 120): string {
+  const oneLine = body.replace(/\s+/g, ' ').trim();
+  return oneLine.length > max ? `${oneLine.slice(0, max - 1)}…` : oneLine;
 }

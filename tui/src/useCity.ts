@@ -2,10 +2,12 @@ import { useEffect, useState } from 'react';
 import {
   eventsStreamUrl,
   fetchBeads,
+  fetchMail,
   fetchSessions,
   fetchSnapshot,
   type DashboardSnapshot,
   type GcBead,
+  type GcMailItem,
   type GcSession,
 } from './api.ts';
 
@@ -15,6 +17,7 @@ export interface CityState {
   readonly sessions: readonly GcSession[];
   readonly snapshot: DashboardSnapshot | null;
   readonly beads: readonly GcBead[];
+  readonly mail: readonly GcMailItem[];
   readonly error: string | null;
   readonly conn: ConnState;
 }
@@ -23,6 +26,7 @@ const INITIAL: CityState = {
   sessions: [],
   snapshot: null,
   beads: [],
+  mail: [],
   error: null,
   conn: 'connecting',
 };
@@ -33,7 +37,7 @@ const INITIAL: CityState = {
 // throttle → at most one refresh per window, plus one after the burst settles.
 const COALESCE_MS = 2_500;
 // Any of these prefixes means the operator-visible state may have moved.
-const REFRESH_PREFIXES = ['session.', 'bead.', 'run.', 'agent.'];
+const REFRESH_PREFIXES = ['session.', 'bead.', 'run.', 'agent.', 'mail.'];
 
 /**
  * Loads sessions + snapshot + beads for a city and refreshes them (coalesced)
@@ -73,6 +77,13 @@ export function useCity(baseUrl: string, city: string): CityState {
         })
         .catch(() => {
           /* beads are supplementary (peek pane) */
+        });
+      void fetchMail(baseUrl, city)
+        .then((mail) => {
+          if (!cancelled) setState((p) => ({ ...p, mail }));
+        })
+        .catch(() => {
+          /* mail is supplementary (ledger pane) */
         });
     };
 
