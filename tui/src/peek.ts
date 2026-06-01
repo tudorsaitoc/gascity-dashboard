@@ -1,13 +1,26 @@
 import { spawnSync } from 'node:child_process';
+import { fileURLToPath } from 'node:url';
 
-// gc session ids / aliases are conservative tokens; validate before any value
+// Ids / aliases / city paths are conservative tokens; validate before any value
 // reaches a shell-interpreted tmux command (defence in depth — no injection).
 const SAFE_ID = /^[A-Za-z0-9._-]+$/;
-// City root is a filesystem path; allow path chars only.
 const SAFE_PATH = /^[A-Za-z0-9._/-]+$/;
+
+// peek-run.sh lives next to this workspace's src/ (tui/peek-run.sh).
+const RUN_SCRIPT = fileURLToPath(new URL('../peek-run.sh', import.meta.url));
 
 export function insideTmux(): boolean {
   return Boolean(process.env.TMUX);
+}
+
+export type PeekKind = 'agent' | 'bead' | 'run';
+
+export interface PeekRequest {
+  readonly kind: PeekKind;
+  readonly id: string;
+  readonly cityRoot: string | null;
+  readonly city: string;
+  readonly baseUrl: string;
 }
 
 export interface PeekResult {
@@ -18,21 +31,30 @@ export interface PeekResult {
 }
 
 /**
- * Builds the follow command. READS the agent's log (`gc session logs -f`) — it
- * does NOT attach as a second tmux client, so it cannot resize or disturb the
- * running agent. `--city` is explicit because the pane inherits the TUI's cwd,
- * which is usually not a city directory.
+ * Builds the shell command for a peek, by kind. All commands READ
+ * (logs/show/diff) — none attaches as a tmux client, so peeking can't resize or
+ * disturb a running agent. `--city`/explicit paths are passed because the pane
+ * inherits the TUI's cwd, which is usually not a city directory. `; exec $SHELL`
+ * keeps the pane open so output/errors stay readable.
  */
-function buildCommand(sessionId: string, cityRoot: string | null): string | { error: string } {
+export function buildCommand(req: PeekRequest): string | { error: string } {
   if (!insideTmux()) {
     return { error: 'not inside tmux — launch with `npm --workspace tui run start:tmux`' };
   }
-  if (!SAFE_ID.test(sessionId)) return { error: `unsafe session id: ${sessionId}` };
-  if (!cityRoot) return { error: 'city path not loaded yet — retry in a moment' };
-  if (!SAFE_PATH.test(cityRoot)) return { error: `unsafe city path: ${cityRoot}` };
-  // `; exec $SHELL` keeps the pane open if the follow exits, so an error stays
-  // readable instead of the pane vanishing.
-  return `gc --city ${cityRoot} session logs ${sessionId} -f; exec $SHELL`;
+  if (!req.cityRoot) return { error: 'city path not loaded yet — retry in a moment' };
+  if (!SAFE_PATH.test(req.cityRoot)) return { error: `unsafe city path: ${req.cityRoot}` };
+  if (!SAFE_ID.test(req.id)) return { error: `unsafe id: ${req.id}` };
+  const root = req.cityRoot;
+  switch (req.kind) {
+    case 'agent':
+      return `gc --city ${root} session logs ${req.id} -f; exec $SHELL`;
+    case 'bead':
+      return `gc --city ${root} bd show ${req.id}; exec $SHELL`;
+    case 'run':
+      // peek-run.sh prints `bd show <run>` then the code diff; args are
+      // single-quoted (all validated/owned, no quotes) for the sh -c tmux runs.
+      return `bash '${RUN_SCRIPT}' '${root}' '${req.city}' '${req.baseUrl}' '${req.id}'`;
+  }
 }
 
 function tmuxFail(r: ReturnType<typeof spawnSync>): string {
@@ -49,13 +71,11 @@ export function paneExists(paneId: string): boolean {
 }
 
 /** Opens the peek pane beside the dashboard (focus stays on the dashboard). */
-export function openPeek(sessionId: string, cityRoot: string | null): PeekResult {
-  const built = buildCommand(sessionId, cityRoot);
-  if (typeof built !== 'string') return { ok: false, error: built.error };
+export function openPeek(command: string): PeekResult {
   // -d: don't move focus. -P -F prints the new pane's id so we can retarget it.
   const r = spawnSync(
     'tmux',
-    ['split-window', '-d', '-h', '-l', '45%', '-P', '-F', '#{pane_id}', built],
+    ['split-window', '-d', '-h', '-l', '45%', '-P', '-F', '#{pane_id}', command],
     { encoding: 'utf8' },
   );
   if (r.error || (typeof r.status === 'number' && r.status !== 0)) {
@@ -64,11 +84,9 @@ export function openPeek(sessionId: string, cityRoot: string | null): PeekResult
   return { ok: true, paneId: (r.stdout ?? '').trim() };
 }
 
-/** Retargets the existing peek pane to a different agent (reuses one pane). */
-export function replacePeek(paneId: string, sessionId: string, cityRoot: string | null): PeekResult {
-  const built = buildCommand(sessionId, cityRoot);
-  if (typeof built !== 'string') return { ok: false, error: built.error };
-  const r = spawnSync('tmux', ['respawn-pane', '-k', '-t', paneId, built], { encoding: 'utf8' });
+/** Retargets the existing peek pane (reuses one pane instead of stacking). */
+export function replacePeek(paneId: string, command: string): PeekResult {
+  const r = spawnSync('tmux', ['respawn-pane', '-k', '-t', paneId, command], { encoding: 'utf8' });
   if (r.error || (typeof r.status === 'number' && r.status !== 0)) {
     return { ok: false, error: tmuxFail(r) };
   }

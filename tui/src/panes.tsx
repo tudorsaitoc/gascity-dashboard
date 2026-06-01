@@ -72,6 +72,69 @@ export function AgentRow({ view, selected, dim, now }: AgentRowProps): React.JSX
   );
 }
 
+// ── one bead row (beads view) ───────────────────────────────────────────────
+
+interface BeadRowProps {
+  readonly bead: GcBead;
+  readonly selected: boolean;
+  readonly dim: boolean;
+}
+
+export function BeadRow({ bead, selected, dim }: BeadRowProps): React.JSX.Element {
+  const prio = typeof bead.priority === 'number' ? `P${bead.priority}` : '';
+  return (
+    <Box>
+      <Box width={2}>{selected ? <Text color="cyan">▸</Text> : <Text> </Text>}</Box>
+      <Box width={3} marginRight={1}>
+        <Text dimColor>{prio}</Text>
+      </Box>
+      <Box flexGrow={1} marginRight={1}>
+        <Text wrap="truncate-end" bold={selected} inverse={selected} dimColor={dim && !selected}>
+          {bead.title}
+        </Text>
+      </Box>
+      <Box width={8} marginRight={1}>
+        <Text wrap="truncate-end" dimColor>
+          {bead.issue_type}
+        </Text>
+      </Box>
+    </Box>
+  );
+}
+
+// ── one run-lane row (formula runs view) ─────────────────────────────────────
+
+interface RunRowProps {
+  readonly lane: RunLane;
+  readonly selected: boolean;
+}
+
+export function RunRow({ lane, selected }: RunRowProps): React.JSX.Element {
+  const needsOp = laneNeedsOperator(lane);
+  return (
+    <Box>
+      <Box width={2}>
+        {needsOp ? <Text color="red">●</Text> : selected ? <Text color="cyan">▸</Text> : <Text> </Text>}
+      </Box>
+      <Box flexGrow={1} marginRight={1}>
+        <Text wrap="truncate-end" bold={selected} inverse={selected}>
+          {lane.title}
+        </Text>
+      </Box>
+      <Box width={14} marginRight={1}>
+        <Text wrap="truncate-end" dimColor>
+          {lane.phaseLabel}
+        </Text>
+      </Box>
+      <Box width={12}>
+        <Text wrap="truncate-end" dimColor>
+          {needsOp ? 'needs operator' : ''}
+        </Text>
+      </Box>
+    </Box>
+  );
+}
+
 // ── detail / peek pane for the selected agent ───────────────────────────────
 
 interface DetailPaneProps {

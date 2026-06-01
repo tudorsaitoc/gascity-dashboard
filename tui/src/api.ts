@@ -10,9 +10,10 @@ import type {
   GcSessionList,
   GcBead,
   DashboardSnapshot,
+  RunLane,
 } from 'gas-city-dashboard-shared';
 
-export type { GcSession, GcBead, DashboardSnapshot };
+export type { GcSession, GcBead, DashboardSnapshot, RunLane };
 
 function cityBase(baseUrl: string, city: string): string {
   return `${baseUrl}/api/city/${encodeURIComponent(city)}`;

@@ -18,30 +18,43 @@ split instead of alt-tabbing to the SSH-forwarded browser tab.
   defence, and break the 127.0.0.1-only posture. Session content reaches the
   operator through the backend, not by attaching to panes.
 
-## Views
+## Views (full-screen toggles)
 
-- **List** (default): agents grouped `failed → active → idle`, one line each as
-  `rig · agent · ctx% · activity · model · last-active`. Greyscale-first, with a
-  single red mark for the things worth a glance (failed agents, runs needing an
-  operator), honouring DESIGN.md's behavioural rules (words before colour, one
-  mark of alarm) — its typographic rules are web-only.
-- **Peek** (`enter` or `p`): detail for the selected agent — ids, model/context,
-  the **peek commands** to run in another pane (`gc session peek <id>`,
-  `tmux attach -t <session_name>`, `tmux capture-pane …`), the active run lanes
-  (formulas) on its rig, and that rig's beads (best-effort, beads carry no
-  session field so the match is by id prefix).
-- **Health** (`h`): system resources (load / vcpu / memory), headline counts,
-  runs needing an operator, context-pressure agents (≥75%), and a
-  never-active-by-rig rollup — the "why are these idle agents here, could the
-  mayor reallocate them?" view. Costs are shown as *not measured* (the
-  supervisor exposes no per-run cost yet — see
-  `specs/architecture/cost-token-feasibility.md`); they are not faked.
+Each is a full-screen toggle over the same navigable area; the selection
+persists across the live refresh. `enter` drills the selected row into a single
+reused tmux split (see Peek).
+
+- **Agents** (default): grouped by rig (orchestration layer first; within a rig,
+  active before idle), one line each as `agent · ctx% · activity · model ·
+  last-active`. Dormant agents show their transition reason (e.g. `city-stop`).
+  Greyscale-first, one red mark for what's worth a glance.
+- **Beads** (`b`): grouped by status (open → in_progress → blocked → closed),
+  priority-ordered. `enter` opens `gc bd show <id>` in the split — the bead's
+  instructions/description/labels.
+- **Formula runs** (`f`): run lanes grouped by rig, needs-operator first (one red
+  mark). `enter` opens the run's bead (`gc bd show`) plus its code diff in the
+  split.
+- **Health** (`h`): host resources, headline counts, runs needing an operator,
+  context-pressure agents (≥75%), and a never-active-by-rig reallocation rollup.
+  Costs are shown as *not measured* (the supervisor exposes none yet — see
+  `specs/architecture/cost-token-feasibility.md`); never faked.
+- **Detail** (`p`, agents only): in-TUI detail for the selected agent — ids, the
+  peek commands, that rig's beads and active run lanes.
+
+## Peek (tmux split)
+
+`enter` on a row opens **one reused** tmux split beside the dashboard and points
+it at the selected row's drill-in (agent → live `session logs -f`; bead →
+`bd show`; run → `bd show` + diff). `enter` retargets that pane to a new
+selection (no pile-up); `enter` on the row it's already showing, or `x`, closes
+it. Quitting (`q`) tears the peek pane down. All drill-ins READ (logs/show/diff)
+— none attaches as a tmux client, so peeking can't resize or disturb an agent.
 
 ## Controls
 
 `↑`/`↓` or `j`/`k` move the selection · **mouse wheel** scrolls · `PageUp`/`PageDown`
-· `g`/`G` top/bottom · `enter`/`p` toggle peek · `h` toggle health · `q` (or
-`esc`) quit. The selection persists across the live refresh so peeking stays put.
+· `g`/`G` top/bottom · `enter` drill into split · `x` close split · `b` beads ·
+`f` runs · `h` health · `p` agent detail · `q` (or `esc`) quit.
 
 ## Run
 

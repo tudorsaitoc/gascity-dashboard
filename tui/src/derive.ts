@@ -192,6 +192,71 @@ export function lanesForRig(lanes: readonly RunLane[], rig: string): RunLane[] {
   });
 }
 
+// ── beads grouping (by status, kanban-style) ────────────────────────────────
+
+export interface BeadGroup {
+  readonly status: string;
+  readonly beads: readonly GcBead[];
+}
+
+const BEAD_STATUS_ORDER = ['open', 'in_progress', 'blocked', 'deferred', 'closed'];
+
+function beadStatusRank(status: string): number {
+  const i = BEAD_STATUS_ORDER.indexOf(status);
+  return i < 0 ? BEAD_STATUS_ORDER.length : i;
+}
+
+/** Groups beads by status (open → in_progress → blocked → deferred → closed);
+ *  within a status, higher priority (lower number) first, then newest. */
+export function groupBeads(beads: readonly GcBead[]): BeadGroup[] {
+  const byStatus = new Map<string, GcBead[]>();
+  for (const b of beads) {
+    const arr = byStatus.get(b.status) ?? [];
+    arr.push(b);
+    byStatus.set(b.status, arr);
+  }
+  return [...byStatus.entries()]
+    .map(([status, list]) => ({
+      status,
+      beads: list.slice().sort((a, b) => {
+        const pa = a.priority ?? 99;
+        const pb = b.priority ?? 99;
+        if (pa !== pb) return pa - pb;
+        return (b.created_at ?? '').localeCompare(a.created_at ?? '');
+      }),
+    }))
+    .sort((a, b) => beadStatusRank(a.status) - beadStatusRank(b.status));
+}
+
+// ── run lanes grouping (by rig) ─────────────────────────────────────────────
+
+export interface RunGroup {
+  readonly rig: string;
+  readonly lanes: readonly RunLane[];
+}
+
+/** Groups run lanes by rig; within a rig, needs-operator first, then by title. */
+export function groupRuns(lanes: readonly RunLane[]): RunGroup[] {
+  const byRig = new Map<string, RunLane[]>();
+  for (const l of lanes) {
+    const rig = laneRig(l) ?? ORCHESTRATION;
+    const arr = byRig.get(rig) ?? [];
+    arr.push(l);
+    byRig.set(rig, arr);
+  }
+  return [...byRig.entries()]
+    .map(([rig, list]) => ({
+      rig,
+      lanes: list.slice().sort((a, b) => {
+        const na = laneNeedsOperator(a) ? 0 : 1;
+        const nb = laneNeedsOperator(b) ? 0 : 1;
+        if (na !== nb) return na - nb;
+        return a.title.localeCompare(b.title);
+      }),
+    }))
+    .sort((a, b) => a.rig.localeCompare(b.rig));
+}
+
 // ── snapshot accessors (collapse the Avail/SourceState unions) ───────────────
 
 export interface SystemHealth {
