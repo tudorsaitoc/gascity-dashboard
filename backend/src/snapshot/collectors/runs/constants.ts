@@ -3,10 +3,11 @@ export const RUNS_FETCH_LIMIT = 1_000;
 export const RECENT_RUN_FETCH_LIMIT = 80;
 
 /**
- * gascity-dashboard-yh5i: active and historical lanes have independent caps
- * so complete lanes can never crowd active work out of the visible window.
+ * gascity-dashboard-yh5i: active lanes are capped so they can't crowd the
+ * ambient window. Historical lanes ship uncapped (gascity-dashboard-l9q9) —
+ * the frontend owns the historical preview/expand count — so there is no
+ * MAX_VISIBLE_HISTORICAL_LANES here anymore.
  */
 export const MAX_VISIBLE_ACTIVE_LANES = 8;
-export const MAX_VISIBLE_HISTORICAL_LANES = 5;
 
 export const RECENT_CHANGES_CAP = 12;

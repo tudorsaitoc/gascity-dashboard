@@ -6,10 +6,7 @@ import {
 
 import { fromRootMetadataScope } from '../../../lib/run-scope.js';
 import { resolveRunFormulaIdentity } from '../../../runs/formula-name.js';
-import {
-  MAX_VISIBLE_ACTIVE_LANES,
-  MAX_VISIBLE_HISTORICAL_LANES,
-} from './constants.js';
+import { MAX_VISIBLE_ACTIVE_LANES } from './constants.js';
 import type { RunFeedScopeMap } from './types.js';
 import {
   activeAssignees,
@@ -59,14 +56,17 @@ export function buildRunSummary(
   const activeLanes = sortedLanes.filter((lane) => lane.phase !== 'complete');
   const historicalLanes = sortedLanes.filter((lane) => lane.phase === 'complete');
   const visibleActive = activeLanes.slice(0, MAX_VISIBLE_ACTIVE_LANES);
-  const visibleHistorical = historicalLanes.slice(0, MAX_VISIBLE_HISTORICAL_LANES);
 
   const summary: RunSummary = {
     totalActive: activeLanes.length,
     totalHistorical: historicalLanes.length,
     runCounts: runCounts(activeLanes, visibleActive.length),
     lanes: visibleActive,
-    historicalLanes: visibleHistorical,
+    // Historical lanes ship uncapped (gascity-dashboard-l9q9): the frontend
+    // renders a preview and reveals the rest in place via a show-more toggle,
+    // so the wire must carry the full completed set (bounded by the run-fetch
+    // limit). Active lanes stay capped — they're the live, ambient surface.
+    historicalLanes,
     recentChanges: recentChanges(laneIssues),
     census: runCensusUnavailable(),
   };

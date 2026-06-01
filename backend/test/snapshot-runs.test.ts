@@ -8,7 +8,6 @@ import {
   createRunsSourceCache,
   fromGcBead,
   MAX_VISIBLE_ACTIVE_LANES,
-  MAX_VISIBLE_HISTORICAL_LANES,
   RECENT_RUN_FETCH_LIMIT,
   runBeadFilter,
 } from '../src/snapshot/collectors/runs.js';
@@ -1010,11 +1009,11 @@ describe('buildRunSummary', () => {
     assert.deepEqual(summary.historicalLanes, []);
   });
 
-  test('yh5i: independent caps — historical overflow does not steal active slots', () => {
-    // Build 10 active + 7 historical lanes (each cap is 8 + 5 respectively).
-    // Active cap = MAX_VISIBLE_ACTIVE_LANES (8), historical cap = MAX_VISIBLE_HISTORICAL_LANES (5).
-    // Expect: lanes.length === 8 (cap), historicalLanes.length === 5 (cap),
-    // totalActive === 10 (raw count), totalHistorical === 7 (raw count).
+  test('yh5i/l9q9: active stays capped while historical ships uncapped', () => {
+    // Build 10 active + 7 historical lanes. Active cap = MAX_VISIBLE_ACTIVE_LANES
+    // (8); historical is no longer capped on the wire (l9q9 — the frontend owns
+    // the preview/expand). Expect: lanes.length === 8 (cap), historicalLanes
+    // carries all 7, totalActive === 10, totalHistorical === 7.
     const issues = [];
     for (let i = 0; i < 10; i += 1) {
       issues.push(issue({
@@ -1042,7 +1041,7 @@ describe('buildRunSummary', () => {
     assert.equal(summary.totalActive, 10, 'raw active count');
     assert.equal(summary.totalHistorical, 7, 'raw historical count');
     assert.equal(summary.lanes.length, MAX_VISIBLE_ACTIVE_LANES, 'active cap');
-    assert.equal(summary.historicalLanes.length, MAX_VISIBLE_HISTORICAL_LANES, 'historical cap');
+    assert.equal(summary.historicalLanes.length, 7, 'historical uncapped — all sent');
     // Crucially: no historical lane leaks into active and vice versa.
     for (const lane of summary.lanes) {
       assert.notEqual(lane.phase, 'complete', `lane ${lane.id} must not be complete`);

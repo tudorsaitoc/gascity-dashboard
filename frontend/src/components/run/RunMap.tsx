@@ -1,3 +1,4 @@
+import { useState } from "react";
 import type { RunLane, RunSummary, SourceState } from "gas-city-dashboard-shared";
 import { LaneCard } from "./LaneCard";
 
@@ -27,6 +28,11 @@ const COUNT_LABELS: Array<[keyof RunSummary["runCounts"], string]> = [
 ];
 
 const HISTORICAL_SECTION_ID = 'runs-historical-section';
+const HISTORICAL_LIST_ID = 'runs-historical-list';
+// How many completed runs show before the operator opts into the rest.
+// The wire carries every historical lane (gascity-dashboard-l9q9); this
+// preview keeps the section ambient by default per DESIGN.md.
+const HISTORICAL_PREVIEW = 5;
 
 export function RunMap({ source, now, showHistory }: RunMapProps) {
   if (source.status === "error") {
@@ -122,6 +128,11 @@ function rigLabel(rig: string): string {
 }
 
 function HistoricalSection({ summary, now }: { summary: RunSummary; now: number }) {
+  const [expanded, setExpanded] = useState(false);
+  const lanes = summary.historicalLanes;
+  const hasOverflow = lanes.length > HISTORICAL_PREVIEW;
+  const shown = expanded ? lanes : lanes.slice(0, HISTORICAL_PREVIEW);
+
   return (
     <section
       id={HISTORICAL_SECTION_ID}
@@ -131,21 +142,27 @@ function HistoricalSection({ summary, now }: { summary: RunSummary; now: number 
       <h2 className="text-label uppercase tracking-wider text-fg-faint">
         Historical
       </h2>
-      {summary.historicalLanes.length === 0 ? (
+      {lanes.length === 0 ? (
         <p className="mt-3 text-body text-fg-muted italic">
           No completed runs in the current window.
         </p>
       ) : (
         <>
-          <ol className="mt-3 divide-y divide-rule">
-            {summary.historicalLanes.map((lane) => (
+          <ol id={HISTORICAL_LIST_ID} className="mt-3 divide-y divide-rule">
+            {shown.map((lane) => (
               <LaneCard key={lane.id} lane={lane} now={now} />
             ))}
           </ol>
-          {summary.totalHistorical > summary.historicalLanes.length && (
-            <p className="mt-3 text-label uppercase tracking-wider text-fg-faint tnum">
-              {summary.totalHistorical - summary.historicalLanes.length} more not shown
-            </p>
+          {hasOverflow && (
+            <button
+              type="button"
+              onClick={() => setExpanded((value) => !value)}
+              aria-expanded={expanded}
+              aria-controls={HISTORICAL_LIST_ID}
+              className="mt-3 text-label uppercase tracking-wider text-fg-faint tnum hover:text-fg focus-mark"
+            >
+              {expanded ? 'Show fewer' : `Show ${lanes.length - HISTORICAL_PREVIEW} more`}
+            </button>
           )}
         </>
       )}
