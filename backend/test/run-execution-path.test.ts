@@ -55,6 +55,62 @@ describe('run execution path resolution', () => {
   // is unknown" — rather than a known-but-useless path. The function still
   // honors an explicit rig_root in supervisor metadata (test above).
 
+  test('resolves gc.routed_to as the work dir for rig-store routed roots (tqus)', () => {
+    // gascity-dashboard-tqus: the supervisor marks routed rig-store workflow
+    // roots with gc.routed_to (an absolute work-dir path) instead of
+    // gc.cwd/gc.work_dir, so the diff resolver must accept it.
+    const root = runBead({
+      metadata: { 'gc.routed_to': ' /home/ds/gascity-packs/gascity-packs-polecat ' },
+    });
+
+    assert.deepEqual(resolveRunExecutionPath(root, [root], undefined), {
+      kind: 'known',
+      path: '/home/ds/gascity-packs/gascity-packs-polecat',
+    });
+  });
+
+  test('a child work_dir outranks the root gc.routed_to (real worktree beats canonical routing dir)', () => {
+    // gascity-dashboard-tqus: rig-store roots often carry a canonical
+    // gc.routed_to that may not be the instantiated worktree, while the
+    // child session records the real gc.work_dir. The real worktree must win.
+    const root = runBead({
+      metadata: { 'gc.routed_to': '/home/ds/gascity-packs/gascity-packs-polecat' },
+    });
+    const child = runBead({
+      id: 'session-step',
+      metadata: { 'gc.work_dir': '/home/ds/gascity-packs-worktrees/polecat-2' },
+    });
+
+    assert.deepEqual(resolveRunExecutionPath(root, [root, child], undefined), {
+      kind: 'known',
+      path: '/home/ds/gascity-packs-worktrees/polecat-2',
+    });
+  });
+
+  test('prefers an explicit gc.cwd over gc.routed_to', () => {
+    const root = runBead({
+      metadata: { 'gc.cwd': '/runs/explicit', 'gc.routed_to': '/home/ds/packs/x' },
+    });
+
+    assert.deepEqual(resolveRunExecutionPath(root, [root], undefined), {
+      kind: 'known',
+      path: '/runs/explicit',
+    });
+  });
+
+  test('ignores a non-path gc.routed_to (agent alias) so it cannot shadow a rig root', () => {
+    // gc.routed_to is sometimes an agent alias rather than a path; only an
+    // absolute path is a usable git cwd. A non-path value must fall through.
+    const root = runBead({
+      metadata: { 'gc.routed_to': 'polecat', 'gc.rig_root': '/rig/from-root' },
+    });
+
+    assert.deepEqual(resolveRunExecutionPath(root, [root], undefined), {
+      kind: 'known',
+      path: '/rig/from-root',
+    });
+  });
+
   test('returns an explicit unavailable state when no execution path is available', () => {
     assert.deepEqual(resolveRunExecutionPath(runBead({}), [], '  '), {
       kind: 'unavailable',

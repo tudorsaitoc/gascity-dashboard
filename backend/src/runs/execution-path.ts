@@ -12,6 +12,13 @@ export function resolveRunExecutionPath(
   const candidates = [
     ...executionWorkDirs(root),
     ...beads.flatMap((bead) => executionWorkDirs(bead)),
+    // gascity-dashboard-tqus: gc.routed_to is the supervisor's canonical
+    // routing dir for rig-store roots. It ranks BELOW every explicit
+    // cwd/work_dir (a child session's real work_dir must win over the
+    // root's canonical-but-maybe-uninstantiated routed_to) but ABOVE the
+    // generic rig roots, since it is more specific than a rig checkout.
+    routedToWorkDir(root),
+    ...beads.map((bead) => routedToWorkDir(bead)),
     ...rigRoots(root),
     ...beads.flatMap((bead) => rigRoots(bead)),
     nonEmpty(rigRoot),
@@ -29,6 +36,15 @@ function executionWorkDirs(bead: GcRunBead | undefined): Array<string | undefine
     meta(bead, 'gc.work_dir'),
     meta(bead, 'work_dir'),
   ];
+}
+
+// gascity-dashboard-tqus: the supervisor marks routed rig-store workflow
+// roots with gc.routed_to (the agent's working directory) when no explicit
+// work_dir is recorded. Only an absolute path is a usable git cwd —
+// gc.routed_to can also hold an agent alias, which must never become a path.
+function routedToWorkDir(bead: GcRunBead | undefined): string | undefined {
+  const routedTo = meta(bead, 'gc.routed_to');
+  return routedTo !== undefined && routedTo.startsWith('/') ? routedTo : undefined;
 }
 
 function rigRoots(bead: GcRunBead | undefined): Array<string | undefined> {

@@ -55,10 +55,29 @@ describe('resolveRunFormulaName', () => {
     });
   });
 
-  test('does NOT fall back to title for graph.v2 roots without gc.run_target', () => {
-    // Without a target the formula can't be fetched anyway; surfacing the
-    // title as a "known" name would be a silent fallback that masks the
-    // actual missing-config failure mode.
+  test('tags the title fallback for graph.v2 roots gated by gc.routed_to (no gc.run_target) — rig-store routed roots (tqus)', () => {
+    // gascity-dashboard-tqus: the supervisor marks routed rig-store workflow
+    // roots with gc.routed_to (a work-dir path) instead of gc.run_target.
+    // The runnable-root gate must accept it or every rig-store run collapses
+    // to 'metadata missing'.
+    const root = makeRoot(
+      {
+        'gc.kind': 'workflow',
+        'gc.formula_contract': 'graph.v2',
+        'gc.routed_to': '/home/ds/gascity-packs/gascity-packs-polecat',
+      },
+      'mol-focus-review',
+    );
+    assert.deepEqual(resolveRunFormulaName(root), {
+      name: 'mol-focus-review',
+      source: 'title_fallback',
+    });
+  });
+
+  test('does NOT fall back to title for graph.v2 roots without gc.run_target or gc.routed_to', () => {
+    // Without any routing signal the formula can't be fetched anyway;
+    // surfacing the title as a "known" name would be a silent fallback that
+    // masks the actual missing-config failure mode.
     const root = makeRoot(
       { 'gc.kind': 'workflow', 'gc.formula_contract': 'graph.v2' },
       'mol-fixture-formula',
@@ -200,6 +219,31 @@ describe('resolveRunFormulaIdentity', () => {
       name: 'mol-from-detail',
       source: 'formula_detail',
       target: '/fixture/run/target',
+    });
+  });
+
+  test('state + lane modes resolve title_fallback for a gc.routed_to-gated rig-store root (tqus)', () => {
+    // The live ds-research regression: rig-store roots carry gc.routed_to
+    // (a work-dir path) and a mol- title, but no gc.run_target. Both the
+    // run-detail (state) and the snapshot lane must surface the title.
+    const root = makeRoot(
+      {
+        'gc.kind': 'workflow',
+        'gc.formula_contract': 'graph.v2',
+        'gc.routed_to': '/home/ds/gascity-packs/gascity-packs-polecat',
+      },
+      'mol-focus-review',
+    );
+
+    assert.deepEqual(resolveRunFormulaIdentity('state', { root }), {
+      name: 'mol-focus-review',
+      source: 'title_fallback',
+      target: '/home/ds/gascity-packs/gascity-packs-polecat',
+    });
+    assert.deepEqual(resolveRunFormulaIdentity('lane', { root, issues: [root] }), {
+      name: 'mol-focus-review',
+      source: 'title_fallback',
+      target: '/home/ds/gascity-packs/gascity-packs-polecat',
     });
   });
 

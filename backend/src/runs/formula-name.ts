@@ -57,10 +57,12 @@ export interface ResolvedRunFormulaName {
  * missing a formula, collapsing every graph.v2 run-detail page to an
  * empty `formula_detail_unavailable` state.
  *
- * The gate on `gc.run_target` is what keeps the fallback honest: only
- * fully-instantiated runnable roots set both `gc.formula_contract` and
- * `gc.run_target`. Operator-edited descriptive titles on closed roots
- * without a target won't be mis-surfaced as formula names.
+ * The routing gate is what keeps the fallback honest: only fully-
+ * instantiated runnable roots set `gc.formula_contract` together with a
+ * supervisor routing signal — `gc.run_target` (legacy) or `gc.routed_to`
+ * (gascity-dashboard-tqus, the current rig-store shape). Operator-edited
+ * descriptive titles on closed or unrouted roots won't be mis-surfaced as
+ * formula names.
  *
  * gascity-dashboard-xfb7 (sadp follow-up): closed graph.v2 roots are
  * additionally excluded from the title fallback even when they retain
@@ -90,7 +92,7 @@ export function resolveRunFormulaName(
   if (explicit !== undefined) return { name: explicit, source: 'metadata' };
   if (
     meta(root, 'gc.formula_contract') === 'graph.v2' &&
-    meta(root, 'gc.run_target') !== undefined &&
+    hasRunRoutingSignal(root) &&
     root.status !== 'closed'
   ) {
     const title = root.title.trim();
@@ -140,9 +142,14 @@ function runFormulaTitleFallback(
   root: RunFormulaRootLike | undefined,
 ): string | null {
   if (root === undefined) return null;
+  // The runnable-root gate: only a routed, non-closed graph.v2 root gets the
+  // title fallback. gascity-dashboard-tqus — the supervisor now marks routed
+  // rig-store roots with gc.routed_to instead of gc.run_target, so either
+  // routing signal qualifies (both are supervisor-set; an operator-edited
+  // title alone never is).
   if (
     rootMeta(root, 'gc.formula_contract') !== 'graph.v2' ||
-    rootMeta(root, 'gc.run_target') === undefined ||
+    !hasRunRoutingSignal(root) ||
     root.status === 'closed'
   ) {
     return null;
@@ -158,6 +165,20 @@ function runFormulaTarget(root: RunFormulaRootLike | undefined): string | null {
     rootMeta(root, 'gc.routed_to') ??
     nonEmpty(root?.assignee) ??
     null
+  );
+}
+
+/**
+ * True when the supervisor has routed this root to a run target — via the
+ * legacy `gc.run_target` or the newer `gc.routed_to` (gascity-dashboard-tqus).
+ * The assignee is deliberately NOT a routing signal here: any bead can carry
+ * an assignee, so it would loosen the title-fallback gate past "runnable
+ * root". `runFormulaTarget` keeps the assignee fallback for display only.
+ */
+function hasRunRoutingSignal(root: RunFormulaRootLike | undefined): boolean {
+  return (
+    rootMeta(root, 'gc.run_target') !== undefined ||
+    rootMeta(root, 'gc.routed_to') !== undefined
   );
 }
 
