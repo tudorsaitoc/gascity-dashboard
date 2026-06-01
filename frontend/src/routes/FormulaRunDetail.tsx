@@ -34,6 +34,19 @@ const RUN_DETAIL_EVENT_PREFIXES = [
   GC_EVENT_PREFIX.session,
 ] as const;
 const NO_EVENT_PREFIXES: readonly string[] = [];
+const TERMINAL_STATUSES: readonly RunNodeStatus[] = [
+  'completed',
+  'done',
+  'failed',
+  'skipped',
+];
+const NON_TERMINAL_STATUSES: readonly RunNodeStatus[] = [
+  'pending',
+  'ready',
+  'running',
+  'active',
+  'blocked',
+];
 
 export function FormulaRunDetailPage() {
   const { runId } = useParams<{ runId: string }>();
@@ -53,13 +66,13 @@ export function FormulaRunDetailPage() {
     scope?.scopeKind,
     scope?.scopeRef,
   );
+  const readyRun = runDetail.kind === 'ready' ? runDetail : null;
+  const detail = readyRun?.detail ?? null;
   const runDiff = useRunDiff(
-    routeError ? undefined : runId,
+    routeError || detail === null ? undefined : runId,
     scope?.scopeKind,
     scope?.scopeRef,
   );
-  const readyRun = runDetail.kind === 'ready' ? runDetail : null;
-  const detail = readyRun?.detail ?? null;
   const initialLoading = runDetail.kind === 'loading';
   const refreshing =
     (readyRun !== null && readyRun.refreshState.kind === 'refreshing') ||
@@ -76,12 +89,15 @@ export function FormulaRunDetailPage() {
     routeError ? NO_EVENT_PREFIXES : RUN_DETAIL_EVENT_PREFIXES,
     () => void refreshRunResources(runDetail.refresh, runDiff.refresh),
     {
-      matches: (event) =>
-        detail === null ||
-        formulaRunDetailEventMatches(runEventIdentity(event), {
+      matches: (event) => {
+        if (detail === null) return false;
+        const identity = runEventIdentity(event);
+        if (isTerminalProgress(detail.progress) && identityIsAmbient(identity)) return false;
+        return formulaRunDetailEventMatches(identity, {
           runId: detail.runId,
           rootBeadId: detail.rootBeadId,
-        }),
+        });
+      },
     },
   );
   const pageError = routeError ?? loadError;
@@ -224,6 +240,24 @@ async function refreshRunResources(
   refreshDiff: () => Promise<void>,
 ): Promise<void> {
   await Promise.all([refreshDetail(), refreshDiff()]);
+}
+
+function identityIsAmbient(identity: ReturnType<typeof runEventIdentity>): boolean {
+  return identity.runIds.size === 0 && identity.rootBeadIds.size === 0;
+}
+
+function isTerminalProgress(progress: FormulaRunProgress): boolean {
+  if (progress.visibleNodeCount <= 0) return false;
+  const nonTerminal = NON_TERMINAL_STATUSES.reduce(
+    (count, status) => count + (progress.statusCounts[status] ?? 0),
+    0,
+  );
+  if (nonTerminal > 0) return false;
+  const terminal = TERMINAL_STATUSES.reduce(
+    (count, status) => count + (progress.statusCounts[status] ?? 0),
+    0,
+  );
+  return terminal >= progress.visibleNodeCount;
 }
 
 function RunMetadata({

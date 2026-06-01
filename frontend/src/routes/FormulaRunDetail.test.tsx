@@ -276,6 +276,50 @@ describe('FormulaRunDetailPage', () => {
     expect(screen.getByText(/v12 · seq 92/i)).toBeTruthy();
   });
 
+  it('does not refresh terminal runs from ambient city events without run identity', async () => {
+    currentDetail = terminalDetail();
+    renderPage();
+    await screen.findByRole('heading', { name: /adopt pr #42/i });
+    const cityStream = requireCityEventSource();
+    await waitFor(() => expect(diffUrls()).toHaveLength(1));
+
+    cityStream.dispatch('event', { type: `${GC_EVENT_PREFIX.session}updated` });
+    await Promise.resolve();
+
+    expect(loadSupervisorFormulaRunDetail).toHaveBeenCalledTimes(1);
+    expect(diffUrls()).toHaveLength(1);
+  });
+
+  it('does not refresh from city events before the initial run detail identifies the run', async () => {
+    const initialLoad = deferred<FormulaRunDetail>();
+    loadSupervisorFormulaRunDetail.mockReturnValue(initialLoad.promise);
+
+    renderPage();
+    const cityStream = requireCityEventSource();
+    expect(loadSupervisorFormulaRunDetail).toHaveBeenCalledTimes(1);
+
+    cityStream.dispatch('event', { type: `${GC_EVENT_PREFIX.bead}updated` });
+    await Promise.resolve();
+
+    expect(loadSupervisorFormulaRunDetail).toHaveBeenCalledTimes(1);
+    initialLoad.resolve(detail);
+    await screen.findByRole('heading', { name: /adopt pr #42/i });
+  });
+
+  it('does not load the execution-folder diff before the initial run detail is ready', async () => {
+    const initialLoad = deferred<FormulaRunDetail>();
+    loadSupervisorFormulaRunDetail.mockReturnValue(initialLoad.promise);
+
+    renderPage();
+    await Promise.resolve();
+
+    expect(diffUrls()).toHaveLength(0);
+
+    initialLoad.resolve(detail);
+    await screen.findByRole('heading', { name: /adopt pr #42/i });
+    await waitFor(() => expect(diffUrls()).toHaveLength(1));
+  });
+
   it('refreshes the execution-folder diff during a run without leaving an explicit Diff tab choice', async () => {
     renderPage();
     await screen.findByRole('heading', { name: /adopt pr #42/i });
@@ -736,6 +780,17 @@ function jsonResponse(payload: unknown): Response {
   });
 }
 
+function deferred<T>(): {
+  promise: Promise<T>;
+  resolve: (value: T) => void;
+} {
+  let resolve!: (value: T) => void;
+  const promise = new Promise<T>((innerResolve) => {
+    resolve = innerResolve;
+  });
+  return { promise, resolve };
+}
+
 function requestUrl(input: RequestInfo | URL): string {
   const url = input instanceof Request
     ? input.url
@@ -786,6 +841,32 @@ function sessionEventSources(): FakeEventSource[] {
 
 function runUrls(): string[] {
   return fetchUrls.filter((url) => url.startsWith('/api/city/test-city/runs/'));
+}
+
+function diffUrls(): string[] {
+  return fetchUrls.filter((url) => (
+    url.startsWith('/api/city/test-city/runs/') && url.includes('/diff')
+  ));
+}
+
+function terminalDetail(): FormulaRunDetail {
+  return {
+    ...detail,
+    progress: {
+      ...detail.progress,
+      visibleNodeCount: 8,
+      statusCounts: { done: 8 },
+      allStatusCounts: { done: 8 },
+    },
+    nodes: detail.nodes.map((node) => ({
+      ...node,
+      status: 'done',
+      executionInstances: node.executionInstances.map((instance) => ({
+        ...instance,
+        status: 'done',
+      })),
+    })),
+  };
 }
 
 function withoutNode(detailValue: FormulaRunDetail, nodeId: string): FormulaRunDetail {

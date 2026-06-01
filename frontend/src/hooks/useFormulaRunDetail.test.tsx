@@ -101,9 +101,42 @@ describe("useFormulaRunDetail", () => {
     });
     expect(mockReportClientError).not.toHaveBeenCalled();
   });
+
+  it("does not stay loading for completed runs that lack formula metadata", async () => {
+    supervisor.workflowRun.mockResolvedValue(workflowSnapshot({
+      status: "completed",
+      metadata: {
+        "gc.kind": "workflow",
+        "gc.formula_contract": "graph.v2",
+        "gc.run_target": "test-city/codex",
+      },
+    }));
+
+    const { result } = renderHook(() =>
+      useFormulaRunDetail("wf-1", "city", "test-city"),
+    );
+
+    await waitFor(() => expect(result.current.kind).toBe("ready"));
+
+    if (result.current.kind !== "ready")
+      throw new Error("run detail did not load");
+    expect(result.current.detail.formula).toEqual({
+      kind: "unavailable",
+      reason: "missing_formula_metadata",
+    });
+    expect(result.current.detail.formulaDetail).toEqual({
+      kind: "unavailable",
+      reason: "missing_formula_metadata",
+    });
+    expect(supervisor.formulaDetail).not.toHaveBeenCalled();
+    expect(mockReportClientError).not.toHaveBeenCalled();
+  });
 });
 
-function workflowSnapshot() {
+function workflowSnapshot(overrides: {
+  status?: string;
+  metadata?: Record<string, string>;
+} = {}) {
   return {
     workflow_id: "wf-1",
     root_bead_id: "wf-1",
@@ -119,9 +152,9 @@ function workflowSnapshot() {
       {
         id: "wf-1",
         title: "Direct supervisor run",
-        status: "in_progress",
+        status: overrides.status ?? "in_progress",
         kind: "workflow",
-        metadata: {
+        metadata: overrides.metadata ?? {
           "gc.kind": "workflow",
           "gc.formula_contract": "graph.v2",
           "gc.formula": "mol-test",

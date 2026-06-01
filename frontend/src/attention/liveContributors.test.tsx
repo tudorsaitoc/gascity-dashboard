@@ -245,7 +245,11 @@ describe('useLiveAttentionContributors', () => {
       expect(model.byDomain.maintainer.attention).toBe(1);
     });
 
-    expect(mockSupervisorApi.formulaFeed).toHaveBeenCalledWith('test-city', { limit: 100 });
+    expect(mockSupervisorApi.formulaFeed).toHaveBeenCalledWith('test-city', {
+      limit: 100,
+      scope_kind: 'city',
+      scope_ref: 'test-city',
+    });
     expect(mockSupervisorApi.listAgents).toHaveBeenCalledWith('test-city');
     expect(mockSupervisorApi.listSessions).toHaveBeenCalledWith('test-city');
     expect(mockSupervisorApi.sessionPending).toHaveBeenCalledWith('test-city', 'gc-2568');

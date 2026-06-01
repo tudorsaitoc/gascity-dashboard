@@ -115,6 +115,33 @@ describe('loadSupervisorFormulaRunDetail', () => {
     expect(formulaDetail).not.toHaveBeenCalled();
   });
 
+  it('does not title-fallback into formula detail for completed supervisor runs', async () => {
+    workflowRun.mockResolvedValue(workflowSnapshot({
+      status: 'completed',
+      metadata: {
+        'gc.kind': 'workflow',
+        'gc.formula_contract': 'graph.v2',
+        'gc.run_target': 'test-city/codex',
+      },
+    }));
+
+    const detail = await loadSupervisorFormulaRunDetail('wf-1');
+
+    expect(detail.formula).toEqual({
+      kind: 'unavailable',
+      reason: 'missing_formula_metadata',
+    });
+    expect(detail.formulaDetail).toEqual({
+      kind: 'unavailable',
+      reason: 'missing_formula_metadata',
+    });
+    expect(detail.completeness).toEqual({
+      kind: 'partial',
+      reasons: ['formula_detail_missing_formula_metadata'],
+    });
+    expect(formulaDetail).not.toHaveBeenCalled();
+  });
+
   it('reports missing run target without calling the formula endpoint', async () => {
     workflowRun.mockResolvedValue(workflowSnapshot({
       metadata: {

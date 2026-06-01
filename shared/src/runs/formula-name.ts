@@ -64,15 +64,15 @@ export interface ResolvedRunFormulaName {
  * `gc.run_target`. Operator-edited descriptive titles on closed roots
  * without a target won't be mis-surfaced as formula names.
  *
- * gascity-dashboard-xfb7 (sadp follow-up): closed graph.v2 roots are
+ * gascity-dashboard-xfb7 (sadp follow-up): terminal graph.v2 roots are
  * additionally excluded from the title fallback even when they retain
  * `gc.run_target`. After a run completes operators sometimes retitle the
- * root to a descriptive summary (e.g. 'investigation: foo bug'); a closed
+ * root to a descriptive summary (e.g. 'investigation: foo bug'); a terminal
  * run cannot be re-fetched against the supervisor's formula registry to
  * refute a bad name, so the safer behavior is to defer — return null and
  * let the consumer render 'unavailable' rather than a false attribution.
- * Operators can override by setting `gc.formula` in metadata; the
- * metadata path remains canonical regardless of run state.
+ * Operators can override by setting `gc.formula` in metadata; the metadata
+ * path remains canonical regardless of run state.
  *
  * Returns `{name, source}`, or `null` if neither the explicit key nor the
  * gated title fallback yields one. Callers may layer additional fallbacks
@@ -93,7 +93,7 @@ export function resolveRunFormulaName(
   if (
     meta(root, 'gc.formula_contract') === 'graph.v2' &&
     meta(root, 'gc.run_target') !== undefined &&
-    root.status !== 'closed'
+    !isTerminalRunRootStatus(root.status)
   ) {
     const title = root.title.trim();
     if (title.length > 0) return { name: title, source: 'title_fallback' };
@@ -145,13 +145,26 @@ function runFormulaTitleFallback(
   if (
     rootMeta(root, 'gc.formula_contract') !== 'graph.v2' ||
     rootMeta(root, 'gc.run_target') === undefined ||
-    root.status === 'closed'
+    isTerminalRunRootStatus(root.status)
   ) {
     return null;
   }
   const title = nonEmpty(root.title);
   if (title === undefined) return null;
   return mode === 'lane' && !title.startsWith('mol-') ? null : title;
+}
+
+function isTerminalRunRootStatus(status: string): boolean {
+  switch (status.trim().toLowerCase()) {
+    case 'closed':
+    case 'completed':
+    case 'done':
+    case 'failed':
+    case 'skipped':
+      return true;
+    default:
+      return false;
+  }
 }
 
 function runFormulaTarget(root: RunFormulaRootLike | undefined): string | null {

@@ -86,7 +86,11 @@ async function fetchRunsAttention(
   if (cityName === null) return {};
   try {
     return {
-      feed: await supervisorApi().formulaFeed(cityName, { limit: FORMULA_FEED_LIMIT }),
+      feed: await supervisorApi().formulaFeed(cityName, {
+        limit: FORMULA_FEED_LIMIT,
+        scope_kind: 'city',
+        scope_ref: cityName,
+      }),
     };
   } catch (err) {
     return { error: formatApiError(err, 'formula run feed unavailable') };
