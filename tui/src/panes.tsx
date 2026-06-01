@@ -433,8 +433,10 @@ export function HealthPane({ health, idle, pressure }: HealthPaneProps): React.J
 // ── operator ledger pane (things waiting on the user) ────────────────────────
 
 interface LedgerPaneProps {
-  /** Unread operator inbox mail, already filtered + ordered. */
+  /** Operator-relevant mail (orchestration-sender), already filtered + ordered. */
   readonly mail: readonly GcMailItem[];
+  /** Count of unread worker-report mail folded away (mayor-handled). */
+  readonly mailFolded: number;
   /** Run lanes flagged needs-operator. */
   readonly runs: readonly RunLane[];
 }
@@ -449,14 +451,17 @@ function MoreLine({ total, shown }: { readonly total: number; readonly shown: nu
   return <Text dimColor>  + {total - shown} more</Text>;
 }
 
-export function LedgerPane({ mail, runs }: LedgerPaneProps): React.JSX.Element {
+export function LedgerPane({ mail, mailFolded, runs }: LedgerPaneProps): React.JSX.Element {
   return (
     <Box flexDirection="column">
       <Text bold>waiting on you</Text>
 
       <Box marginTop={1}>
-        <Text bold>unread mail </Text>
-        <Text dimColor>({mail.length})</Text>
+        <Text bold>mail for you </Text>
+        <Text dimColor>
+          ({mail.length}
+          {mailFolded > 0 ? ` · ${mailFolded} worker reports folded, mayor-handled` : ''})
+        </Text>
       </Box>
       {mail.length === 0 ? (
         <Text dimColor>  none</Text>

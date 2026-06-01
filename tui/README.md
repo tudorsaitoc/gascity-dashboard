@@ -45,11 +45,15 @@ reused tmux split (see Peek).
   the honest non-LLM signal — no per-session transcript is exposed as data, so a
   model-written task summary is a deliberately deferred follow-up, not faked here.
   `enter` peeks the session log; `p` opens its detail like the Agents view.
-- **Ledger** (`l`): an "open ledger" of things waiting on the operator — unread
-  inbox mail (sender · subject · priority + a one-line body snippet, newest /
-  highest-priority first) and run lanes flagged needs-operator. Read-only summary
-  (the TUI does no writes); each section shows a `+ N more` line rather than
-  silently capping a long backlog.
+- **Ledger** (`l`): an "open ledger" of things waiting on the operator — mail
+  escalated by the orchestration layer (the mayor) and run lanes flagged
+  needs-operator. The inbox is a firehose of worker status reports the mayor
+  digests, and the wire's `read`/`priority` flags are unusable as a "needs you"
+  signal (priority is never set; mail is never marked read), so the ledger filters
+  by **sender role** — it shows mail from the mayor / orchestration agents and
+  folds the pool-worker chatter away (reporting the folded count, never silently).
+  Read-only summary (the TUI does no writes); each section shows a `+ N more` line
+  rather than capping a long backlog.
 - **Health** (`h`): host resources, headline counts, runs needing an operator,
   context-pressure agents (≥75%), and a never-active-by-rig reallocation rollup.
   Costs are shown as *not measured* (the supervisor exposes none yet — see

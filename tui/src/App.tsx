@@ -29,13 +29,14 @@ import {
   groupRuns,
   lanesForRig,
   laneNeedsOperator,
+  foldedMailCount,
   matchesStatusFilter,
   neverActiveByRig,
   nextStatusFilter,
+  operatorMail,
   runningSessions,
   systemHealth,
   toAgentView,
-  unreadOperatorMail,
   type AgentView,
   type Category,
   type StatusFilter,
@@ -337,7 +338,8 @@ export function App({ baseUrl, city }: AppProps): React.JSX.Element {
   for (const s of sessions) counts[categorize(s)] += 1;
   const openBeads = beads.filter((b) => b.status === 'open').length;
   const needsOpRuns = health.lanes.filter(laneNeedsOperator).length;
-  const unreadMail = unreadOperatorMail(mail);
+  const ledgerMail = operatorMail(mail, sessions);
+  const mailFolded = foldedMailCount(mail, ledgerMail);
 
   const summary =
     view === 'beads' ? (
@@ -353,7 +355,7 @@ export function App({ baseUrl, city }: AppProps): React.JSX.Element {
       <Text dimColor>sessions · {counts.active} live</Text>
     ) : view === 'ledger' ? (
       <Text dimColor>
-        ledger · {unreadMail.length} unread mail
+        ledger · {ledgerMail.length} for you
         {needsOpRuns > 0 ? <Text color="red"> · {needsOpRuns} need operator</Text> : null}
       </Text>
     ) : (
@@ -400,7 +402,11 @@ export function App({ baseUrl, city }: AppProps): React.JSX.Element {
         </Box>
       ) : view === 'ledger' ? (
         <Box marginTop={1}>
-          <LedgerPane mail={unreadMail} runs={health.lanes.filter(laneNeedsOperator)} />
+          <LedgerPane
+            mail={ledgerMail}
+            mailFolded={mailFolded}
+            runs={health.lanes.filter(laneNeedsOperator)}
+          />
         </Box>
       ) : view === 'detail' && selectedAgent ? (
         <Box marginTop={1}>

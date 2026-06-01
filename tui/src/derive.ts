@@ -466,19 +466,41 @@ export function activityPhrase(s: GcSession): string {
 
 // ── operator ledger (things waiting on the user) ─────────────────────────────
 
-/** Unread inbox mail addressed to the operator, highest priority first then
- *  newest. The supervisor sends `priority: null` for many items; those sort
- *  after any explicitly-prioritised mail. */
-export function unreadOperatorMail(mail: readonly GcMailItem[]): GcMailItem[] {
+/** The operator's canonical mail triager. By Gas City convention the mayor
+ *  digests the worker firehose and forwards only what needs the human. */
+const MAYOR = 'mayor';
+
+/**
+ * Mail the operator should actually see: escalations from the orchestration
+ * layer (the mayor), not the worker firehose. The wire's `read`/`priority`
+ * flags are unusable as a "needs you" signal here — the supervisor never sets
+ * priority and the operator never marks mail read (the mayor handles it) — so
+ * we filter by SENDER ROLE instead: keep mail from an orchestration-kind agent
+ * (resolved against the live session list) or the mayor, fold away pool-worker
+ * chatter. Newest first.
+ */
+export function operatorMail(
+  mail: readonly GcMailItem[],
+  sessions: readonly GcSession[],
+): GcMailItem[] {
+  const orchSenders = new Set<string>([MAYOR]);
+  for (const s of sessions) {
+    if (agentKind(s) === 'orch') orchSenders.add(basename(s.title ?? s.alias ?? s.id) || s.id);
+  }
   return mail
-    .filter((m) => !m.read)
+    .filter((m) => !m.read && orchSenders.has(basename(m.from)))
     .slice()
-    .sort((a, b) => {
-      const pa = a.priority ?? 99;
-      const pb = b.priority ?? 99;
-      if (pa !== pb) return pa - pb;
-      return (b.created_at ?? '').localeCompare(a.created_at ?? '');
-    });
+    .sort((a, b) => (b.created_at ?? '').localeCompare(a.created_at ?? ''));
+}
+
+/** Count of unread mail folded away by {@link operatorMail} — the worker
+ *  reports the mayor handles. Surfaced so the filter is never silent. */
+export function foldedMailCount(
+  mail: readonly GcMailItem[],
+  shown: readonly GcMailItem[],
+): number {
+  const unread = mail.filter((m) => !m.read).length;
+  return Math.max(0, unread - shown.length);
 }
 
 /** One-line snippet of a mail body: whitespace collapsed, hard-truncated with

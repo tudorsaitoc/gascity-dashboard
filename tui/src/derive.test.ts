@@ -9,13 +9,14 @@ import {
   AGENT_KINDS,
   activityPhrase,
   agentKind,
+  foldedMailCount,
   kindGlyph,
   kindLabel,
   mailSnippet,
   matchesStatusFilter,
   nextStatusFilter,
+  operatorMail,
   runningSessions,
-  unreadOperatorMail,
   type StatusFilter,
 } from './derive.ts';
 
@@ -163,18 +164,38 @@ function mail(overrides: Partial<GcMailItem>): GcMailItem {
   };
 }
 
-test('unreadOperatorMail drops read mail and sorts by priority then newest', () => {
-  const items = [
-    mail({ id: 'read', read: true, priority: 0 }),
-    mail({ id: 'p2', priority: 2, created_at: '2026-06-01T00:05:00Z' }),
-    mail({ id: 'p1', priority: 1, created_at: '2026-06-01T00:01:00Z' }),
-    // No priority set — the supervisor coalesces its null to undefined; these
-    // sort after any explicitly-prioritised mail, newest first.
-    mail({ id: 'noprio-new', created_at: '2026-06-01T00:09:00Z' }),
-    mail({ id: 'noprio-old', created_at: '2026-06-01T00:02:00Z' }),
+test('operatorMail keeps only orchestration-sender mail, worker chatter folded, newest first', () => {
+  const sessions = [
+    // No rig → classified orch (the mayor); polecat-2 is a rig-scoped pool worker.
+    session({ id: 'm', title: 'mayor' }),
+    session({ id: 'p', title: 'polecat-2', rig: 'gascity', pool: 'polecat' }),
   ];
-  const ids = unreadOperatorMail(items).map((m) => m.id);
-  assert.deepEqual(ids, ['p1', 'p2', 'noprio-new', 'noprio-old']);
+  const items = [
+    mail({ id: 'worker', from: '/home/ds/gascity/polecat-2', created_at: '2026-06-01T00:09:00Z' }),
+    mail({ id: 'mayor-old', from: '/home/ds/gascity/mayor', created_at: '2026-06-01T00:01:00Z' }),
+    mail({ id: 'mayor-new', from: 'mayor', created_at: '2026-06-01T00:05:00Z' }),
+    mail({ id: 'read-mayor', from: 'mayor', read: true }),
+  ];
+  const ids = operatorMail(items, sessions).map((m) => m.id);
+  assert.deepEqual(ids, ['mayor-new', 'mayor-old']);
+});
+
+test('operatorMail falls back to the mayor role even with no live mayor session', () => {
+  const items = [mail({ id: 'esc', from: '/some/path/mayor' })];
+  assert.deepEqual(operatorMail(items, []).map((m) => m.id), ['esc']);
+});
+
+test('foldedMailCount reports how many unread were folded away', () => {
+  const items = [
+    mail({ id: 'a', from: 'polecat-1' }),
+    mail({ id: 'b', from: 'polecat-2' }),
+    mail({ id: 'm', from: 'mayor' }),
+    mail({ id: 'read', from: 'polecat-3', read: true }),
+  ];
+  const shown = operatorMail(items, []);
+  assert.equal(shown.length, 1);
+  // 3 unread total, 1 shown → 2 folded (the read one isn't counted).
+  assert.equal(foldedMailCount(items, shown), 2);
 });
 
 test('mailSnippet collapses whitespace and truncates with an ellipsis', () => {
