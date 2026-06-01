@@ -1,7 +1,8 @@
 # GC Supervisor API Gap Analysis For Future Dashboard Work
 
 Date: 2026-05-31
-Status: Consolidated from current architecture and remediation specs
+Status: Consolidated from current architecture and remediation specs; extended
+with `gc` CLI-elimination gaps (GC-10..GC-12)
 
 ## Purpose
 
@@ -13,7 +14,16 @@ It is separate from `specs/feature-gap-analysis.md`: that file tracks features
 present in the legacy built-in dashboard but missing from this standalone
 dashboard. This file tracks upstream data/API capabilities needed so the
 standalone dashboard can delete local derivation, temporary adapters, and broad
-refresh behavior.
+refresh behavior, and so it can reach Gas City **exclusively through the
+supervisor API**.
+
+A goal of this work: the dashboard service **never invokes `gc` commands as a
+subprocess** — every supervisor operation, read or write, goes through the
+supervisor HTTP/WS API. The backend's only remaining subprocesses are
+host-local evidence the supervisor does not own (`git` diffs/log, `gh`
+maintainer triage), never `gc` itself. The three `gc` CLI calls that exist
+today (GC-10..GC-12) are tracked here as supervisor-API holes to close, not as
+accepted behavior.
 
 This repo should not patch `~/Code/gastownhall/gascity` as part of dashboard
 work. When a gap below is hit, document it here, keep the dashboard behavior
@@ -28,6 +38,8 @@ Sources consolidated:
 - archived run-detail planning notes under `specs/plans/archive/`
 - current dashboard implementation constraints implied by generated supervisor
   client usage and Formula Run Detail projection
+- backend `gc` CLI subprocess wrappers in `backend/src/exec.ts` and their
+  routes (`backend/src/routes/beads.ts`, `backend/src/routes/agents.ts`)
 
 Validation rules:
 
@@ -71,6 +83,10 @@ Highest-impact upstream work:
    validators can be the only supervisor-shape authority.
 6. Emit a GC-native worker heartbeat or per-entity progress/liveness signal for
    robust ambient staleness detection.
+7. Provide HTTP equivalents for the three operations the backend still shells
+   out to the `gc` CLI for — bead close-with-reason, agent nudge, and agent
+   prime — so the dashboard service can reach Gas City exclusively through the
+   supervisor API and stop invoking `gc` as a subprocess.
 
 ## Gap Matrix
 
@@ -85,6 +101,9 @@ Highest-impact upstream work:
 | GC-7 | Canonical execution-instance fields | Optionally expose execution instance id, semantic node id, loop iteration, retry attempt, current/historical flag, and attached session identity directly. | **Medium** | Existing metadata is enough for the current page, but canonical fields would delete projection code and remove field-precedence decisions from the dashboard. |
 | GC-8 | GC-native heartbeat/progress signal | Emit worker heartbeat or per-entity progress/liveness metadata such as `metadata.gc.last_heartbeat_at`, plus events when useful. | **High** | Ambient stuck/stale detection currently has to infer from bead/session joins and progress monotonicity because `bead.updated_at` is noisy and there is no per-entity progress SSE. |
 | GC-9 | Canonical formula-detail status in snapshots | Optionally include formula-detail availability/status on the run snapshot when formula detail cannot be fetched. | **Medium** | The dashboard currently models lookup failures locally. A supervisor-owned status would make diagnostics more consistent. |
+| GC-10 | Bead close with operator reason | `POST /v0/city/{cityName}/bead/{id}/close` should accept an optional length-bounded `reason` and persist/audit it as `gc bd close --reason` does. | **High** | The close-reason UI is the only reason `execCloseBead` shells out to the `gc` CLI; the HTTP close route exists but drops the reason. |
+| GC-11 | Agent nudge endpoint | Expose an HTTP route to nudge an agent by alias (the `gc bd nudge <alias>` queue), returning an acceptance status. | **High** | No HTTP route exists for the nudge queue, so `execNudgeAgent` shells out to the `gc` CLI. |
+| GC-12 | Agent composed-prompt (prime) read | Expose a read-only HTTP route returning an agent's composed behavioural prompt by alias, with a distinct "not configured" signal. | **Medium** | No HTTP equivalent of `gc prime --strict <alias>` exists, so `execAgentPrime` shells out to the `gc` CLI. |
 
 ## Gap Detail
 
@@ -283,6 +302,102 @@ Why:
 - The dashboard can display supervisor-owned diagnostics instead of deriving
   them from follow-up route calls.
 
+## CLI-Backed Operations Requiring HTTP Equivalents
+
+The dashboard backend reaches the supervisor over HTTP for every read and for
+the claim, sling, and mail-send writes. Three operations remain on the `gc` CLI
+(`backend/src/exec.ts`, via `runExec('gc', ...)`) because the supervisor HTTP
+API has no equivalent today. These are the **complete set** of `gc` subprocess
+calls in the backend: closing GC-10, GC-11, and GC-12 removes the dashboard's
+`gc` CLI dependency entirely and satisfies the goal that the dashboard service
+always reaches Gas City through the API. (The remaining `git`/`gh` subprocesses
+are host-local evidence the supervisor does not own and are tracked as
+non-gaps.)
+
+Both the in-process `gc dashboard` and the from-scratch `gasworks-gui`
+("Mission Control") consumer avoid these CLI calls, but for opposite reasons,
+and neither is a counter-example:
+
+- The legacy in-process `gc dashboard` calls the underlying Gas City Go
+  functions directly — the same functions the CLI commands wrap — so it needs
+  neither the CLI nor an HTTP route.
+- Mission Control consumes only the supervisor HTTP/WS API and therefore simply
+  does not offer these three features: it closes beads with no `reason`, and has
+  no nudge or prime surface at all. Its zero-CLI footprint confirms the holes
+  rather than disproving them.
+
+This standalone dashboard exposes all three features from an out-of-process
+client, so it must either gain these HTTP endpoints upstream or drop the
+features.
+
+### GC-10: Bead Close With Operator Reason
+
+Current state:
+
+- The supervisor exposes `POST /v0/city/{cityName}/bead/{id}/close`, but it
+  returns `OKResponseBody` and accepts no operator `reason` field.
+- The dashboard's close action carries an operator free-text reason that must
+  reach both the bead close and the admin audit log.
+- Because the HTTP route drops the reason, `execCloseBead`
+  (`backend/src/exec.ts`) shells out to `gc bd close <id> --reason <reason>`.
+  The claim write already moved to the HTTP `updateBead` fn; only
+  close-with-reason remains on the CLI.
+
+Needed upstream change:
+
+- Accept an optional `reason` (free-text, length-bounded) on the close request
+  body and persist/record it the same way `gc bd close --reason` does.
+
+Why:
+
+- Lets the dashboard close beads with a reason over HTTP and delete the
+  subprocess path, including the control/escape/bidi byte-stripping hardening
+  that exists only because the reason currently reaches a `gc` CLI argument and
+  `.gc/events.jsonl` (gascity-dashboard-htrz).
+
+### GC-11: Agent Nudge Endpoint
+
+Current state:
+
+- There is no HTTP route for the agent nudge queue.
+- The dashboard's row-level nudge action targets an agent alias (the bead id is
+  only route/audit context), so `execNudgeAgent` (`backend/src/exec.ts`) shells
+  out to `gc bd nudge <alias>`.
+
+Needed upstream change:
+
+- Expose an HTTP route to nudge an agent by alias (for example a city-scoped
+  `POST .../agent/{alias}/nudge`), returning a simple acceptance status.
+
+Why:
+
+- Removes the second `gc` subprocess and lets nudge participate in the same HTTP
+  error and audit path as the other write actions.
+
+### GC-12: Agent Composed-Prompt (Prime) Read
+
+Current state:
+
+- There is no HTTP route that returns an agent's composed behavioural prompt
+  (the text an agent reads on wake).
+- The agent detail page surfaces this read-only, so `execAgentPrime`
+  (`backend/src/exec.ts`) shells out to `gc prime --strict <alias>`. `--strict`
+  makes an unconfigured alias exit non-zero with stderr (rendered as "agent not
+  configured") instead of falling back to a generic worker prompt. Measured
+  output is ~15 KB.
+
+Needed upstream change:
+
+- Expose a read-only HTTP route returning the composed prime prompt for an agent
+  alias, with a distinct "alias not configured" signal so the dashboard can
+  render a 404 "not configured" state rather than a generic upstream error.
+
+Why:
+
+- Removes the last `gc` subprocess. The dashboard surfaces the resolved prompt
+  read-only today; a supervisor-owned read keeps it read-only without a CLI
+  dependency.
+
 ## Explicit Non-Gaps
 
 These are intentionally not tracked as current GC supervisor API gaps:
@@ -303,6 +418,11 @@ These are intentionally not tracked as current GC supervisor API gaps:
   canonical presentation in Gas City/shared code.
 - **Local git diff evidence.** Diff rendering is dashboard-local evidence from
   the execution folder, not supervisor run state.
+- **Host-local `git`/`gh` subprocesses.** Git diff/log evidence and `gh`-backed
+  maintainer triage are host capabilities the supervisor does not own. They are
+  distinct from the `gc` CLI gaps (GC-10..GC-12): those are supervisor-operation
+  holes with no HTTP route and must be closed so the dashboard never calls `gc`
+  as a subprocess; `git`/`gh` are not `gc` and stay behind the exec boundary.
 - **Current staleness inference.** The dashboard can infer likely stalled work
   from bead/session joins and progress monotonicity. That inference is useful
   today, but a native heartbeat/progress field would be the better upstream
@@ -324,3 +444,7 @@ Once these upstream gaps are closed and this repo refreshes
    canonical session identity.
 6. Demote bead/session staleness inference once a GC-native heartbeat/progress
    signal is available.
+7. Delete the `gc` CLI wrappers in `backend/src/exec.ts` (`execCloseBead`,
+   `execNudgeAgent`, `execAgentPrime`) and the close-reason subprocess hardening
+   once GC-10, GC-11, and GC-12 land, so the only subprocesses behind the exec
+   boundary are host-local `git`/`gh` — never `gc`.

@@ -7,6 +7,24 @@ Status: implementation in progress. WS-1 through WS-9 and WS-11 through WS-14 ar
 
 Every item in this plan is **evidence-backed and validated**. Where the two passes overlap they are merged; where Codex was imprecise the correction is called out.
 
+### 2026-06-01 full-codebase review update
+
+This update folds in the current full-codebase thermo-nuclear review plus the validated parts of `tmp/claude-feedback-01.txt`. Several Claude findings were already solved by earlier workstreams (`WS-5`, `WS-9`, `WS-11`, `WS-12`, `WS-13`, `WS-14`), so they are not duplicated below. The remaining validated issues are promoted into new current workstreams:
+
+- **`GcClient` still needs a real diet.** The generated SDK cutover happened, but `backend/src/gc-client.ts` is still 1133 LOC and repeats request/query/cache-key templates. See `WS-15`.
+- **Dashboard and supervisor runtime boundaries are still split.** Generated supervisor validation exists, but the hand-Zod DTO adapter and shallow dashboard DTO decoders still keep multiple authorities alive. See `WS-10`, `WS-16`, and `WS-17`.
+- **Concrete behavior bugs remain in action/transport wrappers.** Bead close and agent nudge are conflated, and mail filtering pretends upstream supports filters it ignores. See `WS-18` and `WS-19`.
+- **Build/test guardrails miss real hazards.** Shared tests are not typechecked by the root gate, shared test execution is hardcoded to two files, and ignored `dist` output can retain deleted modules. See `WS-20` and `WS-21`.
+- **Small but real mutation/deletion work should land while nearby code is touched.** `RunNodeSessionPanel` sorts DTO arrays in place, `selectOneMark` still carries comment archaeology, and `module.resources` remains required scaffolding with no current consumer. See `WS-22` and the lower-priority cleanup list.
+
+Follow-up validation of Claude's P1-P5 feedback against the current worktree produced these corrections:
+
+- **Claude P5 quick wins split into true / stale / unsafe.** `resolveRunFormulaName` was still test-pinned dead code and run-detail sessions/formula-detail lookups were still serial; both are now fixed in `WS-23`. The proposed `selectOneMark` parent-transfer deletion is **not safe** because current tests pin merged-PR parent transfer behavior. The proposed `module.resources` deletion is **stale** because `bind()` now validates the resource contract and maintainer declares real cache/slung-state resources.
+- **Claude P1 #2 remains partly valid.** In-flight PR detection is already centralized, but mark application still runs in separate compose/overlay paths. `workflow_id → run_id`, step-ref semantic identity, and `ralph → check-loop` mapping still have multiple local implementations. See `WS-24`.
+- **Claude P1 #3 and P2 #4 remain valid.** Run-health cross-cycle state still lives in `snapshot/service.ts`, and phase/formula classification is still ordered branching where tables would encode precedence. See `WS-25` and `WS-26`.
+- **Claude P2 #5 / P4 frontend decomposition remains valid but should be incremental.** `useFormulaRunDetail` exists, but `FormulaRunDetail.tsx` and `AgentDetail.tsx` still compose several fetch and view-state machines inline; list routes repeat a shared shell. See `WS-27` and lower-priority cleanups.
+- **Claude P3 #6 / #7 remain valid with narrower scope.** Shared runtime schemas now cover maintainer triage, `FormulaRunDetail`, `RunDiffResponse`, and the common session/agent/bead/mail list DTOs. `Avail<T>` is already canonical for list absence, but `DoltNomsTrend` still uses a parallel `available` boolean envelope; supervisor domain booleans such as `GcAgent.available` are not part of this cleanup. See `WS-16` and `WS-28`.
+
 The open decisions were resolved in a `/grill-me` session against the architecture specs and the upstream `gascity` dashboard as a reference (`~/code/gastownhall/gascity/cmd/gc/dashboard/web`), then tightened by the explicit product directives that this app has **no backwards-compatibility obligation** to old dashboard routes or backend DTOs and that the GC supervisor API client should be **generated from OpenAPI as completely as the tooling allows**. See **Resolved decisions** at the end; the affected workstreams (WS-1, WS-2, WS-10, WS-12) reflect the final calls.
 
 ## Guardrails (non-negotiable)
@@ -267,6 +285,152 @@ These are pure deletion-via-reuse. Each fork has **drifted into a user-visible i
 
 ---
 
+### Tier 5 — 2026-06-01 reopened paydown from full-codebase review
+
+These are current, validated against `main` after the earlier completed workstreams. Use red-green TDD for each code change: write or adjust the failing test first, observe the failure when practical, implement the smallest behavior-preserving structural fix, then run the focused suite before moving on.
+
+#### WS-15 — Collapse `GcClient` read/write templates into operation descriptors  *(Claude P1 #1 + TN backend)*
+
+- **Implementation status (2026-06-01):** In progress. The descriptor-table slice is complete: read endpoints now use explicit `READ_OPERATIONS` metadata for operation name, payload name, and decoder handoff; `decoderPayloadName()` is gone; pass-through `writeOperation()` / `mutationHeaders()` wrappers are gone; and a structure test pins those guardrails. The second helper slice is also complete: plain city-scoped reads now share `cityReadOptions()` instead of repeating generated-SDK client/path/signal wiring. The class still needs a deeper diet because query assembly and path-param call construction remain inline per endpoint.
+- **Why:** The class still repeats the same generated-SDK call shape, query object shape, operation key shape, decoder handoff, and timeout/signal plumbing per endpoint. That duplication is now the main reason `GcClient` stayed above the 1k-line thermonuclear threshold after WS-10.
+- **Evidence:** `backend/src/gc-client.ts:102` starts the class; `:154-187` is the generic single-flight read core; individual reads repeat the template at `:364-375`, `:407-418`, `:473-484`, `:520-573`, `:604-618`, `:620-645`, `:655-706`, and `:859-875`. `writeOperation` is a pass-through at `:273-279`; `mutationHeaders()` and `cityPathParams()` are constant-return helper wrappers at `:256-283`; `decoderPayloadName()` reverse-scans decoder identity at `:925-930` even though every call site already knows its payload name.
+- **Change:** Introduce typed `readOperation(name, decoder, sdkCall, params, opts)` / descriptor helpers that derive the cache key from the exact path/query object sent upstream. Inline or delete `writeOperation`, `mutationHeaders()`, and any identity reverse-scan; pass the payload name explicitly. Keep the irreducible facade responsibilities: single-flight coalescing, timeout/output-cap behavior, topology-safe error redaction, response datetime normalization, and dashboard DTO mapping.
+- **Tests:** Add focused `gc-client` tests that prove two calls with identical query/path params coalesce and two calls with different params do not, especially `listBeads` and `getRun` scope params. Keep existing malformed-payload, redaction, timeout, and generated-validation tests green.
+- **Risk:** Medium. The generated SDK calls are behavior-critical and heavily tested; keep the refactor incremental and let existing `backend/test/gc-client.test.ts` be the safety net.
+- **Deps:** Builds on WS-10 G-1b/G-3; should happen before deleting the temporary decoder adapter because it simplifies that later deletion.
+
+#### WS-16 — Finish dashboard `/api/*` runtime DTO schemas instead of shallow client casts  *(TN boundary + Claude P3 #6)*
+
+- **Implementation status (2026-06-01):** Complete for the validated high-risk dashboard DTO surfaces. `shared/src/dto-schemas.ts` exports `MaintainerTriageSchema`, `FormulaRunDetailSchema`, `RunDiffResponseSchema`, and shared schemas for the common session/agent/bead/mail list DTOs. The frontend API client uses those schemas for `/maintainer/triage`, `/maintainer/refresh`, `/runs/:runId`, `/runs/:runId/diff`, `/sessions`, `/agents`, `/beads`, `/mail`, and `/mail/threads/:id`; backend maintainer cache reads validate the nested triage envelope through the shared schema. Shared, backend, and frontend tests pin nested malformed DTO rejection. Lower-risk endpoints with simple top-level local decoders remain local until a concrete drift or nesting risk justifies promoting them.
+- **Why:** `shared` is supposed to make DTO mismatches fail at compile time, but runtime browser edges still accept nested malformed JSON for complex contracts. The current decoders are better than a raw `json() as T`, but they are not a real schema authority.
+- **Evidence:** `frontend/src/api/client.ts:235` returns `record as T`; list decoders check only that `items` is an array at `:246`; complex responses such as formula run detail are shallow at `:338-348` while `shared/src/run-detail.ts:157` declares deeply required `nodes`, `edges`, `lanes`, `progress`, and `completeness` contracts. Maintainer cache reads similarly cast after a partial key check at `backend/src/views/modules/maintainer/storage.ts:42` and `:98`.
+- **Change:** Move reusable dashboard DTO runtime schemas/decoders into `shared` for the highest-risk contracts first (`FormulaRunDetail`, list envelopes, `MaintainerTriage`). Make `frontend/src/api/client.ts` and maintainer cache storage call those schemas rather than local shallow guards. Keep `shared` free of React/Express.
+- **Tests:** Red tests should feed malformed nested DTOs through `api/client.test.ts` and maintainer cache tests and assert decode failures, not silently accepted objects.
+- **Risk:** Medium. This intentionally turns malformed local API payloads into visible errors; UI surfaces should already handle `ApiResponseDecodeError`.
+- **Deps:** Coordinates with WS-10 cleanup so `shared` schemas describe dashboard DTOs, not raw supervisor wire shapes.
+
+#### WS-17 — Strip public supervisor DTOs and preserve partial-list metadata  *(TN backend + TN boundary)*
+
+- **Implementation status (2026-06-01):** Complete. `/api/sessions`, `/api/beads`, and `/api/mail` now preserve `partial` / `partial_errors` from decoded supervisor lists, `partialWireFields()` centralizes the route projection, and focused route tests pin the behavior. Frontend API return types/decoders were widened to keep those fields available. `listItemsField()` now accepts required `items: T[] | null` and no longer hand-normalizes missing `items` to `[]`; generated validation already rejected the missing-field case, and a `GcClient` regression test pins it. Public supervisor-derived schemas now strip unknown runtime keys instead of relying on TypeScript-only hiding; tests cover sessions, rigs, agents, beads, mail, events, health, and city envelopes. The host-only city registry path remains explicit through `listSupervisorCities()`, which retains `path` while stripping unknown extras.
+- **Why:** Browser-facing supervisor-derived shapes still allow unknown wire keys through in several schemas, and list routes drop partial/degraded metadata after decoding it. That violates both the security posture ("host-only data stays host-side") and the degraded-data UI contract.
+- **Evidence:** Previously `.passthrough()` on public decoders let unknown supervisor keys survive to route serialization in `routes/agents.ts`, `routes/beads.ts`, and `routes/mail.ts`; `listItemsField()` also accepted `undefined` and routes narrowed away `partial` / `partial_errors`.
+- **Change:** Make browser-facing schemas strip by default; create explicit host-only raw schemas for the few call sites that intentionally need extra fields. Replace `listItemsField()` with a required-nullable helper for required list envelopes. Add a route projection helper that filters items while preserving sanitized `partial` / `partial_errors`.
+- **Tests:** Add malformed-list tests proving missing required list fields reject while `items: null` still maps to `[]`; add route tests proving partial metadata survives filtering.
+- **Risk:** Medium. Unknown supervisor keys may currently be visible in ad-hoc debug paths; removing them is intentional.
+- **Deps:** Coordinates with WS-16 and WS-10 cleanup.
+
+#### WS-18 — Split bead close from agent nudge  *(TN backend behavior bug)*
+
+- **Implementation status (2026-06-01):** Complete. The exec layer now exposes `execCloseBead(beadId, reason, cityPath)` and `execNudgeAgent(alias, cityPath)` as separate wrappers. The nudge route keeps the bead id as route/audit context but requires an explicit agent alias in the request body, and the Beads page sends the row assignee alias. Focused backend tests prove the nudge runner receives the alias, not the bead id.
+- **Why:** The API path says "nudge this bead", the backend route validates a bead ID, and the exec layer then treats the same value as an agent alias. That is both a behavior bug and a bad abstraction: two different command domains are forced through one function.
+- **Evidence:** Frontend posts `api.nudgeBead(bead.id)` at `frontend/src/api/client.ts:452` and `frontend/src/routes/Beads.tsx:117`; the route validates the path param as a bead ID at `backend/src/routes/beads.ts:230`; `execBeadAction(beadId, 'nudge')` then validates that same value as an agent alias at `backend/src/exec.ts:118`.
+- **Change:** Replace `execBeadAction(beadId, action)` with `execCloseBead(beadId, reason, deps)` and `execNudgeAgent(alias, deps)`. The nudge endpoint should pass an explicit assignee/alias in the body or route to a clearly named agent endpoint; do not overload bead IDs as aliases.
+- **Tests:** First update/add a backend route test that a bead nudge command uses the bead's assignee alias rather than the bead ID, and a frontend test that the action posts the chosen alias. Existing bead-close tests should continue to use bead IDs.
+- **Risk:** Medium-high because this intentionally changes currently pinned tests that encode the wrong abstraction.
+- **Deps:** None.
+
+#### WS-19 — Make mail filtering honest and single-fetch  *(TN backend)*
+
+- **Implementation status (2026-06-01):** Complete. `GcClient.listMail` now exposes only the upstream-supported `limit` parameter, and the thread route fetches one wide mail list before applying local inbox/sent alias filtering and thread filtering. A route regression test proves `/api/mail/threads/:id` makes one supervisor `/mail` call.
+- **Why:** `GcClient.listMail()` accepts filters that the supervisor ignores, keys its inflight cache by those no-op filters, and callers perform duplicate upstream reads for inbox and sent views. The code comments admit the mismatch; the abstraction should match reality.
+- **Evidence:** `GcClient.listMail()` accepts `{ box, alias, limit }` at `backend/src/gc-client.ts:575`, sends only `limit` at `:585-587`, but keys by `box` and `alias` at `:587-592`. The thread route performs two upstream calls at `backend/src/routes/mail.ts:113-114` and filters locally afterward.
+- **Change:** Make `listMail()` accept only upstream-supported params today (`limit`) and expose a local `filterMailByBox(items, box, alias)` route helper. Fetch once for combined thread views, then filter locally into inbox/sent buckets.
+- **Tests:** Red route test proving the thread endpoint makes one upstream mail call for a combined inbox/sent request; `GcClient` tests should prove `box`/`alias` no longer affect the upstream key until the supervisor actually supports them.
+- **Risk:** Low-medium; behavior should be preserved while removing duplicate upstream traffic.
+- **Deps:** None.
+
+#### WS-20 — Typecheck and glob-discover shared tests  *(Claude config #1)*
+
+- **Implementation status (2026-06-01):** Complete. `shared/tsconfig.test.json` now typechecks shared test files, root `typecheck:test` includes the shared workspace before backend/frontend, and the shared test script glob-discovers every `src/**/*.test.ts` file instead of hardcoding two entries.
+- **Why:** Shared tests are part of the shared DTO contract but the root typecheck gate skips them, and the test script only names two files. New shared tests can be silently unrun or untypechecked.
+- **Evidence:** `shared/tsconfig.json:25-26` includes `src` but excludes `src/**/*.test.ts`; root `package.json:25` runs backend/frontend test typechecks only; `shared/package.json:17` hardcodes `src/index.test.ts src/session-resolve.test.ts`.
+- **Change:** Add `shared/tsconfig.test.json`; add `shared` to root `typecheck:test`; change the shared test script to glob all `src/**/*.test.ts`.
+- **Tests:** Run `npm --workspace shared run typecheck:test`, `npm --workspace shared test`, and root `npm run typecheck:test`.
+- **Risk:** Low. This can surface stale test-only type errors, which is the point.
+- **Deps:** None. Do before adding new shared decoder/schema tests for WS-16.
+
+#### WS-21 — Clean build output before compiling  *(Claude config #2)*
+
+- **Implementation status (2026-06-01):** Complete. A repo-root `scripts/clean-dist.mjs` removes workspace `dist` directories, each workspace build runs its own clean step before compiling, and root `npm run clean` removes all workspace build outputs. The backend orphan-file red check now passes: a stale file under `backend/dist` disappears before `npm run build:backend` compiles.
+- **Why:** `tsc` does not remove orphaned output. Ignored `dist` directories can keep deleted generated modules around locally and make manual runtime checks lie.
+- **Evidence:** Root `build` chains workspace builds without cleaning at `package.json:12`; backend build is plain `tsc` at `backend/package.json:9`.
+- **Change:** Add workspace/root `clean` scripts that remove `backend/dist`, `shared/dist`, and `frontend/dist`, and run them before build. Prefer Node's built-in `fs.rm` via a small script or direct `node -e` so the command remains portable enough for CI.
+- **Tests:** Red check should create an orphan file under a `dist` directory, run the relevant build, and assert it disappears. At minimum, add/adjust a package-script test if the repo already has script tests; otherwise verify with a manual command in the implementation note and keep the script simple.
+- **Risk:** Low. Be careful not to delete generated source under `backend/src/generated`.
+- **Deps:** None.
+
+#### WS-22 — Remove small mutation/dead-scaffold hazards while nearby  *(TN frontend + Claude P5)*
+
+- **Implementation status (2026-06-01):** Complete. `RunNodeSessionPanel` now sorts a copy of `executionInstances` and has a focused regression test proving render does not mutate the DTO array. `selectOneMark` keeps the tested behavior but drops the long removed-history commentary. `module.resources` remains a required descriptor contract, but it is no longer passive scaffolding: `bind()` validates resource declarations at runtime and focused tests reject malformed or duplicate resource entries from JS interop.
+- **Why:** These are small code-quality hazards that do not justify architecture on their own, but they are cheap deletion when touched by adjacent work.
+- **Evidence:** `RunNodeSessionPanel.tsx:22` sorts `node.executionInstances` in place during render. `triage.ts:394-473` carries long parent-transfer/comment archaeology around `selectOneMark`. `shared/src/views.ts:137-138` requires `module.resources`, but no active consumer uses the declaration beyond tests and static descriptors.
+- **Change:** Use `toSorted()` or copy before sorting in `RunNodeSessionPanel`. Delete or sharply reduce comments defending removed `selectOneMark` behavior while preserving tested behavior. Either add a real consumer for `module.resources` or remove the required declaration until the module system uses it.
+- **Tests:** Component/unit tests should prove input order is not mutated; maintainer mark tests should continue to pin behavior; view-registry tests must reflect whichever `resources` decision is taken.
+- **Risk:** Low for the sort fix, medium for module descriptor contract churn.
+- **Deps:** None.
+
+#### WS-23 — Delete confirmed dead formula-name code and parallelize run-detail lookups  *(Claude P5)*
+
+- **Implementation status (2026-06-01):** Complete. The dead `resolveRunFormulaName` / `ResolvedRunFormulaName` export and its duplicate documentation are gone; the useful behavior coverage now targets the live `resolveRunFormulaIdentity()` helper. The run-detail route now fetches sessions and formula detail concurrently after the run snapshot is loaded, and a route regression proves formula-detail starts before the delayed sessions response completes.
+- **Why:** These are verified quick deletions/latency fixes from Claude's P5 list. They preserve behavior while removing stale parallel abstractions and one unnecessary upstream round-trip from every formula run detail load.
+- **Evidence:** `resolveRunFormulaName` had no production callers; tests were the only remaining import. `backend/src/routes/runs.ts` awaited `getRunSessions(gc)` and then `getRunFormulaDetail(gc, raw, scope)` serially even though the latter depends on `raw` and the former depends only on `gc`.
+- **Change:** Remove the legacy resolver and move tests onto `resolveRunFormulaIdentity()`. Compute run scope once, then `Promise.all([getRunSessions(gc), getRunFormulaDetail(gc, raw, scope)])`.
+- **Tests:** Red structure test first proved the legacy resolver still existed; red route test first proved serial `sessions:start, sessions:end, formula:start` ordering. Focused tests now pass.
+- **Risk:** Low. Fetch concurrency is bounded to two already-existing typed lookups whose errors are converted into unavailable states.
+- **Deps:** Builds on WS-5.
+
+#### WS-24 — Centralize duplicated run-edge transforms and semantic identity helpers  *(Claude P1 #2)*
+
+- **Implementation status (2026-06-01):** In progress. First slice complete: `gc-supervisor-decoders.ts` now uses one `withRunId()` / `withRequiredRunId()` helper for supervisor `workflow_id → run_id` mapping across formula feeds, formula history, run snapshots, and sling responses; a structure test prevents the mapping from re-splitting. Larger follow-ups should handle step-ref semantic identity and the `ralph → check-loop` vocabulary map.
+- **Why:** The same concepts are still implemented in several places and held together by comments: wire run id translation, semantic step/control identity, and product-term externalization.
+- **Evidence:** `gc-supervisor-decoders.ts` maps `workflow_id → run_id` in four separate transforms/destructures. Step-ref identity overlaps across `runs/groups.ts`, `runs/node-shape.ts`, and `runs/formula-order.ts`. `ralph → check-loop` appears in ID externalization, kind mapping, and display text regexes.
+- **Change:** Add one decoder-local wire rename helper first. Then extract `runSemanticId.ts` for semantic identity / alias variants, and one product-term map for wire-to-display vocabulary.
+- **Tests:** Keep existing decoder/run graph tests green; add structure or focused tests around the helper so new mappings do not reintroduce local transforms.
+- **Risk:** Medium for graph identity; low for the decoder-local helper.
+- **Deps:** Coordinates with WS-10 cleanup and WS-8.
+
+#### WS-25 — Move run-health cross-cycle state into `RunHealthEngine`  *(Claude P1 #3)*
+
+- **Implementation status (2026-06-01):** Planned.
+- **Why:** `snapshot/service.ts` is an orchestrator but owns cross-cycle `progressMarks`, the newer-generation gate, and the race invariant around enrichment. `snapshot/health.ts` already owns the pure health functions and is the cohesive place for the stateful engine.
+- **Evidence:** `backend/src/snapshot/service.ts` still stores and updates the mark map and generation guard while `backend/src/snapshot/health.ts` exports the pure computation primitives.
+- **Change:** Introduce a small `RunHealthEngine` in `health.ts` that owns mark storage and generation gating; `service.ts` calls `engine.enrich(...)`.
+- **Tests:** Preserve existing snapshot health tests and add a focused cross-cycle test proving stale generations do not overwrite newer marks.
+- **Risk:** Medium. This touches dashboard ambient status behavior, so keep the extraction small and behavior-preserving.
+- **Deps:** None.
+
+#### WS-26 — Table-drive phase and formula classification  *(Claude P2 #4)*
+
+- **Implementation status (2026-06-01):** Planned.
+- **Why:** Phase mapping and formula-stage classification encode precedence in physical `if` order. A typed rule table makes precedence explicit and reduces drift with run kind identity.
+- **Evidence:** `mapRunPhase` is an ordered substring ladder, `stagesForFormula` is a long formula-name if-chain, `ROUND_IN_KEY` / `ROUND_IN_VALUE` are duplicate regexes, and `runKind` repeats formula identity.
+- **Change:** Replace the phase ladder with ordered `PHASE_RULES`; replace formula stage branching with `FORMULA_STAGES: Record<KnownFormula, ...>` and derive run kind from the same table where possible.
+- **Tests:** Convert existing phase/formula mapping tests to assert rule order and the duplicate-regex collapse; add one misclassification regression for descriptive text containing a later-stage word.
+- **Risk:** Medium. Preserve order exactly first, then simplify.
+- **Deps:** Best after WS-24 semantic identity cleanup.
+
+#### WS-27 — Pull route view-state machines out of large frontend components  *(Claude P2 #5 + P4)*
+
+- **Implementation status (2026-06-01):** Planned.
+- **Why:** `FormulaRunDetail.tsx` and `AgentDetail.tsx` still derive several loading/error/ready booleans and fetch lifecycles inline. The list routes share primitives but still repeat the same search/chips/table/empty-state shell.
+- **Evidence:** `FormulaRunDetail.tsx` composes route parsing, detail, diff, SSE refresh, selection, loading, refresh, and error derivation inline. `AgentDetail.tsx` owns session/bead/directives/chat/entity-link lifecycle state inline. `Agents`, `Beads`, and `Mail` repeat the same list shell.
+- **Change:** First extract a `useFormulaRunView` discriminated union over route-error/loading/error/ready. Then migrate `AgentDetail` onto canonical data hooks. Treat `FilteredListSection<T>` as a later incremental extraction over existing shared primitives.
+- **Tests:** Component tests should assert the same rendered route states before/after extraction. Prefer hook tests for the new discriminated union.
+- **Risk:** Medium; UI behavior should not change.
+- **Deps:** None.
+
+#### WS-28 — Unify dashboard absence envelopes after schema coverage expands  *(Claude P3 #7)*
+
+- **Implementation status (2026-06-01):** Planned.
+- **Why:** `Avail<T>` is the canonical dashboard absence envelope, but a few DTOs still model availability with parallel booleans and string errors. Domain booleans from supervisor wire types are not part of this cleanup.
+- **Evidence:** `shared/src/lists.ts` defines `Avail<T>` while `shared/src/gc-health.ts` uses `DoltNomsTrend.available`. `GcAgent.available` is a domain field and should remain unchanged.
+- **Change:** After WS-16 expands schema coverage, move dashboard-owned availability envelopes toward `Avail<T>` / typed reasons where it improves guardrails without lying about supervisor domain fields.
+- **Tests:** Shared DTO tests must prove the new envelope rejects malformed absence states and frontend consumers switch exhaustively on the discriminant.
+- **Risk:** Medium because this is a shared DTO change.
+- **Deps:** WS-16.
+
+---
+
 ## Lower-priority cleanups (fold in opportunistically; not standalone PRs)
 
 - **`useVisibleRefresh` vs `useAbortableVisibleRefresh`** duplicate the backoff state machine (`useVisibleRefresh.ts:37-61` vs `useAbortableVisibleRefresh.ts:44-90`). Extract `useVisibleBackoffTick({enabled,intervalMs,run,...})`; build both on top. *(TN hooks #3)*
@@ -298,9 +462,15 @@ Tier 3 (decomposition)   WS-10 G-0 (Node 22/tooling) ─► WS-10 G-1a (generate
                          ─► WS-10 G-1b/G-3 (hard cutover + generated Zod validation) ─► WS-10 cleanup (upstream schema sync + delete temporary adapter)
                          WS-9 (after WS-2 + WS-10 G-1b), WS-11 (after WS-3), WS-14 (complete)
 Tier 4 (correctness)     WS-12 (complete), WS-13 (getStatus/decodeSling folded into WS-10 G-3)
+Tier 5 (current review)  WS-20, WS-21 (guardrails first)
+                         WS-18, WS-19, WS-22 (small behavior/quality fixes)
+                         WS-23 (Claude P5 quick fixes; complete)
+                         WS-15 + WS-24 ─► WS-10 cleanup
+                         WS-16 + WS-17 + WS-28 ─► WS-10 cleanup
+                         WS-25, WS-26, WS-27 (larger validated refactors)
 ```
 
-**Recommended order:** WS-1, WS-2 → WS-3, WS-4 (quick wins, reverse drift) → WS-5, WS-6, WS-7 (canonical resolvers/policy) → **WS-10 G-0/G-1a/G-1b/G-3** (Node 22/tooling, generate with @hey-api, hard-cut to the generated SDK, delete the old client stack, enable strict generated-Zod response validation) + WS-13 cheap-correctness items → WS-8, WS-9, WS-12 and WS-14 (complete), WS-11 (decomposition) → **WS-10 cleanup** (sync the OpenAPI accuracy fix upstream, then delete the temporary DTO adapter/`SchemaOutputFor` machinery and move raw supervisor mirrors backend-only).
+**Recommended order:** WS-1, WS-2 → WS-3, WS-4 (quick wins, reverse drift) → WS-5, WS-6, WS-7 (canonical resolvers/policy) → **WS-10 G-0/G-1a/G-1b/G-3** (Node 22/tooling, generate with @hey-api, hard-cut to the generated SDK, delete the old client stack, enable strict generated-Zod response validation) + WS-13 cheap-correctness items → WS-8, WS-9, WS-12 and WS-14 (complete), WS-11 (decomposition) → **WS-20/WS-21 guardrails** → **WS-18/WS-19/WS-22/WS-23 small fixes** → **WS-15 + WS-16 + WS-17 + WS-24** → **WS-10 cleanup** (sync the OpenAPI accuracy fix upstream, then delete the temporary DTO adapter/`SchemaOutputFor` machinery and move raw supervisor mirrors backend-only) → WS-25/WS-26/WS-27/WS-28 as larger follow-on refactors.
 
 Land each workstream as its own PR against `main` with passing CI. Several are parallelizable across branches (WS-3, WS-4, WS-7 touch disjoint files; WS-14 has already landed in this branch).
 
@@ -308,6 +478,7 @@ Land each workstream as its own PR against `main` with passing CI. Several are p
 
 ```
 npm run build:shared
+npm --workspace shared run typecheck:test
 npm --workspace shared test
 npm run openapi:gc-supervisor:check
 npm run typecheck
