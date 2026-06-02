@@ -32,7 +32,13 @@ import { BEAD_ID_RE } from '../lib/beadId.js';
 //   - NOT issue_type 'convoy'                   : auto-convoy trackers
 //
 // ?showAll=1 disables the filter for diagnostic cases.
-function defaultBeadFilter(bead: GcBead): boolean {
+//
+// This is the dashboard's canonical "real work" predicate — it mirrors the
+// supervisor's `gc bd stats → "Ready to Work"` by dropping bookkeeping beads
+// (slack/extmsg + nudge carry `gc:` labels; mail is issue_type 'message';
+// sessions 'session'; convoy 'convoy'; nudge 'chore'). Exported so the
+// exclusion contract is unit-testable (#33).
+export function defaultBeadFilter(bead: GcBead): boolean {
   const allowedTypes = new Set(['feature', 'bug', 'task', 'docs']);
   if (!allowedTypes.has(bead.issue_type)) return false;
   if (Array.isArray(bead.labels) && bead.labels.some((l) => l.startsWith('gc:'))) {

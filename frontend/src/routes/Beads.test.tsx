@@ -13,9 +13,13 @@ import type { GcBead } from 'gas-city-dashboard-shared';
 
 const PROJECT = 'gascity';
 
+let beadsRequestUrls: string[] = [];
+
 beforeEach(() => {
-  // The board implies "show all", so the page only ever reads the
-  // showAll=1 cache key plus the sessions feed.
+  // #33: the board reads the real-work-filtered beads feed
+  // (no showAll), so the count/list mirrors the supervisor's "Ready to Work"
+  // and excludes bookkeeping beads (slack/nudge/mail/session/convoy).
+  beadsRequestUrls = [];
   invalidate('beads:all');
   invalidate('sessions');
   vi.stubGlobal(
@@ -23,6 +27,7 @@ beforeEach(() => {
     vi.fn(async (input: RequestInfo | URL) => {
       const url = String(input);
       if (url.startsWith('/api/city/test-city/beads')) {
+        beadsRequestUrls.push(url);
         return jsonResponse(beadListPayload([sampleBead()]));
       }
       if (url === '/api/city/test-city/sessions') {
@@ -59,6 +64,21 @@ describe('BeadsPage', () => {
     expect(screen.queryByRole('radiogroup', { name: /view/i })).toBeNull();
     expect(screen.queryByRole('radio', { name: /list/i })).toBeNull();
     expect(screen.queryByRole('radio', { name: /board/i })).toBeNull();
+  });
+
+  it('requests the real-work-filtered beads feed, not showAll', async () => {
+    // #33: showAll=1 disables the backend spam filter and
+    // floods the board (and its ready count) with bookkeeping beads
+    // (slack/nudge/mail/session/convoy), inflating ~78 real ready-to-work
+    // to ~979. The board must consume the filtered feed so its count/list
+    // mirrors `gc bd stats → Ready to Work`.
+    renderPage();
+
+    await screen.findByRole('heading', { name: /^beads$/i });
+    expect(beadsRequestUrls.length).toBeGreaterThan(0);
+    for (const url of beadsRequestUrls) {
+      expect(url).not.toContain('showAll');
+    }
   });
 });
 

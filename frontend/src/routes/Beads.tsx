@@ -33,11 +33,15 @@ const BEAD_SEARCH_FIELDS = (b: GcBead): ReadonlyArray<string | undefined> => [
 
 export function BeadsPage() {
   const [labelFilter, setLabelFilter] = useState<string | null>(null);
-  // The board is a kanban: its in-progress / blocked / done columns need
-  // the full status set, so it always fetches every bead.
+  // #33: read the real-work-filtered feed (no showAll). The
+  // default endpoint keeps every status (it filters by type/label, not
+  // status), so the kanban's in-progress / blocked / done columns stay
+  // populated, while bookkeeping beads (slack/nudge/mail/session/convoy) are
+  // excluded. This keeps the ready column/count mirroring the supervisor's
+  // "Ready to Work" instead of inflating it with synthetic beads.
   const { data, loading, error, refresh } = useCachedData(
     'beads:all',
-    () => api.listBeads(true),
+    () => api.listBeads(),
   );
   const rows = useMemo(() => data?.items ?? [], [data]);
   const totalShown = data?.total ?? 0;
