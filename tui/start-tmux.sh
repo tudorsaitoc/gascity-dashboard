@@ -46,12 +46,18 @@ city="${city:-${GC_CITY_NAME:-}}"
 socket="${socket:-$city}" # gc's per-city tmux socket is named after the city
 pct="${pct%\%}"           # accept "40" or "40%"
 
-city_flag=""
-[ -n "$city" ] && city_flag="-- --city=$city"
+# Companion modes (--split / --target) open the truncated overview via --compact;
+# a plain launch keeps the full dashboard default.
+compact=0
+{ [ -n "$target" ] || [ "$split" = "1" ]; } && compact=1
+
+app_args=""
+[ -n "$city" ] && app_args="--city=$city"
+[ "$compact" = "1" ] && app_args="$app_args --compact"
 
 here="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 root="$(cd "$here/.." && pwd)"
-run="cd '$root' && npm --workspace tui run start $city_flag"
+run="cd '$root' && npm --workspace tui run start -- $app_args"
 
 # Split horizontally, running $run in the new pane. `-L <socket>` is a server
 # flag (before the subcommand); `-t <target>` is a split-window flag (after it),

@@ -9,6 +9,9 @@ export interface TuiConfig {
   readonly baseUrl: string;
   /** Active city; every read/stream rides /api/city/:cityName/*. */
   readonly city: string;
+  /** Mayor-companion mode: open on the truncated overview (set by the launcher's
+   *  --split/--target via --compact). */
+  readonly compact: boolean;
 }
 
 const DEFAULT_BASE_URL = 'http://127.0.0.1:8081';
@@ -36,5 +39,6 @@ export function resolveConfig(
   return {
     baseUrl: (env.DASHBOARD_URL ?? DEFAULT_BASE_URL).replace(/\/+$/, ''),
     city: resolveCity(argv, env),
+    compact: argv.includes('--compact'),
   };
 }

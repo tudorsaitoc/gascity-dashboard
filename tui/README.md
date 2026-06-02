@@ -24,7 +24,15 @@ Each is a full-screen toggle over the same navigable area; the selection
 persists across the live refresh. `enter` drills the selected row into a single
 reused tmux split (see Peek).
 
-- **Agents** (default): grouped by rig (orchestration layer first; within a rig,
+- **Overview** (`o`): the calm mayor-companion summary, four attention-first bands
+  top to bottom: **WAITING ON YOU** (needs-operator runs first, then mayor
+  escalations, the single red region), **ACTIVE** (live agents, orchestration
+  first, capped), **BEADS** (open + in-progress counts with the wip list), **RUNS**
+  (active + needs-operator counts). Each band truncates with a `+ N more`, never a
+  dump. This is the default view when the panel is launched beside another session
+  (`--split` / `--target`, which pass `--compact`); the full views below stay one
+  keypress away. Greyscale, one red region (DESIGN.md Reading Room / One Mark).
+- **Agents** (default standalone): grouped by rig (orchestration layer first; within a rig,
   active before idle), one line each as `glyph · agent · kind · ctx% · activity ·
   model · last-active`. A leading glyph + short word carries the agent kind so it
   reads in greyscale (no color-as-signal, per `DESIGN.md`): `△ orch` (mayor,

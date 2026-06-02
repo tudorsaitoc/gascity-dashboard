@@ -600,3 +600,75 @@ export function mailSnippet(body: string, max = 120): string {
   const oneLine = body.replace(/\s+/g, ' ').trim();
   return oneLine.length > max ? `${oneLine.slice(0, max - 1)}…` : oneLine;
 }
+
+// ── mayor-companion overview (truncated attention-first summary) ──────────────
+
+/** Row caps for the overview bands — a side panel summarises, it never dumps. */
+export const OVERVIEW_WAITING_CAP = 4;
+export const OVERVIEW_ACTIVE_CAP = 5;
+export const OVERVIEW_WIP_CAP = 4;
+
+/** One thing the operator is on the hook for: a run parked on them, or a piece
+ *  of orchestration mail escalated to them. */
+export type WaitingItem =
+  | { readonly kind: 'run'; readonly lane: RunLane }
+  | { readonly kind: 'mail'; readonly mail: GcMailItem };
+
+/**
+ * The truncated summary a mayor-seat operator scans: what needs them, what's
+ * live, what's queued. A projection over the same DTOs the full views use, so
+ * it can never disagree with a drill-in.
+ */
+export interface OverviewModel {
+  /** Needs-operator runs first (they block a pipeline), then mayor mail. Capped. */
+  readonly waiting: readonly WaitingItem[];
+  /** Full waiting count before the cap, so a backlog is never silently hidden. */
+  readonly waitingTotal: number;
+  /** Live agents, orchestration first (the layer you track from the mayor seat),
+   *  then the recency order. Capped. */
+  readonly active: readonly AgentView[];
+  readonly activeCount: number;
+  readonly agentTotal: number;
+  readonly beadsOpen: number;
+  readonly beadsInProgress: number;
+  /** In-progress beads (the wip list), capped. */
+  readonly wip: readonly GcBead[];
+  readonly runsActive: number;
+  readonly runsNeedsOp: number;
+}
+
+export function overviewModel(
+  sessions: readonly GcSession[],
+  beads: readonly GcBead[],
+  mail: readonly GcMailItem[],
+  lanes: readonly RunLane[],
+): OverviewModel {
+  const needsOp = lanes.filter(laneNeedsOperator);
+  const escalations = operatorMail(mail, sessions);
+  const waitingAll: WaitingItem[] = [
+    ...needsOp.map((lane): WaitingItem => ({ kind: 'run', lane })),
+    ...escalations.map((m): WaitingItem => ({ kind: 'mail', mail: m })),
+  ];
+
+  // runningSessions is already recency-ordered; a stable sort by orch-first
+  // floats the orchestration layer up while preserving recency within a tier.
+  const activeAll = runningSessions(sessions).map(toAgentView);
+  const active = activeAll
+    .slice()
+    .sort((a, b) => (a.kind === 'orch' ? 0 : 1) - (b.kind === 'orch' ? 0 : 1));
+
+  const wipAll = beads.filter((b) => b.status === 'in_progress');
+
+  return {
+    waiting: waitingAll.slice(0, OVERVIEW_WAITING_CAP),
+    waitingTotal: waitingAll.length,
+    active: active.slice(0, OVERVIEW_ACTIVE_CAP),
+    activeCount: activeAll.length,
+    agentTotal: sessions.length,
+    beadsOpen: beads.filter((b) => b.status === 'open').length,
+    beadsInProgress: wipAll.length,
+    wip: wipAll.slice(0, OVERVIEW_WIP_CAP),
+    runsActive: lanes.length,
+    runsNeedsOp: needsOp.length,
+  };
+}

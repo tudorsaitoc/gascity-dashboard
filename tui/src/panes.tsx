@@ -19,6 +19,7 @@ import {
   type AgentView,
   type ContextPressureEntry,
   type IdleRollup,
+  type OverviewModel,
   type RigPhaseCounts,
   type SystemHealth,
 } from './derive.ts';
@@ -578,6 +579,128 @@ export function LedgerPane({ mail, mailFolded, runs }: LedgerPaneProps): React.J
 
       <Box marginTop={1}>
         <Text dimColor>l close · q quit</Text>
+      </Box>
+    </Box>
+  );
+}
+
+// ── mayor-companion overview pane (attention-first bands) ─────────────────────
+
+interface OverviewPaneProps {
+  readonly model: OverviewModel;
+  readonly now: number;
+}
+
+/** Trailing "+ N more" so a capped band never reads as the whole story. */
+function MoreRow({ total, shown }: { readonly total: number; readonly shown: number }): React.JSX.Element | null {
+  if (total <= shown) return null;
+  return <Text dimColor>{'   '}+ {total - shown} more</Text>;
+}
+
+/** Section heading with a trailing count; the count is the one red mark when
+ *  `alert` (reserved for WAITING ON YOU). */
+function BandHead({
+  label,
+  count,
+  alert = false,
+}: {
+  readonly label: string;
+  readonly count: string;
+  readonly alert?: boolean;
+}): React.JSX.Element {
+  return (
+    <Box>
+      <Text bold>{label}</Text>
+      <Text>{'   '}</Text>
+      {alert ? <Text bold color="red">{count}</Text> : <Text dimColor>{count}</Text>}
+    </Box>
+  );
+}
+
+export function OverviewPane({ model, now }: OverviewPaneProps): React.JSX.Element {
+  return (
+    <Box flexDirection="column">
+      {/* WAITING ON YOU — the single red region. */}
+      <BandHead label="WAITING ON YOU" count={`${model.waitingTotal}`} alert={model.waitingTotal > 0} />
+      {model.waiting.length === 0 ? (
+        <Text dimColor> nothing waiting</Text>
+      ) : (
+        model.waiting.map((w) =>
+          w.kind === 'run' ? (
+            <Box key={`run:${w.lane.id}`}>
+              <Text color="red"> ● </Text>
+              <Text wrap="truncate-end">{w.lane.title}</Text>
+              <Text dimColor> needs operator</Text>
+            </Box>
+          ) : (
+            <Box key={`mail:${w.mail.id}`}>
+              <Text dimColor> ✉ </Text>
+              <Box width={14} marginRight={1}>
+                <Text wrap="truncate-end">{basename(w.mail.from) || w.mail.from}</Text>
+              </Box>
+              <Text wrap="truncate-end">{w.mail.subject}</Text>
+            </Box>
+          ),
+        )
+      )}
+      <MoreRow total={model.waitingTotal} shown={model.waiting.length} />
+
+      {/* ACTIVE */}
+      <Box marginTop={1}>
+        <BandHead label="ACTIVE" count={`${model.activeCount} of ${model.agentTotal}`} />
+      </Box>
+      {model.active.length === 0 ? (
+        <Text dimColor> no agents active</Text>
+      ) : (
+        model.active.map((a) => (
+          <Box key={a.session.id}>
+            <Box width={2} marginLeft={1}>
+              <Text bold={a.kind === 'orch'} dimColor={a.kind !== 'orch'}>
+                {kindGlyph(a.kind)}
+              </Text>
+            </Box>
+            <Box width={18} marginRight={1}>
+              <Text wrap="truncate-end">{a.agent}</Text>
+            </Box>
+            <Box flexGrow={1} marginRight={1}>
+              <Text dimColor wrap="truncate-end">{activityPhrase(a.session)}</Text>
+            </Box>
+            <Box width={5} justifyContent="flex-end">
+              <Text dimColor>{relativeTime(a.session.last_active, now)}</Text>
+            </Box>
+          </Box>
+        ))
+      )}
+
+      {/* BEADS */}
+      <Box marginTop={1}>
+        <BandHead
+          label="BEADS"
+          count={`${model.beadsOpen} open · ${model.beadsInProgress} in progress`}
+        />
+      </Box>
+      {model.wip.length === 0 ? (
+        <Text dimColor> none in progress</Text>
+      ) : (
+        model.wip.map((b) => (
+          <Box key={b.id}>
+            <Text dimColor> ◐ </Text>
+            <Text wrap="truncate-end">{b.title}</Text>
+          </Box>
+        ))
+      )}
+      <MoreRow total={model.beadsInProgress} shown={model.wip.length} />
+
+      {/* RUNS — needs-op count stays greyscale; it is already red under WAITING. */}
+      <Box marginTop={1}>
+        <BandHead
+          label="RUNS"
+          count={`${model.runsActive} active · ${model.runsNeedsOp} needs operator`}
+        />
+      </Box>
+
+      <Box marginTop={1}>
+        <Text dimColor>o full dashboard · b/f/s/l/h views · q quit</Text>
       </Box>
     </Box>
   );

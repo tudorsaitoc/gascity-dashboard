@@ -9,6 +9,7 @@ import {
   DetailPane,
   HealthPane,
   LedgerPane,
+  OverviewPane,
   RunRow,
   SessionRow,
   type DetailTab,
@@ -36,6 +37,7 @@ import {
   neverActiveByRig,
   nextStatusFilter,
   operatorMail,
+  overviewModel,
   runningSessions,
   systemHealth,
   toAgentView,
@@ -48,9 +50,21 @@ import type { GcBead, GcSession, RunLane } from './api.ts';
 interface AppProps {
   readonly baseUrl: string;
   readonly city: string;
+  /** Mayor-companion mode: open on the truncated overview instead of the full
+   *  agent list (set by the launcher's --split/--target via --compact). */
+  readonly compact?: boolean;
 }
 
-type ViewMode = 'list' | 'beads' | 'runs' | 'detail' | 'health' | 'sessions' | 'ledger' | 'board';
+type ViewMode =
+  | 'list'
+  | 'beads'
+  | 'runs'
+  | 'detail'
+  | 'health'
+  | 'sessions'
+  | 'ledger'
+  | 'board'
+  | 'overview';
 
 type Entry =
   | { readonly kind: 'agent'; readonly id: string; readonly agent: AgentView }
@@ -164,12 +178,12 @@ function useTerminalRows(): number {
   return rows;
 }
 
-export function App({ baseUrl, city }: AppProps): React.JSX.Element {
+export function App({ baseUrl, city, compact = false }: AppProps): React.JSX.Element {
   const { exit } = useApp();
   const { sessions, snapshot, beads, mail, error, conn } = useCity(baseUrl, city);
   const rows = useTerminalRows();
 
-  const [view, setView] = useState<ViewMode>('list');
+  const [view, setView] = useState<ViewMode>(compact ? 'overview' : 'list');
   const [statusFilter, setStatusFilter] = useState<StatusFilter>('active+idle');
   const [detailTab, setDetailTab] = useState<DetailTab>('overview');
   const [cursorId, setCursorId] = useState<string | null>(null);
@@ -182,11 +196,15 @@ export function App({ baseUrl, city }: AppProps): React.JSX.Element {
 
   const health = useMemo(() => systemHealth(snapshot), [snapshot]);
   const board = useMemo(() => cityBoard(health.lanes), [health.lanes]);
+  const overview = useMemo(
+    () => overviewModel(sessions, beads, mail, health.lanes),
+    [sessions, beads, mail, health.lanes],
+  );
   // detail navigates the same agent list as 'list' underneath.
   const navView: ViewMode = view === 'detail' ? 'list' : view;
   const { entries, renderRows } = useMemo(
     () =>
-      navView === 'health' || navView === 'ledger' || navView === 'board'
+      navView === 'health' || navView === 'ledger' || navView === 'board' || navView === 'overview'
         ? EMPTY_NAV
         : buildNav(navView, sessions, beads, health.lanes, statusFilter),
     [navView, sessions, beads, health.lanes, statusFilter],
@@ -297,6 +315,7 @@ export function App({ baseUrl, city }: AppProps): React.JSX.Element {
     (input, key) => {
       if (input === 'q') return quit();
       if (key.escape) return view === 'list' ? quit() : (setView('list'), setScrollTop(0));
+      if (input === 'o') return toggle('overview');
       if (input === 'h') return toggle('health');
       if (input === 'm') return toggle('board');
       if (input === 'b') return toggle('beads');
@@ -346,7 +365,13 @@ export function App({ baseUrl, city }: AppProps): React.JSX.Element {
   const mailFolded = foldedMailCount(mail, ledgerMail);
 
   const summary =
-    view === 'board' ? (
+    view === 'overview' ? (
+      // No red here: the WAITING band inside the pane carries the one mark.
+      <Text dimColor>
+        overview
+        {overview.waitingTotal > 0 ? ` · ${overview.waitingTotal} waiting on you` : ' · all clear'}
+      </Text>
+    ) : view === 'board' ? (
       // No red here: the board's own `needs` column carries the one mark, so a
       // second red region in the same viewport would break the One Mark Rule.
       <Text dimColor>
@@ -402,7 +427,11 @@ export function App({ baseUrl, city }: AppProps): React.JSX.Element {
         </Box>
       ) : null}
 
-      {view === 'board' ? (
+      {view === 'overview' ? (
+        <Box marginTop={1}>
+          <OverviewPane model={overview} now={now} />
+        </Box>
+      ) : view === 'board' ? (
         <Box marginTop={1}>
           <CityBoardPane board={board} />
         </Box>
@@ -487,7 +516,7 @@ export function App({ baseUrl, city }: AppProps): React.JSX.Element {
                 {below > 0 ? `↓ ${below}` : ''}
               </Text>
             )}
-            <Text dimColor>↑↓ · enter drill · a filter · s/b/f/l/h/m views · p detail · x close · q quit</Text>
+            <Text dimColor>↑↓ · enter drill · a filter · o/s/b/f/l/h/m views · p detail · x close · q quit</Text>
           </Box>
         </>
       )}
