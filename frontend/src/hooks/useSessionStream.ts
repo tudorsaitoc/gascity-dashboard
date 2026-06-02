@@ -1,7 +1,11 @@
 import { useEffect, useRef, useState } from 'react';
 import type { MutableRefObject } from 'react';
-import type { TranscriptResult, TranscriptTurn } from 'gas-city-dashboard-shared';
-import { errorMessage } from 'gas-city-dashboard-shared';
+import type {
+  PendingInteraction,
+  TranscriptResult,
+  TranscriptTurn,
+} from 'gas-city-dashboard-shared';
+import { errorMessage, parsePendingInteraction } from 'gas-city-dashboard-shared';
 import { api } from '../api/client';
 import { reportClientError } from '../lib/clientErrorReporting';
 
@@ -18,7 +22,19 @@ export type SessionStreamState =
   | { status: 'idle'; stream: { status: 'idle' } }
   | { status: 'loading'; stream: { status: 'idle' } | { status: 'connecting' } }
   | { status: 'failed'; error: string; stream: { status: 'idle' } }
-  | { status: 'ready'; result: TranscriptResult; stream: SessionStreamProgress };
+  | {
+    status: 'ready';
+    result: TranscriptResult;
+    stream: SessionStreamProgress;
+    /**
+     * Latest pending interaction observed on the stream (PRD R3), or null when
+     * none is outstanding. The supervisor emits this ONLY as a per-session SSE
+     * `pending` event — see parsePendingInteraction. The R11 respond write
+     * clears it; until then a present value means an agent is blocked on the
+     * operator. Absent/undefined on a never-streamed ready state.
+     */
+    pending?: PendingInteraction | null;
+  };
 
 export function useSessionStream(
   sessionId: string | null,
@@ -100,6 +116,23 @@ export function useSessionStream(
           };
           source.onmessage = onTurn;
           source.addEventListener('turn', onTurn);
+          const onPending = (event: MessageEvent<string>) => {
+            if (cancelled) return;
+            const pending = parsePendingInteraction(safeJsonParse(event.data));
+            setState((current) => {
+              const base = current.status === 'ready' ? current.result : result;
+              if (pending === null) {
+                reportMalformedSessionEvent(sessionId, malformedEventReportedRef);
+                return {
+                  status: 'ready',
+                  result: base,
+                  stream: { status: 'degraded', error: MALFORMED_SESSION_STREAM_EVENT },
+                };
+              }
+              return { status: 'ready', result: base, stream: { status: 'open' }, pending };
+            });
+          };
+          source.addEventListener('pending', onPending);
           source.onerror = () => {
             if (cancelled) return;
             const streamState =
@@ -160,6 +193,14 @@ type SessionStreamPayload =
   | { kind: 'invalid'; error: string };
 
 const MALFORMED_SESSION_STREAM_EVENT = 'Malformed session stream event.';
+
+function safeJsonParse(data: string): unknown {
+  try {
+    return JSON.parse(data);
+  } catch {
+    return undefined;
+  }
+}
 
 function parseStreamPayload(data: string): SessionStreamPayload {
   let parsed: unknown;
