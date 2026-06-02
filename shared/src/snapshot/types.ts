@@ -10,7 +10,8 @@ import type { Avail } from '../lists.js';
 export type SourceName =
   | 'city'
   | 'resources'
-  | 'runs';
+  | 'runs'
+  | 'work';
 
 export type SourceStatus = 'fresh' | 'stale' | 'error' | 'fixture';
 
@@ -94,12 +95,21 @@ export interface DashboardHeadline {
   maxAgents: DashboardMetric;
   activeSessions: DashboardMetric;
   activeRuns: DashboardMetric;
+  /**
+   * In-progress work-item count (gascity-dashboard-aw75). Sourced from the
+   * `work` source's `inProgress` field, which mirrors the supervisor's
+   * `status.work.in_progress`. Closes the observability gap where a claimed
+   * (in_progress) bead never surfaced in the dashboard — the run-lane census
+   * counts formula-run lanes only, not arbitrary claimed beads.
+   */
+  workInProgress: DashboardMetric;
 }
 
 export interface DashboardSources {
   city: SourceState<CityStatusSummary>;
   resources: SourceState<ResourceSummary>;
   runs: SourceState<RunSummary>;
+  work: SourceState<WorkSummary>;
 }
 
 /**
@@ -191,6 +201,29 @@ export interface ResourceSample {
   memoryUsedBytes: number;
   memoryAvailableBytes: number;
   memoryUtilization: number;
+}
+
+// ── work ──────────────────────────────────────────────────────────────
+
+/**
+ * City-wide work-item census (gascity-dashboard-aw75). Mirrors the
+ * supervisor's `status.work` block from `GET /v0/city/{name}/status` —
+ * the wire's snake_case `in_progress` is translated to `inProgress` at the
+ * collector edge so the dashboard DTO stays camelCase.
+ *
+ * These counts cover ALL beads in the city's stores, not just formula-run
+ * lanes (the runs census), so a claimed task bead's `in_progress` state
+ * surfaces here even when it is not part of any formula run.
+ *
+ * NOTE on `ready` vs `open`: the supervisor computes these itself and its
+ * `ready` does NOT match `bd ready` semantics (verified live: ready=0 while
+ * open=1091). The dashboard exposes all three verbatim for completeness but
+ * only headline-surfaces `inProgress`, which is accurate.
+ */
+export interface WorkSummary {
+  open: number;
+  ready: number;
+  inProgress: number;
 }
 
 // ── runs ─────────────────────────────────────────────────────────────

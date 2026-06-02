@@ -11,6 +11,7 @@ import type {
   RunSummary,
   SourceAvailableState,
   SourceState,
+  WorkSummary,
 } from 'gas-city-dashboard-shared';
 
 import { SourceCache } from '../src/snapshot/cache.js';
@@ -90,7 +91,13 @@ const SAMPLE_RESOURCES: ResourceSummary = {
   samples: [],
 };
 
-function fresh<T>(source: 'city' | 'resources' | 'runs', data: T): SourceCache<T> {
+const SAMPLE_WORK: WorkSummary = {
+  open: 1,
+  ready: 0,
+  inProgress: 1,
+};
+
+function fresh<T>(source: 'city' | 'resources' | 'runs' | 'work', data: T): SourceCache<T> {
   return new SourceCache<T>({ source, ttlMs: 60_000, sanitizeErrorMessage: null, load: () => data });
 }
 
@@ -99,6 +106,7 @@ function buildCaches(runs: RunSummary): SourceCacheMap {
     city: fresh('city', SAMPLE_CITY),
     resources: fresh('resources', SAMPLE_RESOURCES),
     runs: fresh('runs', runs),
+    work: fresh('work', SAMPLE_WORK),
   };
 }
 
@@ -330,7 +338,7 @@ function laneThrashing(snap: { sources: { runs: SourceState<RunSummary> } }): bo
 
 // A clock-injected cache: every source in these tests shares one controlled
 // `now` so each runs generation gets a distinct fetchedAt under test control.
-function clocked<T>(source: 'city' | 'resources' | 'runs', now: () => Date, load: () => T | Promise<T>): SourceCache<T> {
+function clocked<T>(source: 'city' | 'resources' | 'runs' | 'work', now: () => Date, load: () => T | Promise<T>): SourceCache<T> {
   return new SourceCache<T>({ source, ttlMs: 600_000, now, sanitizeErrorMessage: null, load });
 }
 
@@ -358,6 +366,7 @@ describe('progress-mark monotonicity under concurrent reads (gascity-dashboard-7
         }),
         resources: clocked('resources', now, () => SAMPLE_RESOURCES),
         runs: clocked('runs', now, () => currentRuns),
+        work: clocked('work', now, () => SAMPLE_WORK),
       },
       // The shared sessions cache is labeled with the 'city' SourceName (it IS
       // the city's session list) — mirroring buildSessionsCache in service.ts.
@@ -414,6 +423,7 @@ describe('progress-mark monotonicity under concurrent reads (gascity-dashboard-7
         city: clocked('city', now, () => SAMPLE_CITY),
         resources: clocked('resources', now, () => SAMPLE_RESOURCES),
         runs: clocked('runs', now, () => currentRuns),
+        work: clocked('work', now, () => SAMPLE_WORK),
       },
       sessions: clocked<GcSessionList>('city', now, () => ({ items: [], total: 0 })),
       config: CONFIG,

@@ -5,6 +5,7 @@ import type {
   CityStatusSummary,
   ResourceSummary,
   RunSummary,
+  WorkSummary,
 } from 'gas-city-dashboard-shared';
 
 import { SourceCache } from '../src/snapshot/cache.js';
@@ -93,6 +94,12 @@ const SAMPLE_RESOURCES: ResourceSummary = {
   samples: [],
 };
 
+const SAMPLE_WORK: WorkSummary = {
+  open: 1,
+  ready: 0,
+  inProgress: 1,
+};
+
 /**
  * Build a healthy cache for a source whose data fits SourceCache<T>.
  * Default loaders return the SAMPLE_* fixtures so siblings stay 'fresh'
@@ -114,6 +121,11 @@ function buildHealthyCaches(): SourceCacheMap {
       source: 'runs',
       ttlMs: 60_000,
       load: async () => SAMPLE_RunS,
+    }),
+    work: new SourceCache({
+      source: 'work',
+      ttlMs: 45_000,
+      load: async () => SAMPLE_WORK,
     }),
   };
 }
@@ -170,12 +182,13 @@ describe('readSources failure isolation (settle wrapper contract)', () => {
     sabotageCache(caches.city as SourceCache<unknown>, 'city down');
     sabotageCache(caches.resources as SourceCache<unknown>, 'resources down');
     sabotageCache(caches.runs as SourceCache<unknown>, 'runs down');
+    sabotageCache(caches.work as SourceCache<unknown>, 'work down');
 
     const service = buildService(caches);
 
     const snapshot = await service.getSnapshot();
 
-    for (const name of ['city', 'resources', 'runs'] as const) {
+    for (const name of ['city', 'resources', 'runs', 'work'] as const) {
       assert.equal(snapshot.sources[name].status, 'error', `${name} should be status=error`);
       assert.equal('data' in snapshot.sources[name], false, `${name} should not expose data`);
       assert.equal(snapshot.sources[name].source, name, `${name} envelope should carry source name`);

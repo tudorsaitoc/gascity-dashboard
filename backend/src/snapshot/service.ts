@@ -12,6 +12,7 @@ import type {
   SourceName,
   SourceState,
   SourceStatus,
+  WorkSummary,
 } from 'gas-city-dashboard-shared';
 
 import type { GcClient } from '../gc-client.js';
@@ -19,6 +20,7 @@ import { SourceCache } from './cache.js';
 import { createCityStatusSourceCache } from './collectors/cityStatus.js';
 import { createResourcesSourceCache } from './collectors/resources.js';
 import { createRunsSourceCache } from './collectors/runs.js';
+import { createWorkSourceCache } from './collectors/work.js';
 import { fixtureSourceLoader } from './fixtures/loader.js';
 import { fixtureSessions } from './fixtures/snapshot.js';
 import {
@@ -46,12 +48,14 @@ export const SOURCE_NAMES = [
   'city',
   'resources',
   'runs',
+  'work',
 ] as const satisfies readonly SourceName[];
 
 export interface SourceCacheMap {
   city: SourceCache<CityStatusSummary>;
   resources: SourceCache<ResourceSummary>;
   runs: SourceCache<RunSummary>;
+  work: SourceCache<WorkSummary>;
 }
 
 export interface SnapshotHealth {
@@ -310,6 +314,12 @@ function buildDefaultCaches(
       useFixture,
       loadFixture: useFixture ? fixtureSourceLoader('runs') : undefined,
     }),
+    work: createWorkSourceCache({
+      gc,
+      now,
+      useFixture,
+      loadFixture: useFixture ? fixtureSourceLoader('work') : undefined,
+    }),
   };
 }
 
@@ -355,13 +365,14 @@ async function readSources(
     }
   };
 
-  const [city, resources, runs] = await Promise.all([
+  const [city, resources, runs, work] = await Promise.all([
     settle('city', caches.city),
     settle('resources', caches.resources),
     settle('runs', caches.runs),
+    settle('work', caches.work),
   ]);
 
-  return { city, resources, runs };
+  return { city, resources, runs, work };
 }
 
 /**
@@ -412,6 +423,11 @@ function buildHeadline(sources: DashboardSources): DashboardHeadline {
       sources.runs,
       activeRunCount,
       'active run count',
+    ),
+    workInProgress: sourceMetric(
+      sources.work,
+      (work) => work.inProgress,
+      'in-progress work count',
     ),
   };
 }
@@ -483,5 +499,6 @@ function sourceStatuses(caches: SourceCacheMap): Record<SourceName, SourceStatus
     city: caches.city.snapshot().status,
     resources: caches.resources.snapshot().status,
     runs: caches.runs.snapshot().status,
+    work: caches.work.snapshot().status,
   };
 }

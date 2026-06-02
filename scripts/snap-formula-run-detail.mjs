@@ -535,10 +535,12 @@ function snapshotFixture() {
       maxAgents: unavailableMetric('city', 'city unavailable in fixture'),
       activeSessions: unavailableMetric('city', 'city unavailable in fixture'),
       activeRuns: { status: 'available', value: 1 },
+      workInProgress: { status: 'available', value: 1 },
     },
     sources: {
       city: sourceUnavailable('city', 'city unavailable in fixture'),
       resources: sourceUnavailable('resources', 'resources unavailable in fixture'),
+      work: sourceFixture('work', { open: 1, ready: 0, inProgress: 1 }),
       runs: sourceFixture('runs', {
         totalActive: 1,
         // yh5i: shared RunSummary now carries totalHistorical +

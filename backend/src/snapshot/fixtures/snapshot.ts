@@ -67,6 +67,7 @@ export const fixtureSnapshot = {
     maxAgents: { status: 'available', value: 100 },
     activeSessions: { status: 'available', value: 28 },
     activeRuns: { status: 'available', value: 6 },
+    workInProgress: { status: 'available', value: 3 },
   },
   sources: {
     city: {
@@ -211,6 +212,18 @@ export const fixtureSnapshot = {
           status: 'unavailable',
           error: 'run health has not been derived',
         },
+      },
+    },
+    work: {
+      source: 'work',
+      status: 'fixture',
+      fetchedAt: '2026-05-22T22:00:00.000Z',
+      staleAt: '2026-05-22T22:00:45.000Z',
+      error: { kind: 'none' },
+      data: {
+        open: 24,
+        ready: 9,
+        inProgress: 3,
       },
     },
   },
