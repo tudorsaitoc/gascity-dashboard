@@ -1,32 +1,41 @@
 #!/usr/bin/env bash
 # Launch the Gas City TUI inside tmux so the live-peek split (enter) works.
 #
-#   ./tui/start-tmux.sh [--split] [--pct N] [<city>]   # or set GC_CITY_NAME
-#   npm --workspace tui run start:tmux -- [--split] [--pct N] [<city>]
+#   ./tui/start-tmux.sh [--split] [--pct N] [<city>]            # or set GC_CITY_NAME
+#   ./tui/start-tmux.sh --target mayor [--pct N] [<city>]       # pin beside a session
+#   npm --workspace tui run start:tmux -- [flags] [<city>]
 #
 # Default: if you are already inside tmux, the TUI takes over the current pane
 # (enter-peek then splits that window); otherwise it creates a dedicated
 # `gc-tui` session so the TUI has a tmux to split into.
 #
-# --split: pin the dashboard BESIDE the current pane instead of taking it over,
-# so you can leave it glancing on the side of the session you're working in
-# (e.g. the mayor). Run it from inside the tmux window you want split; it adds
-# a right-hand pane running the TUI and leaves your original pane in place.
-# Outside tmux there is no window to split, so --split falls back to the
-# dedicated `gc-tui` session (with a note).
+# --split: pin the dashboard BESIDE the current pane instead of taking it over.
+# Run it from inside the tmux window you want split; it adds a right-hand pane
+# running the TUI and leaves your original pane in place. Outside tmux there is
+# no window to split, so --split falls back to the dedicated `gc-tui` session.
+#
+# --target <session>: pin the dashboard beside a NAMED gc session FROM ANYWHERE
+# (no need to attach first). gc runs each city's tmux on a socket named after
+# the city, so this splits `tmux -L <city> -t <session>`. e.g. --target mayor
+# adds the dashboard to the right of the mayor's window; then
+# `gc session attach mayor` shows both. Override the socket with --socket.
 set -euo pipefail
 
 usage() {
-  sed -n '2,16p' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//'
+  sed -n '2,24p' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//'
 }
 
 split=0
 pct=40
 city=""
+target=""
+socket=""
 while [ $# -gt 0 ]; do
   case "$1" in
     --split) split=1; shift ;;
     -l | --pct) pct="${2:-40}"; shift 2 ;;
+    --target) target="${2:-}"; shift 2 ;;
+    --socket) socket="${2:-}"; shift 2 ;;
     --city) city="${2:-}"; shift 2 ;;
     --city=*) city="${1#--city=}"; shift ;;
     --help) usage; exit 0 ;;
@@ -34,7 +43,8 @@ while [ $# -gt 0 ]; do
   esac
 done
 city="${city:-${GC_CITY_NAME:-}}"
-pct="${pct%\%}" # accept "40" or "40%"
+socket="${socket:-$city}" # gc's per-city tmux socket is named after the city
+pct="${pct%\%}"           # accept "40" or "40%"
 
 city_flag=""
 [ -n "$city" ] && city_flag="-- --city=$city"
@@ -43,6 +53,18 @@ here="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 root="$(cd "$here/.." && pwd)"
 run="cd '$root' && npm --workspace tui run start $city_flag"
 
+# Split horizontally, running $run in the new pane. `-L <socket>` is a server
+# flag (before the subcommand); `-t <target>` is a split-window flag (after it),
+# so they go in separate argv slots. `-l N%` is tmux >= 3.1; `-p N` is the
+# pre-3.1 fallback.
+split_h() { # split_h <socket-or-empty> <target-or-empty>
+  local srv=() cmd=()
+  [ -n "$1" ] && srv=(-L "$1")
+  [ -n "$2" ] && cmd=(-t "$2")
+  tmux "${srv[@]}" split-window -h "${cmd[@]}" -l "${pct}%" "$run" 2>/dev/null ||
+    tmux "${srv[@]}" split-window -h "${cmd[@]}" -p "$pct" "$run"
+}
+
 start_dedicated_session() {
   # Start a CLEAN dedicated session: kill any stale `gc-tui` (orphan peek panes
   # from a previous run) first, then create fresh.
@@ -50,13 +72,28 @@ start_dedicated_session() {
   exec tmux new-session -s gc-tui "$run"
 }
 
+# --target: split a named session on the city socket, from anywhere.
+if [ -n "$target" ]; then
+  if [ -z "$socket" ]; then
+    echo "start-tmux.sh: --target needs a socket; pass a <city> or --socket <name>." >&2
+    exit 2
+  fi
+  if ! tmux -L "$socket" has-session -t "$target" 2>/dev/null; then
+    echo "start-tmux.sh: no tmux session '$target' on socket '$socket'." >&2
+    echo "  sessions on '$socket':" >&2
+    tmux -L "$socket" list-sessions -F '    #{session_name}' 2>/dev/null >&2 ||
+      echo "    (socket '$socket' not found — is the city running?)" >&2
+    exit 1
+  fi
+  split_h "$socket" "$target"
+  echo "Dashboard pinned beside '$target' (socket '$socket'). Attach with: gc session attach $target"
+  exit 0
+fi
+
+# --split: pin beside the current pane (must already be in a tmux window).
 if [ "$split" = "1" ]; then
   if [ -n "${TMUX:-}" ]; then
-    # Pin the dashboard beside the current pane (e.g. the mayor). Non-blocking:
-    # the new right-hand pane runs the TUI; the current pane is preserved.
-    # `-l N%` is tmux >= 3.1; fall back to the older `-p N` form otherwise.
-    tmux split-window -h -l "${pct}%" "$run" 2>/dev/null ||
-      tmux split-window -h -p "$pct" "$run"
+    split_h "" ""
   else
     echo "start-tmux.sh: --split needs an existing tmux window to split into;" >&2
     echo "  not inside tmux, so launching the dedicated 'gc-tui' session instead." >&2
@@ -65,6 +102,7 @@ if [ "$split" = "1" ]; then
   exit 0
 fi
 
+# default
 if [ -n "${TMUX:-}" ]; then
   # Already in tmux — run directly; enter-peek splits the current window.
   eval "$run"

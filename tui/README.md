@@ -129,6 +129,21 @@ back to the dedicated `gc-tui` session (with a note). Without `--split` the
 default is unchanged: take over the current pane when already in tmux, else a
 dedicated `gc-tui` session. Press `m` once it's up for the city board.
 
+**One-shot, from anywhere — `--target`.** You don't have to attach and hand-split.
+gc runs each city's tmux on a socket named after the city, so the launcher can
+split a named session directly:
+
+```bash
+./tui/start-tmux.sh --target mayor <city>            # pin beside the mayor
+./tui/start-tmux.sh --target mayor --pct 30 <city>   # narrower
+```
+
+This splits `tmux -L <city> -t <session>` (override the socket with
+`--socket <name>`), adding the dashboard to the right of that session's window
+and leaving it in place. Then `gc session attach mayor` shows the mayor and the
+dashboard side by side. If the session or socket isn't found, it lists what's on
+the socket and exits non-zero rather than guessing.
+
 Env: `DASHBOARD_URL` (default `http://127.0.0.1:8081`), `GC_CITY_NAME` or
 `--city=<name>` (required — no silent fallback to a default city). Press `q` to
 quit.
