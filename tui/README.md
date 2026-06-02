@@ -110,6 +110,25 @@ use the launcher, which creates/attaches a dedicated `gc-tui` session:
 npm --workspace tui run start:tmux -- <city>     # or ./tui/start-tmux.sh <city>
 ```
 
+### Pin it beside another session (the mayor)
+
+To leave the dashboard glancing on the *side* of the session you're working in
+(the way an operator keeps it next to the mayor) rather than taking over the
+pane, run the launcher with `--split` **from inside the tmux window you want to
+split**. It adds a right-hand pane running the TUI and leaves your original pane
+in place:
+
+```bash
+./tui/start-tmux.sh --split <city>            # 40% wide by default
+./tui/start-tmux.sh --split --pct 30 <city>   # narrower side panel
+# or: npm --workspace tui run start:tmux -- --split <city>
+```
+
+`--split` needs an existing tmux window to split into; run outside tmux it falls
+back to the dedicated `gc-tui` session (with a note). Without `--split` the
+default is unchanged: take over the current pane when already in tmux, else a
+dedicated `gc-tui` session. Press `m` once it's up for the city board.
+
 Env: `DASHBOARD_URL` (default `http://127.0.0.1:8081`), `GC_CITY_NAME` or
 `--city=<name>` (required — no silent fallback to a default city). Press `q` to
 quit.
