@@ -1,6 +1,7 @@
 import { cleanup, render, screen, waitFor } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi, type Mock } from 'vitest';
 import type {
+  DashboardMetric,
   DashboardSnapshot,
   RunCensus,
   RunLane,
@@ -144,11 +145,16 @@ function envelope({
   census = DEFAULT_CENSUS,
   runsStatus = 'fresh' as 'fresh' | 'fixture' | 'stale',
   generatedAt = '2026-05-29T20:00:00.000Z',
+  // Default the work metric to unavailable so the synopsis renders without an
+  // in-progress clause in tests that don't exercise it; the dedicated synopsis
+  // tests pass an explicit available value.
+  workInProgress = { status: 'unavailable', source: 'work', error: 'unused' } as DashboardMetric,
 }: {
   lanes?: RunLane[];
   census?: RunCensus;
   runsStatus?: 'fresh' | 'fixture' | 'stale';
   generatedAt?: string;
+  workInProgress?: DashboardMetric;
 } = {}): DashboardSnapshot {
   return {
     generatedAt,
@@ -164,10 +170,19 @@ function envelope({
       maxAgents: { status: 'unavailable', source: 'city', error: 'unused' },
       activeSessions: { status: 'unavailable', source: 'city', error: 'unused' },
       activeRuns: { status: 'available', value: lanes.length },
+      workInProgress,
     },
     sources: {
       city: { source: 'city', status: 'error', error: 'unused' },
       resources: { source: 'resources', status: 'error', error: 'unused' },
+      work: {
+        source: 'work',
+        status: 'fresh',
+        fetchedAt: '2026-05-29T20:00:00.000Z',
+        staleAt: '2026-05-29T20:00:45.000Z',
+        error: { kind: 'none' },
+        data: { open: 0, ready: 0, inProgress: 0 },
+      },
       runs: {
         source: 'runs',
         status: runsStatus,
@@ -277,6 +292,32 @@ describe('AmbientHomePage', () => {
     // Failing clause reads 'nothing failing'; denominator omitted when unverifiable=0.
     expect(screen.getByTestId('phase-census-failing').textContent).toContain('nothing failing');
     expect(screen.getByTestId('phase-census-failing').textContent).not.toContain('of');
+  });
+
+  it('surfaces the in-progress work count in the synopsis (gascity-dashboard-aw75)', async () => {
+    // The bug: a claimed (in_progress) bead never surfaced because the
+    // run-lane census only counts formula-run lanes. The work headline metric
+    // closes that gap — its value must appear in the Home synopsis.
+    mockSnapshot.mockResolvedValue(
+      envelope({ workInProgress: { status: 'available', value: 3 } }),
+    );
+
+    mount();
+    await waitFor(() => expect(screen.getByTestId('phase-census')).toBeTruthy());
+
+    expect(screen.getByText(/racoon-city, 0 active, 3 in progress/)).toBeTruthy();
+  });
+
+  it('omits the in-progress clause when the work source is unavailable', async () => {
+    mockSnapshot.mockResolvedValue(
+      envelope({ workInProgress: { status: 'unavailable', source: 'work', error: 'down' } }),
+    );
+
+    mount();
+    await waitFor(() => expect(screen.getByTestId('phase-census')).toBeTruthy());
+
+    expect(screen.getByText(/racoon-city, 0 active$/)).toBeTruthy();
+    expect(screen.queryByText(/in progress/)).toBeNull();
   });
 
   it('appends "(of N known)" denominator when unverifiable > 0 (R5)', async () => {

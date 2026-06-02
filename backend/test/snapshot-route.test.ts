@@ -9,6 +9,7 @@ import type {
   ResourceSummary,
   RunSummary,
   SourceName,
+  WorkSummary,
 } from 'gas-city-dashboard-shared';
 
 import { snapshotRouter } from '../src/routes/snapshot.js';
@@ -87,6 +88,12 @@ const SAMPLE_RESOURCES: ResourceSummary = {
   samples: [],
 };
 
+const SAMPLE_WORK: WorkSummary = {
+  open: 24,
+  ready: 9,
+  inProgress: 3,
+};
+
 interface SpyLoads {
   city: number;
   runs: number;
@@ -148,6 +155,17 @@ function buildCaches(opts: {
       },
       loadFixture: wireFor.has('runs') ? fixtureSourceLoader('runs') : undefined,
     }),
+    // work is not spy-tracked: no test asserts its refetch count, so it
+    // serves SAMPLE_WORK directly and stays out of SpyLoads to avoid
+    // churning every counts literal in this file.
+    work: new SourceCache({
+      source: 'work',
+      ttlMs: 45_000,
+      useFixture,
+      load: async () => SAMPLE_WORK,
+      loadFixture: wireFor.has('work') ? fixtureSourceLoader('work') : undefined,
+      sanitizeErrorMessage: null,
+    }),
   };
 }
 
@@ -189,7 +207,7 @@ describe('GET /api/snapshot', () => {
       const res = await fetch(`${url}/api/snapshot`);
       assert.equal(res.status, 200);
       const body = (await res.json()) as DashboardSnapshot;
-      assert.deepEqual(Object.keys(body.sources).sort(), ['city', 'resources', 'runs']);
+      assert.deepEqual(Object.keys(body.sources).sort(), ['city', 'resources', 'runs', 'work']);
 
       assert.equal(body.sources.city.status, 'fresh');
       assert.deepEqual(body.sources.city.data, SAMPLE_CITY);
@@ -197,12 +215,15 @@ describe('GET /api/snapshot', () => {
       assert.deepEqual(body.sources.runs.data, SAMPLE_RunS);
       assert.equal(body.sources.resources.status, 'fresh');
       assert.deepEqual(body.sources.resources.data, SAMPLE_RESOURCES);
+      assert.equal(body.sources.work.status, 'fresh');
+      assert.deepEqual(body.sources.work.data, SAMPLE_WORK);
 
-      // headline composed from city + runs without nullable sentinels.
+      // headline composed from city + runs + work without nullable sentinels.
       assert.deepEqual(body.headline.activeAgents, { status: 'available', value: 2 });
       assert.deepEqual(body.headline.maxAgents, { status: 'available', value: 100 });
       assert.deepEqual(body.headline.activeSessions, { status: 'available', value: 2 });
       assert.deepEqual(body.headline.activeRuns, { status: 'available', value: 0 });
+      assert.deepEqual(body.headline.workInProgress, { status: 'available', value: 3 });
 
       // generatedAt present and ISO.
       assert.ok(body.generatedAt.endsWith('Z'));

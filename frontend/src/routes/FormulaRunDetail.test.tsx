@@ -689,10 +689,12 @@ function snapshotWithActiveLane(): DashboardSnapshot {
       maxAgents: { status: 'unavailable', source: 'city', error: 'city unavailable in test' },
       activeSessions: { status: 'unavailable', source: 'city', error: 'city unavailable in test' },
       activeRuns: { status: 'available', value: 1 },
+      workInProgress: { status: 'unavailable', source: 'work', error: 'work unavailable in test' },
     },
     sources: {
       city: { source: 'city', status: 'error', error: 'city unavailable in test' },
       resources: { source: 'resources', status: 'error', error: 'resources unavailable in test' },
+      work: { source: 'work', status: 'error', error: 'work unavailable in test' },
       runs: {
         source: 'runs',
         status: 'fresh',

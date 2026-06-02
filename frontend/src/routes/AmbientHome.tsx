@@ -131,9 +131,21 @@ function AmbientBody({ fresh, cycleKey }: BodyProps) {
 
   useFaviconSignal({ failing, cycleKey });
 
+  // gascity-dashboard-aw75: surface the city-wide in-progress work count
+  // (claimed beads the run-lane census never covers) alongside the active
+  // run count. Shown whenever the work source RESOLVED — including a value of
+  // 0. Zero is deliberately NOT suppressed: this bug was "in_progress never
+  // surfaces", and hiding the clause at 0 reproduces that exact ambiguity
+  // (the operator could not tell "nothing claimed" from "dimension missing").
+  // A 0 reads as "tracked, currently none", mirroring the adjacent "0 active".
+  // Only a source ERROR omits the clause, to avoid a broken token. Neutral
+  // type — the One Mark maroon stays reserved for the StatusSentence run-id.
+  const workInProgress = snapshot.headline.workInProgress;
+  const inProgressClause =
+    workInProgress.status === 'available' ? `, ${workInProgress.value} in progress` : '';
   const synopsis =
     snapshot.config !== undefined
-      ? `${snapshot.config.cityName}, ${summary.totalActive} active`
+      ? `${snapshot.config.cityName}, ${summary.totalActive} active${inProgressClause}`
       : null;
 
   if (summary.census.status !== 'available') {
