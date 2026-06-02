@@ -677,6 +677,7 @@ function snapshotWithActiveLane(): DashboardSnapshot {
   };
   return {
     generatedAt: '2026-05-25T00:00:00.000Z',
+    alerts: [],
     config: {
       cityName: 'test-city',
       cityRoot: '/tmp/example-city',

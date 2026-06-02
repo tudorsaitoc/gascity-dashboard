@@ -6,6 +6,7 @@
 // visible product surface.
 
 import type { Avail } from '../lists.js';
+import type { AlertItem } from '../alert.js';
 
 export type SourceName =
   | 'city'
@@ -42,6 +43,18 @@ export interface DashboardSnapshot {
   config: DashboardRuntimeConfig;
   headline: DashboardHeadline;
   sources: DashboardSources;
+  /**
+   * Ranked home-view attention queue (gascity-dashboard-i4ui, PRD R2).
+   * Run-sourced alerts (run-needs-operator, run-thrashing) are assembled here
+   * in the backend snapshot read path from the health-enriched `sources.runs`,
+   * inheriting that source's provenance. The `pending-decision` tier is layered
+   * client-side from the live per-session SSE (R3) and is NOT carried here —
+   * folding it into this TTL-bound envelope would gate the highest tier behind
+   * the snapshot clock. `operator-mail` (R4) lands here once the read path
+   * fetches mail. Empty array means "no run-sourced alerts"; the per-source
+   * SourceState (not this array) is the signal-unavailable channel (R6/R15).
+   */
+  alerts: readonly AlertItem[];
 }
 
 export interface DashboardRuntimeConfig {

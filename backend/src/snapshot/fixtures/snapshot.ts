@@ -51,6 +51,7 @@ export const fixtureSessions: GcSessionList = {
 
 export const fixtureSnapshot = {
   generatedAt: '2026-05-22T22:00:00.000Z',
+  alerts: [],
   config: {
     cityName: 'example-city',
     cityRoot: '/tmp/example-city',

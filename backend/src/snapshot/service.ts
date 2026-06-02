@@ -15,6 +15,7 @@ import type {
 } from 'gas-city-dashboard-shared';
 
 import type { GcClient } from '../gc-client.js';
+import { deriveRunAlerts } from './alerts.js';
 import { SourceCache } from './cache.js';
 import { createCityStatusSourceCache } from './collectors/cityStatus.js';
 import { createResourcesSourceCache } from './collectors/resources.js';
@@ -228,6 +229,7 @@ export function buildSnapshot(
     config,
     headline: buildHeadline(sources),
     sources,
+    alerts: deriveRunAlerts(sources.runs),
   };
 }
 

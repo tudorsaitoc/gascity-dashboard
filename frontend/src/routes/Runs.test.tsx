@@ -62,6 +62,7 @@ function buildEnvelope(
 ): DashboardSnapshot {
   return {
     generatedAt: '2026-05-25T00:00:00.000Z',
+    alerts: [],
     config: {
       cityName: 'racoon-city',
       cityRoot: '/tmp/example-city',
