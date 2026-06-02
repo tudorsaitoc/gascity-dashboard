@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { GC_EVENT_PREFIX, type GcBead } from 'gas-city-dashboard-shared';
 import { api, formatApiError } from '../api/client';
 import { BeadBoardSection } from '../components/beads/BeadBoardSection';
@@ -17,6 +17,11 @@ import { beadProject } from '../hooks/projectOf';
 
 const EMPTY_IDS: ReadonlySet<string> = new Set();
 
+// Sentinel for the rig dropdown's "all rigs" option. Empty string can't
+// collide with a derived rig key (beadProject always returns a non-empty
+// prefix), mirroring the Agents view's RIG_FILTER_ALL.
+const RIG_FILTER_ALL = '';
+
 const BEAD_CHIPS: ReadonlyArray<FilterChip<GcBead>> = [
   { id: 'open', label: 'open', match: (b) => b.status === 'open' },
   { id: 'in_progress', label: 'in progress', match: (b) => b.status === 'in_progress' },
@@ -33,6 +38,7 @@ const BEAD_SEARCH_FIELDS = (b: GcBead): ReadonlyArray<string | undefined> => [
 
 export function BeadsPage() {
   const [labelFilter, setLabelFilter] = useState<string | null>(null);
+  const [rigFilter, setRigFilter] = useState<string>(RIG_FILTER_ALL);
   // #33: read the real-work-filtered feed (no showAll). The
   // default endpoint keeps every status (it filters by type/label, not
   // status), so the kanban's in-progress / blocked / done columns stay
@@ -62,10 +68,35 @@ export function BeadsPage() {
     [sessions.data],
   );
 
+  // Rig options for the dropdown: every rig present in the fetched beads,
+  // keyed by the same beadProject derivation the board groups on, sorted
+  // alphabetically. Keeping the key identical to the group key means the
+  // selection maps 1:1 onto a rendered section.
+  const rigOptions = useMemo(
+    () => Array.from(new Set(rows.map(beadProject))).sort((a, b) => a.localeCompare(b)),
+    [rows],
+  );
+
+  // If the selected rig leaves the feed (e.g. its last bead closed and was
+  // dropped on a refresh), the controlled <select> would keep filtering
+  // against a rig with no rows and strand the board empty with no visible
+  // cause. Reset to "all rigs" when the selection is no longer present.
+  useEffect(() => {
+    if (rigFilter !== RIG_FILTER_ALL && !rigOptions.includes(rigFilter)) {
+      setRigFilter(RIG_FILTER_ALL);
+    }
+  }, [rigOptions, rigFilter]);
+
   const filteredRows = useMemo(() => {
-    if (labelFilter === null) return rows;
-    return rows.filter((r) => Array.isArray(r.labels) && r.labels.includes(labelFilter));
-  }, [rows, labelFilter]);
+    let rs = rows;
+    if (rigFilter !== RIG_FILTER_ALL) {
+      rs = rs.filter((r) => beadProject(r) === rigFilter);
+    }
+    if (labelFilter !== null) {
+      rs = rs.filter((r) => Array.isArray(r.labels) && r.labels.includes(labelFilter));
+    }
+    return rs;
+  }, [rows, rigFilter, labelFilter]);
 
   const filters = useListFilters<GcBead>({
     viewKey: 'beads',
@@ -188,12 +219,32 @@ export function BeadsPage() {
           totalCount={filteredRows.length}
           ariaLabel="Search beads"
         />
-        <FilterChips
-          chips={BEAD_CHIPS}
-          activeIds={filters.activeChipIds}
-          onToggle={filters.toggleChip}
-          legend="Status"
-        />
+        <div className="flex flex-wrap items-baseline gap-x-8 gap-y-3">
+          <FilterChips
+            chips={BEAD_CHIPS}
+            activeIds={filters.activeChipIds}
+            onToggle={filters.toggleChip}
+            legend="Status"
+          />
+          {rigOptions.length > 1 && (
+            <label className="flex items-baseline gap-2 text-label">
+              <span className="uppercase tracking-wider text-fg-muted">Rig</span>
+              <select
+                value={rigFilter}
+                onChange={(e) => setRigFilter(e.target.value)}
+                aria-label="Filter by rig"
+                className="text-label uppercase tracking-wider text-fg-muted bg-transparent border-0 focus-mark cursor-pointer hover:text-fg transition-colors duration-150 ease-out-quart"
+              >
+                <option value={RIG_FILTER_ALL}>all rigs</option>
+                {rigOptions.map((rig) => (
+                  <option key={rig} value={rig}>
+                    {rig}
+                  </option>
+                ))}
+              </select>
+            </label>
+          )}
+        </div>
       </div>
 
       {matched.length === 0 ? (

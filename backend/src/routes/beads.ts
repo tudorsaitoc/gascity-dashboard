@@ -25,9 +25,17 @@ import {
 
 import { BEAD_ID_RE } from '../lib/beadId.js';
 
+// The dashboard's "real work" issue types — engineering work only. Used both
+// to scope the server-side fetch (one supervisor query per type, since its
+// `type` filter is single-valued) and by defaultBeadFilter's type gate.
+// Exported so the route's fan-out and the filter share one source of truth.
+export const ENG_BEAD_TYPES = ['feature', 'bug', 'task', 'docs'] as const;
+
+const ENG_TYPE_SET: ReadonlySet<string> = new Set(ENG_BEAD_TYPES);
+
 // v0 hardcoded spam filter. Comments here are the load-bearing
 // documentation — "why isn't bead X showing" has a file/line answer.
-//   - issue_type in {feature, bug, task, docs}  : engineering work only
+//   - issue_type in ENG_BEAD_TYPES              : engineering work only
 //   - NOT label starting 'gc:'                  : session/message noise
 //   - NOT issue_type 'convoy'                   : auto-convoy trackers
 //
@@ -38,21 +46,27 @@ import { BEAD_ID_RE } from '../lib/beadId.js';
 // (slack/extmsg + nudge carry `gc:` labels; mail is issue_type 'message';
 // sessions 'session'; convoy 'convoy'; nudge 'chore'). Exported so the
 // exclusion contract is unit-testable (#33).
+//
+// The list route now fetches by type server-side, so the type gate is
+// usually redundant by the time a bead reaches here — but gc:-labelled
+// noise (e.g. gc:extmsg-* beads are issue_type 'task') is type-matched and
+// can only be excluded client-side, since the supervisor's `label` param is
+// a positive match and can't express exclusion. Keep the full predicate.
 export function defaultBeadFilter(bead: GcBead): boolean {
-  const allowedTypes = new Set(['feature', 'bug', 'task', 'docs']);
-  if (!allowedTypes.has(bead.issue_type)) return false;
+  if (!ENG_TYPE_SET.has(bead.issue_type)) return false;
   if (Array.isArray(bead.labels) && bead.labels.some((l) => l.startsWith('gc:'))) {
     return false;
   }
   return true;
 }
 
-// td-7t24i6 fix: gc default /beads limit is 50, far below the city's working
-// set (~2139 total, ~183 eng-only). Pull a wide window so the spam filter
-// operates on the full set, not a 50-item slice. 1000 is well over the
-// current ~183-item eng-only count and leaves headroom; safety cap in case
-// the supervisor returns more.
-const BEADS_FETCH_LIMIT = 1000;
+// Per-type fetch ceiling. The route queries each ENG_BEAD_TYPES value
+// independently, so this caps a single type, not the whole store. The
+// 'task' type is the largest (it carries gc:extmsg-* noise the spam filter
+// then drops); 2000 leaves comfortable headroom over its current ~935 count.
+// A limit is a ceiling, not a fetch size — the supervisor returns min(total,
+// limit) — so generous headroom costs nothing when actual counts are lower.
+const BEADS_FETCH_LIMIT = 2000;
 
 interface BeadsRouterOptions {
   /**
@@ -90,18 +104,46 @@ export function beadsRouter(
 
   router.get('/', async (req, res) => {
     try {
-      const { items, total } = await gc.listBeads(undefined, { limit: BEADS_FETCH_LIMIT });
       const showAll = req.query.showAll === '1';
-      const filtered = showAll ? items : items.filter(defaultBeadFilter);
+      if (showAll) {
+        // Diagnostic path: pull the wide unfiltered window (bookkeeping beads
+        // included) in a single call. Truncation against the whole-store
+        // total is expected and reported via the coverage counters below.
+        const { items, total } = await gc.listBeads(undefined, { limit: BEADS_FETCH_LIMIT });
+        res.json({
+          items,
+          total: items.length,
+          upstream_total: typeof total === 'number' ? total : undefined,
+          upstream_fetched: items.length,
+          fetch_limit: BEADS_FETCH_LIMIT,
+        });
+        return;
+      }
+
+      // Real-work path: fetch only engineering types server-side — one query
+      // per type, since the supervisor's `type` filter is single-valued —
+      // then drop gc:-labelled noise client-side. This scopes the fetch to
+      // the ~969-bead eng working set instead of the ~1604-bead store, so the
+      // coverage warning only fires on genuine engineering-work truncation.
+      const perType = await Promise.all(
+        ENG_BEAD_TYPES.map((type) =>
+          gc.listBeads(undefined, { limit: BEADS_FETCH_LIMIT, type }),
+        ),
+      );
+      const merged = perType.flatMap((r) => r.items);
+      const filtered = merged.filter(defaultBeadFilter);
+      // upstream_total: the engineering working set's size (sum of per-type
+      // totals). Diff vs upstream_fetched tells the UI when a single type
+      // overflowed BEADS_FETCH_LIMIT and engineering work sits past the window.
+      const upstreamTotal = perType.reduce(
+        (sum, r) => sum + (typeof r.total === 'number' ? r.total : r.items.length),
+        0,
+      );
       res.json({
         items: filtered,
         total: filtered.length,
-        // upstream_total: the store's total bead count (per gc's `total`
-        // field). Diff between upstream_total and items.length tells the UI
-        // how much was truncated by our fetch limit so the operator can see
-        // when the window isn't covering everything.
-        upstream_total: typeof total === 'number' ? total : undefined,
-        upstream_fetched: items.length,
+        upstream_total: upstreamTotal,
+        upstream_fetched: merged.length,
         fetch_limit: BEADS_FETCH_LIMIT,
       });
     } catch (err) {
