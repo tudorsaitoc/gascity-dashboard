@@ -4,10 +4,12 @@ import type { RunLane } from 'gas-city-dashboard-shared';
 import type { GcBead, GcMailItem } from './api.ts';
 import {
   activityPhrase,
+  agentLane,
   basename,
   CITY_BOARD_PHASE_LABEL,
   CITY_BOARD_PHASES,
   ctxPct,
+  displayRig,
   kindGlyph,
   kindLabel,
   laneNeedsOperator,
@@ -586,9 +588,65 @@ export function LedgerPane({ mail, mailFolded, runs }: LedgerPaneProps): React.J
 
 // ── mayor-companion overview pane (attention-first bands) ─────────────────────
 
+interface OverviewActiveRow {
+  readonly view: AgentView;
+  readonly selected: boolean;
+}
+
 interface OverviewPaneProps {
   readonly model: OverviewModel;
+  readonly city: string;
+  readonly lanes: readonly RunLane[];
   readonly now: number;
+  /** The visible slice of the (scrollable) ACTIVE list, with selection. */
+  readonly activeVisible: readonly OverviewActiveRow[];
+  readonly activeAbove: number;
+  readonly activeBelow: number;
+}
+
+/** One scrollable ACTIVE row: kind glyph, agent, city/rig, what it's working on
+ *  (the assigned run lane, else the activity hint), recency. */
+function ActiveAgentRow({
+  view,
+  selected,
+  city,
+  lanes,
+  now,
+}: OverviewActiveRow & {
+  readonly city: string;
+  readonly lanes: readonly RunLane[];
+  readonly now: number;
+}): React.JSX.Element {
+  const lane = agentLane(view, lanes);
+  const work = lane ? `on ${lane.title}` : activityPhrase(view.session);
+  return (
+    <Box>
+      <Box width={2}>{selected ? <Text color="cyan">▸</Text> : <Text> </Text>}</Box>
+      <Box width={2}>
+        <Text bold={view.kind === 'orch'} dimColor={view.kind !== 'orch'}>
+          {kindGlyph(view.kind)}
+        </Text>
+      </Box>
+      <Box width={16} marginRight={1}>
+        <Text wrap="truncate-end" bold={selected} inverse={selected}>
+          {view.agent}
+        </Text>
+      </Box>
+      <Box width={12} marginRight={1}>
+        <Text dimColor wrap="truncate-end">
+          {displayRig(view.rig, city)}
+        </Text>
+      </Box>
+      <Box flexGrow={1} marginRight={1}>
+        <Text dimColor wrap="truncate-end">
+          {work}
+        </Text>
+      </Box>
+      <Box width={5} justifyContent="flex-end">
+        <Text dimColor>{relativeTime(view.session.last_active, now)}</Text>
+      </Box>
+    </Box>
+  );
 }
 
 /** Trailing "+ N more" so a capped band never reads as the whole story. */
@@ -617,7 +675,15 @@ function BandHead({
   );
 }
 
-export function OverviewPane({ model, now }: OverviewPaneProps): React.JSX.Element {
+export function OverviewPane({
+  model,
+  city,
+  lanes,
+  now,
+  activeVisible,
+  activeAbove,
+  activeBelow,
+}: OverviewPaneProps): React.JSX.Element {
   return (
     <Box flexDirection="column">
       {/* WAITING ON YOU — the single red region. */}
@@ -645,32 +711,26 @@ export function OverviewPane({ model, now }: OverviewPaneProps): React.JSX.Eleme
       )}
       <MoreRow total={model.waitingTotal} shown={model.waiting.length} />
 
-      {/* ACTIVE */}
-      <Box marginTop={1}>
+      {/* ACTIVE — the scrollable, peekable region. */}
+      <Box marginTop={1} justifyContent="space-between">
         <BandHead label="ACTIVE" count={`${model.activeCount} of ${model.agentTotal}`} />
+        {activeAbove > 0 ? <Text dimColor>↑ {activeAbove}</Text> : <Text> </Text>}
       </Box>
-      {model.active.length === 0 ? (
+      {activeVisible.length === 0 ? (
         <Text dimColor> no agents active</Text>
       ) : (
-        model.active.map((a) => (
-          <Box key={a.session.id}>
-            <Box width={2} marginLeft={1}>
-              <Text bold={a.kind === 'orch'} dimColor={a.kind !== 'orch'}>
-                {kindGlyph(a.kind)}
-              </Text>
-            </Box>
-            <Box width={18} marginRight={1}>
-              <Text wrap="truncate-end">{a.agent}</Text>
-            </Box>
-            <Box flexGrow={1} marginRight={1}>
-              <Text dimColor wrap="truncate-end">{activityPhrase(a.session)}</Text>
-            </Box>
-            <Box width={5} justifyContent="flex-end">
-              <Text dimColor>{relativeTime(a.session.last_active, now)}</Text>
-            </Box>
-          </Box>
+        activeVisible.map((r) => (
+          <ActiveAgentRow
+            key={r.view.session.id}
+            view={r.view}
+            selected={r.selected}
+            city={city}
+            lanes={lanes}
+            now={now}
+          />
         ))
       )}
+      {activeBelow > 0 ? <Text dimColor>{'  '}↓ {activeBelow}</Text> : null}
 
       {/* BEADS */}
       <Box marginTop={1}>
@@ -700,7 +760,7 @@ export function OverviewPane({ model, now }: OverviewPaneProps): React.JSX.Eleme
       </Box>
 
       <Box marginTop={1}>
-        <Text dimColor>o full dashboard · b/f/s/l/h views · q quit</Text>
+        <Text dimColor>↑↓ scroll · enter peek · x close · o full · q quit</Text>
       </Box>
     </Box>
   );

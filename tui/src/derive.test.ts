@@ -19,11 +19,14 @@ import {
   matchesStatusFilter,
   nextStatusFilter,
   operatorMail,
+  agentLane,
+  displayRig,
   ORCHESTRATION,
-  OVERVIEW_ACTIVE_CAP,
+  orchFirstActive,
   OVERVIEW_WAITING_CAP,
   overviewModel,
   runningSessions,
+  toAgentView,
   type StatusFilter,
 } from './derive.ts';
 
@@ -223,6 +226,7 @@ function lane(over: {
   needsOperator?: boolean;
   /** Scope reports unavailable (the other null-rig path → orchestration bucket). */
   scopeUnavailable?: boolean;
+  assignees?: string[];
 }): RunLane {
   const rig = over.rig === undefined ? 'gascity' : over.rig;
   const scope: RunLane['scope'] = over.scopeUnavailable
@@ -240,7 +244,7 @@ function lane(over: {
     phase,
     phaseLabel: phase,
     statusCounts: {},
-    activeAssignees: [],
+    activeAssignees: over.assignees ?? [],
     updatedAt: { status: 'available', at: '2026-06-01T00:00:00Z' },
     stages: [],
     progress: { status: 'unavailable', error: 'none' },
@@ -392,13 +396,35 @@ test('overviewModel: active floats orchestration first, counts active vs total',
   assert.equal(m.agentTotal, 3);
 });
 
-test('overviewModel: active is capped', () => {
-  const sessions = Array.from({ length: OVERVIEW_ACTIVE_CAP + 3 }, (_, i) =>
+test('overviewModel: active is uncapped (the band scrolls)', () => {
+  const sessions = Array.from({ length: 12 }, (_, i) =>
     session({ id: `a${i}`, title: `polecat-${i}`, rig: 'gascity', pool: 'polecat', state: 'active', last_active: `2026-06-01T00:0${i}:00Z` }),
   );
   const m = overviewModel(sessions, [], [], []);
-  assert.equal(m.active.length, OVERVIEW_ACTIVE_CAP);
-  assert.equal(m.activeCount, OVERVIEW_ACTIVE_CAP + 3);
+  assert.equal(m.active.length, 12);
+  assert.equal(m.activeCount, 12);
+});
+
+test('displayRig swaps the orchestration key for the city name, leaves rigs alone', () => {
+  assert.equal(displayRig(ORCHESTRATION, 'ds-research'), 'ds-research');
+  assert.equal(displayRig('gascity', 'ds-research'), 'gascity');
+});
+
+test('orchFirstActive floats orchestration first, drops idle, uncapped', () => {
+  const sessions = [
+    session({ id: 'p', title: 'polecat-2', rig: 'gascity', pool: 'polecat', state: 'active', last_active: '2026-06-01T00:09:00Z' }),
+    session({ id: 'may', title: 'mayor', state: 'active', last_active: '2026-06-01T00:01:00Z' }),
+    session({ id: 'idle', title: 'sleeper', rig: 'gascity', state: 'asleep' }),
+  ];
+  assert.deepEqual(orchFirstActive(sessions).map((a) => a.agent), ['mayor', 'polecat-2']);
+});
+
+test('agentLane matches an agent to its run lane via activeAssignees, else undefined', () => {
+  const view = toAgentView(session({ id: 'cp', title: 'codeprobe.lead', rig: 'codeprobe' }));
+  const onLane = lane({ id: 'l1', rig: 'codeprobe', phase: 'approval', assignees: ['codeprobe.lead'] });
+  const otherLane = lane({ id: 'l2', rig: 'gc2', phase: 'review' });
+  assert.equal(agentLane(view, [onLane, otherLane])?.id, 'l1');
+  assert.equal(agentLane(view, [otherLane]), undefined);
 });
 
 test('overviewModel: beads count open and in-progress, wip lists in-progress', () => {

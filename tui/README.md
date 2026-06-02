@@ -26,12 +26,17 @@ reused tmux split (see Peek).
 
 - **Overview** (`o`): the calm mayor-companion summary, four attention-first bands
   top to bottom: **WAITING ON YOU** (needs-operator runs first, then mayor
-  escalations, the single red region), **ACTIVE** (live agents, orchestration
-  first, capped), **BEADS** (open + in-progress counts with the wip list), **RUNS**
-  (active + needs-operator counts). Each band truncates with a `+ N more`, never a
-  dump. This is the default view when the panel is launched beside another session
-  (`--split` / `--target`, which pass `--compact`); the full views below stay one
-  keypress away. Greyscale, one red region (DESIGN.md Reading Room / One Mark).
+  escalations, the single red region), **ACTIVE**, **BEADS** (open + in-progress
+  counts with the wip list), **RUNS** (active + needs-operator counts). WAITING /
+  BEADS / RUNS truncate with a `+ N more`, never a dump. The **ACTIVE** band is the
+  navigable region: `↑`/`↓`/wheel scroll through *all* live agents (orchestration
+  first), `enter` peeks the selected agent's live log, `p` opens its detail. Each
+  ACTIVE row shows `on <run>` when the agent is assigned to a run lane
+  (`activeAssignees`), else its activity hint; city-level agents read as the city
+  name, not `orchestration`. This is the default view when the panel is launched
+  beside another session (`--split` / `--target`, which pass `--compact`); the full
+  views below stay one keypress away. Greyscale, one red region (DESIGN.md Reading
+  Room / One Mark).
 - **Agents** (default standalone): grouped by rig (orchestration layer first; within a rig,
   active before idle), one line each as `glyph · agent · kind · ctx% · activity ·
   model · last-active`. A leading glyph + short word carries the agent kind so it

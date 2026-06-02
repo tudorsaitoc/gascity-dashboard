@@ -603,10 +603,40 @@ export function mailSnippet(body: string, max = 120): string {
 
 // ── mayor-companion overview (truncated attention-first summary) ──────────────
 
-/** Row caps for the overview bands — a side panel summarises, it never dumps. */
+/** Row caps for the fixed overview bands — a side panel summarises, it never
+ *  dumps. ACTIVE is not capped: it is the scrollable region. */
 export const OVERVIEW_WAITING_CAP = 4;
-export const OVERVIEW_ACTIVE_CAP = 5;
 export const OVERVIEW_WIP_CAP = 4;
+
+/** Display label for a rig: city-level (rig-less) agents read as the city name,
+ *  not the internal `orchestration` grouping key. Display-only — the key that
+ *  drives grouping/mail/board logic is unchanged. */
+export function displayRig(rig: string, city: string): string {
+  return rig === ORCHESTRATION ? city : rig;
+}
+
+/** All currently-active agents, orchestration first (the layer tracked from the
+ *  mayor seat), then the recency order `runningSessions` already produced.
+ *  Uncapped — the overview's ACTIVE band scrolls. */
+export function orchFirstActive(sessions: readonly GcSession[]): AgentView[] {
+  return runningSessions(sessions)
+    .map(toAgentView)
+    .sort((a, b) => (a.kind === 'orch' ? 0 : 1) - (b.kind === 'orch' ? 0 : 1));
+}
+
+/** The run lane an agent is working, matched via `RunLane.activeAssignees`
+ *  (the wire's who-is-on-this-lane list). Best-effort by the agent's display
+ *  name / alias / agent_name (assignees carry no session id). `undefined` when
+ *  the agent isn't assigned to a lane — callers fall back to the activity hint,
+ *  never a fabricated task. */
+export function agentLane(view: AgentView, lanes: readonly RunLane[]): RunLane | undefined {
+  const ids = new Set(
+    [view.agent, view.session.alias, view.session.title]
+      .filter((s): s is string => Boolean(s))
+      .flatMap((s) => [s, basename(s)]),
+  );
+  return lanes.find((l) => l.activeAssignees.some((a) => ids.has(a) || ids.has(basename(a))));
+}
 
 /** One thing the operator is on the hook for: a run parked on them, or a piece
  *  of orchestration mail escalated to them. */
@@ -624,8 +654,8 @@ export interface OverviewModel {
   readonly waiting: readonly WaitingItem[];
   /** Full waiting count before the cap, so a backlog is never silently hidden. */
   readonly waitingTotal: number;
-  /** Live agents, orchestration first (the layer you track from the mayor seat),
-   *  then the recency order. Capped. */
+  /** All live agents, orchestration first (the layer you track from the mayor
+   *  seat), then the recency order. Uncapped — the ACTIVE band scrolls. */
   readonly active: readonly AgentView[];
   readonly activeCount: number;
   readonly agentTotal: number;
@@ -650,20 +680,14 @@ export function overviewModel(
     ...escalations.map((m): WaitingItem => ({ kind: 'mail', mail: m })),
   ];
 
-  // runningSessions is already recency-ordered; a stable sort by orch-first
-  // floats the orchestration layer up while preserving recency within a tier.
-  const activeAll = runningSessions(sessions).map(toAgentView);
-  const active = activeAll
-    .slice()
-    .sort((a, b) => (a.kind === 'orch' ? 0 : 1) - (b.kind === 'orch' ? 0 : 1));
-
+  const active = orchFirstActive(sessions);
   const wipAll = beads.filter((b) => b.status === 'in_progress');
 
   return {
     waiting: waitingAll.slice(0, OVERVIEW_WAITING_CAP),
     waitingTotal: waitingAll.length,
-    active: active.slice(0, OVERVIEW_ACTIVE_CAP),
-    activeCount: activeAll.length,
+    active,
+    activeCount: active.length,
     agentTotal: sessions.length,
     beadsOpen: beads.filter((b) => b.status === 'open').length,
     beadsInProgress: wipAll.length,

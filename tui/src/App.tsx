@@ -37,6 +37,7 @@ import {
   neverActiveByRig,
   nextStatusFilter,
   operatorMail,
+  orchFirstActive,
   overviewModel,
   runningSessions,
   systemHealth,
@@ -142,6 +143,17 @@ function buildNav(
     return { entries, renderRows };
   }
 
+  if (view === 'overview') {
+    // The ACTIVE band is a flat, navigable list (orchestration first); the pane
+    // renders the WAITING/BEADS/RUNS bands around this scrollable slice. No
+    // heading — the band head lives in the pane.
+    const blank: GroupInfo = { label: '', sub: '', alert: false };
+    for (const v of orchFirstActive(sessions)) {
+      push({ kind: 'agent', id: v.session.id, agent: v }, false, blank);
+    }
+    return { entries, renderRows };
+  }
+
   // list (and detail, which navigates the same agent list underneath).
   // Failed agents always pass the filter so a problem is never hidden.
   const filtered = sessions.filter((s) => matchesStatusFilter(categorize(s), filter));
@@ -204,7 +216,7 @@ export function App({ baseUrl, city, compact = false }: AppProps): React.JSX.Ele
   const navView: ViewMode = view === 'detail' ? 'list' : view;
   const { entries, renderRows } = useMemo(
     () =>
-      navView === 'health' || navView === 'ledger' || navView === 'board' || navView === 'overview'
+      navView === 'health' || navView === 'ledger' || navView === 'board'
         ? EMPTY_NAV
         : buildNav(navView, sessions, beads, health.lanes, statusFilter),
     [navView, sessions, beads, health.lanes, statusFilter],
@@ -281,9 +293,23 @@ export function App({ baseUrl, city, compact = false }: AppProps): React.JSX.Ele
   };
 
   // Exact one-line-per-row accounting prevents screen overflow. chrome =
-  // header + sticky line + footer (+ error line).
+  // header + sticky line + footer (+ error line). The overview reserves more:
+  // its fixed WAITING/BEADS/RUNS bands frame the scrollable ACTIVE list, so the
+  // ACTIVE viewport is what's left after those bands.
+  const overviewReserve = (): number => {
+    const wShown = overview.waiting.length;
+    const wRows = 1 + Math.max(1, wShown) + (overview.waitingTotal > wShown ? 1 : 0);
+    const bShown = overview.wip.length;
+    const bRows = 2 + Math.max(1, bShown) + (overview.beadsInProgress > bShown ? 1 : 0);
+    // header + error + WAITING + active-head + below-indicator + BEADS + RUNS +
+    // footer + one row of safety margin.
+    return 1 + (error ? 1 : 0) + wRows + 1 + 1 + bRows + 2 + 2 + 1;
+  };
   const chrome = error ? 4 : 3;
-  const viewport = Math.max(3, rows - chrome);
+  const viewport =
+    view === 'overview'
+      ? Math.max(3, rows - overviewReserve())
+      : Math.max(3, rows - chrome);
   const maxTop = Math.max(0, renderRows.length - viewport);
 
   const cursorRowIndex = renderRows.findIndex(
@@ -306,6 +332,14 @@ export function App({ baseUrl, city, compact = false }: AppProps): React.JSX.Ele
   const stickyGroup: GroupInfo | null =
     firstVisible && firstVisible.kind === 'entry' ? firstVisible.group : null;
 
+  // The visible ACTIVE rows for the overview, with selection (overview entries
+  // are all agents).
+  const overviewActive = visible.flatMap((r) =>
+    r.kind === 'entry' && r.entry.kind === 'agent'
+      ? [{ view: r.entry.agent, selected: r.index === cursorIndex }]
+      : [],
+  );
+
   const toggle = (target: ViewMode): void => {
     setView((v) => (v === target ? 'list' : target));
     setScrollTop(0);
@@ -323,7 +357,11 @@ export function App({ baseUrl, city, compact = false }: AppProps): React.JSX.Ele
       if (input === 's') return toggle('sessions');
       if (input === 'l') return toggle('ledger');
       if (input === 'p') {
-        if (navView === 'list') setView((v) => (v === 'detail' ? 'list' : 'detail'));
+        // Detail for the selected agent — reachable from the agent list and from
+        // the overview's ACTIVE band (both navigate agent entries).
+        if (navView === 'list' || navView === 'overview') {
+          setView((v) => (v === 'detail' ? 'list' : 'detail'));
+        }
         return;
       }
       if (input === 'a') {
@@ -429,7 +467,15 @@ export function App({ baseUrl, city, compact = false }: AppProps): React.JSX.Ele
 
       {view === 'overview' ? (
         <Box marginTop={1}>
-          <OverviewPane model={overview} now={now} />
+          <OverviewPane
+            model={overview}
+            city={city}
+            lanes={health.lanes}
+            now={now}
+            activeVisible={overviewActive}
+            activeAbove={above}
+            activeBelow={below}
+          />
         </Box>
       ) : view === 'board' ? (
         <Box marginTop={1}>
