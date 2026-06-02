@@ -4,11 +4,14 @@
 
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import type { GcMailItem, GcSession } from 'gas-city-dashboard-shared';
+import type { GcMailItem, GcSession, RunLane, RunPhase } from 'gas-city-dashboard-shared';
 import {
   AGENT_KINDS,
   activityPhrase,
   agentKind,
+  cityBoard,
+  CITY_BOARD_PHASES,
+  CITY_BOARD_PHASE_LABEL,
   foldedMailCount,
   kindGlyph,
   kindLabel,
@@ -16,6 +19,7 @@ import {
   matchesStatusFilter,
   nextStatusFilter,
   operatorMail,
+  ORCHESTRATION,
   runningSessions,
   type StatusFilter,
 } from './derive.ts';
@@ -204,4 +208,134 @@ test('mailSnippet collapses whitespace and truncates with an ellipsis', () => {
   const snip = mailSnippet(long, 10);
   assert.equal(snip.length, 10);
   assert.ok(snip.endsWith('…'));
+});
+
+// ── city board (rig × in-flight phase count matrix) ──────────────────────────
+
+function lane(over: {
+  id?: string;
+  /** null → city scope (buckets under orchestration); otherwise the rig name. */
+  rig?: string | null;
+  phase?: RunPhase;
+  needsOperator?: boolean;
+  /** Scope reports unavailable (the other null-rig path → orchestration bucket). */
+  scopeUnavailable?: boolean;
+}): RunLane {
+  const rig = over.rig === undefined ? 'gascity' : over.rig;
+  const scope: RunLane['scope'] = over.scopeUnavailable
+    ? { status: 'unavailable', error: 'scope timeout' }
+    : rig === null
+      ? { status: 'available', kind: 'city', ref: 'city', rootStoreRef: 'city:gastown' }
+      : { status: 'available', kind: 'rig', ref: rig, rootStoreRef: `rig:${rig}` };
+  const phase = over.phase ?? 'implementation';
+  return {
+    id: over.id ?? 'l1',
+    title: over.id ?? 'l1',
+    formula: { status: 'unavailable', error: 'none' },
+    scope,
+    external: { status: 'unavailable', error: 'none' },
+    phase,
+    phaseLabel: phase,
+    statusCounts: {},
+    activeAssignees: [],
+    updatedAt: { status: 'available', at: '2026-06-01T00:00:00Z' },
+    stages: [],
+    progress: { status: 'unavailable', error: 'none' },
+    formulaStageResolved: false,
+    health: {
+      status: 'available',
+      data: {
+        phaseConfidence: 'known',
+        needsOperator: over.needsOperator ?? false,
+        stuckNode: { status: 'unavailable', error: 'none' },
+        thrashingDetected: false,
+        session: { status: 'unresolved', error: 'none' },
+      },
+    },
+  };
+}
+
+test('CITY_BOARD_PHASES excludes complete and every column has a label', () => {
+  assert.ok(!(CITY_BOARD_PHASES as readonly string[]).includes('complete'), 'complete is not a column');
+  for (const p of CITY_BOARD_PHASES) {
+    assert.ok(CITY_BOARD_PHASE_LABEL[p].length > 0, `label for ${p}`);
+  }
+});
+
+test('cityBoard counts lanes per rig × in-flight phase', () => {
+  const board = cityBoard([
+    lane({ id: 'a', rig: 'stealth-retainers', phase: 'review' }),
+    lane({ id: 'b', rig: 'stealth-retainers', phase: 'review' }),
+    lane({ id: 'c', rig: 'stealth-retainers', phase: 'approval' }),
+    lane({ id: 'd', rig: 'gc2', phase: 'implementation' }),
+  ]);
+  const sr = board.find((r) => r.rig === 'stealth-retainers');
+  const gc2 = board.find((r) => r.rig === 'gc2');
+  assert.ok(sr && gc2);
+  assert.equal(sr.counts.review, 2);
+  assert.equal(sr.counts.approval, 1);
+  assert.equal(sr.total, 3);
+  assert.equal(gc2.counts.implementation, 1);
+  assert.equal(gc2.total, 1);
+});
+
+test('cityBoard excludes complete lanes entirely (honest-signal: history is capped)', () => {
+  const board = cityBoard([
+    lane({ id: 'a', rig: 'gc2', phase: 'implementation' }),
+    lane({ id: 'done1', rig: 'gc2', phase: 'complete' }),
+    lane({ id: 'done2', rig: 'gc2', phase: 'complete' }),
+  ]);
+  const gc2 = board.find((r) => r.rig === 'gc2');
+  assert.ok(gc2);
+  assert.equal(gc2.total, 1, 'complete lanes are not counted in the total');
+  // No 'complete' key on the counts record.
+  assert.deepEqual(Object.keys(gc2.counts).sort(), [...CITY_BOARD_PHASES].sort());
+});
+
+test('cityBoard counts needsOperator separately as the red-mark source', () => {
+  const board = cityBoard([
+    lane({ id: 'a', rig: 'gc2', phase: 'blocked', needsOperator: true }),
+    lane({ id: 'b', rig: 'gc2', phase: 'review', needsOperator: false }),
+  ]);
+  const gc2 = board.find((r) => r.rig === 'gc2');
+  assert.ok(gc2);
+  assert.equal(gc2.needsOperator, 1);
+  assert.equal(gc2.total, 2);
+});
+
+test('cityBoard buckets city-scoped lanes under orchestration', () => {
+  const board = cityBoard([lane({ id: 'city', rig: null, phase: 'intake' })]);
+  assert.equal(board.length, 1);
+  assert.equal(board[0]?.rig, ORCHESTRATION);
+  assert.equal(board[0]?.counts.intake, 1);
+});
+
+test('cityBoard buckets unavailable-scope lanes under orchestration too', () => {
+  // laneRig returns null both for city scope and for an unavailable scope; the
+  // latter must not vanish — it falls into the orchestration bucket.
+  const board = cityBoard([lane({ id: 'u', scopeUnavailable: true, phase: 'review' })]);
+  assert.equal(board.length, 1);
+  assert.equal(board[0]?.rig, ORCHESTRATION);
+  assert.equal(board[0]?.counts.review, 1);
+});
+
+test('cityBoard omits a rig whose only lanes are complete (no empty row)', () => {
+  const board = cityBoard([
+    lane({ id: 'd1', rig: 'done-rig', phase: 'complete' }),
+    lane({ id: 'd2', rig: 'done-rig', phase: 'complete' }),
+  ]);
+  assert.equal(board.find((r) => r.rig === 'done-rig'), undefined);
+  assert.equal(board.length, 0);
+});
+
+test('cityBoard orders attention rigs (needsOperator) first, then busiest', () => {
+  const board = cityBoard([
+    // calm-but-busy rig
+    lane({ id: 'b1', rig: 'busy', phase: 'implementation' }),
+    lane({ id: 'b2', rig: 'busy', phase: 'review' }),
+    lane({ id: 'b3', rig: 'busy', phase: 'review' }),
+    // attention rig, fewer lanes
+    lane({ id: 'a1', rig: 'attention', phase: 'blocked', needsOperator: true }),
+  ]);
+  assert.deepEqual(board.map((r) => r.rig), ['attention', 'busy']);
 });

@@ -5,6 +5,8 @@ import type { GcBead, GcMailItem } from './api.ts';
 import {
   activityPhrase,
   basename,
+  CITY_BOARD_PHASE_LABEL,
+  CITY_BOARD_PHASES,
   ctxPct,
   kindGlyph,
   kindLabel,
@@ -17,6 +19,7 @@ import {
   type AgentView,
   type ContextPressureEntry,
   type IdleRollup,
+  type RigPhaseCounts,
   type SystemHealth,
 } from './derive.ts';
 
@@ -425,6 +428,73 @@ export function HealthPane({ health, idle, pressure }: HealthPaneProps): React.J
 
       <Box marginTop={1}>
         <Text dimColor>h close · q quit</Text>
+      </Box>
+    </Box>
+  );
+}
+
+// ── city board pane (rig × in-flight phase count matrix) ─────────────────────
+
+interface CityBoardPaneProps {
+  readonly board: readonly RigPhaseCounts[];
+}
+
+const BOARD_RIG_W = 22;
+const BOARD_COL_W = 7;
+
+/** One right-aligned count cell. Zero reads as a calm hairline dot so the eye
+ *  lands on the populated columns; the needs-operator cell is the board's single
+ *  red mark (DESIGN.md One Mark / Greyscale: the count, not a hue, is the data). */
+function BoardCell({ n, alert = false }: { readonly n: number; readonly alert?: boolean }): React.JSX.Element {
+  return (
+    <Box width={BOARD_COL_W} justifyContent="flex-end">
+      {n === 0 ? <Text dimColor>·</Text> : alert ? <Text color="red">{n}</Text> : <Text>{n}</Text>}
+    </Box>
+  );
+}
+
+export function CityBoardPane({ board }: CityBoardPaneProps): React.JSX.Element {
+  return (
+    <Box flexDirection="column">
+      <Text bold>city board</Text>
+      <Text dimColor>(in-flight run lanes by rig, phase columns; complete history not shown)</Text>
+
+      <Box marginTop={1}>
+        <Box width={BOARD_RIG_W}>
+          <Text dimColor>rig</Text>
+        </Box>
+        {CITY_BOARD_PHASES.map((p) => (
+          <Box key={p} width={BOARD_COL_W} justifyContent="flex-end">
+            <Text dimColor>{CITY_BOARD_PHASE_LABEL[p]}</Text>
+          </Box>
+        ))}
+        <Box width={BOARD_COL_W} justifyContent="flex-end">
+          <Text dimColor>needs</Text>
+        </Box>
+      </Box>
+
+      {board.length === 0 ? (
+        <Text dimColor>no active runs</Text>
+      ) : (
+        board.map((r) => (
+          <Box key={r.rig}>
+            <Box width={BOARD_RIG_W}>
+              {/* Weight (not hue) leads the eye to an attention rig; the red mark
+                  is reserved for the needs cell. */}
+              <Text wrap="truncate-end" bold={r.needsOperator > 0}>
+                {r.rig}
+              </Text>
+            </Box>
+            {CITY_BOARD_PHASES.map((p) => (
+              <BoardCell key={p} n={r.counts[p]} />
+            ))}
+            <BoardCell n={r.needsOperator} alert={r.needsOperator > 0} />
+          </Box>
+        ))
+      )}
+
+      <Box marginTop={1}>
+        <Text dimColor>m close · q quit</Text>
       </Box>
     </Box>
   );

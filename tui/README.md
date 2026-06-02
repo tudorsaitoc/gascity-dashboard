@@ -58,6 +58,15 @@ reused tmux split (see Peek).
   context-pressure agents (≥75%), and a never-active-by-rig reallocation rollup.
   Costs are shown as *not measured* (the supervisor exposes none yet — see
   `specs/architecture/cost-token-feasibility.md`); never faked.
+- **City board** (`m`): a compact whole-city matrix — rigs as rows, in-flight run
+  phases as columns (`ready · impl · review · ok'd · PR · block · active`), tabular
+  greyscale counts in cells, with a `needs` column carrying the single red mark when a
+  rig has lanes flagged needs-operator. Rows order attention-first (needs-operator rigs,
+  then busiest). Inspired by the gc tmux console's per-repo status grid, translated into
+  the TUI register (greyscale counts, one red mark, no color-as-signal). **History is not
+  shown:** completed lanes are capped in the snapshot DTO, so a `done`/total column would
+  read a confident wrong number — the board is in-flight only, never faked (see
+  `specs/architecture/tui-tmux-dashboard-gap-analysis.md`).
 - **Detail** (`p`, agents only): in-TUI detail for the selected agent — ids, the
   peek commands, that rig's beads and active run lanes. `c` toggles a **config**
   tab showing the agent's fetchable session config (template, pool, kind, model,
@@ -78,8 +87,8 @@ it. Quitting (`q`) tears the peek pane down. All drill-ins READ (logs/show/diff)
 
 `↑`/`↓` or `j`/`k` move the selection · **mouse wheel** scrolls · `PageUp`/`PageDown`
 · `g`/`G` top/bottom · `enter` drill into split · `x` close split · `a` cycle agent
-status filter · `b` beads · `f` runs · `s` sessions · `l` ledger · `h` health · `p`
-agent detail · `c` toggle config tab (in detail) · `q` (or `esc`) quit.
+status filter · `b` beads · `f` runs · `s` sessions · `l` ledger · `h` health · `m` city
+board · `p` agent detail · `c` toggle config tab (in detail) · `q` (or `esc`) quit.
 
 ## Run
 

@@ -5,6 +5,7 @@ import { useMouseWheel } from './useMouseWheel.ts';
 import {
   AgentRow,
   BeadRow,
+  CityBoardPane,
   DetailPane,
   HealthPane,
   LedgerPane,
@@ -23,6 +24,7 @@ import {
 import {
   beadsForRig,
   categorize,
+  cityBoard,
   contextPressure,
   groupBeads,
   groupByRig,
@@ -48,7 +50,7 @@ interface AppProps {
   readonly city: string;
 }
 
-type ViewMode = 'list' | 'beads' | 'runs' | 'detail' | 'health' | 'sessions' | 'ledger';
+type ViewMode = 'list' | 'beads' | 'runs' | 'detail' | 'health' | 'sessions' | 'ledger' | 'board';
 
 type Entry =
   | { readonly kind: 'agent'; readonly id: string; readonly agent: AgentView }
@@ -179,11 +181,12 @@ export function App({ baseUrl, city }: AppProps): React.JSX.Element {
   const now = Date.now();
 
   const health = useMemo(() => systemHealth(snapshot), [snapshot]);
+  const board = useMemo(() => cityBoard(health.lanes), [health.lanes]);
   // detail navigates the same agent list as 'list' underneath.
   const navView: ViewMode = view === 'detail' ? 'list' : view;
   const { entries, renderRows } = useMemo(
     () =>
-      navView === 'health' || navView === 'ledger'
+      navView === 'health' || navView === 'ledger' || navView === 'board'
         ? EMPTY_NAV
         : buildNav(navView, sessions, beads, health.lanes, statusFilter),
     [navView, sessions, beads, health.lanes, statusFilter],
@@ -295,6 +298,7 @@ export function App({ baseUrl, city }: AppProps): React.JSX.Element {
       if (input === 'q') return quit();
       if (key.escape) return view === 'list' ? quit() : (setView('list'), setScrollTop(0));
       if (input === 'h') return toggle('health');
+      if (input === 'm') return toggle('board');
       if (input === 'b') return toggle('beads');
       if (input === 'f') return toggle('runs');
       if (input === 's') return toggle('sessions');
@@ -342,7 +346,14 @@ export function App({ baseUrl, city }: AppProps): React.JSX.Element {
   const mailFolded = foldedMailCount(mail, ledgerMail);
 
   const summary =
-    view === 'beads' ? (
+    view === 'board' ? (
+      // No red here: the board's own `needs` column carries the one mark, so a
+      // second red region in the same viewport would break the One Mark Rule.
+      <Text dimColor>
+        board · {board.length} {board.length === 1 ? 'rig' : 'rigs'} active
+        {needsOpRuns > 0 ? ` · ${needsOpRuns} need operator` : ''}
+      </Text>
+    ) : view === 'beads' ? (
       <Text dimColor>
         beads · {openBeads} open · {beads.length} total
       </Text>
@@ -391,7 +402,11 @@ export function App({ baseUrl, city }: AppProps): React.JSX.Element {
         </Box>
       ) : null}
 
-      {view === 'health' ? (
+      {view === 'board' ? (
+        <Box marginTop={1}>
+          <CityBoardPane board={board} />
+        </Box>
+      ) : view === 'health' ? (
         <Box marginTop={1}>
           <HealthPane
             health={health}
@@ -472,7 +487,7 @@ export function App({ baseUrl, city }: AppProps): React.JSX.Element {
                 {below > 0 ? `↓ ${below}` : ''}
               </Text>
             )}
-            <Text dimColor>↑↓ · enter drill · a filter · s/b/f/l/h views · p detail · x close · q quit</Text>
+            <Text dimColor>↑↓ · enter drill · a filter · s/b/f/l/h/m views · p detail · x close · q quit</Text>
           </Box>
         </>
       )}
@@ -481,6 +496,7 @@ export function App({ baseUrl, city }: AppProps): React.JSX.Element {
 }
 
 function emptyLabel(view: ViewMode): string {
+  if (view === 'board') return 'no active runs';
   if (view === 'beads') return 'no beads';
   if (view === 'runs') return 'no active runs';
   if (view === 'sessions') return 'no live sessions';

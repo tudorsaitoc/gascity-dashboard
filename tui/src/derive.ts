@@ -334,6 +334,97 @@ export function groupRuns(lanes: readonly RunLane[]): RunGroup[] {
     .sort((a, b) => a.rig.localeCompare(b.rig));
 }
 
+// ── city board (rig × in-flight phase count matrix) ──────────────────────────
+
+/**
+ * In-flight run phases shown as columns on the city board, in display order.
+ * `complete` is deliberately excluded: historical complete lanes are capped in
+ * the snapshot DTO (shared `RunsAggregate`), so a `done`/total column would show
+ * a confident wrong number from data the TUI doesn't fetch. Every other RunPhase
+ * is in-flight and maps to exactly one column, so a row's total is the sum of
+ * its columns. See specs/architecture/tui-tmux-dashboard-gap-analysis.md (P1).
+ */
+export const CITY_BOARD_PHASES = [
+  'intake',
+  'implementation',
+  'review',
+  'approval',
+  'finalization',
+  'blocked',
+  'active',
+] as const;
+
+export type CityBoardPhase = (typeof CITY_BOARD_PHASES)[number];
+
+/**
+ * Short, greyscale-readable column head per phase — the signal is the word, not
+ * a hue (DESIGN.md Greyscale Test). Mirrors the operator's gc-console vocabulary
+ * where it reads cleanly (intake→ready, approval→ok'd, finalization→PR).
+ */
+export const CITY_BOARD_PHASE_LABEL: Record<CityBoardPhase, string> = {
+  intake: 'ready',
+  implementation: 'impl',
+  review: 'review',
+  approval: "ok'd",
+  finalization: 'PR',
+  blocked: 'block',
+  active: 'active',
+};
+
+export interface RigPhaseCounts {
+  readonly rig: string;
+  readonly counts: Record<CityBoardPhase, number>;
+  /**
+   * In-flight lanes in this rig flagged needs-operator — the board's single
+   * red-mark source. It stands in for the gc console's "stalled" attention
+   * column until a client-computed stalled tier (from `updatedAt` + session
+   * activity) is added; `needsOperator` is the honest signal the TUI reads today.
+   */
+  readonly needsOperator: number;
+  /** Total in-flight lanes counted for this rig (sum of the phase columns). */
+  readonly total: number;
+}
+
+function emptyPhaseCounts(): Record<CityBoardPhase, number> {
+  return Object.fromEntries(CITY_BOARD_PHASES.map((phase) => [phase, 0])) as Record<
+    CityBoardPhase,
+    number
+  >;
+}
+
+/**
+ * The city board: per-rig counts of in-flight run lanes by phase, plus a
+ * separate needs-operator tally. Complete (historical) lanes are excluded.
+ * City-scoped lanes bucket under {@link ORCHESTRATION}. Rows are ordered so the
+ * operator's eye lands first on rigs needing attention: needs-operator rigs
+ * lead, then by busiest (total desc), then name.
+ */
+export function cityBoard(lanes: readonly RunLane[]): RigPhaseCounts[] {
+  const byRig = new Map<
+    string,
+    { counts: Record<CityBoardPhase, number>; needsOperator: number; total: number }
+  >();
+  for (const lane of lanes) {
+    if (lane.phase === 'complete') continue;
+    const phase: CityBoardPhase = lane.phase;
+    const rig = laneRig(lane) ?? ORCHESTRATION;
+    const entry = byRig.get(rig) ?? { counts: emptyPhaseCounts(), needsOperator: 0, total: 0 };
+    entry.counts[phase] += 1;
+    entry.total += 1;
+    if (laneNeedsOperator(lane)) entry.needsOperator += 1;
+    byRig.set(rig, entry);
+  }
+  return [...byRig.entries()]
+    .map(([rig, v]) => ({ rig, counts: { ...v.counts }, needsOperator: v.needsOperator, total: v.total }))
+    .sort((a, b) => {
+      const aAttn = a.needsOperator > 0 ? 0 : 1;
+      const bAttn = b.needsOperator > 0 ? 0 : 1;
+      if (aAttn !== bAttn) return aAttn - bAttn;
+      if (b.total !== a.total) return b.total - a.total;
+      return a.rig.localeCompare(b.rig);
+    });
+}
+
 // ── snapshot accessors (collapse the Avail/SourceState unions) ───────────────
 
 export interface SystemHealth {
