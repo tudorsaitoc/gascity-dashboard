@@ -3,13 +3,14 @@ import { Box, Text, useApp, useInput, useStdout } from 'ink';
 import { useCity } from './useCity.ts';
 import { useMouseWheel } from './useMouseWheel.ts';
 import {
+  ActiveAgentRow,
   AgentRow,
   BeadRow,
   CityBoardPane,
   DetailPane,
   HealthPane,
   LedgerPane,
-  OverviewPane,
+  MailRow,
   RunRow,
   SessionRow,
   type DetailTab,
@@ -46,7 +47,7 @@ import {
   type Category,
   type StatusFilter,
 } from './derive.ts';
-import type { GcBead, GcSession, RunLane } from './api.ts';
+import type { GcBead, GcMailItem, GcSession, RunLane } from './api.ts';
 
 interface AppProps {
   readonly baseUrl: string;
@@ -70,7 +71,8 @@ type ViewMode =
 type Entry =
   | { readonly kind: 'agent'; readonly id: string; readonly agent: AgentView }
   | { readonly kind: 'bead'; readonly id: string; readonly bead: GcBead }
-  | { readonly kind: 'run'; readonly id: string; readonly lane: RunLane };
+  | { readonly kind: 'run'; readonly id: string; readonly lane: RunLane }
+  | { readonly kind: 'mail'; readonly id: string; readonly mail: GcMailItem };
 
 interface GroupInfo {
   readonly label: string;
@@ -100,6 +102,7 @@ function buildNav(
   sessions: readonly GcSession[],
   beads: readonly GcBead[],
   lanes: readonly RunLane[],
+  mail: readonly GcMailItem[],
   filter: StatusFilter,
 ): Nav {
   const entries: Entry[] = [];
@@ -144,13 +147,50 @@ function buildNav(
   }
 
   if (view === 'overview') {
-    // The ACTIVE band is a flat, navigable list (orchestration first); the pane
-    // renders the WAITING/BEADS/RUNS bands around this scrollable slice. No
-    // heading — the band head lives in the pane.
-    const blank: GroupInfo = { label: '', sub: '', alert: false };
-    for (const v of orchFirstActive(sessions)) {
-      push({ kind: 'agent', id: v.session.id, agent: v }, false, blank);
-    }
+    // One scrollable, peekable list with attention-first sections: WAITING (the
+    // needs-operator runs and mayor escalations) leads, then ACTIVE agents, then
+    // in-progress BEADS, then a RUNS summary. Every item peeks via the shared
+    // drill (run/mail/agent/bead). The single red mark is the WAITING heading.
+    const needsOp = lanes.filter(laneNeedsOperator);
+    const escalations = operatorMail(mail, sessions);
+    const actives = orchFirstActive(sessions);
+    const wip = beads.filter((b) => b.status === 'in_progress');
+    const open = beads.filter((b) => b.status === 'open').length;
+
+    const waitingTotal = needsOp.length + escalations.length;
+    const waitGroup: GroupInfo = {
+      label: 'WAITING ON YOU',
+      sub: `${waitingTotal}`,
+      alert: waitingTotal > 0,
+    };
+    renderRows.push({ kind: 'heading', group: waitGroup });
+    for (const l of needsOp) push({ kind: 'run', id: l.id, lane: l }, false, waitGroup);
+    for (const m of escalations) push({ kind: 'mail', id: m.id, mail: m }, false, waitGroup);
+
+    const actGroup: GroupInfo = {
+      label: 'ACTIVE',
+      sub: `${actives.length} of ${sessions.length}`,
+      alert: false,
+    };
+    renderRows.push({ kind: 'heading', group: actGroup });
+    for (const v of actives) push({ kind: 'agent', id: v.session.id, agent: v }, false, actGroup);
+
+    const beadGroup: GroupInfo = {
+      label: 'BEADS',
+      sub: `${open} open · ${wip.length} in progress`,
+      alert: false,
+    };
+    renderRows.push({ kind: 'heading', group: beadGroup });
+    for (const b of wip) push({ kind: 'bead', id: b.id, bead: b }, false, beadGroup);
+
+    renderRows.push({
+      kind: 'heading',
+      group: {
+        label: 'RUNS',
+        sub: `${lanes.length} active · ${needsOp.length} needs operator`,
+        alert: false,
+      },
+    });
     return { entries, renderRows };
   }
 
@@ -174,6 +214,7 @@ function buildNav(
 function entryLabel(e: Entry): string {
   if (e.kind === 'agent') return e.agent.agent;
   if (e.kind === 'bead') return e.bead.id;
+  if (e.kind === 'mail') return e.mail.subject;
   return e.lane.title;
 }
 
@@ -218,8 +259,8 @@ export function App({ baseUrl, city, compact = false }: AppProps): React.JSX.Ele
     () =>
       navView === 'health' || navView === 'ledger' || navView === 'board'
         ? EMPTY_NAV
-        : buildNav(navView, sessions, beads, health.lanes, statusFilter),
-    [navView, sessions, beads, health.lanes, statusFilter],
+        : buildNav(navView, sessions, beads, health.lanes, mail, statusFilter),
+    [navView, sessions, beads, health.lanes, mail, statusFilter],
   );
 
   const cursorIndex = Math.max(0, entries.findIndex((e) => e.id === cursorId));
@@ -293,23 +334,9 @@ export function App({ baseUrl, city, compact = false }: AppProps): React.JSX.Ele
   };
 
   // Exact one-line-per-row accounting prevents screen overflow. chrome =
-  // header + sticky line + footer (+ error line). The overview reserves more:
-  // its fixed WAITING/BEADS/RUNS bands frame the scrollable ACTIVE list, so the
-  // ACTIVE viewport is what's left after those bands.
-  const overviewReserve = (): number => {
-    const wShown = overview.waiting.length;
-    const wRows = 1 + Math.max(1, wShown) + (overview.waitingTotal > wShown ? 1 : 0);
-    const bShown = overview.wip.length;
-    const bRows = 2 + Math.max(1, bShown) + (overview.beadsInProgress > bShown ? 1 : 0);
-    // header + error + WAITING + active-head + below-indicator + BEADS + RUNS +
-    // footer + one row of safety margin.
-    return 1 + (error ? 1 : 0) + wRows + 1 + 1 + bRows + 2 + 2 + 1;
-  };
+  // header + sticky line + footer (+ error line).
   const chrome = error ? 4 : 3;
-  const viewport =
-    view === 'overview'
-      ? Math.max(3, rows - overviewReserve())
-      : Math.max(3, rows - chrome);
+  const viewport = Math.max(3, rows - chrome);
   const maxTop = Math.max(0, renderRows.length - viewport);
 
   const cursorRowIndex = renderRows.findIndex(
@@ -332,14 +359,6 @@ export function App({ baseUrl, city, compact = false }: AppProps): React.JSX.Ele
   const stickyGroup: GroupInfo | null =
     firstVisible && firstVisible.kind === 'entry' ? firstVisible.group : null;
 
-  // The visible ACTIVE rows for the overview, with selection (overview entries
-  // are all agents).
-  const overviewActive = visible.flatMap((r) =>
-    r.kind === 'entry' && r.entry.kind === 'agent'
-      ? [{ view: r.entry.agent, selected: r.index === cursorIndex }]
-      : [],
-  );
-
   const toggle = (target: ViewMode): void => {
     setView((v) => (v === target ? 'list' : target));
     setScrollTop(0);
@@ -357,11 +376,10 @@ export function App({ baseUrl, city, compact = false }: AppProps): React.JSX.Ele
       if (input === 's') return toggle('sessions');
       if (input === 'l') return toggle('ledger');
       if (input === 'p') {
-        // Detail for the selected agent — reachable from the agent list and from
-        // the overview's ACTIVE band (both navigate agent entries).
-        if (navView === 'list' || navView === 'overview') {
-          setView((v) => (v === 'detail' ? 'list' : 'detail'));
-        }
+        // Detail for the selected agent — from the agent list, or from the
+        // overview when an agent row (not a run/mail/bead) is selected.
+        const onAgent = navView === 'list' || (navView === 'overview' && selected?.kind === 'agent');
+        if (onAgent) setView((v) => (v === 'detail' ? 'list' : 'detail'));
         return;
       }
       if (input === 'a') {
@@ -465,19 +483,7 @@ export function App({ baseUrl, city, compact = false }: AppProps): React.JSX.Ele
         </Box>
       ) : null}
 
-      {view === 'overview' ? (
-        <Box marginTop={1}>
-          <OverviewPane
-            model={overview}
-            city={city}
-            lanes={health.lanes}
-            now={now}
-            activeVisible={overviewActive}
-            activeAbove={above}
-            activeBelow={below}
-          />
-        </Box>
-      ) : view === 'board' ? (
+      {view === 'board' ? (
         <Box marginTop={1}>
           <CityBoardPane board={board} />
         </Box>
@@ -548,6 +554,7 @@ export function App({ baseUrl, city, compact = false }: AppProps): React.JSX.Ele
                     dim={row.dim}
                     now={now}
                     sessionRow={navView === 'sessions'}
+                    overview={navView === 'overview' ? { city, lanes: health.lanes } : null}
                   />
                 ),
               )
@@ -562,7 +569,10 @@ export function App({ baseUrl, city, compact = false }: AppProps): React.JSX.Ele
                 {below > 0 ? `↓ ${below}` : ''}
               </Text>
             )}
-            <Text dimColor>↑↓ · enter drill · a filter · o/s/b/f/l/h/m views · p detail · x close · q quit</Text>
+            <Text dimColor>
+              ↑↓ · enter peek · {view === 'overview' ? 'o full' : 'o overview'} · a filter ·
+              s/b/f/l/h/m · p detail · x close · q quit
+            </Text>
           </Box>
         </>
       )}
@@ -586,15 +596,32 @@ interface EntryRowProps {
   /** Render an agent entry as the activity-forward Sessions row instead of the
    *  grouped Agents row. */
   readonly sessionRow: boolean;
+  /** Overview context: render the calm overview rows (agent = city + on-lane,
+   *  mail = sender/subject). Null outside the overview. */
+  readonly overview: { readonly city: string; readonly lanes: readonly RunLane[] } | null;
 }
 
-function EntryRow({ entry, selected, dim, now, sessionRow }: EntryRowProps): React.JSX.Element {
+function EntryRow({ entry, selected, dim, now, sessionRow, overview }: EntryRowProps): React.JSX.Element {
   if (entry.kind === 'agent') {
+    if (overview) {
+      return (
+        <ActiveAgentRow
+          view={entry.agent}
+          selected={selected}
+          city={overview.city}
+          lanes={overview.lanes}
+          now={now}
+        />
+      );
+    }
     return sessionRow ? (
       <SessionRow view={entry.agent} selected={selected} now={now} />
     ) : (
       <AgentRow view={entry.agent} selected={selected} dim={dim} now={now} />
     );
+  }
+  if (entry.kind === 'mail') {
+    return <MailRow mail={entry.mail} selected={selected} />;
   }
   if (entry.kind === 'bead') {
     return <BeadRow bead={entry.bead} selected={selected} dim={dim} />;

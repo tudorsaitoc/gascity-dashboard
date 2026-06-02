@@ -21,7 +21,6 @@ import {
   type AgentView,
   type ContextPressureEntry,
   type IdleRollup,
-  type OverviewModel,
   type RigPhaseCounts,
   type SystemHealth,
 } from './derive.ts';
@@ -586,37 +585,19 @@ export function LedgerPane({ mail, mailFolded, runs }: LedgerPaneProps): React.J
   );
 }
 
-// ── mayor-companion overview pane (attention-first bands) ─────────────────────
+// ── overview rows (rendered by the generic grouped list) ─────────────────────
 
-interface OverviewActiveRow {
+interface ActiveAgentRowProps {
   readonly view: AgentView;
   readonly selected: boolean;
-}
-
-interface OverviewPaneProps {
-  readonly model: OverviewModel;
   readonly city: string;
   readonly lanes: readonly RunLane[];
   readonly now: number;
-  /** The visible slice of the (scrollable) ACTIVE list, with selection. */
-  readonly activeVisible: readonly OverviewActiveRow[];
-  readonly activeAbove: number;
-  readonly activeBelow: number;
 }
 
-/** One scrollable ACTIVE row: kind glyph, agent, city/rig, what it's working on
- *  (the assigned run lane, else the activity hint), recency. */
-function ActiveAgentRow({
-  view,
-  selected,
-  city,
-  lanes,
-  now,
-}: OverviewActiveRow & {
-  readonly city: string;
-  readonly lanes: readonly RunLane[];
-  readonly now: number;
-}): React.JSX.Element {
+/** One ACTIVE row in the overview: kind glyph, agent, city/rig, what it's working
+ *  on (the assigned run lane, else the activity hint), recency. */
+export function ActiveAgentRow({ view, selected, city, lanes, now }: ActiveAgentRowProps): React.JSX.Element {
   const lane = agentLane(view, lanes);
   const work = lane ? `on ${lane.title}` : activityPhrase(view.session);
   return (
@@ -649,118 +630,26 @@ function ActiveAgentRow({
   );
 }
 
-/** Trailing "+ N more" so a capped band never reads as the whole story. */
-function MoreRow({ total, shown }: { readonly total: number; readonly shown: number }): React.JSX.Element | null {
-  if (total <= shown) return null;
-  return <Text dimColor>{'   '}+ {total - shown} more</Text>;
+interface MailRowProps {
+  readonly mail: GcMailItem;
+  readonly selected: boolean;
 }
 
-/** Section heading with a trailing count; the count is the one red mark when
- *  `alert` (reserved for WAITING ON YOU). */
-function BandHead({
-  label,
-  count,
-  alert = false,
-}: {
-  readonly label: string;
-  readonly count: string;
-  readonly alert?: boolean;
-}): React.JSX.Element {
+/** One WAITING mail row: a quiet envelope, the sender, the subject. `enter`
+ *  peeks the full message (read-only `gc mail peek`). */
+export function MailRow({ mail, selected }: MailRowProps): React.JSX.Element {
   return (
     <Box>
-      <Text bold>{label}</Text>
-      <Text>{'   '}</Text>
-      {alert ? <Text bold color="red">{count}</Text> : <Text dimColor>{count}</Text>}
-    </Box>
-  );
-}
-
-export function OverviewPane({
-  model,
-  city,
-  lanes,
-  now,
-  activeVisible,
-  activeAbove,
-  activeBelow,
-}: OverviewPaneProps): React.JSX.Element {
-  return (
-    <Box flexDirection="column">
-      {/* WAITING ON YOU — the single red region. */}
-      <BandHead label="WAITING ON YOU" count={`${model.waitingTotal}`} alert={model.waitingTotal > 0} />
-      {model.waiting.length === 0 ? (
-        <Text dimColor> nothing waiting</Text>
-      ) : (
-        model.waiting.map((w) =>
-          w.kind === 'run' ? (
-            <Box key={`run:${w.lane.id}`}>
-              <Text color="red"> ● </Text>
-              <Text wrap="truncate-end">{w.lane.title}</Text>
-              <Text dimColor> needs operator</Text>
-            </Box>
-          ) : (
-            <Box key={`mail:${w.mail.id}`}>
-              <Text dimColor> ✉ </Text>
-              <Box width={14} marginRight={1}>
-                <Text wrap="truncate-end">{basename(w.mail.from) || w.mail.from}</Text>
-              </Box>
-              <Text wrap="truncate-end">{w.mail.subject}</Text>
-            </Box>
-          ),
-        )
-      )}
-      <MoreRow total={model.waitingTotal} shown={model.waiting.length} />
-
-      {/* ACTIVE — the scrollable, peekable region. */}
-      <Box marginTop={1} justifyContent="space-between">
-        <BandHead label="ACTIVE" count={`${model.activeCount} of ${model.agentTotal}`} />
-        {activeAbove > 0 ? <Text dimColor>↑ {activeAbove}</Text> : <Text> </Text>}
+      <Box width={2}>{selected ? <Text color="cyan">▸</Text> : <Text dimColor>✉</Text>}</Box>
+      <Box width={16} marginRight={1}>
+        <Text wrap="truncate-end" bold={selected} inverse={selected}>
+          {basename(mail.from) || mail.from}
+        </Text>
       </Box>
-      {activeVisible.length === 0 ? (
-        <Text dimColor> no agents active</Text>
-      ) : (
-        activeVisible.map((r) => (
-          <ActiveAgentRow
-            key={r.view.session.id}
-            view={r.view}
-            selected={r.selected}
-            city={city}
-            lanes={lanes}
-            now={now}
-          />
-        ))
-      )}
-      {activeBelow > 0 ? <Text dimColor>{'  '}↓ {activeBelow}</Text> : null}
-
-      {/* BEADS */}
-      <Box marginTop={1}>
-        <BandHead
-          label="BEADS"
-          count={`${model.beadsOpen} open · ${model.beadsInProgress} in progress`}
-        />
-      </Box>
-      {model.wip.length === 0 ? (
-        <Text dimColor> none in progress</Text>
-      ) : (
-        model.wip.map((b) => (
-          <Box key={b.id}>
-            <Text dimColor> ◐ </Text>
-            <Text wrap="truncate-end">{b.title}</Text>
-          </Box>
-        ))
-      )}
-      <MoreRow total={model.beadsInProgress} shown={model.wip.length} />
-
-      {/* RUNS — needs-op count stays greyscale; it is already red under WAITING. */}
-      <Box marginTop={1}>
-        <BandHead
-          label="RUNS"
-          count={`${model.runsActive} active · ${model.runsNeedsOp} needs operator`}
-        />
-      </Box>
-
-      <Box marginTop={1}>
-        <Text dimColor>↑↓ scroll · enter peek · x close · o full · q quit</Text>
+      <Box flexGrow={1}>
+        <Text wrap="truncate-end" dimColor>
+          {mail.subject}
+        </Text>
       </Box>
     </Box>
   );

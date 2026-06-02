@@ -14,7 +14,7 @@ export function insideTmux(): boolean {
   return Boolean(process.env.TMUX);
 }
 
-export type PeekKind = 'agent' | 'bead' | 'run';
+export type PeekKind = 'agent' | 'bead' | 'run' | 'mail';
 
 export interface PeekRequest {
   readonly kind: PeekKind;
@@ -53,6 +53,9 @@ export function buildCommand(req: PeekRequest): string | { error: string } {
       return `bash '${AGENT_SCRIPT}' '${root}' '${req.id}'`;
     case 'bead':
       return `gc --city ${root} bd show ${req.id}; exec $SHELL`;
+    case 'mail':
+      // `mail peek` shows the message WITHOUT marking it read (read-only posture).
+      return `gc --city ${root} mail peek ${req.id}; exec $SHELL`;
     case 'run':
       // peek-run.sh prints `bd show <run>` then the code diff; args are
       // single-quoted (all validated/owned, no quotes) for the sh -c tmux runs.

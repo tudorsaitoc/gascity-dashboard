@@ -24,19 +24,19 @@ Each is a full-screen toggle over the same navigable area; the selection
 persists across the live refresh. `enter` drills the selected row into a single
 reused tmux split (see Peek).
 
-- **Overview** (`o`): the calm mayor-companion summary, four attention-first bands
-  top to bottom: **WAITING ON YOU** (needs-operator runs first, then mayor
-  escalations, the single red region), **ACTIVE**, **BEADS** (open + in-progress
-  counts with the wip list), **RUNS** (active + needs-operator counts). WAITING /
-  BEADS / RUNS truncate with a `+ N more`, never a dump. The **ACTIVE** band is the
-  navigable region: `↑`/`↓`/wheel scroll through *all* live agents (orchestration
-  first), `enter` peeks the selected agent's live log, `p` opens its detail. Each
-  ACTIVE row shows `on <run>` when the agent is assigned to a run lane
-  (`activeAssignees`), else its activity hint; city-level agents read as the city
+- **Overview** (`o`): the calm mayor-companion view — one scrollable, peekable list
+  with attention-first sections, **WAITING ON YOU** (needs-operator runs then mayor
+  escalations, the single red heading) → **ACTIVE** (live agents, orchestration
+  first) → **BEADS** (in-progress) → **RUNS** (summary). `↑`/`↓`/wheel scroll the
+  whole list; `enter` peeks the selected row whatever it is — a run (`bd show` +
+  diff), a **mail** (`gc mail peek`, read-only, doesn't mark read), an agent (live
+  log), or a bead; `enter` again or `x` closes the peek; `p` opens an agent's
+  detail. ACTIVE rows show `on <run>` when the agent is in a run lane's
+  `activeAssignees`, else the activity hint; city-level agents read as the city
   name, not `orchestration`. This is the default view when the panel is launched
-  beside another session (`--split` / `--target`, which pass `--compact`); the full
-  views below stay one keypress away. Greyscale, one red region (DESIGN.md Reading
-  Room / One Mark).
+  beside another session (`--split` / `--target`, which pass `--compact`); `o`
+  toggles to the full dashboard and back. Greyscale, one red region (DESIGN.md
+  Reading Room / One Mark).
 - **Agents** (default standalone): grouped by rig (orchestration layer first; within a rig,
   active before idle), one line each as `glyph · agent · kind · ctx% · activity ·
   model · last-active`. A leading glyph + short word carries the agent kind so it
