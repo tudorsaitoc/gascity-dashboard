@@ -118,7 +118,7 @@ describe('AgentDetailPage error reporting', () => {
     );
 
     await waitFor(() => {
-      expect(mockListSupervisorBeads).toHaveBeenCalledWith(true);
+      expect(mockListSupervisorBeads).toHaveBeenCalledWith({ includeClosed: true });
       expect(mockReportClientError).toHaveBeenCalledWith({
         component: 'AgentDetail',
         operation: 'refreshBeads',

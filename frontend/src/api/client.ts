@@ -3,16 +3,15 @@ import type {
   GitView,
   DeployList,
   SystemHealth,
+  LocalToolVersions,
   DoltNomsTrend,
   MaintainerTriage,
   ContributorStat,
   ApiError,
-  DashboardSnapshot,
-  SourceName,
   DashboardRuntimeConfig,
+  RunDiffRequest,
   RunDiffResponse,
   RunScopeKind,
-  EntityLinkView,
 } from 'gas-city-dashboard-shared';
 import { readCsrfToken } from './csrf';
 import { cityPath } from './cityBase';
@@ -249,15 +248,13 @@ const decodeSystemHealth = objectDecoder<SystemHealth>('system health', (record,
   requireObjectField(record, url, 'system health', 'admin');
   requireObjectField(record, url, 'system health', 'host');
 });
+const decodeLocalToolVersions = objectDecoder<LocalToolVersions>('local tool versions', (record, url) => {
+  requireObjectField(record, url, 'local tool versions', 'dolt');
+  requireObjectField(record, url, 'local tool versions', 'beads');
+});
 const decodeDoltTrend = objectDecoder<DoltNomsTrend>('dolt trend', (record, url) => {
   requireBooleanField(record, url, 'dolt trend', 'available');
   requireArrayField(record, url, 'dolt trend', 'samples');
-});
-const decodeSnapshot = objectDecoder<DashboardSnapshot>('snapshot', (record, url) => {
-  requireStringField(record, url, 'snapshot', 'generatedAt');
-  requireObjectField(record, url, 'snapshot', 'config');
-  requireObjectField(record, url, 'snapshot', 'headline');
-  requireObjectField(record, url, 'snapshot', 'sources');
 });
 const decodeRunDiff = objectDecoder<RunDiffResponse>('run diff', (record, url) => {
   requireStringField(record, url, 'run diff', 'kind');
@@ -276,14 +273,6 @@ const decodeMaintainerTriage = objectDecoder<MaintainerTriage>('maintainer triag
 });
 const decodeContributor = objectDecoder<ContributorStat>('contributor', (record, url) => {
   requireStringField(record, url, 'contributor', 'login');
-});
-const decodeEntityLinks = objectDecoder<EntityLinkView>('entity links', (record, url) => {
-  requireObjectField(record, url, 'entity links', 'focus');
-  requireArrayField(record, url, 'entity links', 'nodes');
-  requireArrayField(record, url, 'entity links', 'edges');
-  requireArrayField(record, url, 'entity links', 'stats');
-  requireBooleanField(record, url, 'entity links', 'partial');
-  requireStringField(record, url, 'entity links', 'generatedAt');
 });
 const decodeMaintainerSling = objectDecoder<{ ok: true; bead_id?: string }>('maintainer sling', (record, url) => {
   requireTrueField(record, url, 'maintainer sling', 'ok');
@@ -330,31 +319,19 @@ export const api = {
   systemHealth(): Promise<SystemHealth> {
     return request('GET', '/api/health/system', decodeSystemHealth);
   },
+  localToolVersions(): Promise<LocalToolVersions> {
+    return request('GET', '/api/health/local-tools', decodeLocalToolVersions);
+  },
   doltTrend(): Promise<DoltNomsTrend> {
     return request('GET', cityPath('/dolt-noms/trend'), decodeDoltTrend);
   },
-  snapshot(): Promise<DashboardSnapshot> {
-    return request('GET', cityPath('/snapshot'), decodeSnapshot);
-  },
-  // Bypasses the backend's per-source TTL — POSTs through
-  // SnapshotService.refresh which forces a fresh upstream load on the
-  // listed sources (or all sources when `sources` is omitted). Used by
-  // the /runs live-updates path so SSE-triggered re-fetches see
-  // genuinely fresh data (gascity-dashboard-bqn).
-  snapshotRefresh(sources?: readonly SourceName[]): Promise<DashboardSnapshot> {
-    // Backend rejects [] explicitly (snapshot.ts:83 — "sources must not
-    // be empty; omit the field to refresh all"). Guard here so callers
-    // get a TypeScript-side no-op rather than a 400 from a stray empty
-    // array. Pass undefined / non-empty arrays through.
-    const body = sources && sources.length > 0 ? { sources } : {};
-    return request('POST', cityPath('/snapshot/refresh'), decodeSnapshot, body);
-  },
   runDiff(
     runId: string,
+    body: RunDiffRequest,
     params?: { scopeKind?: RunScopeKind; scopeRef?: string },
   ): Promise<RunDiffResponse> {
     const qs = runQuery(params);
-    return request('GET', cityPath(`/runs/${encodeURIComponent(runId)}/diff${qs}`), decodeRunDiff);
+    return request('POST', cityPath(`/runs/${encodeURIComponent(runId)}/diff${qs}`), decodeRunDiff, body);
   },
   maintainerTriage(): Promise<MaintainerTriage> {
     return request('GET', cityPath('/maintainer/triage'), decodeMaintainerTriage);
@@ -368,11 +345,6 @@ export const api = {
   // gascity-dashboard-0nn: per-item sling dispatch. The bulk-sling
   // action bar fans out one call per selected item via Promise.allSettled
   // so a single 4xx/5xx doesn't block the rest of the batch.
-  // Bead-ID cross-entity linked view (gascity-dashboard-j4x). `ref` is a
-  // bead id, `pr/<n>`, `issue/<n>`, a session id, or a run id.
-  entityLinks(ref: string): Promise<EntityLinkView> {
-    return request('GET', cityPath(`/links/${encodeURIComponent(ref)}`), decodeEntityLinks);
-  },
   maintainerSling(payload: {
     kind: 'pr' | 'issue';
     number: number;

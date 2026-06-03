@@ -210,8 +210,8 @@ Order:
    body after `GC-10`; nudge now uses the generated supervisor agent action
    endpoint after `GC-11`; the dashboard close and nudge routes were removed.
    `GcClient.listBeads()` and `getBead()` remain transitional backend-only
-   dependencies for links, snapshots, and runs until the composed surfaces
-   migrate.**
+   dependencies for the backend-local snapshot/run collector tail until that
+   composed surface is removed or replaced by upstream supervisor facts.**
 5. mail list/thread. **Implemented for browser-facing reads: Mail,
    Viewing-As alias prefetch, and Agent Detail chat now call the generated
    supervisor client for `/v0/city/{cityName}/mail` and
@@ -329,9 +329,10 @@ Deliverables:
 - Fetch formula feed data through the generated supervisor client for
   city-wide Runs attention. **Implemented for the App-level attention model:
   Home/nav Runs attention reads
-  `/v0/city/{cityName}/formulas/feed` through the browser supervisor wrapper.
-  The focused `/runs` list route still uses the transitional dashboard
-  snapshot route and remains cleanup work.**
+  `/v0/city/{cityName}/formulas/feed` through the browser supervisor wrapper,
+  and the focused `/runs` list route now builds its run summary from browser
+  supervisor bead/feed/session reads through `loadSupervisorRunSummarySource`.
+  The dashboard snapshot route/client were removed.**
 - Fetch run snapshot, formula detail, sessions, and event identity through the
   generated supervisor client. **Implemented for the page's supervisor-owned
   inputs: `useFormulaRunDetail()` now calls the browser supervisor wrapper for
@@ -402,11 +403,17 @@ Implementation status:
   `listFormulaRunsByName`, `listOrdersFeed`, `listOrderHistory`, and
   `getOrderHistoryDetail` wrappers were removed. Structure tests prevent
   reintroducing those dashboard-server mirrors.
+- Run summary and related-entity cleanup is implemented for browser-facing
+  reads: `/runs`, Home, Formula Run Detail skeletons, and related entities now
+  compose from generated browser supervisor calls plus shared projection
+  helpers; `/api/city/:cityName/snapshot`, `/snapshot/refresh`,
+  `/links/:ref`, and `/home/pending/stream` route modules/mounts were removed.
 - Remaining cleanup is intentionally transitional: `GcClient`,
   `gc-supervisor-decoders`, and the remaining shared GC leaves still support
-  composed dashboard-local surfaces such as snapshots, runs, links, and local
-  health enrichment until the upstream gaps or client-side composition work are
-  finished. Agent prime is no longer part of that backend tail.
+  backend-local snapshot/run collector tests and local health enrichment until
+  the upstream gaps or final client-side composition work are finished. Agent
+  prime, links, and browser-facing run summaries are no longer part of that
+  backend tail.
 
 Acceptance:
 

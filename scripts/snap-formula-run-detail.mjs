@@ -73,10 +73,15 @@ async function runTheme(browser, theme) {
   page.on('requestfailed', (request) => {
     const url = new URL(request.url());
     if (isObservedApiPath(url.pathname)) {
+      const failure = request.failure()?.errorText ?? 'request failed';
+      // Rapid route changes legitimately cancel ambient requests that are no
+      // longer needed. Keep HTTP status failures strict, but don't treat a
+      // browser-side navigation cancellation as a broken API contract.
+      if (failure === 'net::ERR_ABORTED') return;
       apiFailures.push({
         url: url.toString(),
         method: request.method(),
-        failure: request.failure()?.errorText ?? 'request failed',
+        failure,
       });
     }
   });
@@ -112,15 +117,16 @@ async function runTheme(browser, theme) {
     await page.getByText('old session guard').waitFor({ timeout: 5_000 });
     // Related section (gascity-dashboard-j4x) — RK3 density gate. The
     // high-volume fixture (40 molecule members + 3 unresolved links) must
-    // render exactly one aggregate maroon mark in the whole viewport, cap
+    // render exactly one aggregate maroon mark in the Related section, cap
     // rows per group with a `+ N more`, and pass the greyscale test (every
     // state still readable without colour).
     const relatedHeading = page.getByRole('heading', { name: /^related$/i });
     await relatedHeading.waitFor({ timeout: 5_000 });
     await page.getByText(/40 resolved, 3 unresolved/i).waitFor({ timeout: 5_000 });
     // One Mark Rule: at most one maroon (the .text-accent class) on the
-    // page once the Related summary line crosses the unresolved threshold.
-    const maroonCount = await page.locator('.text-accent').count();
+    // Related section once its summary line crosses the unresolved threshold.
+    const relatedSection = page.locator('section').filter({ has: relatedHeading });
+    const maroonCount = await relatedSection.locator('.text-accent').count();
     if (maroonCount > 1) {
       result.errors.push(`Related section broke the One Mark Rule, maroon count=${maroonCount}`);
     }
@@ -290,12 +296,24 @@ async function installApiFixtureRoutes(context) {
   });
 
   // Dashboard-local city-scoped endpoints ride `/api/city/:cityName/*`.
-  // Supervisor-owned session reads use `/gc-supervisor/v0/city/:cityName/*`.
-  await context.route('**/api/city/*/snapshot', async (route) => {
+  // Supervisor-owned reads use `/gc-supervisor/v0/city/:cityName/*`.
+  await context.route('**/gc-supervisor/v0/city/*/beads**', async (route) => {
+    const url = new URL(route.request().url());
+    const limit = url.searchParams.get('limit');
+    const type = url.searchParams.get('type');
+    const items = limit === '5000' && type === null
+      ? highVolumeLinkBeads()
+      : type === null
+        ? [runRootBeadFixture()]
+        : [];
     await route.fulfill({
       status: 200,
       contentType: 'application/json',
-      body: JSON.stringify(snapshotFixture()),
+      body: JSON.stringify({
+        items,
+        partial: false,
+        total: items.length,
+      }),
     });
   });
 
@@ -413,6 +431,14 @@ async function installApiFixtureRoutes(context) {
   });
 
   await context.route('**/gc-supervisor/v0/city/*/formulas/**', async (route) => {
+    if (new URL(route.request().url()).pathname.endsWith('/formulas/feed')) {
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify(formulaFeedFixture()),
+      });
+      return;
+    }
     await route.fulfill({
       status: 200,
       contentType: 'application/json',
@@ -425,20 +451,6 @@ async function installApiFixtureRoutes(context) {
       status: 200,
       contentType: 'application/json',
       body: JSON.stringify(sessionListFixture()),
-    });
-  });
-
-  // Bead-ID linked view (gascity-dashboard-j4x). A high-volume fixture
-  // (40-entity stuck run) exercises RK3 density discipline: capped rows
-  // per group + `+ N more`, the unresolved/derived/staleness summary line,
-  // and exactly ONE aggregate section-level maroon. Without this route the
-  // --test harness would fail on the unmocked /api/links/* call the
-  // WorkflowRunDetail Related section now makes.
-  await context.route('**/api/city/*/links/**', async (route) => {
-    await route.fulfill({
-      status: 200,
-      contentType: 'application/json',
-      body: JSON.stringify(highVolumeLinkView()),
     });
   });
 
@@ -732,166 +744,79 @@ function sessionListFixture() {
   };
 }
 
-function highVolumeLinkView() {
-  const focus = { key: 'bead:racoon-city:gc-adopt-pr-active', type: 'bead', ref: 'gc-adopt-pr-active' };
-  const nodes = [
-    { ...focus, title: 'Adopt PR #42', status: 'in_progress', url: null, fetchedAt: '2026-05-25T00:00:00Z', unresolved: false },
-  ];
-  const edges = [];
-  // 40 molecule-member beads (resolved) — exercises the per-group cap.
-  for (let i = 0; i < 40; i += 1) {
-    const key = `bead:racoon-city:gc-step-${i}`;
-    nodes.push({ key, type: 'bead', ref: `gc-step-${i}`, title: `step ${i}`, status: 'closed', url: null, fetchedAt: '2026-05-25T00:00:00Z', unresolved: false });
-    edges.push({ from: focus.key, to: key, relation: 'molecule', provenance: 'supervisor', resolved: true });
-  }
-  // A merged-and-vanished PR (unresolved + stale 24h) and two unresolved
-  // issues — three unresolved links cross the aggregate-maroon threshold.
-  nodes.push({ key: 'github_pr:github:42', type: 'github_pr', ref: 'pr/42', title: null, status: null, url: 'https://github.com/gastownhall/gascity-dashboard/pull/42', fetchedAt: '2026-05-24T00:00:00Z', unresolved: true });
-  edges.push({ from: focus.key, to: 'github_pr:github:42', relation: 'pr', provenance: 'supervisor', resolved: false });
-  for (const n of ['7', '8']) {
-    nodes.push({ key: `github_issue:github:${n}`, type: 'github_issue', ref: `issue/${n}`, title: null, status: null, url: null, fetchedAt: null, unresolved: true });
-    edges.push({ from: focus.key, to: `github_issue:github:${n}`, relation: 'issue', provenance: 'supervisor', resolved: false });
-  }
-  return {
-    focus,
-    nodes,
-    edges,
-    stats: [
-      { relation: 'molecule', resolved: 40, unresolved: 0, nCandidates: 0 },
-      { relation: 'pr', resolved: 0, unresolved: 1, nCandidates: 0 },
-      { relation: 'issue', resolved: 0, unresolved: 2, nCandidates: 0 },
-    ],
-    partial: false,
-    generatedAt: '2026-05-25T00:00:00.000Z',
-    asOf: '2026-05-24T00:00:00Z',
-  };
-}
-
-function snapshotFixture() {
-  return {
-    generatedAt: '2026-05-25T00:00:00.000Z',
-    config: {
-      cityName: 'racoon-city',
-      cityRoot: '/tmp/gascity',
-      useFixtures: false,
-    },
-    headline: {
-      activeAgents: unavailableMetric('city', 'city unavailable in fixture'),
-      maxAgents: unavailableMetric('city', 'city unavailable in fixture'),
-      activeSessions: unavailableMetric('city', 'city unavailable in fixture'),
-      activeRuns: { status: 'available', value: 1 },
-      workInProgress: { status: 'available', value: 1 },
-    },
-    sources: {
-      city: sourceUnavailable('city', 'city unavailable in fixture'),
-      resources: sourceUnavailable('resources', 'resources unavailable in fixture'),
-      work: sourceFixture('work', { open: 1, ready: 0, inProgress: 1 }),
-      runs: sourceFixture('runs', {
-        totalActive: 1,
-        // yh5i: shared RunSummary now carries totalHistorical +
-        // historicalLanes. This is a .mjs fixture and isn't typechecked,
-        // so the shape must be kept in lockstep with shared/src by hand.
-        totalHistorical: 0,
-        runCounts: {
-          total: 1,
-          visible: 1,
-          prReview: 1,
-          designReview: 0,
-          bugfix: 0,
-          blocked: 0,
-          other: 0,
-        },
-        lanes: [runLaneFixture()],
-        historicalLanes: [],
-        recentChanges: [],
-        census: {
-          status: 'unavailable',
-          error: 'run health has not been derived',
-        },
-      }),
-    },
-  };
-}
-
-function runLaneFixture() {
+function runRootBeadFixture() {
   return {
     id: 'gc-adopt-pr-active',
     title: 'Adopt PR #42',
-    formula: { status: 'known', name: 'mol-adopt-pr-v2' },
-    scope: {
-      status: 'available',
-      kind: 'city',
-      ref: 'racoon-city',
-      rootStoreRef: 'city:racoon-city',
+    status: 'in_progress',
+    issue_type: 'molecule',
+    priority: null,
+    created_at: '2026-05-25T00:00:00.000Z',
+    updated_at: '2026-05-25T00:00:00.000Z',
+    metadata: {
+      'gc.kind': 'run',
+      'gc.formula': 'mol-adopt-pr-v2',
+      'gc.formula_contract': 'graph.v2',
+      'gc.scope_kind': 'city',
+      'gc.scope_ref': CITY,
+      'gc.root_store_ref': `city:${CITY}`,
+      'gc.root_bead_id': 'gc-adopt-pr-active',
+      'gc.parent_bead_id': 'missing-parent',
+      'gc.run_target': `${CITY}/codex`,
+      molecule_id: 'gc-adopt-pr-active',
+      'evidence.pr_number': '42',
+      'evidence.pr_url': 'https://github.com/gastownhall/gascity-dashboard/pull/42',
+      'pr_review.pr_number': '42',
+      'pr_review.pr_url': 'https://github.com/gastownhall/gascity-dashboard/pull/42',
+      'bugflow.github_issue_number': '7',
     },
-    external: { status: 'unavailable', error: 'external unavailable in fixture' },
-    phase: 'review',
-    phaseLabel: 'Review',
-    statusCounts: {
-      active: 3,
-      completed: 1,
-      ready: 1,
-      skipped: 1,
-    },
-    activeAssignees: ['gc-session-review-i2'],
-    updatedAt: {
-      status: 'available',
-      at: '2026-05-25T00:00:00.000Z',
-    },
-    stages: [
-      { key: 'intake', label: 'Intake', status: 'complete' },
-      { key: 'implementation', label: 'Implementation', status: 'complete' },
-      { key: 'review', label: 'Review', status: 'active' },
-      { key: 'approval', label: 'Approval', status: 'pending' },
-      { key: 'finalization', label: 'Finalization', status: 'pending' },
+  };
+}
+
+function formulaFeedFixture() {
+  return {
+    items: [
+      {
+        id: 'gc-adopt-pr-active',
+        workflow_id: 'gc-adopt-pr-active',
+        root_bead_id: 'gc-adopt-pr-active',
+        root_store_ref: `city:${CITY}`,
+        scope_kind: 'city',
+        scope_ref: CITY,
+        started_at: '2026-05-25T00:00:00.000Z',
+        status: 'running',
+        target: `${CITY}/codex`,
+        title: 'Adopt PR #42',
+        type: 'formula',
+        updated_at: '2026-05-25T00:00:00.000Z',
+        run_detail_available: true,
+        detail_available: true,
+      },
     ],
-    progress: {
-      status: 'active_step',
-      stepId: 'review-pipeline',
-      stage: {
-        status: 'available',
-        index: 2,
-        key: 'review',
-        label: 'Review',
+    partial: false,
+  };
+}
+
+function highVolumeLinkBeads() {
+  const beads = [runRootBeadFixture()];
+  for (let i = 0; i < 40; i += 1) {
+    beads.push({
+      id: `gc-step-${i}`,
+      title: `step ${i}`,
+      status: 'closed',
+      issue_type: 'task',
+      priority: null,
+      created_at: '2026-05-25T00:00:00.000Z',
+      updated_at: '2026-05-25T00:00:00.000Z',
+      metadata: {
+        'gc.kind': 'step',
+        'gc.scope_kind': 'city',
+        'gc.scope_ref': CITY,
+        molecule_id: 'gc-adopt-pr-active',
       },
-      attempt: {
-        status: 'available',
-        value: 2,
-      },
-    },
-    formulaStageResolved: true,
-    health: {
-      status: 'unavailable',
-      error: 'run health has not been derived',
-    },
-  };
-}
-
-function sourceFixture(source, data) {
-  return {
-    source,
-    status: 'fresh',
-    fetchedAt: '2026-05-25T00:00:00.000Z',
-    staleAt: '2026-05-25T00:01:00.000Z',
-    error: { kind: 'none' },
-    data,
-  };
-}
-
-function sourceUnavailable(source, error) {
-  return {
-    source,
-    status: 'error',
-    error,
-  };
-}
-
-function unavailableMetric(source, error) {
-  return {
-    status: 'unavailable',
-    source,
-    error,
-  };
+    });
+  }
+  return beads;
 }
 
 const browser = await chromium.launch();

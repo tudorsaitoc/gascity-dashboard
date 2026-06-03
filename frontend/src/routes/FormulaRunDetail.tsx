@@ -26,7 +26,8 @@ import { useFormulaRunDetail } from '../hooks/useFormulaRunDetail';
 import { useRunDiff } from '../hooks/useRunDiff';
 import { useEntityLinks } from '../hooks/useEntityLinks';
 import { useCachedData } from '../hooks/useCachedData';
-import { api } from '../api/client';
+import { getActiveCity } from '../api/cityBase';
+import { loadSupervisorRunSummarySource } from '../supervisor/runSummary';
 import { NEEDS_YOU_VIEW_PARAM } from '../views/modules/maintainer/needsYou';
 
 const RUN_DETAIL_EVENT_PREFIXES = [
@@ -70,6 +71,7 @@ export function FormulaRunDetailPage() {
   const detail = readyRun?.detail ?? null;
   const runDiff = useRunDiff(
     routeError || detail === null ? undefined : runId,
+    detail?.executionPath,
     scope?.scopeKind,
     scope?.scopeRef,
   );
@@ -113,25 +115,23 @@ export function FormulaRunDetailPage() {
   const links = useEntityLinks(detail?.rootBeadId ?? null);
   const [viewingBeadId, setViewingBeadId] = useState<string | null>(null);
   const now = useNow();
+  const cityName = getActiveCity();
 
   // Optimistic skeleton (gascity-dashboard-wqsk): the first load of a run is
-  // bounded by the supervisor's all-store scan (seconds). The snapshot cache —
-  // already warm when the operator arrives from /runs — carries this run's lane
-  // (title + phase stages), so render that instantly instead of a blank spinner
-  // while the full detail assembles. Shares the 'snapshot' cache key with the
-  // Runs list, so list→detail navigation pays no extra fetch; a cold deep-link
-  // does one cheap snapshot GET and falls back to the plain spinner if the lane
-  // isn't present.
-  const snapshot = useCachedData('snapshot', () => api.snapshot());
+  // bounded by the supervisor's all-store scan (seconds). The direct run
+  // summary cache — already warm when the operator arrives from /runs —
+  // carries this run's lane (title + phase stages), so render that instantly
+  // instead of a blank spinner while the full detail assembles.
+  const runSummary = useCachedData(
+    `runs:summary:${cityName ?? 'no-city'}`,
+    loadSupervisorRunSummarySource,
+  );
   const skeletonLane = useMemo(() => {
     if (!runId) return null;
-    const runs = snapshot.data?.sources.runs;
-    const runsData =
-      runs && (runs.status === 'fresh' || runs.status === 'stale' || runs.status === 'fixture')
-        ? runs.data
-        : null;
+    const runs = runSummary.data;
+    const runsData = runs && runs.status !== 'error' ? runs.data : null;
     return runsData?.lanes.find((lane) => lane.id === runId) ?? null;
-  }, [snapshot.data, runId]);
+  }, [runSummary.data, runId]);
 
   const synopsis = detail
     ? `${detail.progress.visibleNodeCount} nodes. ${summarizeNodeStatuses(detail.progress)}. Local changes are shown for the run execution folder.`

@@ -1149,7 +1149,7 @@ describe('GcClient error handling', () => {
   test('6bv7 F16: GcBead typed interior no longer declares owner/updated_at/closed_at/dependency_count/dependent_count/comment_count', async () => {
     // These fields were never in the OpenAPI Bead schema. After 6bv7 the
     // typed GcBead interface drops them, so any frontend consumer reading
-    // `bead.updated_at` now fails tsc. Runtime payloads may still include
+    // one of these names now fails tsc. Runtime payloads may still include
     // them (passthrough()) — that is intentional so a future supervisor
     // that DOES add one of these doesn't crash the dash before the SSOT
     // catches up. The contract that matters is the type, not the runtime
@@ -1174,8 +1174,6 @@ describe('GcClient error handling', () => {
     // which is the compile-time signal a future reviewer must explain.
     // @ts-expect-error owner removed from GcBead in 6bv7 (F16)
     void bead.owner;
-    // @ts-expect-error updated_at removed from GcBead in 6bv7 (F16)
-    void bead.updated_at;
     // @ts-expect-error closed_at removed from GcBead in 6bv7 (F16)
     void bead.closed_at;
     // @ts-expect-error dependency_count removed from GcBead in 6bv7 (F16)

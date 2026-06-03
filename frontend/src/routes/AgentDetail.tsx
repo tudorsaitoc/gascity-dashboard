@@ -102,7 +102,7 @@ export function AgentDetailPage() {
 
   const refreshBeads = useCallback(async () => {
     try {
-      const { items } = await listSupervisorBeads(true);
+      const { items } = await listSupervisorBeads({ includeClosed: true });
       setBeads(items);
     } catch (err) {
       void reportClientError({

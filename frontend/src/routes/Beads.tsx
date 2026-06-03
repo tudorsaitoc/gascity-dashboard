@@ -3,47 +3,45 @@ import { useSearchParams } from 'react-router-dom';
 import { GC_EVENT_PREFIX } from 'gas-city-dashboard-shared';
 import { formatApiError } from '../api/client';
 import { useAttentionModel } from '../attention/context';
-import {
-  attentionRowProps,
-  resourceAttentionSeverity,
-} from '../attention/routeHighlight';
+import { resourceAttentionSeverity } from '../attention/routeHighlight';
 import { BeadBoardSection } from '../components/beads/BeadBoardSection';
 import { BeadDetailModal } from '../components/BeadDetailModal';
 import { Button } from '../components/Button';
 import { FilterChips } from '../components/FilterChips';
-import { GroupedTable } from '../components/GroupedTable';
 import { ListSearchBar } from '../components/ListSearchBar';
 import { Modal } from '../components/Modal';
 import { PageHeader } from '../components/PageHeader';
-import { SortToggle } from '../components/SortToggle';
-import { beadStatusTone, StatusBadge } from '../components/StatusBadge';
-import { type TableColumn } from '../components/Table';
+import { StatusBadge } from '../components/StatusBadge';
 import { buildBeadGraph } from '../lib/beadGraph';
 import { useCachedData } from '../hooks/useCachedData';
 import { useGcEventRefresh } from '../hooks/useGcEvents';
 import { useListFilters, type FilterChip } from '../hooks/useListFilters';
 import { beadProject } from '../hooks/projectOf';
-import { formatDate } from '../lib/format';
+import { listSupervisorAgents } from '../supervisor/agentReads';
 import {
   listSupervisorBeads,
   type SupervisorBead,
 } from '../supervisor/beadReads';
-import { listSupervisorAgents } from '../supervisor/agentReads';
 import {
   claimSupervisorBead,
   closeSupervisorBead,
   createAndSlingSupervisorBead,
   nudgeSupervisorAgent,
 } from '../supervisor/beadWrites';
-
-type BeadView = 'board' | 'list';
-
-const VIEW_OPTIONS: ReadonlyArray<{ id: BeadView; label: string }> = [
-  { id: 'board', label: 'Board' },
-  { id: 'list', label: 'List' },
-];
+import { listSupervisorSessions } from '../supervisor/sessionReads';
 
 const EMPTY_IDS: ReadonlySet<string> = new Set();
+const RIG_FILTER_ALL = '';
+
+type BeadAction = 'claim' | 'close' | 'nudge';
+
+interface ActionMessage {
+  tone: 'ok' | 'error';
+  text: string;
+}
+
+const isNonEmptyString = (value: string | undefined | null): value is string =>
+  typeof value === 'string' && value.trim().length > 0;
 
 const BEAD_CHIPS: ReadonlyArray<FilterChip<SupervisorBead>> = [
   { id: 'open', label: 'open', match: (b) => b.status === 'open' },
@@ -63,30 +61,15 @@ export function BeadsPage() {
   const attention = useAttentionModel();
   const [searchParams] = useSearchParams();
   const selectedBeadParam = normalizeSelectedBeadParam(searchParams.get('bead'));
-  const [labelFilter, setLabelFilter] = useState<string | null>(null);
-  const [rigFilter, setRigFilter] = useState('');
-  const [showAll, setShowAll] = useState(false);
-  const [view, setView] = useState<BeadView>('board');
-  // The board is a kanban: its in-progress / blocked / done columns are
-  // empty under the open-only default, so Board implies "show all". List
-  // keeps the manual toggle.
-  const showAllEffective = view === 'board' || showAll;
-  const { data, loading, error, refresh } = useCachedData(
-    `${showAllEffective ? 'beads:all' : 'beads:open'}:rig:${rigFilter}`,
-    () => listSupervisorBeads(showAllEffective, rigFilter),
-  );
-  const rows = useMemo(() => data?.items ?? [], [data]);
-  const totalShown = data?.total ?? 0;
-  const upstreamTotal = data?.upstream_total;
-  const upstreamFetched = data?.upstream_fetched;
-  const fetchLimit = data?.fetch_limit;
-
+  const [rigFilter, setRigFilter] = useState<string>(RIG_FILTER_ALL);
+  const [selectedId, setSelectedId] = useState<string | null>(selectedBeadParam);
   const [closing, setClosing] = useState<SupervisorBead | null>(null);
   const [closeReason, setCloseReason] = useState('');
-  const [actionInFlight, setActionInFlight] = useState<{ id: string; action: string } | null>(null);
-  const [actionResult, setActionResult] = useState<string | null>(null);
-  const [viewing, setViewing] = useState<SupervisorBead | null>(null);
-  const [selectedId, setSelectedId] = useState<string | null>(selectedBeadParam);
+  const [actionInFlight, setActionInFlight] = useState<{
+    id: string;
+    action: BeadAction;
+  } | null>(null);
+  const [actionMessage, setActionMessage] = useState<ActionMessage | null>(null);
   const [creating, setCreating] = useState(false);
   const [createInFlight, setCreateInFlight] = useState(false);
   const [createError, setCreateError] = useState<string | null>(null);
@@ -95,28 +78,63 @@ export function BeadsPage() {
   const [newRig, setNewRig] = useState('');
   const [newAgent, setNewAgent] = useState('');
 
+  const { data, loading, error, refresh } = useCachedData(
+    `beads:board:${rigFilter}`,
+    () => listSupervisorBeads({
+      includeClosed: true,
+      ...(rigFilter === RIG_FILTER_ALL ? {} : { rigFilter }),
+    }),
+  );
+  const rows = useMemo(() => data?.items ?? [], [data]);
+  const totalShown = data?.total ?? 0;
+  const upstreamTotal = data?.upstream_total;
+  const upstreamFetched = data?.upstream_fetched;
+  const fetchLimit = data?.fetch_limit;
+
+  const sessions = useCachedData('sessions', listSupervisorSessions);
+  const sessionItems = useMemo(
+    () => sessions.data?.items ?? [],
+    [sessions.data],
+  );
   const agents = useCachedData('agents', listSupervisorAgents);
   const agentItems = useMemo(
     () => agents.data?.items ?? [],
     [agents.data],
   );
-  const rigOptions = useMemo(
+
+  const dispatchRigOptions = useMemo(
     () => Array.from(
       new Set(agentItems.map((agent) => agent.rig).filter(isNonEmptyString)),
     ).sort((a, b) => a.localeCompare(b)),
     [agentItems],
   );
-  const filteredAgents = useMemo(
-    () => newRig.length === 0
-      ? agentItems
-      : agentItems.filter((agent) => agent.rig === newRig),
+  const filteredDispatchAgents = useMemo(
+    () => (
+      newRig.length === 0
+        ? agentItems
+        : agentItems.filter((agent) => agent.rig === newRig)
+    ),
     [agentItems, newRig],
   );
 
-  const filteredRows = useMemo(() => {
-    if (labelFilter === null) return rows;
-    return rows.filter((r) => Array.isArray(r.labels) && r.labels.includes(labelFilter));
-  }, [rows, labelFilter]);
+  useEffect(() => {
+    if (!creating) return;
+    if (filteredDispatchAgents.length === 0) {
+      if (newAgent.length > 0) setNewAgent('');
+      return;
+    }
+    if (!filteredDispatchAgents.some((agent) => agent.name === newAgent)) {
+      setNewAgent(filteredDispatchAgents[0]?.name ?? '');
+    }
+  }, [creating, filteredDispatchAgents, newAgent]);
+
+  useEffect(() => {
+    if (rigFilter !== RIG_FILTER_ALL && !dispatchRigOptions.includes(rigFilter)) {
+      setRigFilter(RIG_FILTER_ALL);
+    }
+  }, [dispatchRigOptions, rigFilter]);
+
+  const filteredRows = rows;
 
   const filters = useListFilters<SupervisorBead>({
     viewKey: 'beads',
@@ -132,105 +150,68 @@ export function BeadsPage() {
     if (selectedBeadParam !== null) setSelectedId(selectedBeadParam);
   }, [selectedBeadParam]);
 
-  // The board operates on the same search/chip/label-filtered set the list
-  // does, flattened across project groups. The dependency graph (columns +
-  // needs/blocks edges) is rebuilt from that set; edges pointing outside it
-  // render unresolved rather than fabricated.
-  const matched = useMemo(
-    () => filters.groups.flatMap((g) => g.rows),
-    [filters.groups],
-  );
-  const graph = useMemo(() => buildBeadGraph(matched), [matched]);
-  const beadAttentionSeverity = useCallback(
-    (beadId: string) => resourceAttentionSeverity(attention, 'beads', beadId),
-    [attention],
-  );
-  const rowProps = useMemo(
-    () => (bead: SupervisorBead) =>
-      attentionRowProps(beadAttentionSeverity(bead.id)),
-    [beadAttentionSeverity],
-  );
-  // Bead ids per rig group, so each rig section renders its own slice of the
-  // single shared graph (cross-rig edges stay resolved).
-  const groupIds = useMemo(() => {
-    const map = new Map<string, Set<string>>();
-    for (const g of filters.groups) {
-      map.set(g.projectKey, new Set(g.rows.map((r) => r.id)));
-    }
-    return map;
-  }, [filters.groups]);
-  const selectedBead = useMemo(
-    () => matched.find((b) => b.id === selectedId) ?? null,
-    [matched, selectedId],
-  );
-  const detailBeadId = viewing?.id ?? selectedId;
-  const detailInitialBead = viewing ?? selectedBead;
-  const closeDetail = useCallback(() => {
-    setViewing(null);
-    setSelectedId(null);
-  }, []);
-  const openDetailBead = useCallback((beadId: string) => {
-    setViewing(null);
-    setSelectedId(beadId);
-  }, []);
-
-  const runAction = useCallback(
-    async (
-      bead: SupervisorBead,
-      action: 'claim' | 'close' | 'nudge',
-      reason?: string,
-    ): Promise<void> => {
-      setActionInFlight({ id: bead.id, action });
-      setActionResult(null);
-      try {
-        if (action === 'claim') await claimSupervisorBead(bead.id);
-        else if (action === 'close') await closeSupervisorBead(bead.id, reason);
-        else {
-          const agentAlias = bead.assignee?.trim();
-          if (!agentAlias) throw new Error('no assignee to nudge');
-          await nudgeSupervisorAgent(agentAlias);
+  const runAction = useCallback(async (
+    bead: SupervisorBead,
+    action: BeadAction,
+    reason?: string,
+  ) => {
+    setActionInFlight({ id: bead.id, action });
+    setActionMessage(null);
+    try {
+      if (action === 'claim') {
+        await claimSupervisorBead(bead.id);
+        setActionMessage({ tone: 'ok', text: `Claimed ${bead.id}.` });
+      } else if (action === 'close') {
+        await closeSupervisorBead(bead.id, reason);
+        setClosing(null);
+        setCloseReason('');
+        setActionMessage({ tone: 'ok', text: `Closed ${bead.id}.` });
+      } else {
+        const assignee = bead.assignee?.trim() ?? '';
+        if (assignee.length === 0) {
+          throw new Error('Assigned agent is required before nudging.');
         }
-        setActionResult(`${action} ${bead.id}: ok`);
-        await refresh();
-      } catch (err) {
-        setActionResult(`${action} ${bead.id}: ${formatApiError(err, 'action failed')}`);
-      } finally {
-        setActionInFlight(null);
+        await nudgeSupervisorAgent(assignee);
+        setActionMessage({ tone: 'ok', text: `Nudged ${assignee}.` });
       }
-    },
-    [refresh],
-  );
+      await refresh();
+    } catch (err) {
+      setActionMessage({ tone: 'error', text: formatApiError(err, `${action} failed`) });
+    } finally {
+      setActionInFlight(null);
+    }
+  }, [refresh]);
+
   const openCreateBead = useCallback(() => {
-    const defaultRig = rigOptions[0] ?? '';
+    const defaultRig = dispatchRigOptions[0] ?? '';
     const defaultAgent = agentItems.find((agent) =>
-      defaultRig.length === 0 || agent.rig === defaultRig,
+      defaultRig.length === 0 || agent.rig === defaultRig
     );
     setNewTitle('');
     setNewBody('');
     setNewRig(defaultRig);
     setNewAgent(defaultAgent?.name ?? '');
     setCreateError(null);
-    setActionResult(null);
+    setActionMessage(null);
     setCreating(true);
-  }, [agentItems, rigOptions]);
-  const handleRigChange = useCallback(
-    (rig: string) => {
-      setNewRig(rig);
-      if (
-        newAgent.length > 0 &&
-        !agentItems.some((agent) =>
-          agent.name === newAgent && (rig.length === 0 || agent.rig === rig),
-        )
-      ) {
-        setNewAgent('');
-      }
-    },
-    [agentItems, newAgent],
-  );
-  const createAndSling = useCallback(async (): Promise<void> => {
+  }, [agentItems, dispatchRigOptions]);
+
+  const handleDispatchRigChange = useCallback((rig: string) => {
+    setNewRig(rig);
+    const currentAgentStillVisible = agentItems.some((agent) =>
+      agent.name === newAgent && (rig.length === 0 || agent.rig === rig)
+    );
+    if (!currentAgentStillVisible) {
+      const defaultAgent = agentItems.find((agent) =>
+        rig.length === 0 || agent.rig === rig
+      );
+      setNewAgent(defaultAgent?.name ?? '');
+    }
+  }, [agentItems, newAgent]);
+
+  const createAndSling = useCallback(async () => {
     setCreateInFlight(true);
     setCreateError(null);
-    setActionResult(null);
     try {
       const result = await createAndSlingSupervisorBead({
         title: newTitle,
@@ -238,12 +219,11 @@ export function BeadsPage() {
         rig: newRig,
         target: newAgent,
       });
-      setActionResult(`created and slung ${result.bead.id} to ${result.sling.target}`);
+      setActionMessage({
+        tone: 'ok',
+        text: `Created ${result.bead.id} and slung to ${newAgent}.`,
+      });
       setCreating(false);
-      setNewTitle('');
-      setNewBody('');
-      setNewRig('');
-      setNewAgent('');
       await refresh();
     } catch (err) {
       setCreateError(formatApiError(err, 'create and sling failed'));
@@ -252,138 +232,84 @@ export function BeadsPage() {
     }
   }, [newAgent, newBody, newRig, newTitle, refresh]);
 
-  const synopsis = useMemo(
-    () => buildSynopsis(filteredRows, totalShown, labelFilter, rigFilter),
-    [filteredRows, totalShown, labelFilter, rigFilter],
+  const matched = useMemo(
+    () => filters.groups.flatMap((group) => group.rows),
+    [filters.groups],
+  );
+  const graph = useMemo(() => buildBeadGraph(matched), [matched]);
+  const groupIds = useMemo(() => {
+    const map = new Map<string, Set<string>>();
+    for (const group of filters.groups) {
+      map.set(group.projectKey, new Set(group.rows.map((row) => row.id)));
+    }
+    return map;
+  }, [filters.groups]);
+  const selectedBead = useMemo(
+    () => matched.find((bead) => bead.id === selectedId) ?? null,
+    [matched, selectedId],
+  );
+  const selectedNode = useMemo(
+    () => (selectedId === null ? null : graph.nodes.get(selectedId) ?? null),
+    [graph, selectedId],
+  );
+  const beadAttentionSeverity = useMemo(
+    () => (beadId: string) => resourceAttentionSeverity(attention, 'beads', beadId),
+    [attention],
   );
 
-  const columns = useMemo<ReadonlyArray<TableColumn<SupervisorBead>>>(() => [
-    {
-      key: 'id',
-      label: 'ID',
-      sortable: true,
-      sortValue: (r) => r.id,
-      render: (r) => <span className="text-fg-muted tnum">{r.id}</span>,
-      className: 'w-32',
-    },
-    {
-      key: 'title',
-      label: 'Title',
-      sortable: true,
-      sortValue: (r) => r.title,
-      render: (r) => (
-        <div className="min-w-0">
-          <button
-            type="button"
-            onClick={() => setViewing(r)}
-            className="text-fg truncate hover:text-accent focus-mark text-left"
-            title={`Open ${r.id}`}
-          >
-            {r.title}
-          </button>
-          <p className="text-label uppercase tracking-wider text-fg-faint mt-1 truncate">
-            {r.issue_type}
-            {r.assignee ? ` · ${r.assignee}` : ''}
-          </p>
-          {Array.isArray(r.labels) && r.labels.length > 0 && (
-            <div className="mt-2 flex flex-wrap gap-x-3 gap-y-1">
-              {r.labels.slice(0, 8).map((l) => (
-                <button
-                  key={l}
-                  type="button"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    setLabelFilter((cur) => (cur === l ? null : l));
-                  }}
-                  className={`text-label uppercase tracking-wider transition-colors duration-150 ease-out-quart focus-mark rounded-sm ${labelTone(l)}`}
-                  title={`Filter to label "${l}"`}
-                >
-                  {l}
-                </button>
-              ))}
-              {r.labels.length > 8 && (
-                <span className="text-label uppercase tracking-wider text-fg-faint italic">
-                  +{r.labels.length - 8} more
-                </span>
-              )}
-            </div>
-          )}
-        </div>
-      ),
-    },
-    {
-      key: 'priority',
-      label: 'P',
-      sortable: true,
-      // Sort null priority to the bottom (sentinel > any P-value the supervisor uses).
-      sortValue: (r) => r.priority ?? Number.POSITIVE_INFINITY,
-      render: (r) => (
-        <span className={`tnum font-medium ${priorityColor(r.priority)}`}>
-          {r.priority == null ? 'P—' : `P${r.priority}`}
-        </span>
-      ),
-      align: 'right',
-      className: 'w-12',
-    },
-    {
-      key: 'status',
-      label: 'Status',
-      sortable: true,
-      sortValue: (r) => r.status,
-      render: (r) => <StatusBadge tone={beadStatusTone(r.status)} label={r.status} />,
-      className: 'w-32',
-    },
-    {
-      // 6bv7 F16: OpenAPI Bead has no updated_at; the column reflects the
-      // only timestamp the supervisor actually emits — created_at.
-      key: 'created',
-      label: 'Created',
-      sortable: true,
-      sortValue: (r) => r.created_at,
-      render: (r) => (
-        <span className="text-fg-muted tnum">{formatDate(r.created_at)}</span>
-      ),
-      className: 'w-28',
-    },
-    {
-      key: 'actions',
-      label: '',
-      render: (r) => (
-        <div className="flex items-baseline justify-end gap-4">
-          <Button
-            size="sm"
-            tone="quiet"
-            disabled={r.status === 'in_progress' || actionInFlight !== null}
-            onClick={() => void runAction(r, 'claim')}
-          >
-            Claim
-          </Button>
-          <Button
-            size="sm"
-            tone="quiet"
-            disabled={r.status === 'closed' || actionInFlight !== null}
-            onClick={() => {
-              setCloseReason('');
-              setClosing(r);
-            }}
-          >
-            Close
-          </Button>
-          <Button
-            size="sm"
-            tone="quiet"
-            disabled={!r.assignee || actionInFlight !== null}
-            onClick={() => void runAction(r, 'nudge')}
-            title={r.assignee ? `nudge ${r.assignee}` : 'no assignee'}
-          >
-            Nudge
-          </Button>
-        </div>
-      ),
-      align: 'right',
-      className: 'w-56',
-    },
-  ], [actionInFlight, runAction]);
+  const renderBeadActions = useCallback((bead: SupervisorBead) => {
+    const assignee = bead.assignee?.trim() ?? '';
+    const busy = actionInFlight !== null;
+    const actionLabel = actionInFlight?.id === bead.id
+      ? actionInFlight.action.replace('_', ' ')
+      : null;
+
+    return (
+      <div className="flex flex-wrap items-center justify-end gap-2">
+        {actionLabel && (
+          <span className="text-label uppercase tracking-wider text-fg-faint">
+            {actionLabel}
+          </span>
+        )}
+        <Button
+          type="button"
+          size="sm"
+          tone="quiet"
+          disabled={busy || bead.status === 'in_progress' || bead.status === 'closed'}
+          onClick={() => void runAction(bead, 'claim')}
+        >
+          Claim
+        </Button>
+        <Button
+          type="button"
+          size="sm"
+          tone="quiet"
+          disabled={busy || bead.status === 'closed'}
+          onClick={() => {
+            setCloseReason('');
+            setActionMessage(null);
+            setClosing(bead);
+          }}
+        >
+          Close
+        </Button>
+        <Button
+          type="button"
+          size="sm"
+          tone="quiet"
+          disabled={busy || assignee.length === 0}
+          onClick={() => void runAction(bead, 'nudge')}
+        >
+          Nudge
+        </Button>
+      </div>
+    );
+  }, [actionInFlight, runAction]);
+
+  const synopsis = useMemo(
+    () => buildSynopsis(filteredRows, totalShown, rigFilter),
+    [filteredRows, totalShown, rigFilter],
+  );
 
   const isTruncated =
     typeof upstreamTotal === 'number' &&
@@ -402,26 +328,29 @@ export function BeadsPage() {
                 {error}
               </span>
             )}
-            {view === 'board' ? (
-              <span className="text-label uppercase tracking-wider text-fg-faint">
-                All statuses
+            {sessions.error && (
+              <span className="normal-case text-body text-accent" role="alert">
+                {sessions.error}
               </span>
-            ) : (
-              <label className="flex items-baseline gap-2 text-label uppercase tracking-wider text-fg-muted cursor-pointer">
-                <input
-                  type="checkbox"
-                  checked={showAll}
-                  onChange={(e) => setShowAll(e.target.checked)}
-                  className="accent-accent translate-y-0.5"
-                />
-                Show all
-              </label>
             )}
+            {agents.error && (
+              <span className="normal-case text-body text-accent" role="alert">
+                {agents.error}
+              </span>
+            )}
+            <span className="text-label uppercase tracking-wider text-fg-faint">
+              All statuses
+            </span>
+            <Button
+              type="button"
+              size="sm"
+              onClick={openCreateBead}
+              disabled={agents.loading || agentItems.length === 0}
+            >
+              New bead
+            </Button>
             <Button size="sm" onClick={() => void refresh()} disabled={loading}>
               {loading ? 'Refreshing' : 'Refresh'}
-            </Button>
-            <Button size="sm" onClick={openCreateBead}>
-              New bead
             </Button>
           </>
         }
@@ -432,35 +361,30 @@ export function BeadsPage() {
           <p className="text-warn">
             <StatusBadge
               tone="warn"
-              label={`Fetch window covered ${upstreamFetched} of ${upstreamTotal} store beads. Raise the limit (currently ${fetchLimit ?? '?'}) if engineering work sits past the window.`}
+              label={`Fetch window covered ${upstreamFetched} of ${upstreamTotal} store beads. Raise the per-type limit (currently ${fetchLimit ?? '?'}) if engineering work sits past the window.`}
             />
           </p>
         )}
-        {labelFilter !== null && (
-          <p>
-            Filtering by label <span className="text-accent">{labelFilter}</span>.{' '}
-            <button
-              type="button"
-              onClick={() => setLabelFilter(null)}
-              className="text-fg-muted hover:text-fg focus-mark underline decoration-dotted underline-offset-2 rounded-sm"
-            >
-              Clear
-            </button>
-          </p>
-        )}
-        {rigFilter.length > 0 && (
+        {rigFilter !== RIG_FILTER_ALL && (
           <p>
             Filtering by rig <span className="text-accent">{rigFilter}</span>.{' '}
             <button
               type="button"
-              onClick={() => setRigFilter('')}
+              onClick={() => setRigFilter(RIG_FILTER_ALL)}
               className="text-fg-muted hover:text-fg focus-mark underline decoration-dotted underline-offset-2 rounded-sm"
             >
               Clear
             </button>
           </p>
         )}
-        {actionResult && <p className="italic">{actionResult}</p>}
+        {actionMessage && (
+          <p
+            className={actionMessage.tone === 'error' ? 'text-accent' : 'text-fg-muted'}
+            role={actionMessage.tone === 'error' ? 'alert' : 'status'}
+          >
+            {actionMessage.text}
+          </p>
+        )}
       </div>
 
       <div className="mb-6 space-y-3">
@@ -472,91 +396,120 @@ export function BeadsPage() {
           totalCount={filteredRows.length}
           ariaLabel="Search beads"
         />
-        <div className="flex items-baseline justify-between gap-4">
-          <div className="flex flex-wrap items-baseline gap-x-8 gap-y-3">
-            <FilterChips
-              chips={BEAD_CHIPS}
-              activeIds={filters.activeChipIds}
-              onToggle={filters.toggleChip}
-              legend="Status"
-            />
-            <label className="flex items-baseline gap-2 text-label uppercase tracking-wider text-fg-muted">
-              <span>Rig filter</span>
+        <div className="flex flex-wrap items-baseline gap-x-8 gap-y-3">
+          <FilterChips
+            chips={BEAD_CHIPS}
+            activeIds={filters.activeChipIds}
+            onToggle={filters.toggleChip}
+            legend="Status"
+          />
+          {dispatchRigOptions.length > 1 && (
+            <label className="flex items-baseline gap-2 text-label">
+              <span className="uppercase tracking-wider text-fg-muted">Rig</span>
               <select
-                aria-label="Rig filter"
                 value={rigFilter}
-                onChange={(e) => setRigFilter(e.target.value)}
-                className="bg-transparent border border-rule rounded-sm px-2 py-1 text-label uppercase tracking-wider text-fg-muted focus:border-accent focus:outline-none focus:ring-1 focus:ring-accent/40"
+                onChange={(event) => setRigFilter(event.target.value)}
+                aria-label="Rig filter"
+                className="text-label uppercase tracking-wider text-fg-muted bg-transparent border-0 focus-mark cursor-pointer hover:text-fg transition-colors duration-150 ease-out-quart"
               >
-                <option value="">All rigs</option>
-                {rigOptions.map((rig) => (
+                <option value={RIG_FILTER_ALL}>all rigs</option>
+                {dispatchRigOptions.map((rig) => (
                   <option key={rig} value={rig}>
                     {rig}
                   </option>
                 ))}
               </select>
             </label>
-          </div>
-          <SortToggle<BeadView>
-            value={view}
-            options={VIEW_OPTIONS}
-            onChange={setView}
-            legend="View"
-          />
+          )}
         </div>
       </div>
 
-      {view === 'board' ? (
-        matched.length === 0 ? (
-          <p className="text-body text-fg-muted italic">
-            {filters.search.length > 0 || filters.activeChipIds.size > 0
-              ? 'No beads match the current search or filter.'
-              : labelFilter !== null
-                ? `No beads match label "${labelFilter}".`
-                : 'Nothing on the queue right now.'}
-          </p>
-        ) : (
-          <div className="space-y-12">
-            {filters.groups.map((g) => (
-              <BeadBoardSection
-                key={g.projectKey}
-                label={g.project}
-                count={g.totalInProject}
-                graph={graph}
-                ids={groupIds.get(g.projectKey) ?? EMPTY_IDS}
-                selectedId={selectedId}
-                attentionSeverity={beadAttentionSeverity}
-                onSelect={setSelectedId}
-              />
-            ))}
-          </div>
-        )
+      {matched.length === 0 ? (
+        <p className="text-body text-fg-muted italic">
+          {filters.search.length > 0 || filters.activeChipIds.size > 0
+            ? 'No beads match the current search or filter.'
+            : 'Nothing on the queue right now.'}
+        </p>
       ) : (
-        <GroupedTable
-          groups={filters.groups}
-          columns={columns}
-          rowKey={(r) => r.id}
-          onToggleProject={filters.toggleProject}
-          rowProps={rowProps}
-          emptyMessage={
-            filters.search.length > 0 || filters.activeChipIds.size > 0
-              ? 'No beads match the current search or filter.'
-              : labelFilter !== null
-                ? `No beads match label "${labelFilter}".`
-                : 'Nothing on the queue right now.'
-          }
-          perProjectEmpty="No beads in this project."
-          initialSort={{ key: 'updated', dir: 'desc' }}
-        />
+        <div className="space-y-12">
+          {filters.groups.map((group) => (
+            <BeadBoardSection
+              key={group.projectKey}
+              label={group.project}
+              count={group.totalInProject}
+              graph={graph}
+              ids={groupIds.get(group.projectKey) ?? EMPTY_IDS}
+              selectedId={selectedId}
+              attentionSeverity={beadAttentionSeverity}
+              onSelect={setSelectedId}
+            />
+          ))}
+        </div>
       )}
 
       <BeadDetailModal
-        open={detailBeadId !== null}
-        onClose={closeDetail}
-        beadId={detailBeadId}
-        initialBead={detailInitialBead}
-        onOpenBead={openDetailBead}
+        open={selectedId !== null}
+        onClose={() => setSelectedId(null)}
+        beadId={selectedId}
+        initialBead={selectedBead}
+        depNode={selectedNode}
+        sessions={sessionItems}
+        onOpenBead={setSelectedId}
+        renderActions={renderBeadActions}
       />
+
+      <Modal
+        open={closing !== null}
+        onClose={() => {
+          if (actionInFlight === null) {
+            setClosing(null);
+            setCloseReason('');
+          }
+        }}
+        title={closing ? `Close ${closing.id}` : 'Close bead'}
+        caption={closing?.title}
+        widthClass="max-w-xl"
+        footer={
+          <>
+            <Button
+              type="button"
+              size="sm"
+              tone="quiet"
+              disabled={actionInFlight !== null}
+              onClick={() => {
+                setClosing(null);
+                setCloseReason('');
+              }}
+            >
+              Cancel
+            </Button>
+            <Button
+              type="button"
+              size="sm"
+              tone="accent"
+              disabled={closing === null || actionInFlight !== null}
+              onClick={() => {
+                if (closing) void runAction(closing, 'close', closeReason);
+              }}
+            >
+              Close bead
+            </Button>
+          </>
+        }
+      >
+        <label className="block space-y-2 text-body">
+          <span className="text-label uppercase tracking-wider text-fg-muted">
+            Reason
+          </span>
+          <textarea
+            value={closeReason}
+            onChange={(event) => setCloseReason(event.target.value)}
+            rows={4}
+            placeholder="Optional close reason"
+            className="w-full rounded-sm border border-rule bg-transparent px-3 py-2 text-body text-fg focus-mark"
+          />
+        </label>
+      </Modal>
 
       <Modal
         open={creating}
@@ -564,93 +517,100 @@ export function BeadsPage() {
           if (!createInFlight) setCreating(false);
         }}
         title="New bead"
-        widthClass="max-w-xl"
+        caption="Create and sling"
+        widthClass="max-w-2xl"
         footer={
           <>
             <Button
-              tone="quiet"
+              type="button"
               size="sm"
+              tone="quiet"
               disabled={createInFlight}
               onClick={() => setCreating(false)}
             >
               Cancel
             </Button>
             <Button
-              tone="accent"
+              type="submit"
+              form="new-bead-form"
               size="sm"
               disabled={
                 createInFlight ||
                 newTitle.trim().length === 0 ||
                 newAgent.trim().length === 0
               }
-              onClick={() => void createAndSling()}
             >
               {createInFlight ? 'Creating' : 'Create and sling'}
             </Button>
           </>
         }
       >
-        <div className="space-y-4">
+        <form
+          id="new-bead-form"
+          className="space-y-5"
+          onSubmit={(event) => {
+            event.preventDefault();
+            void createAndSling();
+          }}
+        >
           {createError && (
             <p className="text-accent" role="alert">
               {createError}
             </p>
           )}
-          {agents.error && (
-            <p className="text-accent" role="alert">
-              {agents.error}
-            </p>
-          )}
-          <label className="block">
+          <label className="block space-y-2 text-body">
             <span className="text-label uppercase tracking-wider text-fg-muted">
               Title
             </span>
             <input
               value={newTitle}
-              onChange={(e) => setNewTitle(e.target.value)}
-              className="mt-2 w-full bg-surface-tint border border-rule rounded-sm px-3 py-2 text-body text-fg placeholder:text-fg-faint focus:border-accent focus:outline-none focus:ring-1 focus:ring-accent/40"
+              onChange={(event) => setNewTitle(event.target.value)}
+              required
+              className="w-full rounded-sm border border-rule bg-transparent px-3 py-2 text-body text-fg focus-mark"
             />
           </label>
-          <label className="block">
+          <label className="block space-y-2 text-body">
             <span className="text-label uppercase tracking-wider text-fg-muted">
               Body
             </span>
             <textarea
               value={newBody}
-              onChange={(e) => setNewBody(e.target.value)}
+              onChange={(event) => setNewBody(event.target.value)}
               rows={5}
-              className="mt-2 w-full bg-surface-tint border border-rule rounded-sm px-3 py-2 text-body text-fg placeholder:text-fg-faint focus:border-accent focus:outline-none focus:ring-1 focus:ring-accent/40 resize-y"
+              className="w-full rounded-sm border border-rule bg-transparent px-3 py-2 text-body text-fg focus-mark"
             />
           </label>
           <div className="grid gap-4 sm:grid-cols-2">
-            <label className="block">
+            <label className="block space-y-2 text-body">
               <span className="text-label uppercase tracking-wider text-fg-muted">
                 Rig
               </span>
               <select
                 value={newRig}
-                onChange={(e) => handleRigChange(e.target.value)}
-                className="mt-2 w-full bg-surface-tint border border-rule rounded-sm px-3 py-2 text-body text-fg focus:border-accent focus:outline-none focus:ring-1 focus:ring-accent/40"
+                onChange={(event) => handleDispatchRigChange(event.target.value)}
+                className="w-full rounded-sm border border-rule bg-transparent px-3 py-2 text-body text-fg focus-mark"
               >
-                <option value="">Any rig</option>
-                {rigOptions.map((rig) => (
+                {dispatchRigOptions.length === 0 && (
+                  <option value="">all rigs</option>
+                )}
+                {dispatchRigOptions.map((rig) => (
                   <option key={rig} value={rig}>
                     {rig}
                   </option>
                 ))}
               </select>
             </label>
-            <label className="block">
+            <label className="block space-y-2 text-body">
               <span className="text-label uppercase tracking-wider text-fg-muted">
                 Agent
               </span>
               <select
                 value={newAgent}
-                onChange={(e) => setNewAgent(e.target.value)}
-                className="mt-2 w-full bg-surface-tint border border-rule rounded-sm px-3 py-2 text-body text-fg focus:border-accent focus:outline-none focus:ring-1 focus:ring-accent/40"
+                onChange={(event) => setNewAgent(event.target.value)}
+                required
+                className="w-full rounded-sm border border-rule bg-transparent px-3 py-2 text-body text-fg focus-mark"
               >
-                <option value="">Choose agent</option>
-                {filteredAgents.map((agent) => (
+                {filteredDispatchAgents.map((agent) => (
                   <option key={agent.name} value={agent.name}>
                     {agent.display_name ?? agent.name}
                   </option>
@@ -658,73 +618,10 @@ export function BeadsPage() {
               </select>
             </label>
           </div>
-        </div>
-      </Modal>
-
-      <Modal
-        open={closing !== null}
-        onClose={() => setClosing(null)}
-        title={closing ? `Close ${closing.id}` : 'Close bead'}
-        caption={closing?.title}
-        widthClass="max-w-lg"
-        footer={
-          <>
-            <Button tone="quiet" size="sm" onClick={() => setClosing(null)}>
-              Cancel
-            </Button>
-            <Button
-              tone="accent"
-              size="sm"
-              disabled={actionInFlight !== null}
-              onClick={() => {
-                if (!closing) return;
-                const c = closing;
-                setClosing(null);
-                void runAction(c, 'close', closeReason.trim() || undefined);
-              }}
-            >
-              {actionInFlight?.action === 'close' ? 'Closing' : 'Close bead'}
-            </Button>
-          </>
-        }
-      >
-        <label className="block">
-          <span className="text-label uppercase tracking-wider text-fg-muted">
-            Reason (optional)
-          </span>
-          <textarea
-            value={closeReason}
-            onChange={(e) => setCloseReason(e.target.value)}
-            placeholder="What was resolved, and how."
-            rows={5}
-            className="mt-2 w-full bg-surface-tint border border-rule rounded-sm px-3 py-2 text-body text-fg placeholder:text-fg-faint focus:border-accent focus:outline-none focus:ring-1 focus:ring-accent/40 resize-y"
-          />
-        </label>
+        </form>
       </Modal>
     </section>
   );
-}
-
-function labelTone(label: string): string {
-  // Pipeline-state labels carry the load. Approval = ok, needs- = warn,
-  // blocked = stuck. Scope / gc: / agent: are quiet structural prefixes.
-  if (label === 'approved' || label.endsWith('-approved')) return 'text-ok hover:opacity-80';
-  if (label === 'needs-review' || label.startsWith('needs-review-')) return 'text-warn hover:opacity-80';
-  if (label.startsWith('needs-impl:') || label.startsWith('needs-')) return 'text-warn hover:opacity-80';
-  if (label === 'blocked' || label === 'mayor-skip' || label === 'mayor-needs-human') return 'text-accent hover:opacity-80';
-  if (label.startsWith('scope:')) return 'text-fg-muted hover:text-fg';
-  if (label.startsWith('gc:') || label.startsWith('agent:')) return 'text-fg-faint hover:text-fg-muted';
-  return 'text-fg-muted hover:text-fg';
-}
-
-function priorityColor(p: number | null | undefined): string {
-  if (p === 0) return 'text-accent';
-  if (p === 1) return 'text-warn';
-  return 'text-fg-muted';
-}
-
-function isNonEmptyString(value: string | undefined): value is string {
-  return typeof value === 'string' && value.length > 0;
 }
 
 function normalizeSelectedBeadParam(value: string | null): string | null {
@@ -735,23 +632,19 @@ function normalizeSelectedBeadParam(value: string | null): string | null {
 function buildSynopsis(
   filtered: ReadonlyArray<SupervisorBead>,
   totalShown: number,
-  labelFilter: string | null,
   rigFilter: string,
 ): string {
-  if (labelFilter !== null) {
-    return `${filtered.length} matching "${labelFilter}".`;
-  }
-  if (rigFilter.length > 0 && filtered.length === 0) return `No beads on ${rigFilter}.`;
-  const open = filtered.filter((b) => b.status === 'open').length;
-  const inProgress = filtered.filter((b) => b.status === 'in_progress').length;
-  const blocked = filtered.filter((b) => b.status === 'blocked').length;
+  if (rigFilter !== RIG_FILTER_ALL && filtered.length === 0) return `No beads on ${rigFilter}.`;
+  const open = filtered.filter((bead) => bead.status === 'open').length;
+  const inProgress = filtered.filter((bead) => bead.status === 'in_progress').length;
+  const blocked = filtered.filter((bead) => bead.status === 'blocked').length;
   const parts: string[] = [];
   if (open > 0) parts.push(`${open} open`);
   if (inProgress > 0) parts.push(`${inProgress} in progress`);
   if (blocked > 0) parts.push(`${blocked} blocked`);
   if (parts.length === 0) return 'Nothing on the queue.';
-  let s = parts.join(', ') + '.';
-  if (rigFilter.length > 0) s = `${rigFilter}: ${s}`;
-  if (totalShown > filtered.length) s += ` Showing ${filtered.length} of ${totalShown}.`;
-  return s;
+  let summary = `${parts.join(', ')}.`;
+  if (rigFilter !== RIG_FILTER_ALL) summary = `${rigFilter}: ${summary}`;
+  if (totalShown > filtered.length) summary += ` Showing ${filtered.length} of ${totalShown}.`;
+  return summary;
 }

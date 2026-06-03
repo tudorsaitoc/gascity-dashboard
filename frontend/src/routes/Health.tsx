@@ -1,5 +1,10 @@
 import type { ReactNode } from 'react';
-import type { DoltNomsTrend, SystemHealth } from 'gas-city-dashboard-shared';
+import type {
+  DoltNomsTrend,
+  LocalToolVersion,
+  LocalToolVersions,
+  SystemHealth,
+} from 'gas-city-dashboard-shared';
 import { api } from '../api/client';
 import { getActiveCity } from '../api/cityBase';
 import { useAttentionModel } from '../attention/context';
@@ -10,10 +15,16 @@ import {
 import { Button } from '../components/Button';
 import { PageHeader } from '../components/PageHeader';
 import { StatusBadge, type StatusTone } from '../components/StatusBadge';
-import type { HealthOutputBody } from '../generated/gc-supervisor-client/types.gen';
+import type {
+  HealthOutputBody,
+  StatusBody,
+  StatusStoreHealth,
+  StatusWorkCounts,
+} from '../generated/gc-supervisor-client/types.gen';
 import { useCachedData } from '../hooks/useCachedData';
 import { useVisibleRefresh } from '../hooks/useVisibleRefresh';
 import { formatHumanSize } from '../lib/format';
+import { formatShortDate } from '../hooks/time';
 import { supervisorApi } from '../supervisor/client';
 
 // Health page fetches the two slow paths in parallel through the
@@ -22,14 +33,18 @@ import { supervisorApi } from '../supervisor/client';
 async function fetchHealthBundle(): Promise<{
   health: SystemHealth;
   supervisor: SupervisorHealthState;
+  status: SupervisorStatusState;
+  localTools: LocalToolVersionsState;
   trend: DoltNomsTrend;
 }> {
-  const [health, supervisor, trend] = await Promise.all([
+  const [health, supervisor, status, localTools, trend] = await Promise.all([
     api.systemHealth(),
     fetchSupervisorHealth(),
+    fetchSupervisorStatus(),
+    fetchLocalToolVersions(),
     api.doltTrend(),
   ]);
-  return { health, supervisor, trend };
+  return { health, supervisor, status, localTools, trend };
 }
 
 export function HealthPage() {
@@ -40,6 +55,8 @@ export function HealthPage() {
   );
   const health = data?.health ?? null;
   const supervisor = data?.supervisor ?? null;
+  const status = data?.status ?? null;
+  const localTools = data?.localTools ?? null;
   const trend = data?.trend ?? null;
   const hostHealthStatus = health ? hostStatus(health) : undefined;
   const supervisorAttention = prefixedAttentionSeverity(attention, 'health', ['health:supervisor-']);
@@ -139,6 +156,37 @@ export function HealthPage() {
             </KvList>
           </Section>
 
+          <Section title="Diagnostics">
+            <div className="space-y-8">
+              <KvList>
+                <LocalToolKv
+                  label="Dolt version"
+                  datum={localTools?.status === 'available' ? localTools.data.dolt : null}
+                  fallbackReason={
+                    localTools?.status === 'unavailable'
+                      ? localTools.error
+                      : 'local tool versions still loading'
+                  }
+                />
+                <LocalToolKv
+                  label="Beads version"
+                  datum={localTools?.status === 'available' ? localTools.data.beads : null}
+                  fallbackReason={
+                    localTools?.status === 'unavailable'
+                      ? localTools.error
+                      : 'local tool versions still loading'
+                  }
+                />
+              </KvList>
+              <DoltUsageBlock usage={doltUsageOf(status)} />
+              <BeadsUsageBlock usage={beadsUsageOf(status)} />
+            </div>
+          </Section>
+
+          <Section title="Recommended vs loaded">
+            <ConfigComparison comparison={configComparisonOf(status)} />
+          </Section>
+
           <Section
             title="Dolt-noms · 24 h"
             attention={doltNomsAttention}
@@ -224,6 +272,138 @@ function Kv({
   );
 }
 
+type DiagnosticDatum<T> =
+  | { status: 'available'; value: T; source: string }
+  | { status: 'unavailable'; reason: string };
+
+interface ConfigComparisonRow {
+  label: string;
+  recommended: string;
+  loaded: string;
+  withinRecommendation: boolean;
+}
+
+function LocalToolKv({
+  label,
+  datum,
+  fallbackReason,
+}: {
+  label: string;
+  datum: LocalToolVersion | null;
+  fallbackReason: string;
+}) {
+  if (datum === null) {
+    return <Kv label={label} value={`unavailable - ${fallbackReason}`} tone="warn" />;
+  }
+  return datum.status === 'available' ? (
+    <Kv label={label} value={datum.version} />
+  ) : (
+    <Kv label={label} value={`unavailable - ${datum.reason}`} tone="warn" />
+  );
+}
+
+function DoltUsageBlock({
+  usage,
+}: {
+  usage: DiagnosticDatum<StatusStoreHealth>;
+}) {
+  if (usage.status === 'unavailable') {
+    return <UnavailableNote heading="Dolt usage" reason={usage.reason} />;
+  }
+  const u = usage.value;
+  return (
+    <div className="space-y-2">
+      <h3 className="text-label uppercase tracking-wider text-fg-muted">Dolt usage</h3>
+      <KvList>
+        <Kv label="On-disk size" value={formatHumanSize(statusNumber(u.size_bytes))} />
+        <Kv label="Live rows" value={u.live_rows.toLocaleString()} />
+        <Kv label="MB per row" value={u.ratio_mb_per_row.toString()} />
+        <Kv
+          label="Last maintenance"
+          value={u.last_gc_status ?? 'not reported'}
+          {...(u.last_gc_status !== undefined && u.last_gc_status !== 'success'
+            ? { tone: 'warn' as const }
+            : {})}
+        />
+        {u.last_gc_at !== undefined && (
+          <Kv label="Last maintenance at" value={formatShortDate(u.last_gc_at)} />
+        )}
+        <Kv label="Store path" value={u.path} />
+      </KvList>
+    </div>
+  );
+}
+
+function BeadsUsageBlock({
+  usage,
+}: {
+  usage: DiagnosticDatum<StatusWorkCounts>;
+}) {
+  if (usage.status === 'unavailable') {
+    return <UnavailableNote heading="Beads usage" reason={usage.reason} />;
+  }
+  const u = usage.value;
+  return (
+    <div className="space-y-2">
+      <h3 className="text-label uppercase tracking-wider text-fg-muted">Beads usage</h3>
+      <KvList>
+        <Kv label="Open" value={u.open.toString()} />
+        <Kv label="Ready" value={u.ready.toString()} />
+        <Kv label="In progress" value={u.in_progress.toString()} />
+      </KvList>
+    </div>
+  );
+}
+
+function ConfigComparison({
+  comparison,
+}: {
+  comparison: DiagnosticDatum<ConfigComparisonRow[]>;
+}) {
+  if (comparison.status === 'unavailable') {
+    return (
+      <p className="text-body text-fg-muted italic">
+        Comparison unavailable: {comparison.reason}.
+      </p>
+    );
+  }
+  return (
+    <div className="grid grid-cols-[1fr_max-content_max-content] gap-x-8 gap-y-3 max-w-prose">
+      <div className="text-label uppercase tracking-wider text-fg-muted">Setting</div>
+      <div className="text-label uppercase tracking-wider text-fg-muted text-right">Recommended</div>
+      <div className="text-label uppercase tracking-wider text-fg-muted text-right">Loaded</div>
+      {comparison.value.map((row) => (
+        <ComparisonRow key={row.label} row={row} />
+      ))}
+    </div>
+  );
+}
+
+function ComparisonRow({ row }: { row: ConfigComparisonRow }) {
+  const tone = row.withinRecommendation ? 'text-fg' : 'text-warn';
+  return (
+    <div className={`contents ${tone}`} data-comparison-row={row.label}>
+      <div className={`text-body ${tone}`}>
+        {row.label}
+        {!row.withinRecommendation && (
+          <span className="text-label uppercase tracking-wider text-warn"> · over</span>
+        )}
+      </div>
+      <div className="text-body tnum text-fg-muted text-right">{row.recommended}</div>
+      <div className={`text-body tnum font-medium text-right ${tone}`}>{row.loaded}</div>
+    </div>
+  );
+}
+
+function UnavailableNote({ heading, reason }: { heading: string; reason: string }) {
+  return (
+    <div className="space-y-2">
+      <h3 className="text-label uppercase tracking-wider text-fg-muted">{heading}</h3>
+      <p className="text-body text-fg-muted italic">Unavailable: {reason}.</p>
+    </div>
+  );
+}
+
 function Sparkline({ samples }: { samples: { ts: string; bytes: number }[] }) {
   if (samples.length === 0) return null;
   const max = Math.max(...samples.map((s) => s.bytes));
@@ -278,6 +458,14 @@ type SupervisorHealthState =
   | { status: 'available'; data: HealthOutputBody }
   | { status: 'unavailable'; error: string };
 
+type SupervisorStatusState =
+  | { status: 'available'; data: StatusBody }
+  | { status: 'unavailable'; error: string };
+
+type LocalToolVersionsState =
+  | { status: 'available'; data: LocalToolVersions }
+  | { status: 'unavailable'; error: string };
+
 async function fetchSupervisorHealth(): Promise<SupervisorHealthState> {
   const cityName = getActiveCity();
   if (cityName === null) {
@@ -292,6 +480,38 @@ async function fetchSupervisorHealth(): Promise<SupervisorHealthState> {
     return {
       status: 'unavailable',
       error: 'supervisor health unavailable',
+    };
+  }
+}
+
+async function fetchSupervisorStatus(): Promise<SupervisorStatusState> {
+  const cityName = getActiveCity();
+  if (cityName === null) {
+    throw new Error('Health page loaded before an active city was resolved');
+  }
+  try {
+    return {
+      status: 'available',
+      data: await supervisorApi().cityStatus(cityName),
+    };
+  } catch {
+    return {
+      status: 'unavailable',
+      error: 'supervisor status unavailable',
+    };
+  }
+}
+
+async function fetchLocalToolVersions(): Promise<LocalToolVersionsState> {
+  try {
+    return {
+      status: 'available',
+      data: await api.localToolVersions(),
+    };
+  } catch {
+    return {
+      status: 'unavailable',
+      error: 'local tool versions unavailable',
     };
   }
 }
@@ -333,6 +553,69 @@ function hostStatus(h: SystemHealth): { tone: StatusTone; label: string } | unde
   if (memPct < 0.10) return { tone: 'warn', label: 'memory low' };
   if (h.host.load_avg_1 > h.host.cpu_count * 1.5) return { tone: 'warn', label: 'load high' };
   return undefined;
+}
+
+function doltUsageOf(
+  statusState: SupervisorStatusState | null,
+): DiagnosticDatum<StatusStoreHealth> {
+  if (statusState === null) {
+    return { status: 'unavailable', reason: 'supervisor status still loading' };
+  }
+  if (statusState.status === 'unavailable') {
+    return { status: 'unavailable', reason: statusState.error };
+  }
+  const storeHealth = statusState.data.store_health;
+  if (storeHealth === undefined) {
+    return {
+      status: 'unavailable',
+      reason: 'supervisor did not report store_health',
+    };
+  }
+  return {
+    status: 'available',
+    value: storeHealth,
+    source: 'supervisor status.store_health',
+  };
+}
+
+function beadsUsageOf(
+  statusState: SupervisorStatusState | null,
+): DiagnosticDatum<StatusWorkCounts> {
+  if (statusState === null) {
+    return { status: 'unavailable', reason: 'supervisor status still loading' };
+  }
+  if (statusState.status === 'unavailable') {
+    return { status: 'unavailable', reason: statusState.error };
+  }
+  return {
+    status: 'available',
+    value: statusState.data.work,
+    source: 'supervisor status.work',
+  };
+}
+
+function configComparisonOf(
+  statusState: SupervisorStatusState | null,
+): DiagnosticDatum<ConfigComparisonRow[]> {
+  const usage = doltUsageOf(statusState);
+  if (usage.status === 'unavailable') {
+    return { status: 'unavailable', reason: usage.reason };
+  }
+  const storeHealth = usage.value;
+  return {
+    status: 'available',
+    source: 'supervisor status.store_health (threshold vs actual)',
+    value: [{
+      label: 'Dolt MB-per-row ratio',
+      recommended: `<= ${storeHealth.threshold_mb_per_row}`,
+      loaded: String(storeHealth.ratio_mb_per_row),
+      withinRecommendation: !storeHealth.warning,
+    }],
+  };
+}
+
+function statusNumber(value: number | bigint): number {
+  return typeof value === 'bigint' ? Number(value) : value;
 }
 
 function formatDuration(sec: number): string {

@@ -173,10 +173,12 @@ describe('createDashboardApp', () => {
           admin?: unknown;
           host?: unknown;
           supervisor?: unknown;
+          diagnostics?: unknown;
         };
         assert.equal(typeof body.admin, 'object');
         assert.equal(typeof body.host, 'object');
         assert.equal(body.supervisor, undefined);
+        assert.equal(body.diagnostics, undefined);
       });
     } finally {
       await runtime.stop();
@@ -243,6 +245,41 @@ describe('createDashboardApp', () => {
         await withApp(app, async (url) => {
           const res = await fetch(`${url}/api/city/test-city/agents`);
           assert.equal(res.status, 404);
+        });
+      } finally {
+        await runtime.stop();
+      }
+    });
+  });
+
+  test('mounts only the city-scoped dashboard run diff route', async () => {
+    await withSupervisorRegistry(async (gcSupervisorUrl) => {
+      const { app, runtime } = createDashboardApp(makeConfig({ gcSupervisorUrl }));
+      runtime.start();
+      try {
+        await withApp(app, async (url) => {
+          const oldDetailMirror = await fetch(`${url}/api/city/test-city/runs/gc-root`);
+          assert.equal(oldDetailMirror.status, 404);
+
+          const csrf = await fetch(`${url}/api/csrf`);
+          const csrfBody = (await csrf.json()) as { token: string };
+          const diff = await fetch(`${url}/api/city/test-city/runs/gc-root/diff`, {
+            method: 'POST',
+            headers: {
+              'content-type': 'application/json',
+              origin: 'http://127.0.0.1:8081',
+              'x-csrf-token': csrfBody.token,
+            },
+            body: JSON.stringify({
+              executionPath: {
+                kind: 'unavailable',
+                reason: 'missing_cwd_and_rig_root',
+              },
+            }),
+          });
+          assert.equal(diff.status, 200);
+          const body = (await diff.json()) as { kind?: string };
+          assert.equal(body.kind, 'path_unknown');
         });
       } finally {
         await runtime.stop();
@@ -324,6 +361,41 @@ describe('createDashboardApp', () => {
           const stream = await fetch(`${url}/api/city/test-city/events/stream`);
           assert.equal(stream.status, 404);
           await stream.body?.cancel();
+        });
+      } finally {
+        await runtime.stop();
+      }
+    });
+  });
+
+  test('does not mount dashboard links, snapshot, or home-pending mirrors under the city request plane', async () => {
+    await withSupervisorRegistry(async (gcSupervisorUrl) => {
+      const { app, runtime } = createDashboardApp(makeConfig({ gcSupervisorUrl }));
+      runtime.start();
+      try {
+        await withApp(app, async (url) => {
+          const links = await fetch(`${url}/api/city/test-city/links/td-bead-abc123`);
+          assert.equal(links.status, 404);
+
+          const snapshot = await fetch(`${url}/api/city/test-city/snapshot`);
+          assert.equal(snapshot.status, 404);
+
+          const csrf = await fetch(`${url}/api/csrf`);
+          const csrfBody = (await csrf.json()) as { token: string };
+          const refresh = await fetch(`${url}/api/city/test-city/snapshot/refresh`, {
+            method: 'POST',
+            headers: {
+              'content-type': 'application/json',
+              origin: 'http://127.0.0.1:8081',
+              'x-csrf-token': csrfBody.token,
+            },
+            body: JSON.stringify({ sources: ['runs'] }),
+          });
+          assert.equal(refresh.status, 404);
+
+          const pending = await fetch(`${url}/api/city/test-city/home/pending/stream`);
+          assert.equal(pending.status, 404);
+          await pending.body?.cancel();
         });
       } finally {
         await runtime.stop();

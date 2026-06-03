@@ -1,16 +1,23 @@
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import {
   GC_MUTATION_HEADERS,
   resetSupervisorApiForTests,
   setSupervisorApiForTests,
   type SupervisorApi,
 } from './client';
-import { closeSupervisorBead, nudgeSupervisorAgent } from './beadWrites';
+import { setActiveCity } from '../api/cityBase';
+import {
+  claimSupervisorBead,
+  closeSupervisorBead,
+  createAndSlingSupervisorBead,
+  nudgeSupervisorAgent,
+} from './beadWrites';
 
 const baseApi: SupervisorApi = {
   baseUrl: '/gc-supervisor',
   health: vi.fn(),
   cityHealth: vi.fn(),
+  cityStatus: vi.fn(),
   listCities: vi.fn(),
   listAgents: vi.fn(),
   listBeads: vi.fn(),
@@ -42,8 +49,24 @@ const baseApi: SupervisorApi = {
 };
 
 describe('supervisor bead writes', () => {
+  beforeEach(() => {
+    setActiveCity('test-city');
+  });
+
   afterEach(() => {
     resetSupervisorApiForTests();
+  });
+
+  it('claims a bead directly through the supervisor API as the operator', async () => {
+    const updateBead = vi.fn(async () => ({ status: 'ok' }));
+    setSupervisorApiForTests({ ...baseApi, updateBead });
+
+    await claimSupervisorBead('td-bead-abc123');
+
+    expect(updateBead).toHaveBeenCalledWith('test-city', 'td-bead-abc123', {
+      status: 'in_progress',
+      assignee: 'stephanie',
+    });
   });
 
   it('closes a bead directly through the supervisor API with a trimmed reason', async () => {
@@ -73,5 +96,66 @@ describe('supervisor bead writes', () => {
     await nudgeSupervisorAgent('  mayor  ');
 
     expect(nudgeAgent).toHaveBeenCalledWith('test-city', 'mayor');
+  });
+
+  it('creates and slings a bead directly through the supervisor API with trimmed input', async () => {
+    const createBead = vi.fn(async () => ({
+      id: 'td-new-1',
+      title: 'Route failing work',
+      status: 'open',
+      issue_type: 'task',
+      created_at: '2026-06-01T00:00:00Z',
+    }));
+    const sling = vi.fn(async () => ({
+      status: 'ok',
+      bead: 'td-new-1',
+      target: 'mayor',
+    }));
+    setSupervisorApiForTests({ ...baseApi, createBead, sling });
+
+    const result = await createAndSlingSupervisorBead({
+      title: '  Route failing work  ',
+      description: '  Please investigate.  ',
+      rig: '  east  ',
+      target: '  mayor  ',
+    });
+
+    expect(result.bead.id).toBe('td-new-1');
+    expect(createBead).toHaveBeenCalledWith('test-city', {
+      title: 'Route failing work',
+      description: 'Please investigate.',
+    });
+    expect(sling).toHaveBeenCalledWith('test-city', {
+      bead: 'td-new-1',
+      rig: 'east',
+      target: 'mayor',
+    });
+  });
+
+  it('requires a title and sling target before creating a bead', async () => {
+    const createBead = vi.fn(async () => ({
+      id: 'td-new-1',
+      title: 'Route failing work',
+      status: 'open',
+      issue_type: 'task',
+      created_at: '2026-06-01T00:00:00Z',
+    }));
+    const sling = vi.fn(async () => ({ status: 'ok', bead: 'td-new-1', target: 'mayor' }));
+    setSupervisorApiForTests({ ...baseApi, createBead, sling });
+
+    await expect(createAndSlingSupervisorBead({
+      title: ' ',
+      description: '',
+      rig: 'east',
+      target: 'mayor',
+    })).rejects.toThrow(/title is required/i);
+    await expect(createAndSlingSupervisorBead({
+      title: 'Route failing work',
+      description: '',
+      rig: 'east',
+      target: ' ',
+    })).rejects.toThrow(/target is required/i);
+    expect(createBead).not.toHaveBeenCalled();
+    expect(sling).not.toHaveBeenCalled();
   });
 });

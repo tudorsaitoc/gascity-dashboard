@@ -129,8 +129,8 @@ export async function collectCityStatus(
   // response (one or more rig backends failed during aggregation) is a
   // degradation signal, not an outage — propagate it so the operator
   // sees "rigs degraded" rather than an apparent "no rigs configured."
-  // Mirrors the convention in backend/src/routes/links.ts and the direct
-  // supervisor mail reads. Per CLAUDE.md "Don't Swallow Errors".
+  // Mirrors the convention in direct supervisor entity-link and mail reads.
+  // Per CLAUDE.md "Don't Swallow Errors".
   const rigsPartial =
     rigList.partial === true || (rigList.partial_errors?.length ?? 0) > 0;
   if (rigsPartial) {

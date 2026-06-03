@@ -233,6 +233,11 @@ test('shared barrel does not expose dashboard mirror DTOs for direct supervisor 
   assert.doesNotMatch(source, /gc-events/);
   assert.doesNotMatch(source, /formula-runs/);
   assert.doesNotMatch(healthSource, /\binterface\s+GcStatus\b/);
+  assert.doesNotMatch(healthSource, /\bHealthDiagnostics\b/);
+  assert.doesNotMatch(healthSource, /\bSupervisorHealth\b/);
+  assert.doesNotMatch(healthSource, /\bDoltUsage\b/);
+  assert.doesNotMatch(healthSource, /\bBeadsUsage\b/);
+  assert.doesNotMatch(healthSource, /\bConfigComparisonRow\b/);
   assert.equal(exists(new URL('./formula-runs.ts', import.meta.url)), false);
 });
 

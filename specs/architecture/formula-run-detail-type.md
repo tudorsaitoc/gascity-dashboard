@@ -64,9 +64,9 @@ tests, scripts, CSS classes, and fixtures use run/formula-run vocabulary.
 Dashboard-facing names:
 
 - Browser routes are `/runs` and `/runs/:runId`.
-- The dashboard service exposes only `/api/runs/:runId/diff` for
-  execution-folder git evidence. The old dashboard formula-run detail mirror
-  `/api/runs/:runId` has been removed.
+- The dashboard service exposes only `/api/city/:cityName/runs/:runId/diff`
+  for execution-folder git evidence. The old dashboard formula-run detail
+  mirror `/api/city/:cityName/runs/:runId` has been removed.
 - UI page copy says **Formula Run**.
 - Dashboard DTO identity is `runId`.
 - There are no dashboard `/workflows` routes or legacy redirects.
@@ -519,7 +519,8 @@ Implemented:
 - dedicated shared aggregate, `RunningFormulaRun`
 - browser-owned view-model shape, exported as `FormulaRunDetail`
 - dashboard `/runs` route with no `/workflows` redirects
-- dashboard service `/api/runs/:runId/diff` route for local git evidence only
+- dashboard service `/api/city/:cityName/runs/:runId/diff` route for local git
+  evidence only
 - browser-edge normalization from
   `GET /v0/city/{cityName}/workflow/{workflow_id}` and
   `WorkflowSnapshotResponse.workflow_id` into dashboard run identity

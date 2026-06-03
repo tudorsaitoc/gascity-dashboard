@@ -1,199 +1,28 @@
-import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { cleanup, render, screen, within } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { setActiveCity } from '../api/cityBase';
 import { invalidate } from '../api/cache';
 import { AttentionProvider } from '../attention/context';
 import type { AttentionContributor } from '../attention/compose';
 import { NowProvider } from '../contexts/NowContext';
+import type { SupervisorBead } from '../supervisor/beadReads';
 import { BeadsPage } from './Beads';
 
 interface FetchCall {
   method: string;
-  url: string;
-  body: unknown;
-  gcRequest: string | null;
+  path: string;
+  query: URLSearchParams;
 }
 
 const fetchCalls: FetchCall[] = [];
 
-function stubFetch() {
-  vi.stubGlobal('fetch', vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
-    const url = requestUrl(input);
-    const method = requestMethod(input, init);
-    fetchCalls.push({
-      method,
-      url,
-      body: await requestBody(input, init),
-      gcRequest: requestHeader(input, init, 'X-GC-Request'),
-    });
-    if (url.startsWith('/api/city/test-city/beads') && method === 'GET') {
-      throw new Error('old dashboard bead read mirror should not be called');
-    }
-    if (url === '/gc-supervisor/v0/city/test-city/beads?limit=1000') {
-      return jsonResponse({
-        items: [
-          {
-            id: 'td-bead-abc123',
-            title: 'direct supervisor bead',
-            status: 'open',
-            issue_type: 'task',
-            created_at: '2026-06-01T00:00:00Z',
-            assignee: 'mayor',
-            labels: ['needs-review'],
-          },
-          {
-            id: 'gc-noise-abc123',
-            title: 'supervisor noise bead',
-            status: 'open',
-            issue_type: 'molecule',
-            created_at: '2026-06-01T00:00:00Z',
-            labels: ['gc:session'],
-          },
-        ],
-        total: 2,
-      });
-    }
-    if (url === '/gc-supervisor/v0/city/test-city/beads?limit=1000&rig=east') {
-      return jsonResponse({
-        items: [
-          {
-            id: 'td-east-1',
-            title: 'east rig bead',
-            status: 'open',
-            issue_type: 'task',
-            created_at: '2026-06-01T00:00:00Z',
-            labels: ['needs-review'],
-          },
-        ],
-        total: 2,
-      });
-    }
-    if (url === '/gc-supervisor/v0/city/test-city/sessions') {
-      return jsonResponse({ items: [], total: 0 });
-    }
-    if (url === '/gc-supervisor/v0/city/test-city/agents') {
-      return jsonResponse({
-        items: [
-          {
-            name: 'mayor',
-            available: true,
-            running: true,
-            suspended: false,
-            state: 'active',
-            rig: 'east',
-          },
-          {
-            name: 'mechanic',
-            available: true,
-            running: true,
-            suspended: false,
-            state: 'active',
-            rig: 'west',
-          },
-        ],
-        total: 1,
-      });
-    }
-    if (url === '/gc-supervisor/v0/city/test-city/beads' && method === 'POST') {
-      return jsonResponse({
-        id: 'td-new-1',
-        title: 'Route failing work',
-        status: 'open',
-        issue_type: 'task',
-        created_at: '2026-06-01T00:00:00Z',
-        labels: [],
-      }, { status: 201 });
-    }
-    if (url === '/gc-supervisor/v0/city/test-city/sling' && method === 'POST') {
-      return jsonResponse({
-        status: 'ok',
-        bead: 'td-new-1',
-        target: 'mayor',
-      });
-    }
-    if (url === '/gc-supervisor/v0/city/test-city/bead/td-bead-abc123' && method === 'PATCH') {
-      return jsonResponse({ status: 'ok' });
-    }
-    if (url === '/gc-supervisor/v0/city/test-city/bead/td-window-miss' && method === 'GET') {
-      return jsonResponse({
-        id: 'td-window-miss',
-        title: 'detail-only bead',
-        status: 'open',
-        issue_type: 'task',
-        created_at: '2026-06-01T00:00:00Z',
-        description: 'fetched by deep-link id',
-        labels: [],
-      });
-    }
-    if (url === '/api/city/test-city/links/td-window-miss') {
-      return jsonResponse({
-        focus: {
-          key: 'bead:td-window-miss',
-          type: 'bead',
-          ref: 'td-window-miss',
-          label: 'detail-only bead',
-          title: 'detail-only bead',
-        },
-        nodes: [],
-        edges: [],
-        stats: [],
-        partial: false,
-        generatedAt: '2026-06-01T00:00:00Z',
-      });
-    }
-    if (url === '/gc-supervisor/v0/city/test-city/agent/mayor/nudge' && method === 'POST') {
-      return jsonResponse({ status: 'ok' });
-    }
-    throw new Error(`unexpected fetch: ${url}`);
-  }));
-}
-
-function requestUrl(input: RequestInfo | URL): string {
-  const url = input instanceof Request
-    ? input.url
-    : input instanceof URL
-      ? input.toString()
-      : String(input);
-  return stripSameOrigin(url);
-}
-
-function stripSameOrigin(url: string): string {
-  const origin = window.location.origin;
-  return url.startsWith(origin) ? url.slice(origin.length) : url;
-}
-
-function requestMethod(input: RequestInfo | URL, init: RequestInit | undefined): string {
-  if (init?.method !== undefined) return init.method;
-  if (input instanceof Request) return input.method;
-  return 'GET';
-}
-
-async function requestBody(input: RequestInfo | URL, init: RequestInit | undefined): Promise<unknown> {
-  const raw = init?.body ?? (input instanceof Request ? await input.clone().text() : undefined);
-  if (typeof raw !== 'string' || raw.length === 0) return undefined;
-  return JSON.parse(raw) as unknown;
-}
-
-function requestHeader(
-  input: RequestInfo | URL,
-  init: RequestInit | undefined,
-  name: string,
-): string | null {
-  const headers = new Headers(input instanceof Request ? input.headers : init?.headers);
-  return headers.get(name);
-}
-
-function jsonResponse(payload: unknown, init: ResponseInit = {}): Response {
-  return new Response(JSON.stringify(payload), {
-    status: init.status ?? 200,
-    headers: { 'content-type': 'application/json' },
-  });
-}
-
 beforeEach(() => {
+  setActiveCity('test-city');
   fetchCalls.length = 0;
-  invalidate('beads');
+  invalidate('beads:board');
   invalidate('sessions');
+  invalidate('agents');
   stubFetch();
 });
 
@@ -203,232 +32,200 @@ afterEach(() => {
 });
 
 describe('BeadsPage supervisor reads', () => {
-  it('loads bead rows from the supervisor API instead of the dashboard GET mirror', async () => {
-    render(
-      <MemoryRouter future={{ v7_relativeSplatPath: true, v7_startTransition: true }}>
-        <NowProvider intervalMs={1_000_000}>
-          <BeadsPage />
-        </NowProvider>
-      </MemoryRouter>,
-    );
+  it('shows only real work while requesting all closed/open supervisor statuses', async () => {
+    renderPage();
 
     await screen.findByText('direct supervisor bead');
 
-    expect(fetchCalls.map((call) => call.url)).toContain('/gc-supervisor/v0/city/test-city/beads?limit=1000');
-    expect(fetchCalls.map((call) => call.url)).not.toContain('/api/city/test-city/beads');
-    expect(fetchCalls.map((call) => call.url)).not.toContain('/api/city/test-city/beads?showAll=1');
-  });
-
-  it('deep-links to the selected bead detail rail from the bead query param', async () => {
-    render(
-      <MemoryRouter
-        initialEntries={['/beads?bead=td-bead-abc123']}
-        future={{ v7_relativeSplatPath: true, v7_startTransition: true }}
-      >
-        <NowProvider intervalMs={1_000_000}>
-          <BeadsPage />
-        </NowProvider>
-      </MemoryRouter>,
-    );
-
-    const selected = await screen.findByTitle('Select td-bead-abc123');
-    expect(selected.getAttribute('aria-pressed')).toBe('true');
-    expect(screen.getByRole('heading', { name: 'direct supervisor bead' })).toBeTruthy();
+    expect(screen.queryByText('supervisor noise bead')).toBeNull();
+    expect(fetchCalls.some((call) => call.path === '/api/city/test-city/beads')).toBe(false);
+    expect(beadFetches().every((call) => call.query.get('all') === 'true')).toBe(true);
   });
 
   it('resolves a bead query param even when the bead is outside the list window', async () => {
-    render(
-      <MemoryRouter
-        initialEntries={['/beads?bead=td-window-miss']}
-        future={{ v7_relativeSplatPath: true, v7_startTransition: true }}
-      >
-        <NowProvider intervalMs={1_000_000}>
-          <BeadsPage />
-        </NowProvider>
-      </MemoryRouter>,
-    );
+    renderPage('/beads?bead=td-window-miss');
 
     expect(await screen.findByRole('heading', { name: 'detail-only bead' })).toBeTruthy();
     expect(screen.getAllByText(/td-window-miss/i).length).toBeGreaterThan(0);
-    expect(fetchCalls.map((call) => call.url)).toContain(
-      '/gc-supervisor/v0/city/test-city/bead/td-window-miss',
-    );
+    expect(fetchCalls.some((call) =>
+      call.path === '/gc-supervisor/v0/city/test-city/bead/td-window-miss'
+    )).toBe(true);
   });
 
-  it('keeps the local engineering-work filter when the list view is open-only', async () => {
-    render(
-      <MemoryRouter future={{ v7_relativeSplatPath: true, v7_startTransition: true }}>
-        <NowProvider intervalMs={1_000_000}>
-          <BeadsPage />
-        </NowProvider>
-      </MemoryRouter>,
-    );
+  it('renders dependency navigation and live-run access in the bead detail modal', async () => {
+    renderPage('/beads?bead=td-bead-abc123');
 
-    await screen.findByText('direct supervisor bead');
-    fireEvent.click(screen.getByRole('radio', { name: 'List' }));
+    const dialog = await screen.findByRole('dialog');
 
-    await waitFor(() => {
-      expect(screen.queryByText('supervisor noise bead')).toBeNull();
-    });
-    expect(screen.getByText('direct supervisor bead')).toBeTruthy();
+    expect(within(dialog).getByRole('heading', { name: 'direct supervisor bead' })).toBeTruthy();
+    expect(within(dialog).getByText('Dependencies')).toBeTruthy();
+    expect(within(dialog).getByText('td-parent-1')).toBeTruthy();
+    expect(within(dialog).getByText(/parent bead/)).toBeTruthy();
+    expect(within(dialog).getByRole('button', { name: /view live run/i })).toBeTruthy();
   });
 
-  it('filters bead reads by rig through the supervisor query when a rig is selected', async () => {
-    render(
-      <MemoryRouter future={{ v7_relativeSplatPath: true, v7_startTransition: true }}>
-        <NowProvider intervalMs={1_000_000}>
-          <BeadsPage />
-        </NowProvider>
-      </MemoryRouter>,
-    );
-
-    await screen.findByText('direct supervisor bead');
-
-    fireEvent.change(screen.getByLabelText('Rig filter'), {
-      target: { value: 'east' },
-    });
-
-    await screen.findByText('east rig bead');
-
-    expect(fetchCalls.map((call) => call.url)).toContain(
-      '/gc-supervisor/v0/city/test-city/beads?limit=1000&rig=east',
-    );
-    expect(fetchCalls.map((call) => call.url)).not.toContain('/api/city/test-city/beads?rig=east');
-  });
-
-  it('claims through the supervisor API instead of the dashboard write mirror', async () => {
-    render(
-      <MemoryRouter future={{ v7_relativeSplatPath: true, v7_startTransition: true }}>
-        <NowProvider intervalMs={1_000_000}>
-          <BeadsPage />
-        </NowProvider>
-      </MemoryRouter>,
-    );
-
-    await screen.findByText('direct supervisor bead');
-    fireEvent.click(screen.getByRole('radio', { name: 'List' }));
-    fireEvent.click(screen.getByLabelText('Show all'));
-    fireEvent.change(screen.getByRole('searchbox', { name: 'Search beads' }), {
-      target: { value: 'direct supervisor' },
-    });
-    await screen.findByText('direct supervisor bead');
-    fireEvent.click(screen.getByRole('button', { name: 'Claim' }));
-
-    await waitFor(() => {
-      expect(fetchCalls).toContainEqual({
-        method: 'PATCH',
-        url: '/gc-supervisor/v0/city/test-city/bead/td-bead-abc123',
-        body: { status: 'in_progress', assignee: 'stephanie' },
-        gcRequest: 'dashboard',
-      });
-    });
-    expect(fetchCalls.some((call) => call.url.endsWith('/claim'))).toBe(false);
-  });
-
-  it('nudges the bead assignee instead of overloading the bead id as an alias', async () => {
-    render(
-      <MemoryRouter future={{ v7_relativeSplatPath: true, v7_startTransition: true }}>
-        <NowProvider intervalMs={1_000_000}>
-          <BeadsPage />
-        </NowProvider>
-      </MemoryRouter>,
-    );
-
-    await screen.findByText('direct supervisor bead');
-    fireEvent.click(screen.getByRole('radio', { name: 'List' }));
-    fireEvent.click(screen.getByLabelText('Show all'));
-    fireEvent.change(screen.getByRole('searchbox', { name: 'Search beads' }), {
-      target: { value: 'direct supervisor' },
-    });
-    await screen.findByText('direct supervisor bead');
-    fireEvent.click(screen.getByRole('button', { name: 'Nudge' }));
-
-    await waitFor(() => {
-      expect(fetchCalls).toContainEqual({
-        method: 'POST',
-        url: '/gc-supervisor/v0/city/test-city/agent/mayor/nudge',
-        body: undefined,
-        gcRequest: 'dashboard',
-      });
-    });
-    expect(fetchCalls.some((call) => call.url.endsWith('/beads/td-bead-abc123/nudge'))).toBe(false);
-  });
-
-  it('creates a bead and slings it to a selected rig and agent through supervisor writes', async () => {
-    render(
-      <MemoryRouter future={{ v7_relativeSplatPath: true, v7_startTransition: true }}>
-        <NowProvider intervalMs={1_000_000}>
-          <BeadsPage />
-        </NowProvider>
-      </MemoryRouter>,
-    );
-
-    await screen.findByText('direct supervisor bead');
-    fireEvent.click(screen.getByRole('button', { name: 'New bead' }));
-    fireEvent.change(screen.getByLabelText('Title'), {
-      target: { value: 'Route failing work' },
-    });
-    fireEvent.change(screen.getByLabelText('Body'), {
-      target: { value: 'Please investigate the failed deployment.' },
-    });
-    fireEvent.change(screen.getByLabelText('Rig'), {
-      target: { value: 'east' },
-    });
-    fireEvent.change(screen.getByLabelText('Agent'), {
-      target: { value: 'mayor' },
-    });
-    fireEvent.click(screen.getByRole('button', { name: 'Create and sling' }));
-
-    await waitFor(() => {
-      expect(fetchCalls).toContainEqual({
-        method: 'POST',
-        url: '/gc-supervisor/v0/city/test-city/beads',
-        body: {
-          title: 'Route failing work',
-          description: 'Please investigate the failed deployment.',
-        },
-        gcRequest: 'dashboard',
-      });
-      expect(fetchCalls).toContainEqual({
-        method: 'POST',
-        url: '/gc-supervisor/v0/city/test-city/sling',
-        body: {
-          bead: 'td-new-1',
-          rig: 'east',
-          target: 'mayor',
-        },
-        gcRequest: 'dashboard',
-      });
-    });
-    expect(screen.getByText('created and slung td-new-1 to mayor')).toBeTruthy();
-  });
-
-  it('marks attention beads in both board and list views while preserving non-attention rows', async () => {
-    render(
-      <MemoryRouter future={{ v7_relativeSplatPath: true, v7_startTransition: true }}>
-        <NowProvider intervalMs={1_000_000}>
-          <AttentionProvider contributors={[
-            contributor('beads', [{
-              id: 'beads:td-bead-abc123:high-priority',
-              domain: 'beads',
-              severity: 'attention',
-              title: 'td-bead-abc123 high priority',
-            }]),
-          ]}>
-            <BeadsPage />
-          </AttentionProvider>
-        </NowProvider>
-      </MemoryRouter>,
-    );
+  it('marks attention beads on the board while preserving non-attention rows', async () => {
+    renderPage('/beads', [
+      contributor('beads', [{
+        id: 'beads:td-bead-abc123:high-priority',
+        domain: 'beads',
+        severity: 'attention',
+        title: 'td-bead-abc123 high priority',
+      }]),
+    ]);
 
     const boardRow = (await screen.findByText('direct supervisor bead')).closest('li');
     expect(boardRow?.getAttribute('data-attention-severity')).toBe('attention');
-
-    fireEvent.click(screen.getByRole('radio', { name: 'List' }));
-    const listRow = (await screen.findByText('direct supervisor bead')).closest('tr');
-    expect(listRow?.getAttribute('data-attention-severity')).toBe('attention');
   });
 });
+
+function renderPage(path = '/beads', contributors: readonly AttentionContributor[] = []) {
+  return render(
+    <MemoryRouter
+      initialEntries={[path]}
+      future={{ v7_relativeSplatPath: true, v7_startTransition: true }}
+    >
+      <NowProvider intervalMs={1_000_000}>
+        <AttentionProvider contributors={contributors}>
+          <BeadsPage />
+        </AttentionProvider>
+      </NowProvider>
+    </MemoryRouter>,
+  );
+}
+
+function stubFetch() {
+  vi.stubGlobal('fetch', vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+    const url = parsedUrl(input);
+    const method = init?.method ?? (input instanceof Request ? input.method : 'GET');
+    fetchCalls.push({ method, path: url.pathname, query: url.searchParams });
+
+    if (url.pathname === '/gc-supervisor/v0/city/test-city/beads') {
+      return jsonResponse(beadListForType(url.searchParams.get('type')));
+    }
+    if (url.pathname === '/gc-supervisor/v0/city/test-city/bead/td-window-miss') {
+      return jsonResponse(bead({
+        id: 'td-window-miss',
+        title: 'detail-only bead',
+        description: 'fetched by deep-link id',
+      }));
+    }
+    if (url.pathname === '/gc-supervisor/v0/city/test-city/bead/td-bead-abc123') {
+      return jsonResponse(bead({
+        id: 'td-bead-abc123',
+        title: 'direct supervisor bead',
+        assignee: 'mayor',
+        needs: ['td-parent-1'],
+      }));
+    }
+    if (url.pathname === '/gc-supervisor/v0/city/test-city/sessions') {
+      return jsonResponse({
+        items: [{
+          id: 'gc-session-1',
+          session_name: 'mayor',
+          alias: 'mayor',
+          template: 'mayor',
+          title: 'mayor',
+          state: 'active',
+          provider: 'claude',
+          running: true,
+          attached: false,
+          created_at: '2026-06-01T00:00:00Z',
+        }],
+        total: 1,
+      });
+    }
+    if (url.pathname === '/gc-supervisor/v0/city/test-city/agents') {
+      return jsonResponse({
+        items: [{
+          name: 'mayor',
+          display_name: 'Mayor',
+          rig: 'east',
+          available: true,
+          running: true,
+          state: 'active',
+          suspended: false,
+        }],
+        total: 1,
+      });
+    }
+    if (url.pathname.startsWith('/api/city/test-city/links/')) {
+      throw new Error('old dashboard links mirror should not be called');
+    }
+    if (url.pathname.startsWith('/api/city/test-city/beads')) {
+      throw new Error('old dashboard bead read mirror should not be called');
+    }
+    throw new Error(`unexpected fetch: ${url.pathname}${url.search}`);
+  }));
+}
+
+function beadListForType(type: string | null): { items: SupervisorBead[]; total: number } {
+  if (type === 'task') {
+    return {
+      items: [
+        bead({
+          id: 'td-bead-abc123',
+          title: 'direct supervisor bead',
+          assignee: 'mayor',
+          needs: ['td-parent-1'],
+        }),
+        bead({
+          id: 'td-noise-abc123',
+          title: 'supervisor noise bead',
+          labels: ['gc:session'],
+        }),
+      ],
+      total: 2,
+    };
+  }
+  if (type === 'bug') {
+    return {
+      items: [
+        bead({
+          id: 'td-parent-1',
+          title: 'parent bead',
+          status: 'closed',
+          issue_type: 'bug',
+        }),
+      ],
+      total: 1,
+    };
+  }
+  return { items: [], total: 0 };
+}
+
+function bead(overrides: Partial<SupervisorBead>): SupervisorBead {
+  return {
+    id: 'td-bead',
+    title: 'bead',
+    status: 'open',
+    issue_type: 'task',
+    priority: 0,
+    labels: [],
+    created_at: '2026-06-01T00:00:00Z',
+    ...overrides,
+  };
+}
+
+function beadFetches(): FetchCall[] {
+  return fetchCalls.filter((call) => call.path === '/gc-supervisor/v0/city/test-city/beads');
+}
+
+function jsonResponse(payload: unknown, init: ResponseInit = {}): Response {
+  return new Response(JSON.stringify(payload), {
+    status: init.status ?? 200,
+    headers: { 'content-type': 'application/json' },
+  });
+}
+
+function parsedUrl(input: RequestInfo | URL): URL {
+  const value = input instanceof Request
+    ? input.url
+    : input instanceof URL
+      ? input.toString()
+      : String(input);
+  return new URL(value, window.location.origin);
+}
 
 function contributor(
   domain: 'beads',

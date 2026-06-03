@@ -8,17 +8,23 @@ import {
   createAttentionContributors,
   type HealthAttentionFacts,
 } from '../attention/registry';
-import type { HealthOutputBody } from '../generated/gc-supervisor-client/types.gen';
+import type {
+  HealthOutputBody,
+  StatusBody,
+} from '../generated/gc-supervisor-client/types.gen';
 import type {
   DoltNomsTrend,
+  LocalToolVersions,
   SystemHealth,
 } from 'gas-city-dashboard-shared';
 
-const mockCityHealth = vi.fn<() => Promise<HealthOutputBody>>();
+const mockCityHealth = vi.fn<(cityName: string) => Promise<HealthOutputBody>>();
+const mockCityStatus = vi.fn<(cityName: string) => Promise<StatusBody>>();
 
 vi.mock('../supervisor/client', () => ({
   supervisorApi: () => ({
     cityHealth: mockCityHealth,
+    cityStatus: mockCityStatus,
   }),
 }));
 
@@ -30,18 +36,25 @@ vi.mock('../supervisor/client', () => ({
 //     helper. Mirrors the WorkflowRunDetail.test.tsx fetch-stub pattern.
 
 let currentHealth: SystemHealth = baseHealth();
+let currentLocalTools: LocalToolVersions = baseLocalTools();
 let currentTrend: DoltNomsTrend = baseTrend();
 
 beforeEach(() => {
   invalidate('health');
   mockCityHealth.mockReset();
+  mockCityStatus.mockReset();
   mockCityHealth.mockResolvedValue(presentLocator());
+  mockCityStatus.mockResolvedValue(baseStatus());
   currentHealth = baseHealth();
+  currentLocalTools = baseLocalTools();
   currentTrend = baseTrend();
   vi.stubGlobal('fetch', vi.fn(async (input: RequestInfo | URL) => {
     const url = String(input);
     if (url === '/api/health/system') {
       return jsonResponse(currentHealth);
+    }
+    if (url === '/api/health/local-tools') {
+      return jsonResponse(currentLocalTools);
     }
     if (url === '/api/city/test-city/dolt-noms/trend') {
       return jsonResponse(currentTrend);
@@ -108,7 +121,7 @@ describe('HealthPage', () => {
     const cityValue = valueFor(container, 'City');
     const versionValue = valueFor(container, 'Version');
 
-    expect(cityValue?.textContent).toBe('racoon-city');
+    expect(cityValue?.textContent).toBe('demo-city');
     expect(versionValue?.textContent).toBe('1.4.2');
     expect(cityValue?.className).not.toMatch(/text-warn/);
     expect(versionValue?.className).not.toMatch(/text-warn/);
@@ -120,17 +133,20 @@ describe('HealthPage', () => {
     // explicitly so the failure mode is "missing synopsis node" rather
     // than "positive match against an empty string".
     expect(synopsis).not.toBeNull();
-    expect(synopsis?.textContent ?? '').toMatch(/Supervisor healthy on racoon-city, uptime /);
+    expect(synopsis?.textContent ?? '').toMatch(/Supervisor healthy on demo-city, uptime /);
   });
 
-  it('uses the generated supervisor client for city health and not the dashboard city health mirror', async () => {
+  it('uses the generated supervisor client for city health/status and not dashboard city mirrors', async () => {
     renderPage();
 
     await screen.findByRole('heading', { name: /supervisor/i });
 
     expect(mockCityHealth).toHaveBeenCalledWith('test-city');
+    expect(mockCityStatus).toHaveBeenCalledWith('test-city');
     expect(fetch).toHaveBeenCalledWith('/api/health/system', expect.any(Object));
+    expect(fetch).toHaveBeenCalledWith('/api/health/local-tools', expect.any(Object));
     expect(fetch).not.toHaveBeenCalledWith('/api/city/test-city/health/system', expect.any(Object));
+    expect(fetch).not.toHaveBeenCalledWith('/api/city/test-city/status', expect.any(Object));
   });
 
   it('keeps dashboard-local host health visible when direct supervisor health fails', async () => {
@@ -141,6 +157,20 @@ describe('HealthPage', () => {
     await screen.findByRole('heading', { name: /host/i });
     expect(screen.getByText('Supervisor not reachable. The dashboard shell stays up; live data is stale.')).toBeTruthy();
     expect(screen.getByText('8')).toBeTruthy();
+  });
+
+  it('restores diagnostics from local probes plus direct supervisor status', async () => {
+    renderPage();
+
+    await screen.findByRole('heading', { name: /diagnostics/i });
+
+    expect(screen.getByText('2.0.7')).toBeTruthy();
+    expect(screen.getByText('1.0.4')).toBeTruthy();
+    expect(screen.getByText('Dolt usage')).toBeTruthy();
+    expect(screen.getByText('Beads usage')).toBeTruthy();
+    expect(screen.getByText('5')).toBeTruthy();
+    expect(screen.getByText('Dolt MB-per-row ratio')).toBeTruthy();
+    expect(screen.getByText('<= 1')).toBeTruthy();
   });
 
   it('highlights Health sections that match composed attention facts', async () => {
@@ -222,7 +252,7 @@ function sectionFor(heading: string): HTMLElement | null {
 function presentLocator(): HealthOutputBody {
   return {
     status: 'ok',
-    city: 'racoon-city',
+    city: 'demo-city',
     version: '1.4.2',
     uptime_sec: 4200,
   };
@@ -255,6 +285,62 @@ function baseHealth(): SystemHealth {
       free_mem_bytes: 8_000_000_000,
       cpu_count: 8,
       uptime_sec: 86_400,
+    },
+  };
+}
+
+function baseLocalTools(): LocalToolVersions {
+  return {
+    dolt: {
+      status: 'available',
+      version: '2.0.7',
+      source: 'local probe: dolt version',
+    },
+    beads: {
+      status: 'available',
+      version: '1.0.4',
+      source: 'local probe: bd version',
+    },
+  };
+}
+
+function baseStatus(): StatusBody {
+  return {
+    agent_count: 1,
+    agents: {
+      quarantined: 0,
+      running: 1,
+      suspended: 0,
+      total: 1,
+    },
+    mail: {
+      total: 2,
+      unread: 1,
+    },
+    name: 'test-city',
+    path: '/srv/gc/test-city',
+    rig_count: 1,
+    rigs: {
+      suspended: 0,
+      total: 1,
+    },
+    running: 1,
+    store_health: {
+      live_rows: 2000,
+      path: '/srv/gc/test-city/.db',
+      ratio_mb_per_row: 0.5,
+      size_bytes: 1_000_000,
+      threshold_mb_per_row: 1,
+      warning: false,
+      last_gc_status: 'success',
+    },
+    suspended: false,
+    uptime_sec: 4200,
+    version: '1.4.2',
+    work: {
+      open: 5,
+      ready: 3,
+      in_progress: 1,
     },
   };
 }

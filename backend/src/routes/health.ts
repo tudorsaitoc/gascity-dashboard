@@ -1,12 +1,25 @@
 import { Router } from 'express';
 import os from 'node:os';
-import type { SystemHealth } from 'gas-city-dashboard-shared';
+import type { LocalToolVersion, LocalToolVersions, SystemHealth } from 'gas-city-dashboard-shared';
 import { recordAudit } from '../audit.js';
+import {
+  probeBeadsVersion,
+  probeDoltVersion,
+  type VersionProbe,
+  type VersionProbeResult,
+} from './version-probe.js';
+
+export interface HealthRouterOptions {
+  doltProbe?: VersionProbe;
+  beadsProbe?: VersionProbe;
+}
 
 /** Dashboard-local admin process and host health. GC supervisor health is
  * fetched directly by the browser through the generated supervisor client. */
-export function healthRouter(): Router {
+export function healthRouter(options: HealthRouterOptions = {}): Router {
   const router = Router();
+  const doltProbe = options.doltProbe ?? probeDoltVersion;
+  const beadsProbe = options.beadsProbe ?? probeBeadsVersion;
 
   router.get('/system', async (_req, res) => {
     const mem = process.memoryUsage();
@@ -37,5 +50,28 @@ export function healthRouter(): Router {
     res.json(payload);
   });
 
+  router.get('/local-tools', async (_req, res) => {
+    const [dolt, beads] = await Promise.all([doltProbe(), beadsProbe()]);
+    const payload: LocalToolVersions = {
+      dolt: localToolVersion(dolt, 'local probe: dolt version'),
+      beads: localToolVersion(beads, 'local probe: bd version'),
+    };
+    await recordAudit({
+      type: 'dashboard.fetch',
+      endpoint: 'GET /api/health/local-tools',
+      duration_ms: 0,
+    });
+    res.json(payload);
+  });
+
   return router;
+}
+
+function localToolVersion(
+  result: VersionProbeResult,
+  source: string,
+): LocalToolVersion {
+  return result.kind === 'ok'
+    ? { status: 'available', version: result.version, source }
+    : { status: 'unavailable', reason: result.reason };
 }

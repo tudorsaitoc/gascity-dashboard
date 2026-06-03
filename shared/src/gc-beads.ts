@@ -63,6 +63,8 @@ export interface GcBead {
   needs?: string[] | null;
   /** Structured dependency rows (OpenAPI Bead.dependencies). */
   dependencies?: GcBeadDep[] | null;
+  /** Last supervisor update time when exposed. Older generated fixtures only carry created_at. */
+  updated_at?: IsoTimestamp;
 }
 
 export type GcBeadList = GcCountedList<GcBead>;

@@ -373,7 +373,7 @@ Default-install bundle (Maintainer omitted) is smaller than pre-migration by at 
 
 ### Stays core
 
-`/` (ambient home), `/agents` + `/agents/:slug`, `/runs` + `/runs/:id`, `/health`, plus `/api/snapshot` and `/api/events`. Session lists, transcript reads, and session streams are supervisor-owned and should be consumed through `/gc-supervisor/v0/...`, not mirrored through dashboard DTOs.
+`/` (ambient home), `/agents` + `/agents/:slug`, `/runs` + `/runs/:id`, `/health`, plus dashboard-local host/city utilities such as `/api/health/*`, `/api/builds`, and `/api/city/:cityName/runs/:runId/diff`. Snapshot, event, session list, transcript, and session stream data are supervisor-owned and should be consumed through `/gc-supervisor/v0/...`, not mirrored through dashboard DTOs.
 
 ### Becomes a module (Phase 1 ports one)
 

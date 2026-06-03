@@ -10,23 +10,17 @@ import type { AdminConfig } from '../config.js';
 import { GcClient } from '../gc-client.js';
 import { csrfValidate } from '../middleware/csrf.js';
 import { agentsRouter } from '../routes/agents.js';
-import { beadsRouter } from '../routes/beads.js';
 import { runsRouter } from '../routes/runs.js';
-import { linksRouter } from '../routes/links.js';
 import { createDoltNomsSampler, doltRouter, type DoltNomsSampler } from '../routes/dolt.js';
-import { homePendingRouter } from '../routes/home-pending.js';
-import { snapshotRouter } from '../routes/snapshot.js';
-import { createSnapshotService } from '../snapshot/service.js';
 import { ALL_MODULES } from '../views/registry.js';
 import { resolveEnabledFirstPartyIds } from '../views/enabled.js';
 import { bind, type CityContext } from '../views/types.js';
 
 /**
  * One city's worth of dashboard runtime (gascity-dashboard-ucc). Each
- * CityRuntime owns its OWN GcClient + CityContext + SnapshotService + module
+ * CityRuntime owns its OWN GcClient + CityContext + module
  * workers + doltNomsSampler, so two cities can never bleed GcClient inflight
- * coalescing (operationKey carries no cityName) or SnapshotService
- * progressMarks (per-service closure state). The runtime exposes a single
+ * coalescing (operationKey carries no cityName). The runtime exposes a single
  * `router` that the dispatch middleware mounts under `/api/city/:cityName/`.
  */
 export interface CityRuntime {
@@ -112,10 +106,8 @@ export function createCityRuntime(opts: CreateCityRuntimeOptions): CityRuntime {
   // git reads are confined to sanctioned roots. Empty (default) keeps the
   // prior shape-only validation. cityPath is deliberately NOT a member of this
   // allowlist (a9yi: it's the city config dir, not a run worktree).
-  router.use('/runs', runsRouter(gc, { runCwdAllowedRoots: config.runCwdAllowedRoots }));
-  router.use('/links', linksRouter(gc));
+  router.use('/runs', runsRouter({ runCwdAllowedRoots: config.runCwdAllowedRoots }));
   router.use('/agents', agentsRouter({ cityPath }));
-  router.use('/beads', beadsRouter(cityPath));
 
   const moduleWorkers: BackgroundWorker[] = [];
   for (const mod of mountedModules) {
@@ -131,10 +123,6 @@ export function createCityRuntime(opts: CreateCityRuntimeOptions): CityRuntime {
     fetchStatus: () => gc.getStatus(),
   });
   router.use('/dolt-noms', doltRouter(doltNomsSampler));
-
-  const snapshotService = createSnapshotService({ gc, config: dashboardConfig });
-  router.use('/snapshot', snapshotRouter(snapshotService));
-  router.use('/home/pending', homePendingRouter(snapshotService));
 
   return {
     cityName,

@@ -12,15 +12,25 @@ import {
   type RunDiffResponse,
   type FormulaRunDetail,
   type RunScopeKind,
-  type DashboardSnapshot,
   type RunLane,
+  type RunSummary,
+  type SourceState,
 } from 'gas-city-dashboard-shared';
 import rawFormulaRunDetailFixture from '../test/fixtures/formula-run-detail.json';
 
 const loadSupervisorFormulaRunDetail = vi.hoisted(() => vi.fn());
+const loadSupervisorRunSummarySource = vi.hoisted(() => vi.fn());
 
 vi.mock('../supervisor/runDetail', () => ({
   loadSupervisorFormulaRunDetail,
+}));
+
+vi.mock('../supervisor/runSummary', () => ({
+  loadSupervisorRunSummarySource,
+}));
+
+vi.mock('../hooks/useEntityLinks', () => ({
+  useEntityLinks: () => ({ view: null, loading: false, error: null }),
 }));
 
 const eventSources: FakeEventSource[] = [];
@@ -49,8 +59,11 @@ beforeEach(() => {
   eventSources.length = 0;
   fetchUrls.length = 0;
   invalidate('formula-run');
+  invalidate('runs:summary:test-city');
   loadSupervisorFormulaRunDetail.mockReset();
+  loadSupervisorRunSummarySource.mockReset();
   loadSupervisorFormulaRunDetail.mockImplementation(async () => currentDetail);
+  loadSupervisorRunSummarySource.mockResolvedValue(runSummarySource());
   currentDetail = detail;
   currentDiff = diff;
   vi.stubGlobal('EventSource', FakeEventSource);
@@ -77,20 +90,6 @@ beforeEach(() => {
     if (url.includes('/sessions/') && url.endsWith('/peek')) {
       throw new Error('old dashboard session peek route should not be called');
     }
-    if (url.startsWith('/api/city/test-city/links/')) {
-      // RelatedEntities (gascity-dashboard-j4x) fetches its view on mount.
-      // A focus-only view keeps this test scoped to the run-detail flow.
-      const ref = decodeURIComponent(url.slice('/api/city/test-city/links/'.length));
-      return jsonResponse({
-        focus: { key: `bead:c:${ref}`, type: 'bead', ref },
-        nodes: [{ key: `bead:c:${ref}`, type: 'bead', ref, title: null, status: null, url: null, fetchedAt: null, unresolved: false }],
-        edges: [],
-        stats: [],
-        partial: false,
-        generatedAt: '2026-05-25T00:00:00.000Z',
-        asOf: null,
-      });
-    }
     throw new Error(`unexpected fetch: ${url}`);
   }));
 });
@@ -115,18 +114,12 @@ describe('FormulaRunDetailPage', () => {
   it('renders an optimistic stage-ladder skeleton from the snapshot lane while detail loads', async () => {
     // The first load of a run is bounded by the supervisor's all-store scan
     // (gascity-dashboard-wqsk). When the operator arrives from /runs the
-    // snapshot cache already holds this run's lane, so the page shows its
+    // run-summary cache already holds this run's lane, so the page shows its
     // title + phase stages instantly instead of a blank spinner. Here the
-    // detail (and diff) fetch hangs while the snapshot resolves with a lane.
-    invalidate('snapshot');
-    vi.stubGlobal('fetch', vi.fn(async (input: RequestInfo | URL) => {
-      const url = String(input);
-      if (url.startsWith('/api/city/test-city/snapshot')) {
-        return jsonResponse(snapshotWithActiveLane());
-      }
-      // Everything run-specific (detail, diff, links) hangs → stay in loading.
-      return new Promise<Response>(() => {});
-    }));
+    // detail (and diff) fetch hangs while the summary resolves with a lane.
+    invalidate('runs:summary:test-city');
+    loadSupervisorRunSummarySource.mockResolvedValue(runSummarySourceWithActiveLane());
+    vi.stubGlobal('fetch', vi.fn(() => new Promise<Response>(() => {})));
     loadSupervisorFormulaRunDetail.mockImplementationOnce(
       () => new Promise<FormulaRunDetail>(() => {}),
     );
@@ -694,10 +687,37 @@ function RouteControls() {
   );
 }
 
-// A snapshot whose runs source carries one lane matching the route's runId, so
-// the detail page can render an optimistic skeleton while the full detail
-// loads. city/resources are error states — the skeleton only reads runs.lanes.
-function snapshotWithActiveLane(): DashboardSnapshot {
+function runSummarySource(lanes: RunLane[] = []): SourceState<RunSummary> {
+  return {
+    source: 'runs',
+    status: 'fresh',
+    fetchedAt: '2026-05-25T00:00:00.000Z',
+    staleAt: '2026-05-25T00:01:00.000Z',
+    error: { kind: 'none' },
+    data: {
+      totalActive: lanes.length,
+      totalHistorical: 0,
+      historicalLanes: [],
+      runCounts: {
+        total: lanes.length,
+        visible: lanes.length,
+        prReview: 0,
+        designReview: 0,
+        bugfix: 0,
+        blocked: 0,
+        other: lanes.length,
+      },
+      lanes,
+      recentChanges: [],
+      census: { status: 'unavailable', error: 'run health has not been derived' },
+    },
+  };
+}
+
+// A run summary whose runs source carries one lane matching the route's runId,
+// so the detail page can render an optimistic skeleton while the full detail
+// loads.
+function runSummarySourceWithActiveLane(): SourceState<RunSummary> {
   const lane: RunLane = {
     id: 'gc-adopt-pr-active',
     title: 'Pending adoption run',
@@ -727,53 +747,7 @@ function snapshotWithActiveLane(): DashboardSnapshot {
       },
     },
   };
-  return {
-    generatedAt: '2026-05-25T00:00:00.000Z',
-    alerts: [],
-    config: {
-      cityName: 'test-city',
-      cityRoot: '/tmp/example-city',
-      useFixtures: false,
-      enabledModules: null,
-      defaultView: null,
-    },
-    headline: {
-      activeAgents: { status: 'unavailable', source: 'city', error: 'city unavailable in test' },
-      maxAgents: { status: 'unavailable', source: 'city', error: 'city unavailable in test' },
-      activeSessions: { status: 'unavailable', source: 'city', error: 'city unavailable in test' },
-      activeRuns: { status: 'available', value: 1 },
-      workInProgress: { status: 'unavailable', source: 'work', error: 'work unavailable in test' },
-    },
-    sources: {
-      city: { source: 'city', status: 'error', error: 'city unavailable in test' },
-      resources: { source: 'resources', status: 'error', error: 'resources unavailable in test' },
-      work: { source: 'work', status: 'error', error: 'work unavailable in test' },
-      runs: {
-        source: 'runs',
-        status: 'fresh',
-        fetchedAt: '2026-05-25T00:00:00.000Z',
-        staleAt: '2026-05-25T00:01:00.000Z',
-        error: { kind: 'none' },
-        data: {
-          totalActive: 1,
-          totalHistorical: 0,
-          historicalLanes: [],
-          runCounts: {
-            total: 1,
-            visible: 1,
-            prReview: 0,
-            designReview: 0,
-            bugfix: 0,
-            blocked: 0,
-            other: 1,
-          },
-          lanes: [lane],
-          recentChanges: [],
-          census: { status: 'unavailable', error: 'run health has not been derived' },
-        },
-      },
-    },
-  };
+  return runSummarySource([lane]);
 }
 
 function jsonResponse(payload: unknown): Response {

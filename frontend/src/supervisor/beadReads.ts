@@ -16,7 +16,14 @@ export interface SupervisorBeadList extends Omit<ListBodyBead, 'items' | 'total'
   fetch_limit: number;
 }
 
-const BEADS_FETCH_LIMIT = 1000;
+export interface ListSupervisorBeadsOptions {
+  includeClosed?: boolean;
+  includeBookkeeping?: boolean;
+  rigFilter?: string;
+  limit?: number;
+}
+
+const BEADS_FETCH_LIMIT = 2000;
 const DETAIL_FALLBACK_FETCH_LIMIT = 2000;
 const ENGINEERING_BEAD_TYPES: ReadonlySet<string> = new Set([
   'feature',
@@ -26,25 +33,34 @@ const ENGINEERING_BEAD_TYPES: ReadonlySet<string> = new Set([
 ]);
 
 export async function listSupervisorBeads(
-  showAll = false,
-  rigFilter = '',
+  options: ListSupervisorBeadsOptions = {},
 ): Promise<SupervisorBeadList> {
   const cityName = activeCityOrThrow('list supervisor beads');
-  const query: NonNullable<GetV0CityByCityNameBeadsData['query']> = {
-    limit: BEADS_FETCH_LIMIT,
+  const limit = options.limit ?? BEADS_FETCH_LIMIT;
+  const rigFilter = options.rigFilter?.trim() ?? '';
+  const includeClosed = options.includeClosed ?? false;
+  const includeBookkeeping = options.includeBookkeeping ?? false;
+  const baseQuery: NonNullable<GetV0CityByCityNameBeadsData['query']> = {
+    limit,
+    ...(includeClosed ? { all: true } : {}),
     ...(rigFilter.length === 0 ? {} : { rig: rigFilter }),
   };
-  const list = await supervisorApi().listBeads(cityName, query);
-  const items = list.items ?? [];
-  const filtered = showAll ? items : items.filter(defaultBeadFilter);
-  const upstreamTotal = countAsNumber(list.total);
+  const lists = includeBookkeeping
+    ? [await supervisorApi().listBeads(cityName, baseQuery)]
+    : await Promise.all(
+      Array.from(ENGINEERING_BEAD_TYPES, (type) =>
+        supervisorApi().listBeads(cityName, { ...baseQuery, type }),
+      ),
+    );
+  const items = uniqueById(lists.flatMap((list) => list.items ?? []));
+  const filtered = includeBookkeeping ? items : items.filter(defaultBeadFilter);
+  const upstreamTotal = sumTotals(lists);
   return {
-    ...list,
     items: filtered,
     total: filtered.length,
     ...(upstreamTotal === undefined ? {} : { upstream_total: upstreamTotal }),
     upstream_fetched: items.length,
-    fetch_limit: BEADS_FETCH_LIMIT,
+    fetch_limit: limit,
   };
 }
 
@@ -84,4 +100,25 @@ function countAsNumber(value: ListBodyBead['total']): number | undefined {
   if (typeof value === 'number') return value;
   if (typeof value === 'bigint') return Number(value);
   return undefined;
+}
+
+function sumTotals(lists: readonly ListBodyBead[]): number | undefined {
+  let total = 0;
+  for (const list of lists) {
+    const value = countAsNumber(list.total);
+    if (value === undefined) return undefined;
+    total += value;
+  }
+  return total;
+}
+
+function uniqueById(items: readonly SupervisorBead[]): SupervisorBead[] {
+  const seen = new Set<string>();
+  const unique: SupervisorBead[] = [];
+  for (const item of items) {
+    if (seen.has(item.id)) continue;
+    seen.add(item.id);
+    unique.push(item);
+  }
+  return unique;
 }

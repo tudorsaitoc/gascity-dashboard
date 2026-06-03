@@ -220,7 +220,7 @@ export function fromGcBead(bead: GcBead): RunIssue {
     // 6bv7 F16: OpenAPI Bead exposes no updated_at / closed_at — created_at
     // is the only timestamp the supervisor emits, so the fallback chain
     // collapses to it.
-    updated_at: bead.created_at,
+    updated_at: bead.updated_at ?? bead.created_at,
   };
   if (bead.description !== undefined) issue.description = bead.description;
   if (bead.assignee !== undefined) issue.assignee = bead.assignee;

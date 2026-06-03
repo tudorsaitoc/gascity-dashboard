@@ -15,6 +15,7 @@ const baseApi: SupervisorApi = {
   baseUrl: '/gc-supervisor',
   health: vi.fn(),
   cityHealth: vi.fn(),
+  cityStatus: vi.fn(),
   listCities: vi.fn(),
   listAgents: vi.fn(),
   listBeads: vi.fn(),

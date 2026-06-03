@@ -7,7 +7,10 @@ import { healthRouter } from '../src/routes/health.js';
 function buildApp(): { app: express.Express } {
   const app = express();
   app.use(express.json());
-  app.use('/api/system', healthRouter());
+  app.use('/api/system', healthRouter({
+    doltProbe: async () => ({ kind: 'ok', version: '2.0.7' }),
+    beadsProbe: async () => ({ kind: 'error', reason: 'bd missing' }),
+  }));
   return { app };
 }
 
@@ -34,10 +37,34 @@ describe('dashboard-local routes', () => {
         admin?: unknown;
         host?: unknown;
         supervisor?: unknown;
+        diagnostics?: unknown;
       };
       assert.equal(typeof body.admin, 'object');
       assert.equal(typeof body.host, 'object');
       assert.equal(body.supervisor, undefined);
+      assert.equal(body.diagnostics, undefined);
+    } finally {
+      await close();
+    }
+  });
+
+  test('GET /api/system/local-tools returns dashboard-local tool probes only', async () => {
+    const { app } = buildApp();
+    const { url, close } = await startApp(app);
+    try {
+      const res = await fetch(`${url}/api/system/local-tools`);
+      assert.equal(res.status, 200);
+      assert.deepEqual(await res.json(), {
+        dolt: {
+          status: 'available',
+          version: '2.0.7',
+          source: 'local probe: dolt version',
+        },
+        beads: {
+          status: 'unavailable',
+          reason: 'bd missing',
+        },
+      });
     } finally {
       await close();
     }
