@@ -46,12 +46,19 @@ export function runSessionLinkFor(
 ): RunSessionLink | undefined {
   if (status === 'pending' || status === 'ready') return undefined;
   const assignee = nonEmpty(bead.assignee);
-  const sessionId =
+  // The bead's recorded session id can be a pool-qualified session NAME
+  // (e.g. a polecat run records `polecat-gc-333573`, whose real supervisor
+  // session id is `gc-333573`). Normalize every candidate through
+  // supervisorSessionIdFrom so the link carries the id the session routes
+  // expect — otherwise a completed session (absent from the live index, so
+  // unresolvable by name) leaks its name into the id slot and the Session
+  // tab rejects it as "invalid session id".
+  const rawSessionId =
     meta(bead, 'session_id') ??
     meta(bead, 'gc.session_id') ??
     meta(bead, 'gc.sessionId') ??
-    supervisorSessionIdFrom(assignee) ??
     assignee;
+  const sessionId = supervisorSessionIdFrom(rawSessionId) ?? rawSessionId;
   const sessionName =
     meta(bead, 'session_name') ??
     meta(bead, 'gc.session_name') ??

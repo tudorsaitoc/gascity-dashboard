@@ -14,7 +14,7 @@
   "scripts": {
     "build": "tsc",
     "typecheck": "tsc --noEmit",
-    "test": "tsx --test src/index.test.ts src/session-resolve.test.ts src/alert.test.ts src/pending.test.ts"
+    "test": "tsx --test \"src/**/*.test.ts\""
   },
   "devDependencies": {
     "typescript": "^5.6.3"
