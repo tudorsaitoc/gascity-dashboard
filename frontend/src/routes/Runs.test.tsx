@@ -14,7 +14,10 @@ import type { AttentionContributor } from '../attention/compose';
 import { RunsPage } from './Runs';
 import { MemoryRouter } from 'react-router-dom';
 import { NowProvider } from '../contexts/NowContext';
-import { loadSupervisorRunSummarySource } from '../supervisor/runSummary';
+import {
+  loadSupervisorRunSummaryPreviewSource,
+  loadSupervisorRunSummarySource,
+} from '../supervisor/runSummary';
 
 // gascity-dashboard-bqn: regression coverage for the live-updates wiring
 // on /runs. The actual SSE / coalesce / reconnect behavior lives in
@@ -34,6 +37,7 @@ import { loadSupervisorRunSummarySource } from '../supervisor/runSummary';
 //     fixture-fallback mode isn't hammered (architect H1).
 
 vi.mock('../supervisor/runSummary', () => ({
+  loadSupervisorRunSummaryPreviewSource: vi.fn(),
   loadSupervisorRunSummarySource: vi.fn(),
 }));
 
@@ -53,6 +57,7 @@ vi.mock('../hooks/useGcEvents', () => ({
   }),
 }));
 
+const mockLoadRunSummaryPreview = loadSupervisorRunSummaryPreviewSource as Mock;
 const mockLoadRunSummary = loadSupervisorRunSummarySource as Mock;
 
 function buildRunSource(
@@ -169,10 +174,12 @@ function contributor(items: ReturnType<AttentionContributor['getItems']>): Atten
 
 beforeEach(() => {
   setActiveCity('racoon-city');
+  mockLoadRunSummaryPreview.mockReset();
   mockLoadRunSummary.mockReset();
   lastHookCall.prefixes = null;
   lastHookCall.onMatch = null;
   invalidateKey('runs:summary:racoon-city');
+  mockLoadRunSummaryPreview.mockResolvedValue(buildRunSource('fresh'));
   mockLoadRunSummary.mockResolvedValue(buildRunSource('fresh'));
 });
 
@@ -211,6 +218,31 @@ async function waitForMount() {
 }
 
 describe('RunsPage — SSE wiring (gascity-dashboard-bqn)', () => {
+  it('paints from the fast preview source before the full run summary resolves', async () => {
+    const preview = buildRunSource('fresh');
+    const previewRuns = requireRunData(preview);
+    previewRuns.totalActive = 1;
+    previewRuns.runCounts.total = 1;
+    previewRuns.runCounts.visible = 1;
+    previewRuns.lanes = [activeLane({ title: 'Preview formula run' })];
+    mockLoadRunSummaryPreview.mockResolvedValue(preview);
+    const full = deferred<SourceState<RunSummary>>();
+    mockLoadRunSummary.mockReturnValue(full.promise);
+
+    mount();
+
+    expect(await screen.findByRole('link', { name: /Preview formula run/i })).toBeTruthy();
+    expect(screen.queryByText(/Loading formula runs/i)).toBeNull();
+    expect(mockLoadRunSummaryPreview).toHaveBeenCalledTimes(1);
+    expect(mockLoadRunSummary).toHaveBeenCalledTimes(1);
+
+    await act(async () => {
+      full.resolve(buildRunSource('fresh'));
+      await full.promise;
+    });
+    await waitForMount();
+  });
+
   it('subscribes to useGcEventRefresh with [bead.] prefix', async () => {
     mount();
     await waitForMount();
@@ -517,3 +549,13 @@ describe('RunsPage — partial lane set (gascity-dashboard-n6f1)', () => {
     expect(screen.queryByText(/runs partial/i)).toBeNull();
   });
 });
+
+function deferred<T>() {
+  let resolve!: (value: T) => void;
+  let reject!: (reason?: unknown) => void;
+  const promise = new Promise<T>((res, rej) => {
+    resolve = res;
+    reject = rej;
+  });
+  return { promise, resolve, reject };
+}

@@ -13,6 +13,7 @@ import {
   type SupervisorApi,
 } from './client';
 import {
+  loadSupervisorRunSummaryPreviewSource,
   loadSupervisorRunSummarySource,
   resetSupervisorRunSummaryStateForTests,
 } from './runSummary';
@@ -51,6 +52,47 @@ const baseApi: SupervisorApi = {
   formulaDetail: vi.fn(),
   mutationHeaders: () => ({ 'X-GC-Request': 'dashboard' }),
 };
+
+describe('loadSupervisorRunSummaryPreviewSource', () => {
+  beforeEach(() => {
+    setActiveCity('test-city');
+    resetSupervisorRunSummaryStateForTests();
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2026-06-01T12:00:00.000Z'));
+  });
+
+  afterEach(() => {
+    resetSupervisorApiForTests();
+    resetSupervisorRunSummaryStateForTests();
+    vi.unstubAllGlobals();
+    vi.useRealTimers();
+    vi.clearAllMocks();
+  });
+
+  it('builds a first-paint summary from the active bead list only', async () => {
+    const listBeads = vi.fn(async () => beadList([runRoot()]));
+    const formulaFeed = vi.fn(async () => feed([feedRun()]));
+    const listSessions = vi.fn(async () => sessionList());
+    setSupervisorApiForTests({
+      ...baseApi,
+      listBeads,
+      formulaFeed,
+      listSessions,
+    });
+
+    const source = await loadSupervisorRunSummaryPreviewSource();
+
+    expect(source.status).toBe('fresh');
+    if (source.status === 'error') throw new Error(source.error);
+    expect(source.data.totalActive).toBe(1);
+    expect(source.data.lanes[0]?.id).toBe('run-1');
+    expect(source.data.lanes[0]?.health.status).toBe('unavailable');
+    expect(listBeads).toHaveBeenCalledTimes(1);
+    expect(listBeads).toHaveBeenCalledWith('test-city', { limit: 1_000 });
+    expect(formulaFeed).not.toHaveBeenCalled();
+    expect(listSessions).not.toHaveBeenCalled();
+  });
+});
 
 describe('loadSupervisorRunSummarySource', () => {
   beforeEach(() => {

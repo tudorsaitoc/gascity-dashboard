@@ -87,6 +87,35 @@ export async function loadSupervisorRunSummarySource(): Promise<SourceState<RunS
   }
 }
 
+export async function loadSupervisorRunSummaryPreviewSource(): Promise<SourceState<RunSummary>> {
+  const cityName = activeCityOrThrow('load supervisor run summary preview');
+  const fetchedAt = new Date().toISOString();
+  try {
+    const activeList = await supervisorApi().listBeads(cityName, {
+      limit: RUNS_FETCH_LIMIT,
+    });
+    const summary = buildRunSummary(
+      normalizeBeads(activeList.items ?? []).filter(runBeadFilter).map(fromGcBead),
+      new Map(),
+      listIsPartial(activeList),
+    );
+    return {
+      source: 'runs',
+      status: 'fresh',
+      fetchedAt,
+      staleAt: new Date(Date.parse(fetchedAt) + RUNS_STALE_AFTER_MS).toISOString(),
+      error: { kind: 'none' },
+      data: summary,
+    };
+  } catch (err) {
+    return {
+      source: 'runs',
+      status: 'error',
+      error: errorMessage(err, 'formula runs unavailable'),
+    };
+  }
+}
+
 export function resetSupervisorRunSummaryStateForTests(): void {
   progressStateByCity.clear();
 }

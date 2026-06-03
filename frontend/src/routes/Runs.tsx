@@ -5,7 +5,7 @@ import {
   type SourceState,
   type SourceStatus,
 } from 'gas-city-dashboard-shared';
-import { useCallback, useRef } from 'react';
+import { useCallback, useEffect, useRef } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { getActiveCity } from '../api/cityBase';
 import { useAttentionModel } from '../attention/context';
@@ -22,7 +22,10 @@ import { useNow } from '../contexts/NowContext';
 import { formatRelative } from '../hooks/time';
 import { useCachedData } from '../hooks/useCachedData';
 import { useGcEventRefresh } from '../hooks/useGcEvents';
-import { loadSupervisorRunSummarySource } from '../supervisor/runSummary';
+import {
+  loadSupervisorRunSummaryPreviewSource,
+  loadSupervisorRunSummarySource,
+} from '../supervisor/runSummary';
 
 // /runs route (gascity-dashboard-0t6, made live in
 // gascity-dashboard-bqn). Reads the direct supervisor run summary source
@@ -57,7 +60,8 @@ export function RunsPage() {
   const cityName = getActiveCity();
   const { data, loading, error, refresh } = useCachedData(
     `runs:summary:${cityName ?? 'no-city'}`,
-    loadSupervisorRunSummarySource,
+    loadSupervisorRunSummaryPreviewSource,
+    { refreshFetcher: loadSupervisorRunSummarySource },
   );
   const [searchParams, setSearchParams] = useSearchParams();
   // gascity-dashboard-yh5i: ?history=1 toggles the historical lane
@@ -76,6 +80,7 @@ export function RunsPage() {
     runs?.status === 'fresh' || runs?.status === 'fixture' || runs?.status === 'stale'
       ? runs.data
       : null;
+  const fullRefreshKeyRef = useRef<string | null>(null);
   const totalHistorical = runsData?.totalHistorical ?? 0;
   // gascity-dashboard-n6f1: the backend now degrades (not collapses) when a
   // single rig's recent-run query fails, flagging lanesPartial. Surface it
@@ -97,6 +102,16 @@ export function RunsPage() {
       { replace: false },
     );
   }, [showHistory, setSearchParams]);
+
+  useEffect(() => {
+    if (runs === null || runs.status === 'error') return;
+    const refreshKey = cityName ?? 'no-city';
+    if (fullRefreshKeyRef.current === refreshKey) return;
+    fullRefreshKeyRef.current = refreshKey;
+    void refresh().catch(() => {
+      fullRefreshKeyRef.current = null;
+    });
+  }, [cityName, refresh, runs]);
 
   const onSseMatch = useCallback(() => {
     // Skip when supervisor is unreachable — every forced refresh under
