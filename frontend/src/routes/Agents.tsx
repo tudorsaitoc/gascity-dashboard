@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import {
   GC_EVENT_PREFIX,
@@ -11,7 +11,6 @@ import {
   resourceAttentionSeverity,
 } from '../attention/routeHighlight';
 import { FilterChips } from '../components/FilterChips';
-import { GroupedTable } from '../components/GroupedTable';
 import { ListSearchBar } from '../components/ListSearchBar';
 import { Modal } from '../components/Modal';
 import { PageHeader } from '../components/PageHeader';
@@ -20,7 +19,7 @@ import { LiveSessionPeek, isAgentStreamable } from '../components/LiveSessionPee
 import { SortToggle } from '../components/SortToggle';
 import { SseIndicator } from '../components/SseIndicator';
 import { StatusBadge, type StatusTone } from '../components/StatusBadge';
-import { type TableColumn } from '../components/Table';
+import { Table, type TableColumn } from '../components/Table';
 import { useNow } from '../contexts/NowContext';
 import { useCachedData } from '../hooks/useCachedData';
 import { useGcEventRefresh } from '../hooks/useGcEvents';
@@ -38,8 +37,8 @@ import {
   type SupervisorAgent,
 } from '../supervisor/agentReads';
 import {
-  ORCHESTRATION_PROJECT,
   agentProject,
+  isAgentOutsideRig,
   isPerRigDispatcherAgent,
 } from '../hooks/projectOf';
 import { agentSlug } from '../hooks/sessionSlug';
@@ -53,8 +52,25 @@ import { agentSlug } from '../hooks/sessionSlug';
 // The cityStatus snapshot collector continues to aggregate over sessions
 // for now — sessionsByProvider migration is sd4's territory.
 
-const PINNED_PROJECTS = [ORCHESTRATION_PROJECT];
-const NON_COLLAPSIBLE_PROJECTS = new Set([ORCHESTRATION_PROJECT]);
+// Flat table: agents are not grouped by rig (the Rig column + sort carry that).
+// useListFilters still drives search/chips/sort, so we collapse every row into
+// one bucket and render the result as a single flat, sortable table.
+const FLAT_GROUP = () => '';
+
+// Sentinel for the rig dropdown's "all rigs" option. Empty string can't
+// collide with a real rig key because agentProject() never returns one.
+const RIG_FILTER_ALL = '';
+
+// Display label + stable key for a row's rig, reusing agentProject so the Rig
+// column, dropdown, and sort all agree (folds case/separator drift and lifts
+// cross-rig agents into the Orchestration bucket).
+function agentRigLabel(a: SupervisorAgent): string {
+  return agentProject(a).label;
+}
+
+function agentRigKey(a: SupervisorAgent): string {
+  return agentProject(a).key;
+}
 
 // Activity ordering uses the agent's bound session's last_activity. Agents
 // with no session (orphans) return undefined so the list-filter sink sends
@@ -222,15 +238,41 @@ export function AgentsPage() {
   const filters = useListFilters<SupervisorAgent>({
     viewKey: 'agents',
     rows,
-    projectOf: agentProject,
+    projectOf: FLAT_GROUP,
     searchOf: AGENT_SEARCH_FIELDS,
     chips: AGENT_CHIPS,
-    defaultCollapsed: true,
+    defaultCollapsed: false,
     activityOf: agentActivity,
     defaultSortMode: 'activity',
-    pinnedProjects: PINNED_PROJECTS,
-    nonCollapsibleProjects: NON_COLLAPSIBLE_PROJECTS,
   });
+
+  // Rig dropdown (flat table): every rig present in the roster, by stable key
+  // with its display label, sorted alphabetically by label.
+  const [rigFilter, setRigFilter] = useState<string>(RIG_FILTER_ALL);
+  const rigOptions = useMemo(() => {
+    const byKey = new Map<string, string>();
+    for (const a of rows) byKey.set(agentRigKey(a), agentRigLabel(a));
+    return Array.from(byKey, ([key, label]) => ({ key, label })).sort((a, b) =>
+      a.label.localeCompare(b.label),
+    );
+  }, [rows]);
+  // If the selected rig leaves the roster (its agents all stopped and were
+  // pruned on an SSE/manual refresh), reset to "all rigs" so the controlled
+  // <select> doesn't strand the table empty with no visible cause.
+  useEffect(() => {
+    if (rigFilter !== RIG_FILTER_ALL && !rigOptions.some((o) => o.key === rigFilter)) {
+      setRigFilter(RIG_FILTER_ALL);
+    }
+  }, [rigOptions, rigFilter]);
+
+  // Flatten useListFilters' (now single) group into one sorted, search/chip
+  // filtered list, then apply the rig dropdown.
+  const visibleRows = useMemo(() => {
+    const flat = filters.groups.flatMap((g) => g.rows);
+    if (rigFilter === RIG_FILTER_ALL) return flat;
+    return flat.filter((a) => agentRigKey(a) === rigFilter);
+  }, [filters.groups, rigFilter]);
+
   const rowProps = useMemo(
     () => (agent: SupervisorAgent) =>
       attentionRowProps(resourceAttentionSeverity(attention, 'agents', agent.name)),
@@ -299,6 +341,29 @@ export function AgentsPage() {
           </div>
         );
       },
+    },
+    {
+      key: 'rig',
+      label: 'Rig',
+      sortable: true,
+      // Sort by the display label so the column's visual order matches the
+      // sort order (the key is lowercased/normalized and would diverge).
+      sortValue: (r) => agentRigLabel(r),
+      // Agents outside a rig (Orchestration roles + the residual no-rig bucket)
+      // are not in a real rig, so the column shows a neutral dot rather than a
+      // pseudo-rig label. The dot carries a title/aria-label so the state stays
+      // readable in greyscale and to assistive tech (DESIGN.md: states have words).
+      render: (r) =>
+        isAgentOutsideRig(r) ? (
+          <span
+            className="inline-block h-1.5 w-1.5 rounded-full bg-fg-faint align-middle"
+            title="Not associated with a rig"
+            aria-label="Not associated with a rig"
+          />
+        ) : (
+          <span className="text-fg-muted">{agentRigLabel(r)}</span>
+        ),
+      className: 'w-40',
     },
     {
       key: 'state',
@@ -482,6 +547,22 @@ export function AgentsPage() {
             onToggle={filters.toggleChip}
             legend="State"
           />
+          <label className="flex items-baseline gap-2 text-label">
+            <span className="uppercase tracking-wider text-fg-muted">Rig</span>
+            <select
+              value={rigFilter}
+              onChange={(e) => setRigFilter(e.target.value)}
+              aria-label="Filter by rig"
+              className="text-label uppercase tracking-wider text-fg-muted bg-transparent border-0 focus-mark cursor-pointer hover:text-fg transition-colors duration-150 ease-out-quart"
+            >
+              <option value={RIG_FILTER_ALL}>all rigs</option>
+              {rigOptions.map((opt) => (
+                <option key={opt.key} value={opt.key}>
+                  {opt.label}
+                </option>
+              ))}
+            </select>
+          </label>
           <SortToggle<SortMode>
             value={filters.sortMode}
             options={SORT_OPTIONS}
@@ -501,14 +582,12 @@ export function AgentsPage() {
         </div>
       )}
 
-      <GroupedTable
-        groups={filters.groups}
+      <Table
+        rows={visibleRows}
         columns={columns}
         rowKey={(r) => r.name}
-        onToggleProject={filters.toggleProject}
         rowProps={rowProps}
-        emptyMessage={emptyMessage}
-        perProjectEmpty="No agents in this project."
+        empty={emptyMessage}
         initialSort={{ key: 'last_active', dir: 'desc' }}
       />
 
