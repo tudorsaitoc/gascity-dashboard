@@ -159,6 +159,23 @@ describe('HealthPage', () => {
     expect(fetch).not.toHaveBeenCalledWith('/api/city/test-city/status', expect.any(Object));
   });
 
+  it('renders fast sections while supervisor status is still pending', async () => {
+    const pendingStatus = deferred<StatusBody>();
+    mockCityStatus.mockReturnValue(pendingStatus.promise);
+
+    renderPage();
+
+    await screen.findByRole('heading', { name: /supervisor/i });
+    await screen.findByRole('heading', { name: /host/i });
+    await screen.findByRole('heading', { name: /diagnostics/i });
+
+    expect(screen.getByText('demo-city')).toBeTruthy();
+    expect(screen.getByText('8')).toBeTruthy();
+    expect(
+      screen.getAllByText(/Unavailable: supervisor status still loading\./i).length,
+    ).toBeGreaterThan(0);
+  });
+
   it('keeps dashboard-local host health visible when direct supervisor health fails', async () => {
     mockCityHealth.mockRejectedValue(new Error('supervisor unavailable'));
 
@@ -303,6 +320,16 @@ function absentLocator(): HealthOutputBody {
     status: 'ok',
     uptime_sec: 4200,
   };
+}
+
+function deferred<T>() {
+  let resolve!: (value: T) => void;
+  let reject!: (reason?: unknown) => void;
+  const promise = new Promise<T>((res, rej) => {
+    resolve = res;
+    reject = rej;
+  });
+  return { promise, resolve, reject };
 }
 
 function baseHealth(): SystemHealth {

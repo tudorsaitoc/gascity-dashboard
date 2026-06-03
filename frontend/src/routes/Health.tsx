@@ -1,4 +1,4 @@
-import type { ReactNode } from 'react';
+import { useCallback, type ReactNode } from 'react';
 import type {
   DoltNomsTrend,
   LocalToolVersion,
@@ -27,39 +27,72 @@ import { formatHumanSize } from '../lib/format';
 import { formatShortDate } from '../hooks/time';
 import { supervisorApi } from '../supervisor/client';
 
-// Health page fetches the two slow paths in parallel through the
-// stale-while-revalidate cache so re-entering this view (or polling
-// every 30s) doesn't blank the page first.
-async function fetchHealthBundle(): Promise<{
-  health: SystemHealthState;
-  supervisor: SupervisorHealthState;
-  status: SupervisorStatusState;
-  localTools: LocalToolVersionsState;
-  trend: DoltNomsTrend;
-}> {
-  const [health, supervisor, status, localTools, trend] = await Promise.all([
-    fetchSystemHealth(),
-    fetchSupervisorHealth(),
-    fetchSupervisorStatus(),
-    fetchLocalToolVersions(),
-    fetchDoltNomsTrend(),
-  ]);
-  return { health, supervisor, status, localTools, trend };
-}
-
 export function HealthPage() {
   const attention = useAttentionModel();
-  const { data, loading, error, refresh } = useCachedData(
-    'health',
-    fetchHealthBundle,
+  const cityName = getActiveCity();
+  const systemHealth = useCachedData('health:system', fetchSystemHealth);
+  const supervisorHealth = useCachedData(
+    `health:supervisor:${cityName ?? 'no-city'}`,
+    fetchSupervisorHealth,
   );
-  const healthState = data?.health ?? null;
+  const supervisorStatusCache = useCachedData(
+    `health:status:${cityName ?? 'no-city'}`,
+    fetchSupervisorStatus,
+  );
+  const localToolVersions = useCachedData(
+    'health:local-tools',
+    fetchLocalToolVersions,
+  );
+  const doltNomsTrend = useCachedData(
+    `health:dolt-noms-trend:${cityName ?? 'no-city'}`,
+    fetchDoltNomsTrend,
+  );
+  const refreshSystemHealth = systemHealth.refresh;
+  const refreshSupervisorHealth = supervisorHealth.refresh;
+  const refreshSupervisorStatus = supervisorStatusCache.refresh;
+  const refreshLocalToolVersions = localToolVersions.refresh;
+  const refreshDoltNomsTrend = doltNomsTrend.refresh;
+  const sourceLoading =
+    systemHealth.loading ||
+    supervisorHealth.loading ||
+    supervisorStatusCache.loading ||
+    localToolVersions.loading ||
+    doltNomsTrend.loading;
+  const error = [
+    systemHealth.error,
+    supervisorHealth.error,
+    supervisorStatusCache.error,
+    localToolVersions.error,
+    doltNomsTrend.error,
+  ].filter((value): value is string => value !== null).join('; ') || null;
+  const refresh = useCallback(async () => {
+    await Promise.all([
+      refreshSystemHealth(),
+      refreshSupervisorHealth(),
+      refreshSupervisorStatus(),
+      refreshLocalToolVersions(),
+      refreshDoltNomsTrend(),
+    ]);
+  }, [
+    refreshDoltNomsTrend,
+    refreshLocalToolVersions,
+    refreshSupervisorHealth,
+    refreshSupervisorStatus,
+    refreshSystemHealth,
+  ]);
+  const healthState = systemHealth.data ?? null;
   const health = healthState?.status === 'available' ? healthState.data : null;
   const healthError = healthState?.status === 'unavailable' ? healthState.error : null;
-  const supervisor = data?.supervisor ?? null;
-  const status = data?.status ?? null;
-  const localTools = data?.localTools ?? null;
-  const trend = data?.trend ?? null;
+  const supervisor = supervisorHealth.data ?? null;
+  const status = supervisorStatusCache.data ?? null;
+  const localTools = localToolVersions.data ?? null;
+  const trend = doltNomsTrend.data ?? null;
+  const hasAnyData =
+    healthState !== null ||
+    supervisor !== null ||
+    status !== null ||
+    localTools !== null ||
+    trend !== null;
   const hostHealthStatus = health ? hostStatus(health) : undefined;
   const supervisorAttention = prefixedAttentionSeverity(attention, 'health', ['health:supervisor-']);
   const hostAttention = prefixedAttentionSeverity(attention, 'health', [
@@ -75,7 +108,7 @@ export function HealthPage() {
     <section>
       <PageHeader
         title="Health"
-        synopsis={data ? buildSynopsis(health, supervisor) : 'Reading state from the supervisor.'}
+        synopsis={hasAnyData ? buildSynopsis(health, supervisor) : 'Reading state from the supervisor.'}
         meta={
           <>
             {error && (
@@ -83,21 +116,23 @@ export function HealthPage() {
                 {error}
               </span>
             )}
-            <Button size="sm" onClick={() => void refresh()} disabled={loading}>
-              {loading ? 'Refreshing' : 'Refresh'}
+            <Button size="sm" onClick={() => void refresh()} disabled={sourceLoading}>
+              {sourceLoading && !hasAnyData ? 'Loading' : 'Refresh'}
             </Button>
           </>
         }
       />
 
-      {data ? (
+      {hasAnyData ? (
         <div className="space-y-12">
           <Section
             title="Supervisor"
             attention={supervisorAttention}
             {...(supervisor ? { status: supervisorStatus(supervisor) } : {})}
           >
-            {supervisor?.status === 'available' ? (
+            {supervisor === null ? (
+              <p className="text-body text-fg-muted italic">Loading supervisor state.</p>
+            ) : supervisor.status === 'available' ? (
               <KvList>
                 {/* izgc F7/F8: city + version are optional per supervisor's
                     OpenAPI. Absence is itself a wire-drift signal — render
@@ -128,7 +163,9 @@ export function HealthPage() {
             attention={hostAttention}
             {...(hostHealthStatus ? { status: hostHealthStatus } : {})}
           >
-            {health === null ? (
+            {healthState === null ? (
+              <p className="text-body text-fg-muted italic">Loading dashboard host health.</p>
+            ) : health === null ? (
               <p className="text-body text-accent">
                 Dashboard host health unavailable{healthError ? `: ${healthError}` : ''}.
               </p>
@@ -155,7 +192,9 @@ export function HealthPage() {
           </Section>
 
           <Section title="Admin process" attention={adminAttention}>
-            {health === null ? (
+            {healthState === null ? (
+              <p className="text-body text-fg-muted italic">Loading dashboard process health.</p>
+            ) : health === null ? (
               <p className="text-body text-accent">
                 Dashboard process health unavailable{healthError ? `: ${healthError}` : ''}.
               </p>
