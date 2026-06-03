@@ -144,13 +144,14 @@ test('gc supervisor generation enables generated Zod response validators', async
   assert.doesNotMatch(config, /validator:\s*false/);
 });
 
-test('gc supervisor generated client is not post-processed', async () => {
+test('gc supervisor generated client post-processing is limited to RFC3339 offset datetimes', async () => {
   const generator = await readFile(generatorUrl, 'utf8');
 
   assert.doesNotMatch(generator, /ts-nocheck/);
   assert.doesNotMatch(generator, /patchGeneratedClientForStrictTooling/);
   assert.doesNotMatch(generator, /source\.replace/);
-  assert.doesNotMatch(generator, /writeFile/);
+  assert.match(generator, /allowRfc3339OffsetDateTimes/);
+  assert.match(generator, /z\.iso\.datetime\(\{ offset: true \}\)/);
   for (const rootUrl of [generatedClientUrl, frontendGeneratedClientUrl]) {
     for (const { path, source } of await readTsFiles(rootUrl)) {
       assert.doesNotMatch(source, /@ts-nocheck/, `${path} should be generator output without ts-nocheck`);

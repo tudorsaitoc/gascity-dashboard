@@ -121,6 +121,17 @@ export class GcClient {
     return this.opts.cityName;
   }
 
+  sessionStreamUrl(sessionId: string, after?: string): URL {
+    const url = new URL(
+      `/v0/city/${encodeURIComponent(this.opts.cityName)}/session/${encodeURIComponent(sessionId)}/stream`,
+      this.opts.baseUrl,
+    );
+    if (after !== undefined && after.length > 0) {
+      url.searchParams.set('after', after);
+    }
+    return url;
+  }
+
   /**
    * True if `err` originated from the per-request timeout. Caller-supplied
    * AbortSignals fire as AbortError and are NOT timeouts — they map to

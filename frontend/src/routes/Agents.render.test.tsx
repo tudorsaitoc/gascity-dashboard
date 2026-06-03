@@ -342,11 +342,8 @@ describe('AgentsPage (post-ay6 regressions)', () => {
       </MemoryRouter>,
     );
 
-    // The orphan agent (asleep, no session) is hidden by the active-only
-    // default; toggle "Running only" off to bring the full roster into view.
-    const runningToggle = await screen.findByRole('checkbox', { name: /running/i });
-    fireEvent.click(runningToggle);
-
+    // With no state chip active, the current Agents view shows the full
+    // supervisor roster, including configured-but-not-running agents.
     // Both rows render their alias as a Link, but the title must
     // differ — session-bound agents promise a real drilldown; orphan
     // agents warn that the detail page will show no live session.

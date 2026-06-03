@@ -93,19 +93,21 @@ describe('BeadBoard', () => {
     });
   });
 
-  it('expands needs/blocks sub-rows for the selected bead and re-centres on click', () => {
+  it('keeps dependency neighbourhoods row-scoped while the selected row remains clickable', () => {
     const onSelect = vi.fn();
     // A is closed (done column); B needs A so B is ready (ready column). The
-    // selected bead B shows its upstream dependency A as a typeset sub-row
-    // inside its own column, distinct from A's own row in the done column.
+    // board row carries only the compact neighbourhood summary; the full
+    // navigable dependency tree lives in the bead detail modal.
     renderBoard(
       [bead('A', 'closed'), bead('B', 'open', { needs: ['A'] })],
       'B',
       onSelect,
     );
     const ready = screen.getByRole('region', { name: 'ready' });
-    fireEvent.click(within(ready).getByTitle('Select A'));
-    expect(onSelect).toHaveBeenCalledWith('A');
+    expect(within(ready).getByText(/needs 1/)).toBeTruthy();
+    expect(within(ready).queryByTitle('Select A')).toBeNull();
+    fireEvent.click(within(ready).getByTitle('Select B'));
+    expect(onSelect).toHaveBeenCalledWith('B');
   });
 
   it('flags an unresolved upstream edge on the row summary', () => {

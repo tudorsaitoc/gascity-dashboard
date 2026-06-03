@@ -8,7 +8,6 @@ import {
   resourceAttentionSeverity,
 } from '../attention/routeHighlight';
 import { BeadBoardSection } from '../components/beads/BeadBoardSection';
-import { BeadDetailRail } from '../components/beads/BeadDetailRail';
 import { BeadDetailModal } from '../components/BeadDetailModal';
 import { Button } from '../components/Button';
 import { FilterChips } from '../components/FilterChips';
@@ -36,7 +35,6 @@ import {
   createAndSlingSupervisorBead,
   nudgeSupervisorAgent,
 } from '../supervisor/beadWrites';
-import { listSupervisorSessions } from '../supervisor/sessionReads';
 
 type BeadView = 'board' | 'list';
 
@@ -97,13 +95,6 @@ export function BeadsPage() {
   const [newRig, setNewRig] = useState('');
   const [newAgent, setNewAgent] = useState('');
 
-  // Sessions back the board's bead -> live-run resolution. Only the board
-  // view reads them; the list view leaves the cache cold.
-  const sessions = useCachedData('sessions', listSupervisorSessions);
-  const sessionItems = useMemo(
-    () => sessions.data?.items ?? [],
-    [sessions.data],
-  );
   const agents = useCachedData('agents', listSupervisorAgents);
   const agentItems = useMemo(
     () => agents.data?.items ?? [],
@@ -172,6 +163,16 @@ export function BeadsPage() {
     () => matched.find((b) => b.id === selectedId) ?? null,
     [matched, selectedId],
   );
+  const detailBeadId = viewing?.id ?? selectedId;
+  const detailInitialBead = viewing ?? selectedBead;
+  const closeDetail = useCallback(() => {
+    setViewing(null);
+    setSelectedId(null);
+  }, []);
+  const openDetailBead = useCallback((beadId: string) => {
+    setViewing(null);
+    setSelectedId(beadId);
+  }, []);
 
   const runAction = useCallback(
     async (
@@ -515,29 +516,19 @@ export function BeadsPage() {
                 : 'Nothing on the queue right now.'}
           </p>
         ) : (
-          <div className="grid grid-cols-1 xl:grid-cols-[2fr_1fr] gap-x-10 gap-y-8">
-            <div className="space-y-12">
-              {filters.groups.map((g) => (
-                <BeadBoardSection
-                  key={g.projectKey}
-                  label={g.project}
-                  count={g.totalInProject}
-                  graph={graph}
-                  ids={groupIds.get(g.projectKey) ?? EMPTY_IDS}
-                  selectedId={selectedId}
-                  attentionSeverity={beadAttentionSeverity}
-                  onSelect={setSelectedId}
-                />
-              ))}
-            </div>
-            <div className="xl:sticky xl:top-6 xl:self-start">
-              <BeadDetailRail
-                beadId={selectedId}
-                initialBead={selectedBead}
-                sessions={sessionItems}
-                onOpenBead={setSelectedId}
+          <div className="space-y-12">
+            {filters.groups.map((g) => (
+              <BeadBoardSection
+                key={g.projectKey}
+                label={g.project}
+                count={g.totalInProject}
+                graph={graph}
+                ids={groupIds.get(g.projectKey) ?? EMPTY_IDS}
+                selectedId={selectedId}
+                attentionSeverity={beadAttentionSeverity}
+                onSelect={setSelectedId}
               />
-            </div>
+            ))}
           </div>
         )
       ) : (
@@ -560,10 +551,11 @@ export function BeadsPage() {
       )}
 
       <BeadDetailModal
-        open={viewing !== null}
-        onClose={() => setViewing(null)}
-        beadId={viewing?.id ?? null}
-        initialBead={viewing}
+        open={detailBeadId !== null}
+        onClose={closeDetail}
+        beadId={detailBeadId}
+        initialBead={detailInitialBead}
+        onOpenBead={openDetailBead}
       />
 
       <Modal

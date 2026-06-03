@@ -55,7 +55,7 @@ export function BeadBoardRow({
         onClick={() => onSelect(bead.id)}
         className="text-left w-full focus-mark rounded-sm"
         aria-pressed={selected}
-        title={bead.title}
+        title={`Select ${bead.id}`}
       >
         <span className="flex items-baseline gap-2">
           <span className="text-fg-faint" aria-hidden="true">

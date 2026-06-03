@@ -127,6 +127,9 @@ describe('FormulaRunDetailPage', () => {
       // Everything run-specific (detail, diff, links) hangs → stay in loading.
       return new Promise<Response>(() => {});
     }));
+    loadSupervisorFormulaRunDetail.mockImplementationOnce(
+      () => new Promise<FormulaRunDetail>(() => {}),
+    );
 
     renderPage();
 
