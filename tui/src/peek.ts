@@ -76,12 +76,18 @@ export function paneExists(paneId: string): boolean {
   return r.stdout.split('\n').includes(paneId);
 }
 
-/** Opens the peek pane beside the dashboard (focus stays on the dashboard). */
+/**
+ * Opens the peek pane BELOW the dashboard (focus stays on the dashboard). A
+ * vertical split (not a right-hand one) keeps the dashboard's full width — it is
+ * often already narrow when pinned beside the mayor — and gives wide peek output
+ * (logs, `bd show`, diffs) the full width too.
+ */
 export function openPeek(command: string): PeekResult {
-  // -d: don't move focus. -P -F prints the new pane's id so we can retarget it.
+  // -d: don't move focus. -v: split below. -P -F prints the new pane's id so we
+  // can retarget it.
   const r = spawnSync(
     'tmux',
-    ['split-window', '-d', '-h', '-l', '45%', '-P', '-F', '#{pane_id}', command],
+    ['split-window', '-d', '-v', '-l', '50%', '-P', '-F', '#{pane_id}', command],
     { encoding: 'utf8' },
   );
   if (r.error || (typeof r.status === 'number' && r.status !== 0)) {

@@ -89,9 +89,11 @@ reused tmux split (see Peek).
 
 ## Peek (tmux split)
 
-`enter` on a row opens **one reused** tmux split beside the dashboard and points
+`enter` on a row opens **one reused** tmux split **below** the dashboard and points
 it at the selected row's drill-in (agent → live `session logs -f`; bead →
-`bd show`; run → `bd show` + diff). `enter` retargets that pane to a new
+`bd show`; run → `bd show` + diff; mail → `gc mail peek`). Splitting below (not to
+the right) keeps the dashboard's full width, which matters when it's pinned narrow
+beside the mayor. `enter` retargets that pane to a new
 selection (no pile-up); `enter` on the row it's already showing, or `x`, closes
 it. Quitting (`q`) tears the peek pane down. All drill-ins READ (logs/show/diff)
 — none attaches as a tmux client, so peeking can't resize or disturb an agent.
