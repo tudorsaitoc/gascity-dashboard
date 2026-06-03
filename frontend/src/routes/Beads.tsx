@@ -32,6 +32,7 @@ import { listSupervisorSessions } from '../supervisor/sessionReads';
 
 const EMPTY_IDS: ReadonlySet<string> = new Set();
 const RIG_FILTER_ALL = '';
+const CLOSED_CHIP_ID = 'closed';
 
 type BeadAction = 'claim' | 'close' | 'nudge';
 
@@ -62,6 +63,20 @@ export function BeadsPage() {
   const [searchParams] = useSearchParams();
   const selectedBeadParam = normalizeSelectedBeadParam(searchParams.get('bead'));
   const [rigFilter, setRigFilter] = useState<string>(RIG_FILTER_ALL);
+  // Closed beads dwarf the open queue (~199.7K closed vs ~1K open on this
+  // city), so scanning them on every load makes the `task` query spike and
+  // trips the fetch-window truncation warning. Default the board to the
+  // non-closed set (open/in_progress/blocked) and fetch closed beads lazily,
+  // only once the operator activates the `closed` status control. showClosed
+  // drives BOTH the fetch (includeClosed) and the cache key so flipping it
+  // forces exactly one fresh fan-out. It lives here — outside useListFilters,
+  // which is declared below and owns the client-side chip filters — because
+  // the fetch must be parameterized before the filters hook exists (the
+  // hook needs `rows` from this fetch). The `closed` chip's toggle is wired
+  // to flip showClosed in addition to the normal client filter, keeping the
+  // four status controls reading as one group while `closed` alone widens
+  // the data scope.
+  const [showClosed, setShowClosed] = useState(false);
   const [selectedId, setSelectedId] = useState<string | null>(selectedBeadParam);
   const [closing, setClosing] = useState<SupervisorBead | null>(null);
   const [closeReason, setCloseReason] = useState('');
@@ -79,9 +94,9 @@ export function BeadsPage() {
   const [newAgent, setNewAgent] = useState('');
 
   const { data, loading, error, refresh } = useCachedData(
-    `beads:board:${rigFilter}`,
+    `beads:board:${rigFilter}:${showClosed ? 'all' : 'open'}`,
     () => listSupervisorBeads({
-      includeClosed: true,
+      includeClosed: showClosed,
       ...(rigFilter === RIG_FILTER_ALL ? {} : { rigFilter }),
     }),
   );
@@ -143,6 +158,20 @@ export function BeadsPage() {
     searchOf: BEAD_SEARCH_FIELDS,
     chips: BEAD_CHIPS,
   });
+
+  // The `closed` chip is special: besides being a client-side filter (like
+  // open/in_progress/blocked), toggling it flips showClosed, which widens the
+  // fetch to include closed beads. Keeping it inside BEAD_CHIPS means all four
+  // controls render and read as one "Status" group; only this wrapper gives
+  // `closed` its extra data-scope effect.
+  // Destructure the stable toggleChip so the wrapper can depend on it directly
+  // (the `filters` object is a fresh ref each render); keeps toggleStatusChip
+  // stable without depending on the whole object.
+  const { toggleChip } = filters;
+  const toggleStatusChip = useCallback((id: string) => {
+    if (id === CLOSED_CHIP_ID) setShowClosed((prev) => !prev);
+    toggleChip(id);
+  }, [toggleChip]);
 
   useGcEventRefresh([GC_EVENT_PREFIX.bead], () => void refresh());
 
@@ -339,7 +368,7 @@ export function BeadsPage() {
               </span>
             )}
             <span className="text-label uppercase tracking-wider text-fg-faint">
-              All statuses
+              {showClosed ? 'All statuses' : 'Open work'}
             </span>
             <Button
               type="button"
@@ -400,7 +429,7 @@ export function BeadsPage() {
           <FilterChips
             chips={BEAD_CHIPS}
             activeIds={filters.activeChipIds}
-            onToggle={filters.toggleChip}
+            onToggle={toggleStatusChip}
             legend="Status"
           />
           {dispatchRigOptions.length > 1 && (

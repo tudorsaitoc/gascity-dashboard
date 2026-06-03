@@ -20,7 +20,7 @@ const fetchCalls: FetchCall[] = [];
 beforeEach(() => {
   setActiveCity('test-city');
   fetchCalls.length = 0;
-  invalidate('beads:board');
+  invalidate('beads:board:');
   invalidate('sessions');
   invalidate('agents');
   stubFetch();
@@ -32,14 +32,16 @@ afterEach(() => {
 });
 
 describe('BeadsPage supervisor reads', () => {
-  it('shows only real work while requesting all closed/open supervisor statuses', async () => {
+  it('shows only real work while requesting open supervisor statuses by default', async () => {
     renderPage();
 
     await screen.findByText('direct supervisor bead');
 
     expect(screen.queryByText('supervisor noise bead')).toBeNull();
     expect(fetchCalls.some((call) => call.path === '/api/city/test-city/beads')).toBe(false);
-    expect(beadFetches().every((call) => call.query.get('all') === 'true')).toBe(true);
+    // Default board scope is open-only: no all=true unless the operator
+    // activates the closed status control.
+    expect(beadFetches().every((call) => !call.query.has('all'))).toBe(true);
   });
 
   it('resolves a bead query param even when the bead is outside the list window', async () => {
