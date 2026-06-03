@@ -1,3 +1,4 @@
+import { Link } from 'react-router-dom';
 import type { RunLane } from 'gas-city-dashboard-shared';
 
 // gascity-dashboard-kb3 PRD §4 — "Concern region". Items needing a
@@ -94,13 +95,13 @@ export function ConcernRegion({ rows }: ConcernRegionProps) {
       >
         {rows.map(({ lane, reason }) => (
           <li key={lane.id} className="text-body text-fg flex items-baseline gap-3">
-            <a
-              href={rowHref(lane)}
+            <Link
+              to={rowHref(lane)}
               className="font-medium hover:text-fg focus-mark"
               data-testid={`concern-row-${lane.id}`}
             >
               {laneToken(lane)}
-            </a>
+            </Link>
             <span className="text-label uppercase tracking-wider text-fg-muted">
               {reasonLabel(reason)}
             </span>

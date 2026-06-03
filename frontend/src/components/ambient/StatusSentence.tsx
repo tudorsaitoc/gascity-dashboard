@@ -1,3 +1,4 @@
+import { Link } from 'react-router-dom';
 import type { RunLane } from 'gas-city-dashboard-shared';
 
 // gascity-dashboard-kb3 PRD §4 line 2 — "the lean-in read".
@@ -95,13 +96,13 @@ export function StatusSentence({ topConcern }: StatusSentenceProps) {
         // as plain text — no maroon class (R2 floor), no deep link.
         <span data-testid="status-sentence-token">{token}</span>
       ) : (
-        <a
-          href={href}
+        <Link
+          to={href}
           className="text-accent font-semibold focus-mark"
           data-testid="status-sentence-token"
         >
           {token}
-        </a>
+        </Link>
       )}{' '}
       {phrase} {ageLabel}.
     </p>
