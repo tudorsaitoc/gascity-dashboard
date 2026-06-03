@@ -12,6 +12,10 @@ export interface TuiConfig {
   /** Mayor-companion mode: open on the truncated overview (set by the launcher's
    *  --split/--target via --compact). */
   readonly compact: boolean;
+  /** Whether the TUI grabs the mouse for wheel scrolling. `--no-mouse` turns it
+   *  off so tmux keeps the mouse (drag-resize a pinned panel); keyboard nav is
+   *  unaffected. */
+  readonly mouse: boolean;
 }
 
 const DEFAULT_BASE_URL = 'http://127.0.0.1:8081';
@@ -40,5 +44,6 @@ export function resolveConfig(
     baseUrl: (env.DASHBOARD_URL ?? DEFAULT_BASE_URL).replace(/\/+$/, ''),
     city: resolveCity(argv, env),
     compact: argv.includes('--compact'),
+    mouse: !argv.includes('--no-mouse'),
   };
 }

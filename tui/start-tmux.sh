@@ -19,10 +19,15 @@
 # the city, so this splits `tmux -L <city> -t <session>`. e.g. --target mayor
 # adds the dashboard to the right of the mayor's window; then
 # `gc session attach mayor` shows both. Override the socket with --socket.
+#
+# Mouse: pinned companion panels (--split / --target) default to --no-mouse, so
+# tmux keeps the mouse and you can DRAG the pane border to resize it (scroll the
+# lists with the keyboard). A standalone launch keeps wheel-scroll. Force either
+# with --mouse / --no-mouse.
 set -euo pipefail
 
 usage() {
-  sed -n '2,24p' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//'
+  sed -n '2,26p' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//'
 }
 
 split=0
@@ -30,12 +35,15 @@ pct=40
 city=""
 target=""
 socket=""
+mouse_pref="" # "", "on", or "off" — empty means auto (companion → off)
 while [ $# -gt 0 ]; do
   case "$1" in
     --split) split=1; shift ;;
     -l | --pct) pct="${2:-40}"; shift 2 ;;
     --target) target="${2:-}"; shift 2 ;;
     --socket) socket="${2:-}"; shift 2 ;;
+    --mouse) mouse_pref="on"; shift ;;
+    --no-mouse) mouse_pref="off"; shift ;;
     --city) city="${2:-}"; shift 2 ;;
     --city=*) city="${1#--city=}"; shift ;;
     --help) usage; exit 0 ;;
@@ -51,8 +59,21 @@ pct="${pct%\%}"           # accept "40" or "40%"
 compact=0
 { [ -n "$target" ] || [ "$split" = "1" ]; } && compact=1
 
+# Pinned companion panels default to tmux-owned mouse so the pane is
+# drag-resizable (the TUI releases the wheel; keyboard nav still scrolls). A
+# standalone launch keeps wheel-scroll. --mouse / --no-mouse force either way.
+no_mouse=0
+if [ "$mouse_pref" = "off" ]; then
+  no_mouse=1
+elif [ "$mouse_pref" = "on" ]; then
+  no_mouse=0
+elif [ "$compact" = "1" ]; then
+  no_mouse=1
+fi
+
 app_args=""
 [ -n "$city" ] && app_args="--city=$city"
+[ "$no_mouse" = "1" ] && app_args="$app_args --no-mouse"
 [ "$compact" = "1" ] && app_args="$app_args --compact"
 
 here="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"

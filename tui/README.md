@@ -137,6 +137,12 @@ in place:
 # or: npm --workspace tui run start:tmux -- --split <city>
 ```
 
+**Mouse vs drag-resize.** The full dashboard grabs the mouse for wheel scrolling.
+Pinned companion panels (`--split` / `--target`) default to `--no-mouse` so tmux
+keeps the mouse and you can **drag the pane border to resize** the panel (scroll
+the lists with the keyboard: `↑↓` / `PgUp` / `PgDn` / `g` / `G`). Force either way
+with `--mouse` / `--no-mouse`.
+
 `--split` needs an existing tmux window to split into; run outside tmux it falls
 back to the dedicated `gc-tui` session (with a note). Without `--split` the
 default is unchanged: take over the current pane when already in tmux, else a

@@ -55,6 +55,10 @@ interface AppProps {
   /** Mayor-companion mode: open on the truncated overview instead of the full
    *  agent list (set by the launcher's --split/--target via --compact). */
   readonly compact?: boolean;
+  /** Whether to grab the mouse for wheel scrolling. False (`--no-mouse`) leaves
+   *  the mouse to tmux so a pinned panel is drag-resizable; keyboard nav still
+   *  works. */
+  readonly mouse?: boolean;
 }
 
 type ViewMode =
@@ -231,7 +235,7 @@ function useTerminalRows(): number {
   return rows;
 }
 
-export function App({ baseUrl, city, compact = false }: AppProps): React.JSX.Element {
+export function App({ baseUrl, city, compact = false, mouse = true }: AppProps): React.JSX.Element {
   const { exit } = useApp();
   const { sessions, snapshot, beads, mail, error, conn } = useCity(baseUrl, city);
   const rows = useTerminalRows();
@@ -290,7 +294,7 @@ export function App({ baseUrl, city, compact = false }: AppProps): React.JSX.Ele
     setCursorId(list[next]?.id ?? null);
   }, []);
 
-  useMouseWheel(useCallback((dir: -1 | 1) => moveCursor(dir * 3), [moveCursor]));
+  useMouseWheel(useCallback((dir: -1 | 1) => moveCursor(dir * 3), [moveCursor]), mouse);
 
   const closeActivePeek = (): void => {
     if (peekPaneId !== null && paneExists(peekPaneId)) closePeek(peekPaneId);
