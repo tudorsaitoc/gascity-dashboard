@@ -32,12 +32,9 @@ import { isValidCityName } from '../../../lib/cityName.js';
 import { maintainerRouter } from './router.js';
 import { createMaintainerRefresher } from './worker.js';
 import { migrateLegacyMaintainerPaths } from './migrate-legacy-paths.js';
-import { raceWithTimeout } from '../../../lib/race-with-timeout.js';
 
 export interface MaintainerDeps {
   repo: string;
-  slingTarget: string;
-  triageTarget: string;
   refreshIntervalMs: number;
   /** Operator-pinned cache path. Undefined = use cityDataDir default. */
   cachePath?: string;
@@ -127,8 +124,6 @@ export const maintainerBackend: BackendModule<MaintainerDeps> = {
     const slice = config.modules.maintainer;
     const deps: MaintainerDeps = {
       repo: slice.githubRepo,
-      slingTarget: slice.slingTarget,
-      triageTarget: slice.triageTarget,
       refreshIntervalMs: slice.refreshIntervalMs,
     };
     if (slice.cachePath !== undefined) {
@@ -158,13 +153,6 @@ export const maintainerBackend: BackendModule<MaintainerDeps> = {
       repo: deps.repo,
       cachePath,
       slungStatePath,
-      slingTarget: deps.slingTarget,
-      triageTarget: deps.triageTarget,
-      sling: (input) => ctx.gc.sling(input),
-      listSessions: async () => {
-        const { items } = await raceWithTimeout(ctx.gc.listSessions(), 3_000);
-        return items;
-      },
     });
   },
   workers: (ctx, deps) => {

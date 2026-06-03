@@ -21,6 +21,7 @@ const frontendGeneratedClientUrl = new URL(
   import.meta.url,
 );
 const sharedIndexUrl = new URL('../../shared/src/index.ts', import.meta.url);
+const sharedGcClientTypesUrl = new URL('../../shared/src/gc-client-types.ts', import.meta.url);
 const sharedAgentsUrl = new URL('../../shared/src/gc-agents.ts', import.meta.url);
 const sharedRigsUrl = new URL('../../shared/src/gc-rigs.ts', import.meta.url);
 const sharedFormulaRunsUrl = new URL('../../shared/src/formula-runs.ts', import.meta.url);
@@ -290,6 +291,21 @@ test('GcClient keeps only generated formula feed and no unused formula/order mir
   assert.doesNotMatch(source, /\blistOrderHistory\s*\(/);
   assert.doesNotMatch(source, /\bgetOrderHistoryDetail\s*\(/);
   assert.match(source, /\bFormulaFeedBody\b/);
+});
+
+test('Maintainer sling does not reintroduce backend supervisor DTOs or GcClient writes', async () => {
+  const clientSource = await readFile(gcClientUrl, 'utf8');
+  const decodersSource = await readFile(gcSupervisorDecodersUrl, 'utf8');
+  const sharedClientTypes = await readFile(sharedGcClientTypesUrl, 'utf8');
+  const sharedIndex = await readFile(sharedIndexUrl, 'utf8');
+
+  assert.doesNotMatch(clientSource, /\bpostV0CityByCityNameSling\b/);
+  assert.doesNotMatch(clientSource, /\basync\s+sling\s*\(/);
+  assert.doesNotMatch(clientSource, /\bwriteSling\s*\(/);
+  assert.doesNotMatch(decodersSource, /\bdecodeSling\s*\(/);
+  assert.doesNotMatch(sharedClientTypes, /\bSlingInput\b/);
+  assert.doesNotMatch(sharedClientTypes, /\bSlingResponse\b/);
+  assert.match(sharedIndex, /maintainer-sling/);
 });
 
 test('GcClient has no unused backend detail/transcript supervisor mirrors', async () => {

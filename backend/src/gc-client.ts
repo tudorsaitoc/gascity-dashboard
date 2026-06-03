@@ -2,8 +2,6 @@ import type {
   GcBeadList,
   GcSessionList,
   RunScopeKind,
-  SlingInput,
-  SlingResponse,
 } from 'gas-city-dashboard-shared';
 import {
   gcSupervisorDecoders,
@@ -31,7 +29,6 @@ import {
   getV0CityByCityNameRigs,
   getV0CityByCityNameSessions,
   getV0CityByCityNameStatus,
-  postV0CityByCityNameSling,
 } from './generated/gc-supervisor-client/sdk.gen.js';
 
 // Typed client for the gc supervisor HTTP API. All reads of supervisor
@@ -54,11 +51,6 @@ const DEFAULT_TIMEOUT_MS = (() => {
   const n = Number.parseInt(raw, 10);
   return Number.isFinite(n) && n > 0 ? n : 5_000;
 })();
-
-// Sling does real work upstream (creates a bead, attaches a wisp, dispatches
-// to a rig, roughly 30s measured on this deployment). 60s gives the request
-// enough headroom while still bounding a hung supervisor.
-const SLING_TIMEOUT_MS = 60_000;
 
 type SupervisorFetchResult<RawValue> = {
   response?: Response | undefined;
@@ -240,45 +232,6 @@ export class GcClient {
 
   private cityPathParams(): { cityName: string } {
     return { cityName: this.opts.cityName };
-  }
-
-  private async writeOperation<RawValue>(
-    run: (signal: AbortSignal) => Promise<SupervisorFetchResult<RawValue>>,
-    timeoutMs: number,
-    payloadName: string,
-  ): Promise<RawValue> {
-    return this.fetchOnce(run, timeoutMs, payloadName);
-  }
-
-  private mutationHeaders(): { 'X-GC-Request': string } {
-    return { 'X-GC-Request': 'dashboard' };
-  }
-
-  private async writeSling(input: SlingInput): Promise<unknown> {
-    return this.writeOperation(
-      (upstreamSignal) => postV0CityByCityNameSling({
-        client: this.supervisor,
-        path: this.cityPathParams(),
-        headers: this.mutationHeaders(),
-        body: input,
-        signal: upstreamSignal,
-      }),
-      SLING_TIMEOUT_MS,
-      'sling',
-    );
-  }
-
-  /**
-   * `POST /sling` — auto-creates a bead from `input.bead` text and routes it
-   * to `input.target`. The caller reads `root_bead_id` off the response to
-   * record slung-state.
-   */
-  async sling(input: SlingInput): Promise<SlingResponse> {
-    const raw = await this.writeSling(input);
-    // Decode at the write edge: the supervisor emits the wire field
-    // `workflow_id`, which the decoder maps onto the renamed `run_id`
-    // property (#61). A raw cast would silently drop the routed run id.
-    return gcSupervisorDecoders.decodeSling(raw);
   }
 
   async listSessions(signal?: AbortSignal): Promise<GcSessionList> {

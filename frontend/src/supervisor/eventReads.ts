@@ -7,7 +7,7 @@ import type {
 import { supervisorApi } from './client';
 
 const EVENT_FETCH_LIMIT = 100;
-const DEFAULT_EVENT_WINDOW = '24h';
+export const DEFAULT_EVENT_WINDOW = '24h';
 
 export type SupervisorEventItem = TypedEventStreamEnvelope;
 export type SupervisorEventQuery = NonNullable<GetV0CityByCityNameEventsData['query']>;

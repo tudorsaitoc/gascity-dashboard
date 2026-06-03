@@ -27,10 +27,13 @@ import { mailProject } from '../hooks/projectOf';
 import { formatRelative } from '../hooks/time';
 import {
   DEFAULT_MAIL_HISTORY_LIMIT,
+  DEFAULT_MAIL_HISTORY_WINDOW,
   fetchSupervisorMailThread,
   listSupervisorMail,
   MAIL_HISTORY_LIMITS,
+  MAIL_HISTORY_WINDOWS,
   type MailHistoryLimit,
+  type MailHistoryWindow,
   type SupervisorMailItem,
 } from '../supervisor/mailReads';
 import {
@@ -79,6 +82,7 @@ export function MailPage() {
   const [historyLimit, setHistoryLimit] = useState<MailHistoryLimit>(
     () => selectedMessageParam === null ? DEFAULT_MAIL_HISTORY_LIMIT : DEEP_LINK_MAIL_HISTORY_LIMIT,
   );
+  const [historyWindow, setHistoryWindow] = useState<MailHistoryWindow>(DEFAULT_MAIL_HISTORY_WINDOW);
 
   // Lazy alias prefetch — Mail is the only consumer of the dropdown, so
   // non-Mail routes don't pay the cost (code-reviewer HIGH-1). Idempotent
@@ -89,8 +93,8 @@ export function MailPage() {
   const now = useNow();
 
   const { data: mailData, loading, error: mailError, refresh } = useCachedData(
-    `mail:${box}:${viewingAs.alias}:${historyLimit}`,
-    () => listSupervisorMail(box, viewingAs.alias, historyLimit),
+    `mail:${box}:${viewingAs.alias}:${historyLimit}:${historyWindow}`,
+    () => listSupervisorMail(box, viewingAs.alias, historyLimit, historyWindow, now),
   );
   const items = useMemo(() => mailData?.items ?? [], [mailData]);
   const [error, setError] = useState<string | null>(null);
@@ -325,17 +329,21 @@ export function MailPage() {
                   onToggle={filters.toggleChip}
                   legend="Read state"
                 />
-                <HistoryLimitSelect
-                  value={historyLimit}
-                  onChange={setHistoryLimit}
+                <MailHistoryControls
+                  limit={historyLimit}
+                  onLimitChange={setHistoryLimit}
+                  onWindowChange={setHistoryWindow}
+                  window={historyWindow}
                 />
               </div>
             )}
             {visibleChips.length === 0 && (
               <div className="flex justify-end">
-                <HistoryLimitSelect
-                  value={historyLimit}
-                  onChange={setHistoryLimit}
+                <MailHistoryControls
+                  limit={historyLimit}
+                  onLimitChange={setHistoryLimit}
+                  onWindowChange={setHistoryWindow}
+                  window={historyWindow}
                 />
               </div>
             )}
@@ -458,29 +466,50 @@ function BoxTabs({ box, onChange }: { box: MailBox; onChange: (b: MailBox) => vo
   );
 }
 
-function HistoryLimitSelect({
-  value,
-  onChange,
+function MailHistoryControls({
+  limit,
+  onLimitChange,
+  onWindowChange,
+  window,
 }: {
-  value: MailHistoryLimit;
-  onChange: (value: MailHistoryLimit) => void;
+  limit: MailHistoryLimit;
+  onLimitChange: (value: MailHistoryLimit) => void;
+  onWindowChange: (value: MailHistoryWindow) => void;
+  window: MailHistoryWindow;
 }) {
   return (
-    <label className="flex items-baseline gap-2 text-label uppercase tracking-wider text-fg-muted">
-      <span>History</span>
-      <select
-        aria-label="Mail history limit"
-        value={value}
-        onChange={(e) => onChange(toMailHistoryLimit(e.target.value))}
-        className="bg-transparent border border-rule rounded-sm px-2 py-1 text-label uppercase tracking-wider text-fg-muted focus:border-accent focus:outline-none focus:ring-1 focus:ring-accent/40"
-      >
-        {MAIL_HISTORY_LIMITS.map((limit) => (
-          <option key={limit} value={limit}>
-            Recent {limit}
-          </option>
-        ))}
-      </select>
-    </label>
+    <div className="flex items-baseline gap-3 flex-wrap">
+      <label className="flex items-baseline gap-2 text-label uppercase tracking-wider text-fg-muted">
+        <span>Window</span>
+        <select
+          aria-label="Mail time window"
+          value={window}
+          onChange={(e) => onWindowChange(toMailHistoryWindow(e.target.value))}
+          className="bg-transparent border border-rule rounded-sm px-2 py-1 text-label uppercase tracking-wider text-fg-muted focus:border-accent focus:outline-none focus:ring-1 focus:ring-accent/40"
+        >
+          {MAIL_HISTORY_WINDOWS.map((historyWindow) => (
+            <option key={historyWindow} value={historyWindow}>
+              {mailWindowLabel(historyWindow)}
+            </option>
+          ))}
+        </select>
+      </label>
+      <label className="flex items-baseline gap-2 text-label uppercase tracking-wider text-fg-muted">
+        <span>History</span>
+        <select
+          aria-label="Mail history limit"
+          value={limit}
+          onChange={(e) => onLimitChange(toMailHistoryLimit(e.target.value))}
+          className="bg-transparent border border-rule rounded-sm px-2 py-1 text-label uppercase tracking-wider text-fg-muted focus:border-accent focus:outline-none focus:ring-1 focus:ring-accent/40"
+        >
+          {MAIL_HISTORY_LIMITS.map((historyLimit) => (
+            <option key={historyLimit} value={historyLimit}>
+              Recent {historyLimit}
+            </option>
+          ))}
+        </select>
+      </label>
+    </div>
   );
 }
 
@@ -489,6 +518,18 @@ function toMailHistoryLimit(value: string): MailHistoryLimit {
   return MAIL_HISTORY_LIMITS.includes(parsed as MailHistoryLimit)
     ? parsed as MailHistoryLimit
     : DEFAULT_MAIL_HISTORY_LIMIT;
+}
+
+function toMailHistoryWindow(value: string): MailHistoryWindow {
+  return MAIL_HISTORY_WINDOWS.includes(value as MailHistoryWindow)
+    ? value as MailHistoryWindow
+    : DEFAULT_MAIL_HISTORY_WINDOW;
+}
+
+function mailWindowLabel(window: MailHistoryWindow): string {
+  if (window === '24h') return 'Last 24h';
+  if (window === '7d') return 'Last 7d';
+  return 'All time';
 }
 
 function normalizeSelectedMessageParam(value: string | null): string | null {

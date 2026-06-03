@@ -15,6 +15,14 @@ import {
 export const MAIL_HISTORY_LIMITS = [100, 500, 1000] as const;
 export type MailHistoryLimit = (typeof MAIL_HISTORY_LIMITS)[number];
 export const DEFAULT_MAIL_HISTORY_LIMIT: MailHistoryLimit = 100;
+export const MAIL_HISTORY_WINDOWS = ['24h', '7d', 'all'] as const;
+export type MailHistoryWindow = (typeof MAIL_HISTORY_WINDOWS)[number];
+export const DEFAULT_MAIL_HISTORY_WINDOW: MailHistoryWindow = 'all';
+
+const MAIL_WINDOW_MS: Record<Exclude<MailHistoryWindow, 'all'>, number> = {
+  '24h': 24 * 60 * 60 * 1000,
+  '7d': 7 * 24 * 60 * 60 * 1000,
+};
 
 export type SupervisorMailItem = Message;
 export type SupervisorMailBox = 'inbox' | 'sent' | 'all';
@@ -30,11 +38,13 @@ export async function listSupervisorMail(
   box: SupervisorMailBox,
   alias: string,
   limit: MailHistoryLimit = DEFAULT_MAIL_HISTORY_LIMIT,
+  window: MailHistoryWindow = DEFAULT_MAIL_HISTORY_WINDOW,
+  nowMs: number = Date.now(),
 ): Promise<SupervisorMailList> {
   const cityName = activeCityOrThrow('list supervisor mail');
   const mailList = await supervisorApi().listMail(cityName, { limit });
   const rawItems = mailList.items ?? [];
-  const filtered = filterByBox(rawItems, box, alias);
+  const filtered = filterByClockWindow(filterByBox(rawItems, box, alias), window, nowMs);
   filtered.sort(sortNewestFirst);
   return {
     ...mailList,
@@ -87,6 +97,19 @@ function filterByBox(
     return items.filter((mail) => mail.to.toLowerCase() === resolvedAlias);
   }
   return items.filter((mail) => mail.from.toLowerCase() === resolvedAlias);
+}
+
+function filterByClockWindow(
+  items: ReadonlyArray<SupervisorMailItem>,
+  window: MailHistoryWindow,
+  nowMs: number,
+): SupervisorMailItem[] {
+  if (window === 'all') return [...items];
+  const cutoffMs = nowMs - MAIL_WINDOW_MS[window];
+  return items.filter((mail) => {
+    const createdMs = Date.parse(mail.created_at);
+    return Number.isFinite(createdMs) && createdMs >= cutoffMs;
+  });
 }
 
 function supervisorMailAlias(alias: string): string {

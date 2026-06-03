@@ -284,6 +284,21 @@ describe('MailPage supervisor reads', () => {
     expect((screen.getByLabelText('Mail history limit') as HTMLSelectElement).value).toBe('1000');
   });
 
+  it('exposes a clock window filter without changing the generated supervisor history query', async () => {
+    renderMailPage();
+
+    await screen.findByText('direct supervisor inbox');
+    expect((screen.getByLabelText('Mail time window') as HTMLSelectElement).value).toBe('all');
+
+    fireEvent.change(screen.getByLabelText('Mail time window'), {
+      target: { value: '7d' },
+    });
+
+    expect((screen.getByLabelText('Mail time window') as HTMLSelectElement).value).toBe('7d');
+    expect(fetchCalls.map((call) => call.url)).toContain('/gc-supervisor/v0/city/test-city/mail?limit=100');
+    expect(fetchCalls.some((call) => call.url.includes('since='))).toBe(false);
+  });
+
   it('loads thread messages from the supervisor thread endpoint', async () => {
     renderMailPage();
 

@@ -109,6 +109,11 @@ const AGENT_IDLE_WATCH_MS = 4 * 60 * 60 * 1000;
 const BEAD_UNCLAIMED_WATCH_MS = 24 * 60 * 60 * 1000;
 const BEAD_STALE_ATTENTION_MS = 72 * 60 * 60 * 1000;
 const MAIL_UNREAD_STALE_MS = 24 * 60 * 60 * 1000;
+const DASHBOARD_PROCESS_STARTING_UPTIME_SEC = 30;
+const DASHBOARD_PROCESS_RSS_HIGH_BYTES = 2_000_000_000;
+const DASHBOARD_PROCESS_RSS_ELEVATED_BYTES = 1_000_000_000;
+const DASHBOARD_PROCESS_HEAP_HIGH_BYTES = 1_000_000_000;
+const DASHBOARD_PROCESS_HEAP_ELEVATED_BYTES = 512_000_000;
 
 /**
  * The mayor-decision marker label (specs/architecture/mayor-decision-ledger.md
@@ -740,6 +745,7 @@ function deriveHealthAttention(
     appendSupervisorAttention(items, facts.supervisor);
   }
   if (facts.system !== undefined) {
+    appendDashboardProcessAttention(items, facts.system);
     appendHostAttention(items, facts.system);
   }
   if (facts.trend !== undefined && !facts.trend.available) {
@@ -869,6 +875,45 @@ function appendSupervisorAttention(
   }
 }
 
+function appendDashboardProcessAttention(items: AttentionItem[], health: SystemHealth): void {
+  const admin = health.admin;
+  if (admin.uptime_sec < DASHBOARD_PROCESS_STARTING_UPTIME_SEC) {
+    items.push(healthAttention({
+      id: 'health:dashboard-process-starting',
+      title: 'Dashboard process just restarted',
+      summary: `${admin.uptime_sec}s uptime`,
+    }));
+  }
+
+  if (admin.rss_bytes >= DASHBOARD_PROCESS_RSS_HIGH_BYTES) {
+    items.push(healthAttention({
+      id: 'health:dashboard-process-rss-high',
+      title: 'Dashboard RSS high',
+      summary: formatBytes(admin.rss_bytes),
+    }));
+  } else if (admin.rss_bytes >= DASHBOARD_PROCESS_RSS_ELEVATED_BYTES) {
+    items.push(healthWatch({
+      id: 'health:dashboard-process-rss-elevated',
+      title: 'Dashboard RSS elevated',
+      summary: formatBytes(admin.rss_bytes),
+    }));
+  }
+
+  if (admin.heap_used_bytes >= DASHBOARD_PROCESS_HEAP_HIGH_BYTES) {
+    items.push(healthAttention({
+      id: 'health:dashboard-process-heap-high',
+      title: 'Dashboard heap high',
+      summary: formatBytes(admin.heap_used_bytes),
+    }));
+  } else if (admin.heap_used_bytes >= DASHBOARD_PROCESS_HEAP_ELEVATED_BYTES) {
+    items.push(healthWatch({
+      id: 'health:dashboard-process-heap-elevated',
+      title: 'Dashboard heap elevated',
+      summary: formatBytes(admin.heap_used_bytes),
+    }));
+  }
+}
+
 function appendHostAttention(items: AttentionItem[], health: SystemHealth): void {
   const memoryRatio = safeRatio(health.host.free_mem_bytes, health.host.total_mem_bytes);
   if (memoryRatio !== null && memoryRatio < 0.05) {
@@ -899,6 +944,13 @@ function appendHostAttention(items: AttentionItem[], health: SystemHealth): void
       summary: `${health.host.load_avg_1.toFixed(2)} load across ${health.host.cpu_count} CPUs`,
     }));
   }
+}
+
+function formatBytes(bytes: number): string {
+  if (bytes >= 1_000_000_000) return `${(bytes / 1_000_000_000).toFixed(1)} GB`;
+  if (bytes >= 1_000_000) return `${Math.round(bytes / 1_000_000)} MB`;
+  if (bytes >= 1_000) return `${Math.round(bytes / 1_000)} KB`;
+  return `${bytes} B`;
 }
 
 function safeRatio(numerator: number, denominator: number): number | null {

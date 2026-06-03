@@ -39,6 +39,7 @@ Written inventory of every cross-boundary touch Maintainer makes in the codebase
 - **What.** A JSDoc comment on `GcClient.sling()` describes the contract by referencing maintainer-specific bookkeeping: *"The caller reads `root_bead_id` off the response to record slung-state, in place of the old `^Slung <id>` stdout parse."*
 - **Risk.** Comment-level leak only — no runtime coupling. But it indicates the supervisor client (a core seam) already encodes assumptions about a specific consumer (maintainer). When PR-A's adapter exposes `ctx.gc` as the raw `GcClient` per the PRD §1 CityContext comment, the next person reading `gc-client.ts` will see a maintainer-specific contract baked into the host-level class.
 - **Disposition.** `kept-inside-module`. Rewrite the JSDoc to be consumer-agnostic: *"Callers read `root_bead_id` off the response to record their own routing state."* No code change. Land it inside PR-A so the seam is conceptually clean before PR-B touches the same area. (This is a one-line doc fix; do not let it grow into a refactor.)
+- **Status (direct-supervisor migration):** RESOLVED by deletion. Maintainer sling now calls the generated browser supervisor client and records dashboard-local slung-state through `/maintainer/sling-record`; backend `GcClient.sling()` no longer exists.
 
 ## C5. `MaintainerRefresher` lifecycle shape vs `BackgroundWorker` (`maintainer/worker.ts:37-41`, PRD §1 `BackgroundWorker`)
 

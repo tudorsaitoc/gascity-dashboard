@@ -6,6 +6,7 @@ import type {
   LocalToolVersions,
   DoltNomsTrend,
   MaintainerTriage,
+  MaintainerSlingRecordRequest,
   ContributorStat,
   ApiError,
   DashboardRuntimeConfig,
@@ -243,6 +244,11 @@ const decodeRuntimeConfig = objectDecoder<DashboardRuntimeConfig>('config', (rec
   requireBooleanField(record, url, 'config', 'useFixtures');
   requireStringArrayOrNullField(record, url, 'config', 'enabledModules');
   requireNullableStringField(record, url, 'config', 'defaultView');
+  if (record.maintainer !== undefined) {
+    const maintainer = requireRecord(record.maintainer, url, 'config.maintainer');
+    requireStringField(maintainer, url, 'config.maintainer', 'slingTarget');
+    requireStringField(maintainer, url, 'config.maintainer', 'triageTarget');
+  }
 });
 const decodeSystemHealth = objectDecoder<SystemHealth>('system health', (record, url) => {
   requireObjectField(record, url, 'system health', 'admin');
@@ -274,9 +280,9 @@ const decodeMaintainerTriage = objectDecoder<MaintainerTriage>('maintainer triag
 const decodeContributor = objectDecoder<ContributorStat>('contributor', (record, url) => {
   requireStringField(record, url, 'contributor', 'login');
 });
-const decodeMaintainerSling = objectDecoder<{ ok: true; bead_id?: string }>('maintainer sling', (record, url) => {
-  requireTrueField(record, url, 'maintainer sling', 'ok');
-  requireOptionalStringField(record, url, 'maintainer sling', 'bead_id');
+const decodeMaintainerSlingRecord = objectDecoder<{ ok: true; bead_id?: string }>('maintainer sling record', (record, url) => {
+  requireTrueField(record, url, 'maintainer sling record', 'ok');
+  requireOptionalStringField(record, url, 'maintainer sling record', 'bead_id');
 });
 
 export interface ApiErrorParts {
@@ -342,17 +348,10 @@ export const api = {
   maintainerContributor(login: string): Promise<ContributorStat> {
     return request('GET', cityPath(`/maintainer/contributor/${encodeURIComponent(login)}`), decodeContributor);
   },
-  // gascity-dashboard-0nn: per-item sling dispatch. The bulk-sling
-  // action bar fans out one call per selected item via Promise.allSettled
-  // so a single 4xx/5xx doesn't block the rest of the batch.
-  maintainerSling(payload: {
-    kind: 'pr' | 'issue';
-    number: number;
-    html_url: string;
-    intent: 'review' | 'draft' | 'triage';
-    target?: string;
-  }): Promise<{ ok: true; bead_id?: string }> {
-    return request('POST', cityPath('/maintainer/sling'), decodeMaintainerSling, payload);
+  maintainerSlingRecord(
+    payload: MaintainerSlingRecordRequest,
+  ): Promise<{ ok: true; bead_id?: string }> {
+    return request('POST', cityPath('/maintainer/sling-record'), decodeMaintainerSlingRecord, payload);
   },
 };
 

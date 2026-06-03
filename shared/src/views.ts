@@ -11,33 +11,20 @@
 // `ViewDescriptor` with `LazyExoticComponent<ComponentType>`; backend
 // re-types `BackendModule` with `express.Router`.
 
-// 9yj.1.1: import directly from the leaf file, NOT from './index.js'. Going
-// through the barrel would re-introduce the type-only cycle this extraction
-// was designed to break (views.ts → index.ts → views.ts).
-import type { SlingInput, SlingResponse, GcSessionList } from './gc-client-types.js';
-
-// ── GcClient seam ────────────────────────────────────────────────────────
+// ── Supervisor capability seam ────────────────────────────────────────────
 //
 // `shared/` cannot import the concrete GcClient from `backend/` — that
 // would create a backend→shared→backend cycle and force every consumer of
-// these types to drag the full HTTP-client surface into scope. Instead we
-// publish the MINIMUM surface that BackendModule authors are contractually
-// allowed to call. The PRD's Maintainer worked example uses exactly
-// `ctx.gc.sling(...)` and `ctx.gc.listSessions()`; everything else is a
-// private backend concern.
+// these types to drag the full HTTP-client surface into scope. `shared/`
+// therefore publishes no supervisor method shape at all. Under the
+// direct-supervisor migration, first-party modules must not use `ctx.gc` for
+// GC-owned resources; browser code calls the generated supervisor client
+// directly and modules keep only dashboard-local host capabilities.
 //
 // Modules wanting a wider surface declare it in their own `needs(config)`
-// closure (e.g. capture the concrete GcClient at bind time) — but the
-// `ctx.gc` field stays structurally narrow so the seam-violation shows up
-// at compile time.
-
-/** Minimum gc-supervisor surface a `BackendModule` may rely on from
- *  `CityContext.gc`. Phase 2 (ucc) may narrow further (per-city instance)
- *  or wrap with a capability scoper for Phase 3 third-party modules. */
-export interface GcClientLike {
-  sling(input: SlingInput): Promise<SlingResponse>;
-  listSessions(signal?: AbortSignal): Promise<GcSessionList>;
-}
+// closure, or specialize `CityContext<TGc>` in backend-only code. The default
+// `ctx.gc` type is `unknown` so accidental supervisor facade calls fail at
+// compile time.
 
 // ── View descriptor (frontend) ───────────────────────────────────────────
 
@@ -98,7 +85,7 @@ export interface ModuleResources {
  *  off `GET /v0/cities`, selected per request via the `/api/city/:cityName/`
  *  path segment. The per-module mount signature is unchanged from the
  *  single-city phase — a module still receives exactly one CityContext. */
-export interface CityContext<TGc extends GcClientLike = GcClientLike, TConfig = unknown> {
+export interface CityContext<TGc = unknown, TConfig = unknown> {
   cityName: string;
   cityPath: string;
   /** Per-city data directory. Modules MUST derive paths from this, not
@@ -112,7 +99,7 @@ export interface CityContext<TGc extends GcClientLike = GcClientLike, TConfig = 
    *  config-load time so this path segment can never escape the
    *  cities/ root via path.join's `..` normalization. */
   cityDataDir: string;
-  /** gc supervisor surface (Phase 1: full client; Phase 2/3 may narrow). */
+  /** Host-owned supervisor handle. Module contracts must not assume GC-owned methods. */
   gc: TGc;
   /** Read-only runtime config exposed to modules. Backend re-types this
    *  as `DashboardRuntimeConfig` via the local wrapper. */
@@ -126,7 +113,7 @@ export interface CityContext<TGc extends GcClientLike = GcClientLike, TConfig = 
 export interface BackendModule<
   Deps = void,
   TRouter = unknown,
-  TGc extends GcClientLike = GcClientLike,
+  TGc = unknown,
   TConfig = unknown,
 > {
   /** Matches ViewDescriptor.id. */

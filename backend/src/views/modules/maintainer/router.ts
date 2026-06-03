@@ -1,14 +1,11 @@
 import { Router } from 'express';
 import type {
   ContributorStat,
-  GcSession,
   MaintainerTriage,
-  SlingInput,
-  SlingResponse,
 } from 'gas-city-dashboard-shared';
+import { decodeMaintainerSlingRecord } from 'gas-city-dashboard-shared';
 import { recordAudit } from '../../../audit.js';
 import { ExecError } from '../../../exec.js';
-import { GcClient } from '../../../gc-client.js';
 import {
   collectItems,
   fetchTriage as defaultFetchTriage,
@@ -23,9 +20,8 @@ import {
   routeValidationError,
   writeRouteError,
 } from '../../../route-errors.js';
-import { decodeSlingRequest } from './sling-request.js';
 import { applySlungOverlay } from './serve-overlay.js';
-import { dispatchMaintainerSling } from './sling-dispatch.js';
+import { recordMaintainerSling } from './sling-dispatch.js';
 
 const GH_LOGIN_RE = /^[A-Za-z0-9][A-Za-z0-9-]{0,38}$/;
 
@@ -44,52 +40,19 @@ interface MaintainerRouterOptions {
    * fallback inside the router, so the worker and the route cannot drift.
    */
   slungStatePath: string;
-  /** Default `gc sling` target when the request omits one. From config. */
-  slingTarget: string;
-  /**
-   * Override `gc sling` target when intent='triage' and the request
-   * omits an explicit target. Defaults to slingTarget when unset so a
-   * caller that doesn't pass this option keeps the original
-   * single-target behaviour. From config.maintainerTriageTarget.
-   */
-  triageTarget?: string;
-  /**
-   * Injected sling runner (gascity-dashboard-mq2). Production wires
-   * `gc.sling` (GcClient HTTP POST /sling); tests pass a stub. The
-   * supervisor exposes the write endpoint directly, so the route does
-   * not shell the gc CLI, parse stdout, or thread `--city` (the city is
-   * in the request URL path).
-   */
-  sling: (input: SlingInput) => Promise<SlingResponse>;
   /**
    * Injected triage fetcher used by POST /refresh. Defaults to the
    * real `fetchTriage` from ../maintainer/triage. Tests pass a stub to
    * exercise failure-redaction contracts without spawning gh.
    */
   fetchTriage?: (repo: string) => Promise<MaintainerTriage>;
-  /**
-   * Injected supervisor sessions fetcher (gascity-dashboard-55b). Used
-   * to resolve the configured sling target role (e.g. 'chief-of-staff')
-   * to a concrete session_name at write time so the frontend's inline
-   * 'slung →' link lands on a real AgentDetail route instead of 404ing
-   * on the role label. Production wires gc.listSessions; tests pass a
-   * stub. When unset OR when the call fails, the route persists
-   * `resolved_session_name: null` and the slung itself still succeeds —
-   * the frontend then surfaces an inline 'no session for role X' error
-   * instead of a clickable link.
-   */
-  listSessions?: () => Promise<readonly GcSession[]>;
 }
 
 export function maintainerRouter({
   repo,
   cachePath,
   slungStatePath,
-  slingTarget,
-  triageTarget,
-  sling,
   fetchTriage = defaultFetchTriage,
-  listSessions,
 }: MaintainerRouterOptions): Router {
   const router = Router();
 
@@ -191,21 +154,15 @@ export function maintainerRouter({
     req.on('close', () => removeSseClient(res));
   });
 
-  router.post('/sling', async (req, res) => {
-    const targetDefaults =
-      triageTarget === undefined ? { slingTarget } : { slingTarget, triageTarget };
-    const decoded = decodeSlingRequest(req.body, targetDefaults);
+  router.post('/sling-record', async (req, res) => {
+    const decoded = decodeMaintainerSlingRecord(req.body);
     if (decoded.status === 'error') {
       writeRouteError(res, routeValidationError(decoded.message));
       return;
     }
-    const body = decoded.request;
+    const record = decoded.record;
     try {
-      const deps =
-        listSessions === undefined
-          ? { repo, slungStatePath, sling }
-          : { repo, slungStatePath, sling, listSessions };
-      const { beadId } = await dispatchMaintainerSling(body, deps);
+      const { beadId } = await recordMaintainerSling(record, { repo, slungStatePath });
       // Wire/disk asymmetry on bead_id: persisted as null on disk
       // (isValidStateMap accepts null), returned to the client as
       // omitted-field via `?? undefined` so the response matches the
@@ -214,18 +171,11 @@ export function maintainerRouter({
       // presence machine-checkable.
       res.json({ ok: true, bead_id: beadId ?? undefined });
     } catch (err) {
-      // gascity-dashboard-mq2: the sling is now an HTTP POST to the
-      // supervisor. A true client-side timeout maps to 504; any other
-      // failure (non-2xx from the supervisor, network error) maps to 502
-      // upstream. The raw message can embed the supervisor URL / host
-      // (GcClient throws `gc supervisor returned NNN`; fetch errors embed
-      // host:port), so it stays server-side in the centralized route log.
       writeRouteError(res, routeUpstreamError(err, {
         component: LOG_COMPONENT.maintainer,
-        operation: '/api/maintainer/sling failed',
-        responseError: 'gc sling failed',
-        timeoutError: 'gc supervisor timed out',
-        isTimeout: GcClient.isTimeoutError,
+        operation: '/api/maintainer/sling-record failed',
+        responseError: 'failed to record maintainer sling',
+        isTimeout: () => false,
       }));
     }
   });

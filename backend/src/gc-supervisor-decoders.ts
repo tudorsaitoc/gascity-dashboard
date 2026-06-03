@@ -1,7 +1,6 @@
 import type {
   GcBeadList,
   GcSessionList,
-  SlingResponse,
 } from 'gas-city-dashboard-shared';
 import { z } from 'zod';
 import type {
@@ -287,38 +286,7 @@ export const gcSupervisorDecoders = {
   getStatus(value: RawSupervisorSchema['StatusBody']): StatusBody {
     return value;
   },
-
-  // gascity-dashboard sling wire-field mapping. #61 renamed
-  // `SlingResponse.workflow_id` → `run_id`, but the gc supervisor still
-  // emits the JSON field `workflow_id` on the /sling wire. Read the wire
-  // field explicitly and map it onto the renamed property so the routed
-  // run id is NOT silently dropped on the cast at the write edge.
-  decodeSling(value: unknown): SlingResponse {
-    const wire = decodeSupervisorPayload<SlingWire>(
-      SlingResponseSchema,
-      value,
-      'sling',
-    );
-    const { workflow_id: workflowId, ...rest } = wire;
-    return workflowId !== undefined ? { ...rest, run_id: workflowId } : rest;
-  },
 } as const;
-
-interface SlingWire {
-  root_bead_id?: string;
-  bead?: string;
-  workflow_id?: string;
-  target?: string;
-  status?: string;
-}
-
-const SlingResponseSchema = z.object({
-  root_bead_id: z.string().optional(),
-  bead: z.string().optional(),
-  workflow_id: z.string().optional(),
-  target: z.string().optional(),
-  status: z.string().optional(),
-}).passthrough();
 
 // gascity-dashboard-t5l6: `z.ZodType<SchemaOutputFor<NoInfer<Decoded>>>`
 // (not the bare `z.ZodType`) is load-bearing. It ties the Zod schema's

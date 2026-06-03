@@ -4,10 +4,9 @@ import os from 'node:os';
 import path from 'node:path';
 import { afterEach, describe, test } from 'node:test';
 import { setAuditLogPath } from '../../../audit.js';
-import type { GcSession, SlingInput, SlingResponse } from 'gas-city-dashboard-shared';
+import type { MaintainerSlingRecordRequest } from 'gas-city-dashboard-shared';
 import { readSlungState } from './slung-state.js';
-import { dispatchMaintainerSling } from './sling-dispatch.js';
-import type { DecodedSlingRequest } from './sling-request.js';
+import { recordMaintainerSling } from './sling-dispatch.js';
 
 interface TestPaths {
   readonly dir: string;
@@ -42,63 +41,30 @@ async function readAudit(pathToAudit: string): Promise<Record<string, unknown>[]
     .map((line) => JSON.parse(line) as Record<string, unknown>);
 }
 
-function request(overrides: Partial<DecodedSlingRequest> = {}): DecodedSlingRequest {
+function record(overrides: Partial<MaintainerSlingRecordRequest> = {}): MaintainerSlingRecordRequest {
   return {
     kind: 'pr',
     number: 47,
-    html_url: 'https://github.com/gastownhall/gascity/pull/47',
     intent: 'triage',
     target: 'chief-of-staff',
-    beadText: 'Please triage https://github.com/gastownhall/gascity/pull/47',
+    bead_id: 'gc-255139',
+    resolved_session_name: 'oversight-rig__chief-of-staff',
     ...overrides,
   };
 }
 
-function fakeSession(overrides: Partial<GcSession> & { id: string }): GcSession {
-  return {
-    template: 't',
-    state: 'active',
-    created_at: '2026-05-24T00:00:00Z',
-    attached: false,
-    ...overrides,
-  } as GcSession;
-}
-
-describe('dispatchMaintainerSling', () => {
-  test('success calls supervisor, audits, persists slung state, and notifies refresh', async () => {
+describe('recordMaintainerSling', () => {
+  test('audits, persists slung state, and notifies refresh without supervisor IO', async () => {
     const paths = await testPaths();
-    const calls: SlingInput[] = [];
     const notifications: unknown[] = [];
-    const sling = async (input: SlingInput): Promise<SlingResponse> => {
-      calls.push(input);
-      return {
-        status: 'ok',
-        target: input.target,
-        root_bead_id: 'gc-255139',
-      };
-    };
 
-    const result = await dispatchMaintainerSling(request(), {
+    const result = await recordMaintainerSling(record(), {
       repo: 'gastownhall/gascity',
       slungStatePath: paths.slungStatePath,
-      sling,
-      listSessions: async () => [
-        fakeSession({
-          id: 'gc-1',
-          pool: 'chief-of-staff',
-          session_name: 'oversight-rig__chief-of-staff',
-        }),
-      ],
       notifyRefresh: (payload) => notifications.push(payload),
     });
 
     assert.equal(result.beadId, 'gc-255139');
-    assert.deepEqual(calls, [
-      {
-        target: 'chief-of-staff',
-        bead: 'Please triage https://github.com/gastownhall/gascity/pull/47',
-      },
-    ]);
 
     const state = await readSlungState(paths.slungStatePath);
     const entry = state['pr:47'];
@@ -111,40 +77,31 @@ describe('dispatchMaintainerSling', () => {
 
     const [audit] = await readAudit(paths.auditPath);
     assert.equal(audit?.type, 'dashboard.sling');
-    assert.equal(audit?.endpoint, 'POST /api/maintainer/sling');
+    assert.equal(audit?.endpoint, 'POST /api/maintainer/sling-record');
     const parsed = audit?.parsed_args as Record<string, string>;
     assert.equal(parsed.kind, 'pr');
     assert.equal(parsed.number, '47');
     assert.equal(parsed.intent, 'triage');
     assert.equal(parsed.target, 'chief-of-staff');
-    assert.equal(JSON.stringify(audit).includes('Please triage'), false);
+    assert.equal(parsed.bead_id, 'gc-255139');
   });
 
-  test('failure audits and rethrows without writing slung state or notifying refresh', async () => {
+  test('persists explicit null bead and unresolved session values', async () => {
     const paths = await testPaths();
-    const notifications: unknown[] = [];
-    const failure = new Error('gc supervisor returned 502');
 
-    await assert.rejects(
-      () =>
-        dispatchMaintainerSling(request(), {
-          repo: 'gastownhall/gascity',
-          slungStatePath: paths.slungStatePath,
-          sling: async () => {
-            throw failure;
-          },
-          notifyRefresh: (payload) => notifications.push(payload),
-        }),
-      failure,
+    const result = await recordMaintainerSling(
+      record({ bead_id: null, resolved_session_name: null }),
+      {
+        repo: 'gastownhall/gascity',
+        slungStatePath: paths.slungStatePath,
+      },
     );
 
-    assert.deepEqual(await readSlungState(paths.slungStatePath), {});
-    assert.deepEqual(notifications, []);
-
-    const [audit] = await readAudit(paths.auditPath);
-    assert.equal(audit?.type, 'dashboard.sling');
-    const parsed = audit?.parsed_args as Record<string, string>;
-    assert.equal(parsed.error_kind, 'upstream');
-    assert.equal(JSON.stringify(audit).includes('gc supervisor returned'), false);
+    assert.equal(result.beadId, null);
+    const state = await readSlungState(paths.slungStatePath);
+    const entry = state['pr:47'];
+    assert.ok(entry);
+    assert.equal(entry.bead_id, null);
+    assert.equal(entry.resolved_session_name, null);
   });
 });

@@ -82,6 +82,27 @@ describe('createAttentionContributors', () => {
     ]);
   });
 
+  it('derives dashboard-process attention from local admin process metrics', () => {
+    const model = composeAttention(createAttentionContributors({
+      health: {
+        system: systemHealth({}, {
+          heap_used_bytes: 1_400_000_000,
+          rss_bytes: 2_200_000_000,
+          uptime_sec: 8,
+        }),
+        supervisor: { status: 'available', data: presentSupervisor() },
+        trend: healthyTrend(),
+      },
+    }));
+
+    expect(model.byDomain.health.attention).toBe(3);
+    expect(model.byDomain.health.items.map((item) => item.id)).toEqual([
+      'health:dashboard-process-starting',
+      'health:dashboard-process-rss-high',
+      'health:dashboard-process-heap-high',
+    ]);
+  });
+
   it('derives city-wide attention from existing facts for every operational domain', () => {
     const model = composeAttention(createAttentionContributors({
       runs: {
@@ -500,7 +521,10 @@ describe('createAttentionContributors', () => {
   });
 });
 
-function systemHealth(overrides: Partial<SystemHealth['host']> = {}): SystemHealth {
+function systemHealth(
+  overrides: Partial<SystemHealth['host']> = {},
+  adminOverrides: Partial<SystemHealth['admin']> = {},
+): SystemHealth {
   return {
     admin: {
       pid: 123,
@@ -508,6 +532,7 @@ function systemHealth(overrides: Partial<SystemHealth['host']> = {}): SystemHeal
       rss_bytes: 128_000_000,
       heap_used_bytes: 64_000_000,
       node_version: 'v22.0.0',
+      ...adminOverrides,
     },
     host: {
       load_avg_1: 0.5,

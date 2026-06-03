@@ -195,8 +195,6 @@ export const maintainerBackend: BackendModule<MaintainerDeps> = {
     repo: config.maintainerRepo,
     cachePath: config.maintainerCachePath,
     slungStatePath: path.join(path.dirname(config.maintainerCachePath), 'slung-state.json'),
-    slingTarget: config.maintainerSlingTarget,
-    triageTarget: config.maintainerTriageTarget,
     refreshIntervalMs: config.maintainerRefreshIntervalMs,
   }),
   mount: (ctx, deps) =>
@@ -205,13 +203,10 @@ export const maintainerBackend: BackendModule<MaintainerDeps> = {
       repo: deps.repo,
       cachePath: path.join(ctx.cityDataDir, 'maintainer-cache.json'),
       slungStatePath: path.join(ctx.cityDataDir, 'slung-state.json'),
-      slingTarget: deps.slingTarget,
-      triageTarget: deps.triageTarget,
-      sling: (input) => ctx.gc.sling(input),
-      listSessions: async () => {
-        const { items } = await raceWithTimeout(ctx.gc.listSessions(), 3_000)
-        return items
-      },
+      // Maintainer dispatch targets are exposed through runtime config so the
+      // browser can call generated supervisor sling/session APIs directly.
+      // The backend router owns only GitHub triage cache and slung-state
+      // recording.
     }),
   workers: (ctx, deps) =>
     deps.refreshIntervalMs > 0

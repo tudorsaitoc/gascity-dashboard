@@ -247,7 +247,7 @@ test('errorMessage normalizes unknown error values for shared client/server repo
   assert.equal(errorMessage({ status: 500 }), 'unknown error');
 });
 
-test('shared client-error and sling types compile as the cross-workspace contracts', () => {
+test('shared client-error and maintainer intent types compile as cross-workspace contracts', () => {
   const report: ClientErrorReport = {
     component: 'AgentDetail',
     operation: 'refreshBeads',

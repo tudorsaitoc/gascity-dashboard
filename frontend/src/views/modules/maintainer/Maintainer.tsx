@@ -1,6 +1,12 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
-import type { MaintainerTriage } from 'gas-city-dashboard-shared';
+import {
+  errorMessage,
+  prepareMaintainerSlingRequest,
+  resolveSessionForTarget,
+  type DashboardMaintainerRuntimeConfig,
+  type MaintainerTriage,
+} from 'gas-city-dashboard-shared';
 import { filterTierByNeedsYou, NEEDS_YOU_VIEW_PARAM } from './needsYou';
 import {
   countTierByVetted,
@@ -9,7 +15,7 @@ import {
 } from './triageFilters';
 import { useNow } from '../../../contexts/NowContext';
 import { api } from '../../../api/client';
-import { cityPath } from '../../../api/cityBase';
+import { cityPath, getActiveCity } from '../../../api/cityBase';
 import { setCached } from '../../../api/cache';
 import { Button } from '../../../components/Button';
 import { PageHeader } from '../../../components/PageHeader';
@@ -28,7 +34,11 @@ import {
   toggleSelectionItem,
   useSlingSuccess,
   type MaintainerSlingIntent,
+  type SlingRequest,
+  type SlingSummary,
 } from './maintainerSelection';
+import { supervisorApi } from '../../../supervisor/client';
+import { reportClientError } from '../../../lib/clientErrorReporting';
 
 export { SlungLink, TriageScore } from './TriageSignals';
 export { IssueRow, SlungSection, TierSection } from './TriageSections';
@@ -186,10 +196,10 @@ export function MaintainerPage() {
   const allItems = useMemo(() => (data ? flattenTriageItems(data) : []), [data]);
 
   // Single dispatch path, parameterised on intent (gascity-dashboard-5xw).
-  // intent='triage' → backend resolves to MAINTAINER_TRIAGE_TARGET
+  // intent='triage' → frontend resolves to MAINTAINER_TRIAGE_TARGET
   // (default 'chief-of-staff'); intent='draft' → MAINTAINER_SLING_TARGET
-  // (default 'mayor'). Target omitted from each request so the backend
-  // owns the routing decision.
+  // (default 'mayor'). The browser then calls the generated supervisor sling
+  // endpoint directly; the dashboard service records only local slung state.
   const handleSend = useCallback(async (intent: MaintainerSlingIntent) => {
     const successLabel =
       intent === 'triage' ? TRIAGE_TARGET_LABEL : DRAFT_TARGET_LABEL;
@@ -202,7 +212,14 @@ export function MaintainerPage() {
     clearSlingSuccess();
     try {
       const batch = buildSlingRequests(selection, allItems, intent);
-      const summary = await dispatchSlings(batch.requests, (req) => api.maintainerSling(req));
+      let summary: SlingSummary = { outcomes: [], succeeded: 0, failed: 0 };
+      if (batch.requests.length > 0) {
+        const defaults = await loadMaintainerSlingDefaults();
+        summary = await dispatchSlings(
+          batch.requests,
+          (req) => dispatchMaintainerSupervisorSling(req, defaults),
+        );
+      }
       setSlingSkippedCount(batch.skippedKeys.length);
       if (summary.failed === 0) {
         setSelection(new Set());
@@ -377,6 +394,59 @@ export function MaintainerPage() {
       )}
     </section>
   );
+}
+
+async function loadMaintainerSlingDefaults(): Promise<DashboardMaintainerRuntimeConfig> {
+  const config = await api.config();
+  if (config.maintainer === undefined) {
+    throw new Error('maintainer sling config unavailable');
+  }
+  return config.maintainer;
+}
+
+async function dispatchMaintainerSupervisorSling(
+  req: SlingRequest,
+  defaults: DashboardMaintainerRuntimeConfig,
+): Promise<void> {
+  const prepared = prepareMaintainerSlingRequest(req, defaults);
+  if (prepared.status === 'error') {
+    throw new Error(prepared.message);
+  }
+  const cityName = getActiveCity();
+  if (cityName === null) {
+    throw new Error('maintainer sling called before an active city was resolved');
+  }
+  const request = prepared.request;
+  const result = await supervisorApi().sling(cityName, {
+    target: request.target,
+    bead: request.beadText,
+  });
+  const resolvedSessionName = await resolveMaintainerSlingTarget(cityName, request.target);
+  await api.maintainerSlingRecord({
+    kind: request.kind,
+    number: request.number,
+    intent: request.intent,
+    target: request.target,
+    bead_id: result.root_bead_id ?? null,
+    resolved_session_name: resolvedSessionName,
+  });
+}
+
+async function resolveMaintainerSlingTarget(
+  cityName: string,
+  target: string,
+): Promise<string | null> {
+  try {
+    const sessions = await supervisorApi().listSessions(cityName);
+    return resolveSessionForTarget(target, sessions.items ?? [])?.session_name ?? null;
+  } catch (err) {
+    void reportClientError({
+      component: 'maintainer',
+      operation: 'resolve maintainer sling target',
+      message: errorMessage(err),
+    });
+    return null;
+  }
 }
 
 function buildSynopsis(data: MaintainerTriage): string {

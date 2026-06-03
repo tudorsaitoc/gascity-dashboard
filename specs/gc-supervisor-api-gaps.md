@@ -317,11 +317,12 @@ Why:
 ## Former CLI-Backed Operations Requiring HTTP Equivalents
 
 The current dashboard reaches the supervisor over HTTP for every migrated read
-and for claim, close, agent nudge, targeted bead create-and-sling, and the mail
-send/reply/archive/read-state writes. Those writes now use the
-browser-generated supervisor client directly. Maintainer-specific sling remains
-dashboard-mediated because it composes GitHub/maintainer data before
-dispatching to the supervisor. No operation remains on the `gc` CLI:
+and for claim, close, agent nudge, targeted bead create-and-sling,
+Maintainer-specific sling, and the mail send/reply/archive/read-state writes.
+Those writes now use the browser-generated supervisor client directly.
+Maintainer still composes GitHub/maintainer data and persists local slung-state
+through dashboard-local routes, but the actual supervisor sling dispatch is no
+longer dashboard-service mediated. No operation remains on the `gc` CLI:
 GC-10, GC-11, and GC-12 now provide supervisor HTTP equivalents for the former
 close, nudge, and prime paths. This satisfies the goal that the dashboard
 service never shells out to Gas City.
@@ -425,7 +426,7 @@ Current state:
 
 - `GET /v0/city/{cityName}/mail` exposes `limit`, `agent`, `status`, and `rig`.
 - The dashboard uses that generated query directly and now provides a
-  history-depth selector over `limit`.
+  history-depth selector over `limit` plus client-side 24h/7d/all filters.
 - The API does not expose a `since`, `before`, `after`, or equivalent
   clock-window filter for "last 24h", "last 7d", or calendar-bounded review.
 

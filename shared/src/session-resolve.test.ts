@@ -1,9 +1,7 @@
 // Run with: npx tsx --test shared/src/session-resolve.test.ts
 //
-// gascity-dashboard-3ax: the single role/assignee → session resolution.
-// Mirrors the matcher behavior previously private to
-// backend/src/views/modules/maintainer/resolve-target.ts (whose own test suite is the
-// regression guard that the slug-returning wrapper still delegates here).
+// gascity-dashboard-3ax: the single role/assignee → session resolution shared
+// by frontend Maintainer sling recording and run/bead session joins.
 
 import { test, describe } from 'node:test';
 import assert from 'node:assert/strict';

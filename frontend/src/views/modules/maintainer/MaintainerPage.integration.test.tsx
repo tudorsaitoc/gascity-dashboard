@@ -9,25 +9,26 @@ import { ViewingAsProvider } from '../../../contexts/ViewingAsContext';
 import { MaintainerPage } from './Maintainer';
 
 // gascity-dashboard-ppe: end-to-end pin of the dual-intent dispatch
-// contract on MaintainerPage. The bar-level unit tests in
-// Maintainer.test.tsx stop at the props boundary — they confirm
-// onSendDraft is invoked, but the path from click → handleSend('draft')
-// → buildSlingRequests(intent='draft') → api.maintainerSling({intent:'draft'})
-// has no integration coverage, and TypeScript narrowing alone doesn't
-// catch a wrong-string regression where the draft button gets wired to
-// the triage intent (or the success label).
+// contract on MaintainerPage. The bar-level unit tests in Maintainer.test.tsx
+// stop at the props boundary — they confirm onSendDraft is invoked, but the
+// path from click → handleSend('draft') → buildSlingRequests(intent='draft') →
+// generated supervisor sling → dashboard-local record has no integration
+// coverage, and TypeScript narrowing alone doesn't catch a wrong-string
+// regression where the draft button gets wired to the triage intent (or the
+// success label).
 //
 // This file mounts the whole page with a synthetic envelope, mocks the
 // api client at module boundary, and asserts both arms separately:
 //
-//   - Click 'Send to triage agent' → mock.calls[0][0].intent === 'triage'
+//   - Click 'Send to triage agent' → record.calls[0][0].intent === 'triage'
 //     AND success line reads 'Slung 1 to triage agent.'
-//   - Click 'Send to draft agent'  → mock.calls[0][0].intent === 'draft'
+//   - Click 'Send to draft agent'  → record.calls[0][0].intent === 'draft'
 //     AND success line reads 'Slung 1 to draft agent.'
 //
 // Failure mode this catches: a future refactor that wires the draft
 // button to dispatch the triage intent (or vice-versa), or that swaps
-// the success label constants.
+// the success label constants. It also catches any regression back to the
+// old dashboard-service supervisor mutation facade.
 
 // Mock the api client at module boundary — same pattern as
 // ViewingAsContext.test.tsx. Test cases install per-call behaviour
@@ -36,13 +37,23 @@ vi.mock('../../../api/client', () => ({
   api: {
     maintainerTriage: vi.fn(),
     maintainerRefresh: vi.fn(),
-    maintainerSling: vi.fn(),
+    maintainerSlingRecord: vi.fn(),
+    config: vi.fn(),
   },
   ApiClientError: class extends Error {},
 }));
 
+const mockSupervisorSling = vi.hoisted(() => vi.fn());
+const mockSupervisorListSessions = vi.hoisted(() => vi.fn());
 const mockListSupervisorSessions = vi.hoisted(() => vi.fn());
 const mockListSupervisorMail = vi.hoisted(() => vi.fn());
+
+vi.mock('../../../supervisor/client', () => ({
+  supervisorApi: () => ({
+    sling: mockSupervisorSling,
+    listSessions: mockSupervisorListSessions,
+  }),
+}));
 
 vi.mock('../../../supervisor/sessionReads', () => ({
   listSupervisorSessions: mockListSupervisorSessions,
@@ -53,7 +64,8 @@ vi.mock('../../../supervisor/mailReads', () => ({
 }));
 
 const mockTriage = api.maintainerTriage as Mock;
-const mockSling = api.maintainerSling as Mock;
+const mockRecord = (api as unknown as { maintainerSlingRecord: Mock }).maintainerSlingRecord;
+const mockConfig = (api as unknown as { config: Mock }).config;
 
 // MaintainerPage opens an EventSource on /api/maintainer/events for SSE
 // refresh. jsdom has no EventSource — stub a no-op so the mount doesn't
@@ -127,7 +139,10 @@ function syntheticEnvelope(): MaintainerTriage {
 
 beforeEach(() => {
   mockTriage.mockReset();
-  mockSling.mockReset();
+  mockRecord.mockReset();
+  mockConfig.mockReset();
+  mockSupervisorSling.mockReset();
+  mockSupervisorListSessions.mockReset();
   mockListSupervisorSessions.mockReset();
   mockListSupervisorMail.mockReset();
   // The MaintainerPage's useCachedData hook reads from a module-level
@@ -138,6 +153,45 @@ beforeEach(() => {
   // so each test fully re-fetches.
   invalidateKey('maintainer-triage');
   mockTriage.mockResolvedValue(syntheticEnvelope());
+  mockConfig.mockResolvedValue({
+    cityName: 'test-city',
+    cityRoot: '/tmp/test-city',
+    useFixtures: false,
+    enabledModules: ['maintainer'],
+    defaultView: null,
+    maintainer: {
+      slingTarget: 'mayor',
+      triageTarget: 'chief-of-staff',
+    },
+  });
+  mockSupervisorSling.mockResolvedValue({ root_bead_id: 'gc-255139' });
+  mockSupervisorListSessions.mockResolvedValue({
+    items: [
+      {
+        id: 'session-1',
+        template: 'chief-of-staff',
+        session_name: 'oversight-rig__chief-of-staff',
+        title: 'chief-of-staff',
+        state: 'active',
+        created_at: '2026-05-24T00:00:00Z',
+        attached: false,
+        running: true,
+        provider: 'codex',
+        pool: 'chief-of-staff',
+      },
+      {
+        id: 'session-2',
+        template: 'mayor',
+        session_name: 'mayor',
+        title: 'mayor',
+        state: 'active',
+        created_at: '2026-05-24T00:00:00Z',
+        attached: false,
+        running: true,
+        provider: 'codex',
+      },
+    ],
+  });
   // ViewingAsProvider doesn't fire loadAliases unless asked, but the
   // visibilitychange effect still mounts. Resolve the two prefetch
   // entry-points to safe defaults in case anything calls them.
@@ -191,8 +245,8 @@ async function clickButton(name: RegExp) {
 }
 
 describe('MaintainerPage — dual-intent dispatch contract (gascity-dashboard-ppe)', () => {
-  it('click "Send to triage agent" produces a POST with intent="triage" and the triage success label', async () => {
-    mockSling.mockResolvedValue({ ok: true });
+  it('click "Send to triage agent" uses generated supervisor sling, records intent="triage", and shows the triage success label', async () => {
+    mockRecord.mockResolvedValue({ ok: true });
     mount();
     await selectFixtureItem();
     await clickButton(/send to triage agent/i);
@@ -200,25 +254,28 @@ describe('MaintainerPage — dual-intent dispatch contract (gascity-dashboard-pp
     // Wait for the dispatch to settle: the bar flips out of 'Sending'
     // back to the static label, and the success line appears.
     await waitFor(() => {
-      expect(mockSling).toHaveBeenCalledTimes(1);
+      expect(mockSupervisorSling).toHaveBeenCalledTimes(1);
     });
 
-    const payload = mockSling.mock.calls[0]?.[0] as {
+    expect(mockSupervisorSling).toHaveBeenCalledWith('test-city', {
+      target: 'chief-of-staff',
+      bead: `Please triage ${SYNTHETIC_ITEM_URL}`,
+    });
+    expect(mockRecord).toHaveBeenCalledTimes(1);
+    const payload = mockRecord.mock.calls[0]?.[0] as {
       kind: 'pr' | 'issue';
       number: number;
-      html_url: string;
       intent: 'review' | 'draft' | 'triage';
-      target?: string;
+      target: string;
+      bead_id: string | null;
+      resolved_session_name: string | null;
     };
     expect(payload.intent).toBe('triage');
     expect(payload.kind).toBe('issue');
     expect(payload.number).toBe(SYNTHETIC_ITEM_NUMBER);
-    expect(payload.html_url).toBe(SYNTHETIC_ITEM_URL);
-    // Backend resolves the target from MAINTAINER_TRIAGE_TARGET /
-    // MAINTAINER_SLING_TARGET — the frontend must NOT pass an explicit
-    // target so the server owns the routing decision. Pinning this
-    // catches a regression where someone hardcodes a target client-side.
-    expect(payload.target).toBeUndefined();
+    expect(payload.target).toBe('chief-of-staff');
+    expect(payload.bead_id).toBe('gc-255139');
+    expect(payload.resolved_session_name).toBe('oversight-rig__chief-of-staff');
 
     // Success line uses the triage label, not the draft label.
     const status = await screen.findByRole('status');
@@ -226,22 +283,28 @@ describe('MaintainerPage — dual-intent dispatch contract (gascity-dashboard-pp
     expect(normalised).toMatch(/^Slung 1 to triage agent\./);
   });
 
-  it('click "Send to draft agent" produces a POST with intent="draft" and the draft success label', async () => {
-    mockSling.mockResolvedValue({ ok: true });
+  it('click "Send to draft agent" uses generated supervisor sling, records intent="draft", and shows the draft success label', async () => {
+    mockRecord.mockResolvedValue({ ok: true });
     mount();
     await selectFixtureItem();
     await clickButton(/send to draft agent/i);
 
     await waitFor(() => {
-      expect(mockSling).toHaveBeenCalledTimes(1);
+      expect(mockSupervisorSling).toHaveBeenCalledTimes(1);
     });
 
-    const payload = mockSling.mock.calls[0]?.[0] as {
+    expect(mockSupervisorSling).toHaveBeenCalledWith('test-city', {
+      target: 'mayor',
+      bead: `Please draft a PR addressing ${SYNTHETIC_ITEM_URL}`,
+    });
+    expect(mockRecord).toHaveBeenCalledTimes(1);
+    const payload = mockRecord.mock.calls[0]?.[0] as {
       kind: 'pr' | 'issue';
       number: number;
-      html_url: string;
       intent: 'review' | 'draft' | 'triage';
-      target?: string;
+      target: string;
+      bead_id: string | null;
+      resolved_session_name: string | null;
     };
     // The core contract this bead pins: the draft button MUST dispatch
     // intent='draft'. A regression that wires the draft button to the
@@ -249,8 +312,9 @@ describe('MaintainerPage — dual-intent dispatch contract (gascity-dashboard-pp
     expect(payload.intent).toBe('draft');
     expect(payload.kind).toBe('issue');
     expect(payload.number).toBe(SYNTHETIC_ITEM_NUMBER);
-    expect(payload.html_url).toBe(SYNTHETIC_ITEM_URL);
-    expect(payload.target).toBeUndefined();
+    expect(payload.target).toBe('mayor');
+    expect(payload.bead_id).toBe('gc-255139');
+    expect(payload.resolved_session_name).toBe('mayor');
 
     // Success line uses the DRAFT label, not the triage label. Renaming
     // DRAFT_TARGET_LABEL to anything else (or routing the success-line

@@ -2,6 +2,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import {
   GC_MUTATION_HEADERS,
   SUPERVISOR_PROXY_BASE_URL,
+  SUPERVISOR_REQUEST_TIMEOUT_MS,
   createSupervisorApi,
   resetSupervisorApiForTests,
   setSupervisorApiForTests,
@@ -17,6 +18,10 @@ describe('supervisor client wrapper', () => {
 
   it('defaults to the standalone transport-only supervisor proxy', () => {
     expect(createSupervisorApi().baseUrl).toBe(SUPERVISOR_PROXY_BASE_URL);
+  });
+
+  it('keeps the default request timeout long enough for slow workflow snapshots', () => {
+    expect(SUPERVISOR_REQUEST_TIMEOUT_MS).toBe(60_000);
   });
 
   it('calls supervisor health through the generated SDK', async () => {

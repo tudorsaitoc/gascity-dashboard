@@ -289,26 +289,34 @@ Order:
    `/gc-supervisor/v0/city/{cityName}/beads` and dispatches it through
    `/gc-supervisor/v0/city/{cityName}/sling`, using generated request/response
    types and `X-GC-Request`. No dashboard-service DTO or route was added.**
-3. mail send. **Implemented: Compose posts
+3. maintainer sling. **Implemented: the Maintainer page prepares the GitHub
+   triage/draft request in the browser, dispatches through the generated
+   supervisor `/v0/city/{cityName}/sling` client, resolves the target session
+   from generated supervisor sessions, then calls dashboard-local
+   `/api/city/:cityName/maintainer/sling-record` only to persist slung-state
+   and audit rows. The old dashboard `/maintainer/sling` supervisor facade,
+   backend `GcClient.sling`, hand decoder, and shared `SlingInput` /
+   `SlingResponse` mirror DTOs were removed.**
+4. mail send. **Implemented: Compose posts
    `/gc-supervisor/v0/city/{cityName}/mail` with generated supervisor types,
    `from: "human"`, and `X-GC-Request`; the dashboard
    `/api/city/:cityName/mail-send` route, backend `GcClient.sendMail`, and
    shared mail-send DTOs were removed.**
-4. mail reply/archive/read-state. **Implemented: Mail thread actions call the
+5. mail reply/archive/read-state. **Implemented: Mail thread actions call the
    generated supervisor endpoints for reply, archive, mark-read, and
    mark-unread with generated request/response validation and `X-GC-Request`.
    No dashboard-service mail action DTO or route was added.**
-5. close-with-reason after `GC-10`. **Implemented: the browser calls
+6. close-with-reason after `GC-10`. **Implemented: the browser calls
    `/gc-supervisor/v0/city/{cityName}/bead/{id}/close` with the generated
    optional reason body and `X-GC-Request`; the dashboard
    `/api/city/:cityName/beads/:id/close` route and close subprocess wrapper
    were removed.**
-6. agent nudge after `GC-11`. **Implemented: the browser calls
+7. agent nudge after `GC-11`. **Implemented: the browser calls
    `/gc-supervisor/v0/city/{cityName}/agent/{base}/nudge` or the qualified
    `{dir}/{base}` variant with `X-GC-Request`; the dashboard
    `/api/city/:cityName/beads/:id/nudge` route and nudge subprocess wrapper
    were removed.**
-7. agent prime after `GC-12`. **Implemented: Agent Detail calls
+8. agent prime after `GC-12`. **Implemented: Agent Detail calls
    `/gc-supervisor/v0/city/{cityName}/agent/{base}/prime` or the qualified
    `{dir}/{base}` variant through the generated browser supervisor client.
    The dashboard `/api/city/:cityName/agents/:alias/prime` route and
@@ -408,6 +416,11 @@ Implementation status:
   compose from generated browser supervisor calls plus shared projection
   helpers; `/api/city/:cityName/snapshot`, `/snapshot/refresh`,
   `/links/:ref`, and `/home/pending/stream` route modules/mounts were removed.
+- Maintainer sling cleanup is implemented for browser-facing writes:
+  the browser calls generated supervisor sling directly, and the dashboard
+  service keeps only dashboard-local `/maintainer/sling-record` persistence.
+  `GcClient.sling`, `gcSupervisorDecoders.decodeSling`, backend sling request
+  decoding, and shared `SlingInput` / `SlingResponse` mirror DTOs were removed.
 - Remaining cleanup is intentionally transitional: `GcClient`,
   `gc-supervisor-decoders`, and the remaining shared GC leaves still support
   backend-local snapshot/run collector tests and local health enrichment until

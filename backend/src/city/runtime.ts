@@ -73,6 +73,14 @@ export function createCityRuntime(opts: CreateCityRuntimeOptions): CityRuntime {
     // what an unset env meant. Core-only default surfaces as `[]`.
     enabledModules: [...enabledFirstPartyIds],
     defaultView: config.defaultView,
+    ...(enabledFirstPartyIds.has('maintainer')
+      ? {
+          maintainer: {
+            slingTarget: config.modules.maintainer.slingTarget,
+            triageTarget: config.modules.maintainer.triageTarget,
+          },
+        }
+      : {}),
   };
 
   // cityDataDir derives from the VALIDATED cityName segment (never from the

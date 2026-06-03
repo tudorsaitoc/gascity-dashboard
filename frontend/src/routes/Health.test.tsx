@@ -38,6 +38,8 @@ vi.mock('../supervisor/client', () => ({
 let currentHealth: SystemHealth = baseHealth();
 let currentLocalTools: LocalToolVersions = baseLocalTools();
 let currentTrend: DoltNomsTrend = baseTrend();
+let systemHealthMode: 'ok' | 'fail' = 'ok';
+let trendMode: 'ok' | 'fail' = 'ok';
 
 beforeEach(() => {
   invalidate('health');
@@ -48,15 +50,23 @@ beforeEach(() => {
   currentHealth = baseHealth();
   currentLocalTools = baseLocalTools();
   currentTrend = baseTrend();
+  systemHealthMode = 'ok';
+  trendMode = 'ok';
   vi.stubGlobal('fetch', vi.fn(async (input: RequestInfo | URL) => {
     const url = String(input);
     if (url === '/api/health/system') {
+      if (systemHealthMode === 'fail') {
+        return errorResponse('system health offline');
+      }
       return jsonResponse(currentHealth);
     }
     if (url === '/api/health/local-tools') {
       return jsonResponse(currentLocalTools);
     }
     if (url === '/api/city/test-city/dolt-noms/trend') {
+      if (trendMode === 'fail') {
+        return errorResponse('dolt trend offline');
+      }
       return jsonResponse(currentTrend);
     }
     throw new Error(`unexpected fetch: ${url}`);
@@ -159,6 +169,26 @@ describe('HealthPage', () => {
     expect(screen.getByText('8')).toBeTruthy();
   });
 
+  it('keeps host and supervisor sections visible when dolt-noms trend fails', async () => {
+    trendMode = 'fail';
+
+    renderPage();
+
+    await screen.findByRole('heading', { name: /host/i });
+    expect(screen.getByRole('heading', { name: /supervisor/i })).toBeTruthy();
+    expect(screen.getByText(/dolt-noms metric unavailable/i)).toBeTruthy();
+  });
+
+  it('keeps supervisor diagnostics visible when dashboard host health fails', async () => {
+    systemHealthMode = 'fail';
+
+    renderPage();
+
+    await screen.findByRole('heading', { name: /supervisor/i });
+    expect(screen.getByText(/dashboard host health unavailable/i)).toBeTruthy();
+    expect(screen.getByRole('heading', { name: /diagnostics/i })).toBeTruthy();
+  });
+
   it('restores diagnostics from local probes plus direct supervisor status', async () => {
     renderPage();
 
@@ -224,6 +254,13 @@ function renderPage({ attention }: { attention?: HealthAttentionFacts } = {}) {
 function jsonResponse(payload: unknown): Response {
   return new Response(JSON.stringify(payload), {
     status: 200,
+    headers: { 'content-type': 'application/json' },
+  });
+}
+
+function errorResponse(message: string): Response {
+  return new Response(JSON.stringify({ error: message }), {
+    status: 503,
     headers: { 'content-type': 'application/json' },
   });
 }

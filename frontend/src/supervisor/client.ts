@@ -75,7 +75,7 @@ import type {
 } from '../generated/gc-supervisor-client/types.gen';
 
 export const SUPERVISOR_PROXY_BASE_URL = '/gc-supervisor';
-export const SUPERVISOR_REQUEST_TIMEOUT_MS = 30_000;
+export const SUPERVISOR_REQUEST_TIMEOUT_MS = 60_000;
 export const GC_MUTATION_HEADERS = {
   'X-GC-Request': 'dashboard',
 } as const;

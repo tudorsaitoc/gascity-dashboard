@@ -113,6 +113,17 @@ export interface DashboardRuntimeConfig {
    * env points at an unknown or disabled module.
    */
   defaultView: string | null;
+  /**
+   * Dashboard-local Maintainer configuration that the browser needs to prepare
+   * generated supervisor sling requests. Present only when the Maintainer
+   * first-party module is enabled.
+   */
+  maintainer?: DashboardMaintainerRuntimeConfig;
+}
+
+export interface DashboardMaintainerRuntimeConfig {
+  slingTarget: string;
+  triageTarget: string;
 }
 
 export type DashboardMetric =

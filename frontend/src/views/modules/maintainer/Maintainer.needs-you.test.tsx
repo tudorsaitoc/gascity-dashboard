@@ -23,7 +23,7 @@ vi.mock('../../../api/client', () => ({
   api: {
     maintainerTriage: vi.fn(),
     maintainerRefresh: vi.fn(),
-    maintainerSling: vi.fn(),
+    maintainerSlingRecord: vi.fn(),
     config: vi.fn(),
   },
   ApiClientError: class extends Error {},

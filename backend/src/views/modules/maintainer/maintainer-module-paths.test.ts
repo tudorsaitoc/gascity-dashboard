@@ -19,8 +19,6 @@ import type { CityContext } from '../../types.js';
 
 const BASE_DEPS: MaintainerDeps = {
   repo: 'gastownhall/gascity',
-  slingTarget: 'mayor',
-  triageTarget: 'mayor',
   refreshIntervalMs: 0,
 };
 

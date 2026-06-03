@@ -295,9 +295,10 @@ browser-safe.
 
 - Add inbox/sent/all-traffic or equivalent mode controls. **Implemented.**
 - Add reasonable default time window and explicit expansion/search.
-  **Implemented as a default recent-100 generated query with explicit 500/1000
-  history-depth expansion plus local search; true clock-based windows are not
-  exposed by the current supervisor mail query.**
+  **Implemented as a recent-100 generated query with explicit 500/1000
+  history-depth expansion, local search, and client-side 24h/7d/all window
+  controls. The default remains all visible history; true clock-based
+  supervisor queries are not exposed by the current supervisor mail query.**
 - Add reply/archive/read-state controls to thread/message views.
   **Implemented for the thread modal.**
 - Highlight attention/watch messages without filtering out the rest.
@@ -344,9 +345,9 @@ Gas City supervisor/city events.
   - supervisor/city event timeline
   **Implemented.**
 - Add event filters for time window, type, actor/source, and severity if useful.
-  **Partially implemented: time-window controls, a dedicated generated-query
-  type filter, and text filtering across type, actor, subject, and message are
-  in place; dedicated actor/severity controls remain optional follow-up.**
+  **Implemented: time-window controls, a dedicated generated-query type filter,
+  actor filtering, signal/severity filtering, and text filtering across type,
+  actor, subject, and message are in place.**
 - Add event-derived attention contributor logic in the Activity domain.
   **Implemented for known actionable/watch supervisor event classes.**
 - Deep-link attention items to filtered event views where possible.

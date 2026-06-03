@@ -352,6 +352,39 @@ describe('createDashboardApp', () => {
     });
   });
 
+  test('does not mount the old maintainer sling supervisor facade under the city request plane', async () => {
+    await withSupervisorRegistry(async (gcSupervisorUrl) => {
+      const { app, runtime } = createDashboardApp(makeConfig({
+        gcSupervisorUrl,
+        enabledModules: new Set(['maintainer']),
+      }));
+      runtime.start();
+      try {
+        await withApp(app, async (url) => {
+          const csrf = await fetch(`${url}/api/csrf`);
+          const csrfBody = (await csrf.json()) as { token: string };
+          const res = await fetch(`${url}/api/city/test-city/maintainer/sling`, {
+            method: 'POST',
+            headers: {
+              'content-type': 'application/json',
+              origin: 'http://127.0.0.1:8081',
+              'x-csrf-token': csrfBody.token,
+            },
+            body: JSON.stringify({
+              kind: 'pr',
+              number: 47,
+              html_url: 'https://github.com/gastownhall/gascity/pull/47',
+              intent: 'triage',
+            }),
+          });
+          assert.equal(res.status, 404);
+        });
+      } finally {
+        await runtime.stop();
+      }
+    });
+  });
+
   test('does not mount the dashboard city events stream mirror under the city request plane', async () => {
     await withSupervisorRegistry(async (gcSupervisorUrl) => {
       const { app, runtime } = createDashboardApp(makeConfig({ gcSupervisorUrl }));

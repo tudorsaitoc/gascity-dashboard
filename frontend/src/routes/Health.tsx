@@ -5,7 +5,7 @@ import type {
   LocalToolVersions,
   SystemHealth,
 } from 'gas-city-dashboard-shared';
-import { api } from '../api/client';
+import { api, formatApiError } from '../api/client';
 import { getActiveCity } from '../api/cityBase';
 import { useAttentionModel } from '../attention/context';
 import {
@@ -31,18 +31,18 @@ import { supervisorApi } from '../supervisor/client';
 // stale-while-revalidate cache so re-entering this view (or polling
 // every 30s) doesn't blank the page first.
 async function fetchHealthBundle(): Promise<{
-  health: SystemHealth;
+  health: SystemHealthState;
   supervisor: SupervisorHealthState;
   status: SupervisorStatusState;
   localTools: LocalToolVersionsState;
   trend: DoltNomsTrend;
 }> {
   const [health, supervisor, status, localTools, trend] = await Promise.all([
-    api.systemHealth(),
+    fetchSystemHealth(),
     fetchSupervisorHealth(),
     fetchSupervisorStatus(),
     fetchLocalToolVersions(),
-    api.doltTrend(),
+    fetchDoltNomsTrend(),
   ]);
   return { health, supervisor, status, localTools, trend };
 }
@@ -53,7 +53,9 @@ export function HealthPage() {
     'health',
     fetchHealthBundle,
   );
-  const health = data?.health ?? null;
+  const healthState = data?.health ?? null;
+  const health = healthState?.status === 'available' ? healthState.data : null;
+  const healthError = healthState?.status === 'unavailable' ? healthState.error : null;
   const supervisor = data?.supervisor ?? null;
   const status = data?.status ?? null;
   const localTools = data?.localTools ?? null;
@@ -73,7 +75,7 @@ export function HealthPage() {
     <section>
       <PageHeader
         title="Health"
-        synopsis={health && supervisor ? buildSynopsis(health, supervisor) : 'Reading state from the supervisor.'}
+        synopsis={data ? buildSynopsis(health, supervisor) : 'Reading state from the supervisor.'}
         meta={
           <>
             {error && (
@@ -88,7 +90,7 @@ export function HealthPage() {
         }
       />
 
-      {health ? (
+      {data ? (
         <div className="space-y-12">
           <Section
             title="Supervisor"
@@ -126,34 +128,46 @@ export function HealthPage() {
             attention={hostAttention}
             {...(hostHealthStatus ? { status: hostHealthStatus } : {})}
           >
-            <KvList>
-              <Kv label="CPUs" value={health.host.cpu_count.toString()} />
-              <Kv
-                label="Load (1m, 5m, 15m)"
-                value={`${health.host.load_avg_1.toFixed(2)}, ${health.host.load_avg_5.toFixed(2)}, ${health.host.load_avg_15.toFixed(2)}`}
-                {...(health.host.load_avg_1 > health.host.cpu_count
-                  ? { tone: 'warn' as const }
-                  : {})}
-              />
-              <Kv
-                label="Memory free"
-                value={`${formatHumanSize(health.host.free_mem_bytes)} of ${formatHumanSize(health.host.total_mem_bytes)}`}
-                {...(health.host.free_mem_bytes / health.host.total_mem_bytes < 0.1
-                  ? { tone: 'warn' as const }
-                  : {})}
-              />
-              <Kv label="Host uptime" value={formatDuration(health.host.uptime_sec)} />
-            </KvList>
+            {health === null ? (
+              <p className="text-body text-accent">
+                Dashboard host health unavailable{healthError ? `: ${healthError}` : ''}.
+              </p>
+            ) : (
+              <KvList>
+                <Kv label="CPUs" value={health.host.cpu_count.toString()} />
+                <Kv
+                  label="Load (1m, 5m, 15m)"
+                  value={`${health.host.load_avg_1.toFixed(2)}, ${health.host.load_avg_5.toFixed(2)}, ${health.host.load_avg_15.toFixed(2)}`}
+                  {...(health.host.load_avg_1 > health.host.cpu_count
+                    ? { tone: 'warn' as const }
+                    : {})}
+                />
+                <Kv
+                  label="Memory free"
+                  value={`${formatHumanSize(health.host.free_mem_bytes)} of ${formatHumanSize(health.host.total_mem_bytes)}`}
+                  {...(health.host.free_mem_bytes / health.host.total_mem_bytes < 0.1
+                    ? { tone: 'warn' as const }
+                    : {})}
+                />
+                <Kv label="Host uptime" value={formatDuration(health.host.uptime_sec)} />
+              </KvList>
+            )}
           </Section>
 
           <Section title="Admin process" attention={adminAttention}>
-            <KvList>
-              <Kv label="PID" value={health.admin.pid.toString()} />
-              <Kv label="Uptime" value={formatDuration(health.admin.uptime_sec)} />
-              <Kv label="RSS" value={formatHumanSize(health.admin.rss_bytes)} />
-              <Kv label="Heap used" value={formatHumanSize(health.admin.heap_used_bytes)} />
-              <Kv label="Node" value={health.admin.node_version} />
-            </KvList>
+            {health === null ? (
+              <p className="text-body text-accent">
+                Dashboard process health unavailable{healthError ? `: ${healthError}` : ''}.
+              </p>
+            ) : (
+              <KvList>
+                <Kv label="PID" value={health.admin.pid.toString()} />
+                <Kv label="Uptime" value={formatDuration(health.admin.uptime_sec)} />
+                <Kv label="RSS" value={formatHumanSize(health.admin.rss_bytes)} />
+                <Kv label="Heap used" value={formatHumanSize(health.admin.heap_used_bytes)} />
+                <Kv label="Node" value={health.admin.node_version} />
+              </KvList>
+            )}
           </Section>
 
           <Section title="Diagnostics">
@@ -458,6 +472,10 @@ type SupervisorHealthState =
   | { status: 'available'; data: HealthOutputBody }
   | { status: 'unavailable'; error: string };
 
+type SystemHealthState =
+  | { status: 'available'; data: SystemHealth }
+  | { status: 'unavailable'; error: string };
+
 type SupervisorStatusState =
   | { status: 'available'; data: StatusBody }
   | { status: 'unavailable'; error: string };
@@ -465,6 +483,20 @@ type SupervisorStatusState =
 type LocalToolVersionsState =
   | { status: 'available'; data: LocalToolVersions }
   | { status: 'unavailable'; error: string };
+
+async function fetchSystemHealth(): Promise<SystemHealthState> {
+  try {
+    return {
+      status: 'available',
+      data: await api.systemHealth(),
+    };
+  } catch (err) {
+    return {
+      status: 'unavailable',
+      error: formatApiError(err, 'dashboard host health unavailable'),
+    };
+  }
+}
 
 async function fetchSupervisorHealth(): Promise<SupervisorHealthState> {
   const cityName = getActiveCity();
@@ -516,9 +548,26 @@ async function fetchLocalToolVersions(): Promise<LocalToolVersionsState> {
   }
 }
 
-function buildSynopsis(h: SystemHealth, supervisorState: SupervisorHealthState): string {
+async function fetchDoltNomsTrend(): Promise<DoltNomsTrend> {
+  try {
+    return await api.doltTrend();
+  } catch {
+    return {
+      available: false,
+      reason: 'sample_failed',
+      samples: [],
+    };
+  }
+}
+
+function buildSynopsis(
+  h: SystemHealth | null,
+  supervisorState: SupervisorHealthState | null,
+): string {
   const parts: string[] = [];
-  if (supervisorState.status === 'available') {
+  if (supervisorState === null) {
+    parts.push('Supervisor state still loading.');
+  } else if (supervisorState.status === 'available') {
     const supervisor = supervisorState.data;
     const verb = supervisor.status === 'ok' ? 'healthy' : supervisor.status;
     // izgc F7/F8: city is optional per OpenAPI. Skip the locator clause if
@@ -531,6 +580,10 @@ function buildSynopsis(h: SystemHealth, supervisorState: SupervisorHealthState):
     }
   } else {
     parts.push('Supervisor unreachable.');
+  }
+  if (h === null) {
+    parts.push('Host health unavailable.');
+    return parts.join(' ');
   }
   const usedPct = Math.round(
     100 * (1 - h.host.free_mem_bytes / h.host.total_mem_bytes),
