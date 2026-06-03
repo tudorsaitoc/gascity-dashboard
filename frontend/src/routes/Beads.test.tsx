@@ -130,9 +130,9 @@ describe('BeadsPage', () => {
 
     await screen.findByText('Sample bead');
 
-    expect(beadQueries.length).toBe(4);
+    expect(beadQueries.length).toBe(3);
     expect(new Set(beadQueries.map((query) => query.get('type')))).toEqual(
-      new Set(['feature', 'bug', 'task', 'docs']),
+      new Set(['feature', 'bug', 'task']),
     );
     for (const query of beadQueries) {
       expect(query.get('limit')).toBe('2000');
@@ -149,10 +149,10 @@ describe('BeadsPage', () => {
       target: { value: 'east' },
     });
 
-    await waitFor(() => expect(beadQueries.length).toBe(8));
-    const latestQueries = beadQueries.slice(-4);
+    await waitFor(() => expect(beadQueries.length).toBe(6));
+    const latestQueries = beadQueries.slice(-3);
     expect(new Set(latestQueries.map((query) => query.get('type')))).toEqual(
-      new Set(['feature', 'bug', 'task', 'docs']),
+      new Set(['feature', 'bug', 'task']),
     );
     for (const query of latestQueries) {
       expect(query.get('rig')).toBe('east');
