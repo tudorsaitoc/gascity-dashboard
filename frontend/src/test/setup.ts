@@ -52,6 +52,8 @@ function trackProcessWarning(warning: Error): void {
 }
 
 function installDeterministicStorage(): void {
+  if (typeof window === 'undefined') return;
+
   try {
     if (typeof window.localStorage?.clear === 'function') {
       return;

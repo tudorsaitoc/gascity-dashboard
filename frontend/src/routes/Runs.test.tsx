@@ -441,6 +441,7 @@ describe('RunsPage — SSE wiring (gascity-dashboard-bqn)', () => {
 
   it('manual Refresh button refetches the direct supervisor run summary', async () => {
     mount();
+    await waitFor(() => expect(mockLoadRunSummary).toHaveBeenCalledTimes(1));
     await waitForMount();
     // Reset to ignore the mount-effect call.
     mockLoadRunSummary.mockClear();

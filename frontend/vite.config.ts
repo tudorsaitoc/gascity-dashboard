@@ -6,7 +6,23 @@ import react from '@vitejs/plugin-react';
 // needs to know about cross-origin — everything is same-origin both in
 // dev and prod, which keeps the Host-allowlist + Origin check + CSP
 // simple.
-const BACKEND_TARGET = 'http://127.0.0.1:8081';
+export const BACKEND_TARGET = 'http://127.0.0.1:8081';
+
+interface ProxyRequest {
+  hasHeader(name: string): boolean;
+  setHeader(name: string, value: string): void;
+}
+type BackendDevProxy = {
+  on(event: 'proxyReq', listener: (proxyReq: ProxyRequest) => void): void;
+};
+
+export function configureBackendDevProxy(proxy: BackendDevProxy): void {
+  proxy.on('proxyReq', (proxyReq) => {
+    if (proxyReq.hasHeader('origin')) {
+      proxyReq.setHeader('Origin', BACKEND_TARGET);
+    }
+  });
+}
 
 export default defineConfig({
   plugins: [react()],
@@ -28,13 +44,7 @@ export default defineConfig({
         // allow-list. In prod the frontend is served by express.static,
         // so the browser sends Origin: http://127.0.0.1:8081 natively and
         // this code path doesn't apply (gascity-dashboard-oi7).
-        configure(proxy) {
-          proxy.on('proxyReq', (proxyReq) => {
-            if (proxyReq.hasHeader('origin')) {
-              proxyReq.setHeader('Origin', BACKEND_TARGET);
-            }
-          });
-        },
+        configure: configureBackendDevProxy,
       },
       // Browser supervisor client transport. The dashboard backend forwards
       // this prefix without parsing supervisor DTOs, avoiding cross-origin
@@ -42,6 +52,10 @@ export default defineConfig({
       '/gc-supervisor': {
         target: BACKEND_TARGET,
         changeOrigin: true,
+        // Same origin rewrite as /api. Supervisor browser mutations still hit
+        // the dashboard backend's originCheck before the transport proxy strips
+        // Origin and forwards to gc.
+        configure: configureBackendDevProxy,
       },
     },
   },
