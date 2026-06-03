@@ -25,8 +25,9 @@ persists across the live refresh. `enter` drills the selected row into a single
 reused tmux split (see Peek).
 
 - **Overview** (`o`): the calm mayor-companion view — one scrollable, peekable list
-  with attention-first sections, **WAITING ON YOU** (needs-operator runs then mayor
-  escalations, the single red heading) → **ACTIVE** (live agents, orchestration
+  with attention-first sections, **LEDGER** (what's waiting on you: needs-operator
+  runs then mayor-escalated mail, worker chatter folded away with the folded count
+  shown, the single red heading) → **ACTIVE** (live agents, orchestration
   first) → **BEADS** (in-progress) → **RUNS** (summary). `↑`/`↓`/wheel scroll the
   whole list; `enter` peeks the selected row whatever it is — a run (`bd show` +
   diff), a **mail** (`gc mail peek`, read-only, doesn't mark read), an agent (live

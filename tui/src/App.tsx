@@ -151,25 +151,29 @@ function buildNav(
   }
 
   if (view === 'overview') {
-    // One scrollable, peekable list with attention-first sections: WAITING (the
-    // needs-operator runs and mayor escalations) leads, then ACTIVE agents, then
+    // One scrollable, peekable list with attention-first sections: the LEDGER
+    // (what's waiting on the operator — needs-operator runs and mayor-escalated
+    // mail, worker chatter folded away) leads, then ACTIVE agents, then
     // in-progress BEADS, then a RUNS summary. Every item peeks via the shared
-    // drill (run/mail/agent/bead). The single red mark is the WAITING heading.
+    // drill (run/mail/agent/bead). The single red mark is the ledger heading.
     const needsOp = lanes.filter(laneNeedsOperator);
     const escalations = operatorMail(mail, sessions);
+    const folded = foldedMailCount(mail, escalations);
     const actives = orchFirstActive(sessions);
     const wip = beads.filter((b) => b.status === 'in_progress');
     const open = beads.filter((b) => b.status === 'open').length;
 
-    const waitingTotal = needsOp.length + escalations.length;
-    const waitGroup: GroupInfo = {
-      label: 'WAITING ON YOU',
-      sub: `${waitingTotal}`,
-      alert: waitingTotal > 0,
+    const ledgerTotal = needsOp.length + escalations.length;
+    const ledgerGroup: GroupInfo = {
+      // The ledger's signature honesty: never silently drop the worker firehose
+      // the mayor digested — report how much was folded.
+      label: 'LEDGER',
+      sub: folded > 0 ? `${ledgerTotal} · ${folded} folded` : `${ledgerTotal}`,
+      alert: ledgerTotal > 0,
     };
-    renderRows.push({ kind: 'heading', group: waitGroup });
-    for (const l of needsOp) push({ kind: 'run', id: l.id, lane: l }, false, waitGroup);
-    for (const m of escalations) push({ kind: 'mail', id: m.id, mail: m }, false, waitGroup);
+    renderRows.push({ kind: 'heading', group: ledgerGroup });
+    for (const l of needsOp) push({ kind: 'run', id: l.id, lane: l }, false, ledgerGroup);
+    for (const m of escalations) push({ kind: 'mail', id: m.id, mail: m }, false, ledgerGroup);
 
     const actGroup: GroupInfo = {
       label: 'ACTIVE',
@@ -426,10 +430,10 @@ export function App({ baseUrl, city, compact = false, mouse = true }: AppProps):
 
   const summary =
     view === 'overview' ? (
-      // No red here: the WAITING band inside the pane carries the one mark.
+      // No red here: the LEDGER heading inside the list carries the one mark.
       <Text dimColor>
         overview
-        {overview.waitingTotal > 0 ? ` · ${overview.waitingTotal} waiting on you` : ' · all clear'}
+        {overview.waitingTotal > 0 ? ` · ${overview.waitingTotal} on the ledger` : ' · ledger clear'}
       </Text>
     ) : view === 'board' ? (
       // No red here: the board's own `needs` column carries the one mark, so a
