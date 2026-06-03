@@ -80,16 +80,18 @@ here="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 root="$(cd "$here/.." && pwd)"
 run="cd '$root' && npm --workspace tui run start -- $app_args"
 
-# Split horizontally, running $run in the new pane. `-L <socket>` is a server
-# flag (before the subcommand); `-t <target>` is a split-window flag (after it),
-# so they go in separate argv slots. `-l N%` is tmux >= 3.1; `-p N` is the
-# pre-3.1 fallback.
+# Split horizontally, running $run in the new pane. `-d` keeps focus on the
+# ORIGINAL pane (e.g. the mayor) — the dashboard is a glance panel beside your
+# work, not where you type, so stealing focus to it breaks typing in the pane you
+# were in. `-L <socket>` is a server flag (before the subcommand); `-t <target>`
+# is a split-window flag (after it), so they go in separate argv slots. `-l N%`
+# is tmux >= 3.1; `-p N` is the pre-3.1 fallback.
 split_h() { # split_h <socket-or-empty> <target-or-empty>
   local srv=() cmd=()
   [ -n "$1" ] && srv=(-L "$1")
   [ -n "$2" ] && cmd=(-t "$2")
-  tmux "${srv[@]}" split-window -h "${cmd[@]}" -l "${pct}%" "$run" 2>/dev/null ||
-    tmux "${srv[@]}" split-window -h "${cmd[@]}" -p "$pct" "$run"
+  tmux "${srv[@]}" split-window -d -h "${cmd[@]}" -l "${pct}%" "$run" 2>/dev/null ||
+    tmux "${srv[@]}" split-window -d -h "${cmd[@]}" -p "$pct" "$run"
 }
 
 start_dedicated_session() {
