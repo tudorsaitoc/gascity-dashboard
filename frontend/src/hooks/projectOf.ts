@@ -30,6 +30,9 @@ export function beadProject(bead: GcBead): string {
 
 export const ORCHESTRATION_PROJECT = 'Orchestration';
 
+// Residual bucket for a row with no rig association and no orchestration role.
+export const NO_RIG_PROJECT = '(no rig)';
+
 // Templates whose sessions are cross-rig orchestration (no specific
 // rig). Per-rig dispatchers (alias '<rig>/control-dispatcher') are
 // NOT in this set — they belong to their rig and are styled inline.
@@ -71,7 +74,7 @@ export function sessionProject(session: GcSession): ProjectBucket {
   }
   const candidate = session.rig ?? session.pool ?? session.template;
   if (!candidate) {
-    return { key: '(no rig)', label: '(no rig)' };
+    return { key: NO_RIG_PROJECT, label: NO_RIG_PROJECT };
   }
   // basename — handle both '/' and '\' for cross-platform safety.
   const parts = candidate.split(/[\\/]/).filter(Boolean);
@@ -81,7 +84,7 @@ export function sessionProject(session: GcSession): ProjectBucket {
 
 export function mailProject(mail: GcMailItem): string {
   if (mail.rig && mail.rig.length > 0) return mail.rig;
-  return '(no rig)';
+  return NO_RIG_PROJECT;
 }
 
 // ── Agent grouping (gascity-dashboard-ay6) ───────────────────────────────
@@ -128,9 +131,20 @@ export function agentProject(agent: GcAgent): ProjectBucket {
   const rig = agent.rig && agent.rig.length > 0 ? agent.rig : undefined;
   const candidate = rig ?? agent.pool;
   if (!candidate) {
-    return { key: '(no rig)', label: '(no rig)' };
+    return { key: NO_RIG_PROJECT, label: NO_RIG_PROJECT };
   }
   const parts = candidate.split(/[\\/]/).filter(Boolean);
   const basename = parts[parts.length - 1] ?? candidate;
   return { key: normalizeRigKey(basename), label: basename };
+}
+
+/**
+ * True when an agent has no rig association — either the pinned cross-rig
+ * Orchestration bucket (mayor, control-dispatcher, oversight chief-of-staff)
+ * or the residual (no rig) bucket. The Agents Rig column renders a neutral
+ * dot for these rather than a pseudo-rig label, since neither is a real rig.
+ */
+export function isAgentOutsideRig(agent: GcAgent): boolean {
+  const { key } = agentProject(agent);
+  return key === ORCHESTRATION_PROJECT || key === NO_RIG_PROJECT;
 }

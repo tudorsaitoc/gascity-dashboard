@@ -19,7 +19,7 @@ import { useNow } from '../contexts/NowContext';
 import { useCachedData } from '../hooks/useCachedData';
 import { useGcEventRefresh } from '../hooks/useGcEvents';
 import { formatRelative } from '../hooks/time';
-import { agentProject, isPerRigDispatcherAgent } from '../hooks/projectOf';
+import { agentProject, isAgentOutsideRig, isPerRigDispatcherAgent } from '../hooks/projectOf';
 import { agentSlug } from '../hooks/sessionSlug';
 
 // gascity-dashboard-ay6: the Agents view consumes the supervisor's
@@ -204,7 +204,20 @@ export function AgentsPage() {
       // Sort by the display label so the column's visual order matches the
       // sort order (the key is lowercased/normalized and would diverge).
       sortValue: (r) => agentRigLabel(r),
-      render: (r) => <span className="text-fg-muted">{agentRigLabel(r)}</span>,
+      // Agents outside a rig (Orchestration roles + the residual no-rig bucket)
+      // are not in a real rig, so the column shows a neutral dot rather than a
+      // pseudo-rig label. The dot carries a title/aria-label so the state stays
+      // readable in greyscale and to assistive tech (DESIGN.md: states have words).
+      render: (r) =>
+        isAgentOutsideRig(r) ? (
+          <span
+            className="inline-block h-1.5 w-1.5 rounded-full bg-fg-faint align-middle"
+            title="Not associated with a rig"
+            aria-label="Not associated with a rig"
+          />
+        ) : (
+          <span className="text-fg-muted">{agentRigLabel(r)}</span>
+        ),
       className: 'w-40',
     },
     {

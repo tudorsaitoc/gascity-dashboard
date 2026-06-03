@@ -172,7 +172,6 @@ export function MailPage() {
               </span>
             )}
             <Button
-              tone="accent"
               size="sm"
               onClick={() => setComposing(true)}
               disabled={!viewingAs.isOperator}
