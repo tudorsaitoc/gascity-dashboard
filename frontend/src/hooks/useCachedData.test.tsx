@@ -41,6 +41,8 @@ describe("useCachedData", () => {
     expect(result.current.data).toBe("second result");
     expect(result.current.loading).toBe(false);
     expect(result.current.error).toBeNull();
+    expect(getCached<string>("first")).toBeUndefined();
+    expect(getCached<string>("second")).toBe("second result");
   });
 
   it("does not let a stale same-key fetch overwrite the cache slot", async () => {
@@ -112,6 +114,25 @@ describe("useCachedData", () => {
       await second.promise;
     });
     await waitFor(() => expect(result.current.data).toBe("second result"));
+  });
+
+  it("does not write a resolved fetch into the cache after unmount", async () => {
+    const pending = deferred<string>();
+    const cacheKey = "unmounted";
+
+    const { unmount } = renderHook(() =>
+      useCachedData(cacheKey, () => pending.promise),
+    );
+
+    unmount();
+    invalidate(cacheKey);
+
+    await act(async () => {
+      pending.resolve("late result");
+      await pending.promise;
+    });
+
+    expect(getCached<string>(cacheKey)).toBeUndefined();
   });
 
   it("reports the latest fetch failure through onError", async () => {

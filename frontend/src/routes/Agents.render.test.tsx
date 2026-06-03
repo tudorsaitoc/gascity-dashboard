@@ -6,6 +6,7 @@ import { AttentionProvider } from '../attention/context';
 import type { AttentionContributor } from '../attention/compose';
 import { invalidate } from '../api/cache';
 import { NowProvider } from '../contexts/NowContext';
+import { resetSupervisorApiForTests } from '../supervisor/client';
 
 // Regression tests for two bugs that shipped with the ay6 Agents-view rewrite
 // (PR #45, surfaced post-deploy):
@@ -124,6 +125,7 @@ function stubFetch(options: StubFetchOptions = {}) {
     }
     throw new Error(`unexpected fetch: ${url}`);
   }));
+  resetSupervisorApiForTests();
 }
 
 function requestUrl(input: RequestInfo | URL): string {
@@ -188,6 +190,7 @@ beforeEach(() => {
 
 afterEach(() => {
   cleanup();
+  resetSupervisorApiForTests();
   vi.unstubAllGlobals();
 });
 

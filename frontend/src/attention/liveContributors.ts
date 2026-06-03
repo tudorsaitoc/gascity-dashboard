@@ -36,7 +36,7 @@ export function useLiveAttentionContributors(
 ): readonly AttentionContributor[] {
   const cityName = getActiveCity();
   const cacheSuffix = cityName ?? 'no-city';
-  const maintainerEnabled = enabledModules === null || enabledModules.includes('maintainer');
+  const maintainerEnabled = enabledModules?.includes('maintainer') ?? false;
   const runs = useCachedData<RunsAttentionFacts>(
     `attention:runs:${cacheSuffix}`,
     () => fetchRunsAttention(cityName),

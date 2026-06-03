@@ -1,4 +1,4 @@
-import { cleanup, render, screen, waitFor } from '@testing-library/react';
+import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import { afterEach, beforeEach, describe, expect, it, vi, type Mock } from 'vitest';
 import { NowProvider } from '../contexts/NowContext';
@@ -49,7 +49,7 @@ vi.mock('../supervisor/sessionReads', () => ({
 }));
 
 vi.mock('../supervisor/beadReads', () => ({
-  listSupervisorBeads: mockListSupervisorBeads,
+  listSupervisorBeadsAssignedTo: mockListSupervisorBeads,
 }));
 
 vi.mock('../supervisor/mailReads', () => ({
@@ -104,6 +104,21 @@ describe('AgentDetailPage error reporting', () => {
   });
 
   it('reports assigned-bead refresh failures instead of silently dropping them', async () => {
+    mockListSupervisorSessions.mockResolvedValue({
+      items: [{
+        id: 'gc-session-1',
+        session_name: 'mayor',
+        alias: 'mayor',
+        template: 'mayor',
+        title: 'mayor',
+        state: 'active',
+        provider: 'claude',
+        running: true,
+        attached: false,
+        created_at: '2026-06-01T00:00:00Z',
+      }],
+    });
+
     render(
       <MemoryRouter
         initialEntries={['/agents/mayor']}
@@ -118,16 +133,21 @@ describe('AgentDetailPage error reporting', () => {
     );
 
     await waitFor(() => {
-      expect(mockListSupervisorBeads).toHaveBeenCalledWith({ includeClosed: true });
+      expect(mockListSupervisorBeads).toHaveBeenCalledWith(
+        ['mayor', 'mayor', 'gc-session-1'],
+        { includeClosed: true },
+      );
       expect(mockReportClientError).toHaveBeenCalledWith({
         component: 'AgentDetail',
         operation: 'refreshBeads',
         message: 'beads unavailable',
       });
     });
+    expect(await screen.findByText('beads unavailable')).toBeTruthy();
+    expect(screen.queryByText('Loading beads.')).toBeNull();
   });
 
-  it('fetches directives through the supervisor prime API', async () => {
+  it('fetches directives through the supervisor prime API when refreshed', async () => {
     mockListSupervisorSessions.mockResolvedValue({
       items: [{
         id: 'gc-session-1',
@@ -162,6 +182,7 @@ describe('AgentDetailPage error reporting', () => {
       </MemoryRouter>,
     );
 
+    fireEvent.click(await screen.findByRole('button', { name: 'Refresh' }));
     await waitFor(() => {
       expect(mockFetchSupervisorAgentPrime).toHaveBeenCalledWith('mayor');
     });

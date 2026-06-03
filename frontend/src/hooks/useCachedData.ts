@@ -61,8 +61,8 @@ export function useCachedData<T>(
         const fresh = await fetch();
         const isLatestRun = runIdRef.current === runId;
         const isActiveKey = currentKeyRef.current === cacheKey;
-        if (isLatestRun || !isActiveKey) setCached(cacheKey, fresh);
-        if (isLatestRun) {
+        if (isLatestRun && isActiveKey) {
+          setCached(cacheKey, fresh);
           setData(fresh);
         } else if (isActiveKey) {
           // First-paint rescue: a busy SSE stream can re-fire refresh()
@@ -99,6 +99,9 @@ export function useCachedData<T>(
     setData(cached);
     setLoading(cached === undefined);
     void runFetcher(fetcherRef.current);
+    return () => {
+      runIdRef.current += 1;
+    };
   }, [key, runFetcher]);
 
   return { data, loading, error, refresh };

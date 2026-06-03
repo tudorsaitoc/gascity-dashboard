@@ -1,6 +1,6 @@
 # gas-city-dashboard
 
-An editorial-typographic ambient dashboard for a single [Gas City](https://github.com/gastownhall/gascity) (`gc`) operator. Five views — Agents, Beads, Runs, Mail, Health — laid out as a thoughtfully-set page rather than a wall of cards. The room is calm by default; the only thing that earns the eye is something going wrong.
+An editorial-typographic ambient dashboard for a single [Gas City](https://github.com/gastownhall/gascity) (`gc`) operator. Six views — Agents, Beads, Runs, Mail, Activity, Health — laid out as a thoughtfully-set page rather than a wall of cards. The room is calm by default; the only thing that earns the eye is something going wrong.
 
 The shape is forked from [Wldc4rd/citadel](https://github.com/Wldc4rd/citadel) (MIT, Charlie Coutts) which solved the orchestrator-tab problem first. The visual register is a full redesign, driven through [impeccable](https://impeccable.style/) with the design context captured in [`specs/requirements/product.md`](specs/requirements/product.md) and [`DESIGN.md`](DESIGN.md).
 
@@ -16,6 +16,7 @@ Until then, this repo exists so the dashboard can move quickly as a standalone N
 - **Beads** — engineering work in `gc bd` (system noise filtered by default), with supervisor-backed claim / close / nudge and click-to-filter label chips.
 - **Runs** — active formula runs, with graph.v2 run details, node session transcripts, and current execution-folder git diffs.
 - **Mail** — read any agent's inbox via a persistent "Reading as" strip. Sends always go from the operator; impersonation is read-only.
+- **Activity** — supervisor events, deploy history, and recent project commits in one operator-facing timeline.
 - **Health** — supervisor state, host memory + load, admin process stats, plus a 24-hour dolt-noms trend sparkline.
 
 ## Quick start (dev)

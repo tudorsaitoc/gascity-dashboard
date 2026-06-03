@@ -308,6 +308,70 @@ describe('createAttentionContributors', () => {
     );
   });
 
+  it('waits for the idle threshold before surfacing asleep agents', () => {
+    const nowMs = Date.parse('2026-06-01T12:00:00.000Z');
+    const model = composeAttention(createAttentionContributors({
+      agents: {
+        nowMs,
+        items: [
+          agent({
+            name: 'recent-asleep',
+            running: true,
+            state: 'asleep',
+            session: {
+              attached: true,
+              last_activity: '2026-06-01T11:45:00.000Z',
+              name: 'recent-asleep',
+            },
+          }),
+          agent({
+            name: 'stale-asleep',
+            running: true,
+            state: 'asleep',
+            session: {
+              attached: true,
+              last_activity: '2026-06-01T07:30:00.000Z',
+              name: 'stale-asleep',
+            },
+          }),
+        ],
+      },
+    }));
+
+    expect(model.byDomain.agents.items.map((item) => item.id)).toEqual([
+      'agents:stale-asleep:stale-idle',
+    ]);
+  });
+
+  it('uses bead update movement, not creation age, for stale assigned attention', () => {
+    const nowMs = Date.parse('2026-06-01T12:00:00.000Z');
+    const model = composeAttention(createAttentionContributors({
+      beads: {
+        nowMs,
+        items: [
+          bead({
+            assignee: 'reviewer',
+            created_at: '2026-05-29T11:00:00.000Z',
+            id: 'B-active-assigned',
+            status: 'in_progress',
+            updated_at: '2026-06-01T11:30:00.000Z',
+          }),
+          bead({
+            assignee: 'reviewer',
+            created_at: '2026-05-29T11:00:00.000Z',
+            id: 'B-stale-assigned',
+            status: 'in_progress',
+            updated_at: '2026-05-29T11:30:00.000Z',
+          }),
+        ],
+      },
+    }));
+
+    expect(model.byDomain.beads.items.map((item) => item.id)).toEqual([
+      'beads:B-stale-assigned:stale-assigned',
+    ]);
+  });
+
   it('surfaces each open mayor-decision bead as an attention item linked to the bead view', () => {
     const model = composeAttention(createAttentionContributors({
       beads: {

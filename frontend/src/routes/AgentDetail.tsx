@@ -27,7 +27,7 @@ import { useVisibleRefresh } from "../hooks/useVisibleRefresh";
 import { reportClientError } from "../lib/clientErrorReporting";
 import { fetchSupervisorAgentPrime } from "../supervisor/agentReads";
 import {
-  listSupervisorBeads,
+  listSupervisorBeadsAssignedTo,
   type SupervisorBead,
 } from "../supervisor/beadReads";
 import {
@@ -63,6 +63,7 @@ export function AgentDetailPage() {
 
   const [sessions, setSessions] = useState<SupervisorSession[] | null>(null);
   const [beads, setBeads] = useState<SupervisorBead[] | null>(null);
+  const [beadsError, setBeadsError] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [viewingBead, setViewingBead] = useState<SupervisorBead | null>(null);
   const [viewingBeadId, setViewingBeadId] = useState<string | null>(null);
@@ -73,9 +74,6 @@ export function AgentDetailPage() {
   const [directivesLoading, setDirectivesLoading] = useState(false);
   const [directivesError, setDirectivesError] =
     useState<AgentDirectivesError | null>(null);
-  const [directivesAliasFetched, setDirectivesAliasFetched] = useState<
-    string | null
-  >(null);
 
   const decoded = useMemo(() => {
     try {
@@ -100,33 +98,6 @@ export function AgentDetailPage() {
     }
   }, []);
 
-  const refreshBeads = useCallback(async () => {
-    try {
-      const { items } = await listSupervisorBeads({ includeClosed: true });
-      setBeads(items);
-    } catch (err) {
-      void reportClientError({
-        component: "AgentDetail",
-        operation: "refreshBeads",
-        message: errorMessage(err),
-      });
-    }
-  }, []);
-
-  useEffect(() => {
-    void refreshSessions();
-    void refreshBeads();
-  }, [refreshSessions, refreshBeads]);
-
-  // SSE is the primary freshness channel; these intervals are fallback
-  // guards for dropped or unavailable event streams.
-  useVisibleRefresh(refreshSessions, SESSIONS_REFRESH_MS);
-  useVisibleRefresh(refreshBeads, BEADS_REFRESH_MS);
-  useGcEventRefresh([GC_EVENT_PREFIX.session, GC_EVENT_PREFIX.bead], () => {
-    void refreshSessions();
-    void refreshBeads();
-  });
-
   const session = useMemo<SupervisorSession | null>(() => {
     if (sessions === null) return null;
     return (
@@ -137,9 +108,58 @@ export function AgentDetailPage() {
     );
   }, [sessions, decoded]);
 
+  const beadAssignees = useMemo<readonly string[]>(() => {
+    if (session === null) return [];
+    return [
+      session.alias ?? '',
+      session.session_name,
+      session.id,
+    ];
+  }, [session]);
+
+  const refreshBeads = useCallback(async () => {
+    if (beadAssignees.length === 0) {
+      setBeads([]);
+      setBeadsError(null);
+      return;
+    }
+    try {
+      const { items } = await listSupervisorBeadsAssignedTo(beadAssignees, {
+        includeClosed: true,
+      });
+      setBeads(items);
+      setBeadsError(null);
+    } catch (err) {
+      setBeads([]);
+      setBeadsError(formatApiError(err, "assigned beads unavailable"));
+      void reportClientError({
+        component: "AgentDetail",
+        operation: "refreshBeads",
+        message: errorMessage(err),
+      });
+    }
+  }, [beadAssignees]);
+
+  useEffect(() => {
+    void refreshSessions();
+  }, [refreshSessions]);
+
+  useEffect(() => {
+    void refreshBeads();
+  }, [refreshBeads]);
+
+  // SSE is the primary freshness channel; these intervals keep the view
+  // current if an event stream is dropped or unavailable.
+  useVisibleRefresh(refreshSessions, SESSIONS_REFRESH_MS);
+  useVisibleRefresh(refreshBeads, BEADS_REFRESH_MS);
+  useGcEventRefresh([GC_EVENT_PREFIX.session, GC_EVENT_PREFIX.bead], () => {
+    void refreshSessions();
+    void refreshBeads();
+  });
+
   // Beads belonging to this agent. Two link paths in circulation, both
-  // need to be matched or polecat-style sessions (empty alias, work
-  // bead linked only via metadata.session_id) silently render empty:
+  // need to be matched or sessions with an empty alias and work linked only
+  // through metadata.session_id silently render empty:
   //   1. bead.assignee == alias | session_name | id
   //   2. bead.metadata.session_id == session.id (supervisor-spawned)
   //   3. bead.metadata.session_name == session.session_name (CLI-tagged)
@@ -217,7 +237,6 @@ export function AgentDetailPage() {
     try {
       const result = await fetchSupervisorAgentPrime(primeAlias);
       setDirectivesPrompt(result.prompt);
-      setDirectivesAliasFetched(primeAlias);
     } catch (err) {
       const parts = apiErrorParts(err, "directives fetch failed");
       const directivesError: {
@@ -229,19 +248,10 @@ export function AgentDetailPage() {
       if (parts.kind !== undefined) directivesError.kind = parts.kind;
       setDirectivesError(directivesError);
       setDirectivesPrompt(null);
-      setDirectivesAliasFetched(primeAlias);
     } finally {
       setDirectivesLoading(false);
     }
   }, [primeAlias]);
-
-  useEffect(() => {
-    if (primeAlias === null) return;
-    // Only fetch the first time we see this alias — page-lifetime cache.
-    // Manual Refresh button is the documented re-pull path.
-    if (directivesAliasFetched === primeAlias) return;
-    void refreshDirectives();
-  }, [primeAlias, directivesAliasFetched, refreshDirectives]);
 
   // Related entities (gascity-dashboard-j4x). Focus on the session id so
   // the index surfaces the beads, formula runs, and PRs adjacent to this
@@ -364,6 +374,7 @@ export function AgentDetailPage() {
 
       <AgentBeadsAssigned
         beads={assignedBeads}
+        error={beadsError}
         loading={beads === null}
         onSelect={(b) => {
           setViewingBeadId(null);

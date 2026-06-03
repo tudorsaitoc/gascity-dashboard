@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { z } from 'zod';
-import type { GcBead } from 'gas-city-dashboard-shared';
+import type { GcBeadList } from 'gas-city-dashboard-shared';
 import { gcSupervisorDecoders } from '../src/gc-supervisor-decoders.js';
 
 // gascity-dashboard-t5l6: Regression test that the schema parameter of the
@@ -76,17 +76,17 @@ test('decoder typing: tsc rejects a Zod schema that diverges from the declared D
 
 test('decoder typing: real gcSupervisorDecoders methods preserve their declared return types', () => {
   // Compile-time identity assertions on the public decoder API. If a
-  // future change silently widens `gcSupervisorDecoders.getBead` to return
-  // `GcBead | undefined` (or some other drift), one of these lines fails
+  // future change silently widens `gcSupervisorDecoders.listBeads` to return
+  // `GcBeadList | undefined` (or some other drift), one of these lines fails
   // tsc — the runtime call is also a smoke-check that the real schemas
   // parse a minimal valid payload.
   type AssertExact<A, B> = (<T>() => T extends A ? 1 : 2) extends
     (<T>() => T extends B ? 1 : 2) ? true : false;
 
-  const _getBeadReturnsGcBead: AssertExact<
-    ReturnType<typeof gcSupervisorDecoders.getBead>,
-    GcBead
+  const _listBeadsReturnsGcBeadList: AssertExact<
+    ReturnType<typeof gcSupervisorDecoders.listBeads>,
+    GcBeadList
   > = true;
-  assert.ok(_getBeadReturnsGcBead);
-  assert.equal(typeof gcSupervisorDecoders.getBead, 'function');
+  assert.ok(_listBeadsReturnsGcBeadList);
+  assert.equal(typeof gcSupervisorDecoders.listBeads, 'function');
 });

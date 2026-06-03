@@ -1,8 +1,5 @@
 import type {
-  GcBead,
   GcBeadList,
-  GcFormulaDetail,
-  GcRunSnapshot,
   GcSessionList,
   RunScopeKind,
   SlingInput,
@@ -11,7 +8,6 @@ import type {
 import {
   gcSupervisorDecoders,
   type GcDecoder,
-  type GcTranscriptResponse,
   invalidGeneratedSupervisorPayload,
   type SupervisorCity,
 } from './gc-supervisor-decoders.js';
@@ -20,7 +16,6 @@ import {
   type Client as GeneratedSupervisorClient,
 } from '@hey-api/client-fetch';
 import type {
-  AgentResponse,
   FormulaFeedBody,
   ListBodyAgentResponse,
   ListBodyRigResponse,
@@ -29,18 +24,13 @@ import type {
 } from './generated/gc-supervisor-client/types.gen.js';
 import {
   getV0Cities,
-  getV0CityByCityNameAgentByBase,
   getV0CityByCityNameAgents,
-  getV0CityByCityNameBeadById,
   getV0CityByCityNameBeads,
-  getV0CityByCityNameFormulasByName,
   getV0CityByCityNameFormulasFeed,
   getV0CityByCityNameMail,
   getV0CityByCityNameRigs,
-  getV0CityByCityNameSessionByIdTranscript,
   getV0CityByCityNameSessions,
   getV0CityByCityNameStatus,
-  getV0CityByCityNameWorkflowByWorkflowId,
   postV0CityByCityNameSling,
 } from './generated/gc-supervisor-client/sdk.gen.js';
 
@@ -419,40 +409,6 @@ export class GcClient {
     );
   }
 
-  /**
-   * `GET /v0/city/{name}/agent/{base}` — per-agent detail keyed by the
-   * agent's alias (`base` in the supervisor's path naming, but it is the
-   * agent's `name`, not a session id). gascity-dashboard-ay6. The caller
-   * is responsible for URL-encoding any '/' inside qualified names
-   * (e.g. 'thriva/devpipeline.architect') — the generated SDK handles the
-   * `{base}` substitution and applies encodeURIComponent.
-   */
-  async getAgent(base: string, signal?: AbortSignal): Promise<AgentResponse> {
-    return this.getOperation(
-      this.operationKey('getV0CityByCityNameAgentByBase', [base]),
-      gcSupervisorDecoders.getAgent,
-      (upstreamSignal) => getV0CityByCityNameAgentByBase({
-        client: this.supervisor,
-        path: { ...this.cityPathParams(), base },
-        signal: upstreamSignal,
-      }),
-      signal,
-    );
-  }
-
-  async getBead(id: string, signal?: AbortSignal): Promise<GcBead> {
-    return this.getOperation(
-      this.operationKey('getV0CityByCityNameBeadById', [id]),
-      gcSupervisorDecoders.getBead,
-      (upstreamSignal) => getV0CityByCityNameBeadById({
-        client: this.supervisor,
-        path: { ...this.cityPathParams(), id },
-        signal: upstreamSignal,
-      }),
-      signal,
-    );
-  }
-
   async listBeads(
     signal?: AbortSignal,
     params?: {
@@ -508,33 +464,6 @@ export class GcClient {
     );
   }
 
-  async getRun(
-    runId: string,
-    signal?: AbortSignal,
-    scope?: { scopeKind: RunScopeKind; scopeRef: string },
-  ): Promise<GcRunSnapshot> {
-    const query: { scope_kind?: string; scope_ref?: string } = {};
-    if (scope !== undefined) {
-      query.scope_kind = scope.scopeKind;
-      query.scope_ref = scope.scopeRef;
-    }
-    return this.getOperation(
-      this.operationKey('getV0CityByCityNameWorkflowByWorkflowId', [
-        runId,
-        scope?.scopeKind,
-        scope?.scopeRef,
-      ]),
-      gcSupervisorDecoders.getRun,
-      (upstreamSignal) => getV0CityByCityNameWorkflowByWorkflowId({
-        client: this.supervisor,
-        path: { ...this.cityPathParams(), workflow_id: runId },
-        query,
-        signal: upstreamSignal,
-      }),
-      signal,
-    );
-  }
-
   /**
    * Cross-rig discovery of formula runs the supervisor knows about.
    * Mirrors `GET /v0/city/<city>/formulas/feed`. Returns rig-stored
@@ -567,54 +496,6 @@ export class GcClient {
     );
   }
 
-  async getFormulaDetail(
-    formulaName: string,
-    scope: { scopeKind: RunScopeKind; scopeRef: string },
-    target: string,
-    signal?: AbortSignal,
-  ): Promise<GcFormulaDetail> {
-    const query = {
-      scope_kind: scope.scopeKind,
-      scope_ref: scope.scopeRef,
-      target,
-    };
-    return this.getOperation(
-      this.operationKey('getV0CityByCityNameFormulasByName', [
-        formulaName,
-        scope.scopeKind,
-        scope.scopeRef,
-        target,
-      ]),
-      gcSupervisorDecoders.getFormulaDetail,
-      (upstreamSignal) => getV0CityByCityNameFormulasByName({
-        client: this.supervisor,
-        path: { ...this.cityPathParams(), name: formulaName },
-        query,
-        signal: upstreamSignal,
-      }),
-      signal,
-    );
-  }
-
-  /**
-   * Architect addendum (td-wisp-ijk7g + mechanic td-wisp-e1v14): peek is an
-   * HTTP endpoint, not shell-exec. Returns structured turns.
-   */
-  async fetchTranscript(
-    sessionId: string,
-    signal?: AbortSignal,
-  ): Promise<GcTranscriptResponse> {
-    return this.getOperation(
-      this.operationKey('getV0CityByCityNameSessionByIdTranscript', [sessionId]),
-      gcSupervisorDecoders.fetchTranscript,
-      (upstreamSignal) => getV0CityByCityNameSessionByIdTranscript({
-        client: this.supervisor,
-        path: { ...this.cityPathParams(), id: sessionId },
-        signal: upstreamSignal,
-      }),
-      signal,
-    );
-  }
 }
 
 function sanitizedSupervisorStatusError(status: number): Error {

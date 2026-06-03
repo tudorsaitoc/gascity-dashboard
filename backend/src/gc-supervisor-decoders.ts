@@ -1,65 +1,32 @@
 import type {
-  GcBead,
   GcBeadList,
-  GcFormulaDetail,
-  GcRunSnapshot,
   GcSessionList,
   SlingResponse,
-  TranscriptTurn,
 } from 'gas-city-dashboard-shared';
 import { z } from 'zod';
 import type {
-  AgentResponse,
-  Bead,
-  FormulaDetailResponse,
   FormulaFeedBody,
   ListBodyAgentResponse,
   ListBodyBead,
   ListBodyRigResponse,
   ListBodySessionResponse,
   MailListBody,
-  SessionTranscriptGetResponse,
   StatusBody,
   SupervisorCitiesOutputBody,
-  WorkflowSnapshotResponse,
 } from './generated/gc-supervisor-client/types.gen.js';
 
 type RawSupervisorSchema = {
-  AgentResponse: AgentResponse;
-  Bead: Bead;
-  FormulaDetailResponse: FormulaDetailResponse;
   FormulaFeedBody: FormulaFeedBody;
   ListBodyAgentResponse: ListBodyAgentResponse;
   ListBodyBead: ListBodyBead;
   ListBodyRigResponse: ListBodyRigResponse;
   ListBodySessionResponse: ListBodySessionResponse;
   MailListBody: MailListBody;
-  SessionTranscriptGetResponse: SessionTranscriptGetResponse;
   StatusBody: StatusBody;
   SupervisorCitiesOutputBody: SupervisorCitiesOutputBody;
-  WorkflowSnapshotResponse: WorkflowSnapshotResponse;
 };
-
-/**
- * Decoder-edge type for the supervisor's session-transcript response.
- * Intentionally local to the backend — this is the raw decoded shape,
- * NOT a wire-shape that crosses the dashboard's own API boundary. Backend
- * composed routes still use it while their supervisor-backed read surfaces
- * are migrated. Do not move to shared/.
- */
-export interface GcTranscriptResponse {
-  id?: string;
-  template?: string;
-  provider?: string;
-  format?: string;
-  turns: TranscriptTurn[];
-}
 
 export type GcDecoder<RawValue, DecodedValue> = (value: RawValue) => DecodedValue;
-
-type GcWorkflowSnapshot = Omit<GcRunSnapshot, 'run_id'> & {
-  workflow_id: string;
-};
 
 const StringRecordSchema = z.record(z.string(), z.string());
 
@@ -172,10 +139,9 @@ export interface SupervisorCity {
   running: boolean;
 }
 
-// Per-agent wire shape from `GET /v0/city/{name}/agents` and
-// `GET /v0/city/{name}/agent/{base}`. Mirrors the supervisor's
-// AgentResponse schema (backend/src/generated/gc-supervisor-client/types.gen.ts).
-// gascity-dashboard-ay6.
+// Per-agent wire shape from `GET /v0/city/{name}/agents`. Mirrors the
+// supervisor's AgentResponse schema
+// (backend/src/generated/gc-supervisor-client/types.gen.ts). gascity-dashboard-ay6.
 //
 // Required fields per OpenAPI: name, available, running, suspended,
 // state. Embedded `session` is the supervisor's `SessionInfo` shape —
@@ -205,104 +171,6 @@ const AgentSchema = z.object({
   context_window: z.number().finite().optional(),
   unavailable_reason: z.string().optional(),
   session: AgentSessionSchema.optional(),
-}).passthrough();
-
-const RunBeadSchema = z.object({
-  id: z.string(),
-  title: z.string(),
-  status: z.string(),
-  kind: z.string(),
-  step_ref: z.string().optional(),
-  attempt: z.number().finite().optional(),
-  logical_bead_id: z.string().optional(),
-  scope_ref: z.string().optional(),
-  assignee: z.string().optional(),
-  metadata: StringRecordSchema,
-}).passthrough();
-
-const RunDepSchema = z.object({
-  from: z.string(),
-  to: z.string(),
-  kind: z.string().optional(),
-}).passthrough();
-
-// 6bv7 F19: OpenAPI FormulaPreviewNodeResponse declares title + kind REQUIRED.
-const FormulaPreviewNodeSchema = z.object({
-  id: z.string(),
-  title: z.string(),
-  kind: z.string(),
-}).passthrough();
-
-const FormulaPreviewEdgeSchema = z.object({
-  from: z.string(),
-  to: z.string(),
-  kind: z.string().optional(),
-}).passthrough();
-
-// Supervisor's OpenAPI declares LogicalNode and ScopeGroup as
-// `{additionalProperties: false, type: 'object'}` — always-empty objects.
-// Shared types them as `Record<string, never>[]`; mirroring with an empty
-// Zod object preserves the SSOT contract. (Previously used
-// UnknownRecordSchema, which accepted any keys and laundered the
-// mismatch via the t5l6 decoder cast.)
-//
-// Intentionally no .passthrough(): the rest of this file's schemas allow
-// passthrough at the top level so the decoder remains forward-compatible
-// with unknown supervisor fields, but THIS schema must strip unknown keys
-// to remain a faithful surface for Record<string, never>. Adding
-// .passthrough() here would widen the element type back to
-// {[k: string]: unknown}, defeating the SSOT alignment.
-const EmptyObjectSchema = z.object({});
-
-const RunSnapshotBaseSchema = z.object({
-  root_bead_id: z.string(),
-  root_store_ref: z.string(),
-  resolved_root_store: z.string(),
-  scope_kind: z.string(),
-  scope_ref: z.string(),
-  snapshot_version: z.number().finite(),
-  snapshot_event_seq: z.number().finite().nullable().optional(),
-  partial: z.boolean(),
-  stores_scanned: z.array(z.string()).nullable(),
-  beads: z.array(RunBeadSchema).nullable(),
-  deps: z.array(RunDepSchema).nullable(),
-  logical_nodes: z.array(EmptyObjectSchema).nullable(),
-  logical_edges: z.array(RunDepSchema).nullable(),
-  scope_groups: z.array(EmptyObjectSchema).nullable(),
-}).passthrough();
-
-const WorkflowSnapshotSchema = RunSnapshotBaseSchema.extend({
-  workflow_id: z.string(),
-}).passthrough();
-
-const FormulaDetailSchema = z.object({
-  name: z.string(),
-  preview: z.object({
-    nodes: z.array(FormulaPreviewNodeSchema).optional(),
-    edges: z.array(FormulaPreviewEdgeSchema).optional(),
-  }).passthrough().optional(),
-  // izgc F5/F6: OpenAPI declares steps/deps as `T[] | null` (required +
-  // nullable). Accept null and missing, then collapse to undefined so the
-  // typed interior (GcFormulaDetail.steps?: T[]) matches Zod output exactly
-  // — bypasses the t5l6 cast-laundering bug without pulling it into scope.
-  steps: z.array(FormulaPreviewNodeSchema).nullish().transform((v) => v ?? undefined),
-  deps: z.array(FormulaPreviewEdgeSchema).nullish().transform((v) => v ?? undefined),
-}).passthrough();
-
-const TranscriptTurnSchema = z.object({
-  role: z.string(),
-  text: z.string(),
-}).passthrough();
-
-const TranscriptResponseSchema = z.object({
-  id: z.string().optional(),
-  template: z.string().optional(),
-  provider: z.string().optional(),
-  format: z.string().optional(),
-  // izgc F2: OpenAPI declares turns?: T[] | null (optional AND nullable).
-  // Live raw-format responses already omit the key. Normalize null/missing
-  // to [] at the edge so GcTranscriptResponse.turns stays non-null.
-  turns: z.array(TranscriptTurnSchema).nullish().transform((v) => v ?? []),
 }).passthrough();
 
 // izgc F3: every ListBody* envelope in the supervisor's OpenAPI declares
@@ -398,14 +266,6 @@ export const gcSupervisorDecoders = {
     );
   },
 
-  getAgent(value: RawSupervisorSchema['AgentResponse']): AgentResponse {
-    return decodeSupervisorPayload(AgentSchema, value, 'getAgent');
-  },
-
-  getBead(value: RawSupervisorSchema['Bead']): GcBead {
-    return decodeSupervisorPayload(BeadSchema, value, 'getBead');
-  },
-
   listBeads(value: RawSupervisorSchema['ListBodyBead']): GcBeadList {
     return decodeSupervisorPayload(
       z.object({
@@ -420,41 +280,8 @@ export const gcSupervisorDecoders = {
     );
   },
 
-  getRun(value: RawSupervisorSchema['WorkflowSnapshotResponse']): GcRunSnapshot {
-    const wire = decodeSupervisorPayload<GcWorkflowSnapshot>(
-      WorkflowSnapshotSchema,
-      value,
-      'getRun',
-    );
-    const {
-      workflow_id: workflowId,
-      snapshot_event_seq: snapshotEventSeq,
-      ...rest
-    } = wire;
-    const snapshot: GcRunSnapshot = {
-      ...rest,
-      run_id: workflowId,
-    };
-    if (snapshotEventSeq !== undefined) {
-      snapshot.snapshot_event_seq = snapshotEventSeq;
-    }
-    return snapshot;
-  },
-
   listFormulaRuns(value: RawSupervisorSchema['FormulaFeedBody']): FormulaFeedBody {
     return value;
-  },
-
-  getFormulaDetail(value: RawSupervisorSchema['FormulaDetailResponse']): GcFormulaDetail {
-    return decodeSupervisorPayload(FormulaDetailSchema, value, 'getFormulaDetail');
-  },
-
-  fetchTranscript(value: RawSupervisorSchema['SessionTranscriptGetResponse']): GcTranscriptResponse {
-    return decodeSupervisorPayload(
-      TranscriptResponseSchema,
-      value,
-      'fetchTranscript',
-    );
   },
 
   getStatus(value: RawSupervisorSchema['StatusBody']): StatusBody {

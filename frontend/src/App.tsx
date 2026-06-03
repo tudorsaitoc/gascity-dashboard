@@ -25,10 +25,9 @@ export function App() {
 
   // PR-C: the backend's /api/config carries the operator's MODULES_ENABLED
   // intersection and the DEFAULT_VIEW env value. While the request is in
-  // flight `data` is undefined; we treat that as "use the pre-PR-C
-  // behaviour" (every firstParty mounted, ambient home at /) so the first
-  // paint never blanks. Once the response lands React re-renders the route
-  // tree with the resolved set.
+  // flight `data` is undefined; we treat that as core-only, matching the
+  // steady-state default install and preventing disabled first-party modules
+  // from flashing or fetching before config lands.
   const { data: config } = useCachedData('config', () => api.config());
   const enabledModules = config?.enabledModules ?? null;
   const defaultViewEnv = config?.defaultView ?? null;
@@ -83,9 +82,8 @@ export function App() {
               <Route path="/mail" element={<MailPage />} />
               {/* Modular-dashboard registry routes, filtered by the
                   backend's enabledModules set. A disabled module's path
-                  is absent (not 404'd by React Router) so deep-link bookmarks
-                  surface the operator's MODULES_ENABLED change as a 404,
-                  not a blank route. */}
+                  is absent so deep-link bookmarks surface the operator's
+                  MODULES_ENABLED change as the explicit catch-all route. */}
               {enabledViews.map((v) => {
                 const Element = v.element;
                 return <Route key={v.id} path={v.path} element={<Element />} />;

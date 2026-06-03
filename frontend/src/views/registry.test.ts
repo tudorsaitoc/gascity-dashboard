@@ -7,6 +7,15 @@ describe('views/registry', () => {
     expect(ids).toContain('health');
   });
 
+  it('contains the activity view as a core route', () => {
+    const activity = ALL_VIEWS.find((v) => v.id === 'activity');
+    expect(activity).toBeDefined();
+    expect(activity?.kind).toBe('core');
+    expect(activity?.path).toBe('/activity');
+    expect(activity?.nav).not.toBeNull();
+    expect(activity?.nav?.label).toBe('Activity');
+  });
+
   it('has no duplicate ids', () => {
     const ids = ALL_VIEWS.map((v) => v.id);
     expect(new Set(ids).size).toBe(ids.length);

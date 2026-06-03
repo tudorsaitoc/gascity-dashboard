@@ -75,6 +75,7 @@ import type {
 } from '../generated/gc-supervisor-client/types.gen';
 
 export const SUPERVISOR_PROXY_BASE_URL = '/gc-supervisor';
+export const SUPERVISOR_REQUEST_TIMEOUT_MS = 30_000;
 export const GC_MUTATION_HEADERS = {
   'X-GC-Request': 'dashboard',
 } as const;
@@ -162,6 +163,7 @@ export interface CreateSupervisorApiOptions {
   baseUrl?: string;
   fetch?: typeof fetch;
   client?: GeneratedSupervisorClient;
+  timeoutMs?: number;
 }
 
 type SupervisorResult<T> = {
@@ -198,11 +200,13 @@ export function createSupervisorApi(
     responseStyle: 'fields' as const,
     throwOnError: false,
   };
-  const client = options.client ?? createClient(
-    options.fetch === undefined
-      ? clientOptions
-      : { ...clientOptions, fetch: options.fetch },
-  );
+  const client = options.client ?? createClient({
+    ...clientOptions,
+    fetch: withSupervisorTimeout(
+      options.fetch ?? globalThis.fetch,
+      supervisorTimeoutMs(options.timeoutMs),
+    ),
+  });
 
   return {
     baseUrl,
@@ -582,6 +586,51 @@ function splitAgentAlias(agentAlias: string): { base: string } | { dir: string; 
   throw new Error(`invalid agent alias: ${agentAlias}`);
 }
 
+function supervisorTimeoutMs(value: number | undefined): number {
+  return typeof value === 'number' && Number.isFinite(value) && value > 0
+    ? value
+    : SUPERVISOR_REQUEST_TIMEOUT_MS;
+}
+
+function withSupervisorTimeout(fetchImpl: typeof fetch, timeoutMs: number): typeof fetch {
+  return async (input, init) => {
+    const controller = new AbortController();
+    const timeoutError = new SupervisorApiError(
+      undefined,
+      `gc supervisor request timed out after ${timeoutMs}ms`,
+      undefined,
+    );
+    const parentSignal = requestSignal(input, init);
+    if (parentSignal?.aborted) {
+      controller.abort(parentSignal.reason);
+    }
+    const abortFromParent = (): void => controller.abort(parentSignal?.reason);
+    parentSignal?.addEventListener('abort', abortFromParent, { once: true });
+
+    let timeout: ReturnType<typeof setTimeout> | undefined;
+    const timeoutPromise = new Promise<Response>((_resolve, reject) => {
+      timeout = setTimeout(() => {
+        controller.abort(timeoutError);
+        reject(timeoutError);
+      }, timeoutMs);
+    });
+
+    const request = new Request(input, { ...init, signal: controller.signal });
+    const fetchPromise = fetchImpl(request);
+    try {
+      return await Promise.race([fetchPromise, timeoutPromise]);
+    } finally {
+      if (timeout !== undefined) clearTimeout(timeout);
+      parentSignal?.removeEventListener('abort', abortFromParent);
+    }
+  };
+}
+
+function requestSignal(input: RequestInfo | URL, init: RequestInit | undefined): AbortSignal | null {
+  if (init?.signal !== undefined) return init.signal;
+  return input instanceof Request ? input.signal : null;
+}
+
 async function unwrapSupervisorResult<T>(
   promise: Promise<SupervisorResult<T>>,
   emptyMessage: string,
@@ -620,7 +669,7 @@ function normalizeThrownSupervisorError(err: unknown): SupervisorApiError {
   return new SupervisorApiError(undefined, messageFromUnknown(err), undefined);
 }
 
-function messageFromUnknown(value: unknown, fallback = 'gc supervisor request failed'): string {
+function messageFromUnknown(value: unknown, defaultMessage = 'gc supervisor request failed'): string {
   if (isGeneratedSchemaValidationError(value)) return SUPERVISOR_SCHEMA_VALIDATION_MESSAGE;
   if (typeof value === 'string' && value.trim().length > 0) {
     return sanitizeSupervisorMessage(value);
@@ -636,7 +685,7 @@ function messageFromUnknown(value: unknown, fallback = 'gc supervisor request fa
       }
     }
   }
-  return fallback;
+  return defaultMessage;
 }
 
 function sanitizeSupervisorMessage(message: string): string {

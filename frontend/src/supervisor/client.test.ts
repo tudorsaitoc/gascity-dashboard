@@ -12,6 +12,7 @@ describe('supervisor client wrapper', () => {
   afterEach(() => {
     resetSupervisorApiForTests();
     vi.unstubAllGlobals();
+    vi.useRealTimers();
   });
 
   it('defaults to the standalone transport-only supervisor proxy', () => {
@@ -937,6 +938,27 @@ describe('supervisor client wrapper', () => {
     expect(requestedUrl(fetchSpy.mock.calls[0]?.[0])).toBe(
       'http://gc-supervisor.test/v0/city/test-city/workflow/gc-run-1?scope_kind=city&scope_ref=test-city',
     );
+  });
+
+  it('bounds generated supervisor calls when the upstream request never resolves', async () => {
+    vi.useFakeTimers();
+    const fetchSpy = vi.fn((_input: Request) => new Promise<Response>(() => undefined));
+    const api = createSupervisorApi({
+      baseUrl: 'http://gc-supervisor.test',
+      fetch: fetchSpy as typeof fetch,
+      timeoutMs: 25,
+    });
+
+    const request = api.workflowRun('test-city', 'gc-run-1');
+    const expectation = expect(request).rejects.toMatchObject({
+      message: 'gc supervisor request timed out after 25ms',
+      status: undefined,
+    });
+    await vi.advanceTimersByTimeAsync(25);
+
+    await expectation;
+    const fetchRequest = fetchSpy.mock.calls[0]?.[0] as Request | undefined;
+    expect(fetchRequest?.signal.aborted).toBe(true);
   });
 
   it('calls supervisor formula detail through the generated SDK with target and scope query params', async () => {

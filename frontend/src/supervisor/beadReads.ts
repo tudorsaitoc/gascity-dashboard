@@ -24,6 +24,7 @@ export interface ListSupervisorBeadsOptions {
 }
 
 const BEADS_FETCH_LIMIT = 2000;
+const ASSIGNED_BEADS_FETCH_LIMIT = 200;
 const DETAIL_FALLBACK_FETCH_LIMIT = 2000;
 // The "real work" bead types the board fans out (one typed query each),
 // then keeps via defaultBeadFilter — the bookkeeping types
@@ -69,6 +70,42 @@ export async function listSupervisorBeads(
   return {
     items: filtered,
     total: filtered.length,
+    ...(upstreamTotal === undefined ? {} : { upstream_total: upstreamTotal }),
+    upstream_fetched: items.length,
+    fetch_limit: limit,
+  };
+}
+
+export async function listSupervisorBeadsAssignedTo(
+  assignees: readonly string[],
+  options: Pick<ListSupervisorBeadsOptions, 'includeClosed' | 'limit'> = {},
+): Promise<SupervisorBeadList> {
+  const cityName = activeCityOrThrow('list supervisor assigned beads');
+  const uniqueAssignees = uniqueNonEmpty(assignees);
+  const limit = options.limit ?? ASSIGNED_BEADS_FETCH_LIMIT;
+  const includeClosed = options.includeClosed ?? false;
+  if (uniqueAssignees.length === 0) {
+    return {
+      items: [],
+      total: 0,
+      upstream_fetched: 0,
+      fetch_limit: limit,
+    };
+  }
+  const lists = await Promise.all(
+    uniqueAssignees.map((assignee) =>
+      supervisorApi().listBeads(cityName, {
+        assignee,
+        limit,
+        ...(includeClosed ? { all: true } : {}),
+      }),
+    ),
+  );
+  const items = uniqueById(lists.flatMap((list) => list.items ?? []));
+  const upstreamTotal = sumTotals(lists);
+  return {
+    items,
+    total: items.length,
     ...(upstreamTotal === undefined ? {} : { upstream_total: upstreamTotal }),
     upstream_fetched: items.length,
     fetch_limit: limit,
@@ -130,6 +167,18 @@ function uniqueById(items: readonly SupervisorBead[]): SupervisorBead[] {
     if (seen.has(item.id)) continue;
     seen.add(item.id);
     unique.push(item);
+  }
+  return unique;
+}
+
+function uniqueNonEmpty(values: readonly string[]): string[] {
+  const seen = new Set<string>();
+  const unique: string[] = [];
+  for (const value of values) {
+    const trimmed = value.trim();
+    if (trimmed.length === 0 || seen.has(trimmed)) continue;
+    seen.add(trimmed);
+    unique.push(trimmed);
   }
   return unique;
 }

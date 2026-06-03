@@ -5,6 +5,7 @@ import { FormulaRunDetailPage } from './FormulaRunDetail';
 import { invalidate } from '../api/cache';
 import { setActiveCity } from '../api/cityBase';
 import { NowProvider } from '../contexts/NowContext';
+import { resetSupervisorApiForTests } from '../supervisor/client';
 import {
   GC_EVENT_PREFIX,
   type TranscriptResult,
@@ -56,6 +57,7 @@ let currentDiff: RunDiffResponse = diff;
 
 beforeEach(() => {
   setActiveCity('test-city');
+  resetSupervisorApiForTests();
   eventSources.length = 0;
   fetchUrls.length = 0;
   invalidate('formula-run');
@@ -96,6 +98,7 @@ beforeEach(() => {
 
 afterEach(() => {
   cleanup();
+  resetSupervisorApiForTests();
   vi.unstubAllGlobals();
 });
 

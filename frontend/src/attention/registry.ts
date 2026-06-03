@@ -394,6 +394,7 @@ function deriveAgentsAttention(
 function attentionForAgent(agent: AgentResponse, nowMs: number): AttentionItem | null {
   const href = `/agents/${encodeURIComponent(agent.name)}`;
   const state = agent.state.toLowerCase();
+  const idleAgeMs = elapsedSince(agent.session?.last_activity, nowMs);
   if (agent.running && agent.session === undefined) {
     return domainAttention('agents', {
       id: `agents:${agent.name}:no-session`,
@@ -416,9 +417,13 @@ function attentionForAgent(agent: AgentResponse, nowMs: number): AttentionItem |
     });
   }
   if (agent.suspended || state === 'asleep' || state === 'idle') {
+    if (idleAgeMs !== null && idleAgeMs < AGENT_IDLE_WATCH_MS) return null;
     return domainWatch('agents', {
-      id: `agents:${agent.name}:idle`,
+      id: idleAgeMs === null
+        ? `agents:${agent.name}:idle`
+        : `agents:${agent.name}:stale-idle`,
       title: `${agent.name} idle`,
+      ...(idleAgeMs === null ? {} : { summary: `last activity ${formatElapsed(idleAgeMs)} ago` }),
       href,
     });
   }
@@ -430,7 +435,6 @@ function attentionForAgent(agent: AgentResponse, nowMs: number): AttentionItem |
       ...(agent.unavailable_reason === undefined ? {} : { summary: agent.unavailable_reason }),
     });
   }
-  const idleAgeMs = elapsedSince(agent.session?.last_activity, nowMs);
   if (agent.running && idleAgeMs !== null && idleAgeMs >= AGENT_IDLE_WATCH_MS) {
     return domainWatch('agents', {
       id: `agents:${agent.name}:stale-idle`,
@@ -504,35 +508,37 @@ function deriveBeadsAttention(
 
 function attentionForStaleBead(bead: Bead, nowMs: number): AttentionItem | null {
   if (bead.status === 'closed') return null;
-  const ageMs = elapsedSince(bead.created_at, nowMs);
-  if (ageMs === null) return null;
+  const createdAgeMs = elapsedSince(bead.created_at, nowMs);
+  if (createdAgeMs === null) return null;
   const hasAssignee = bead.assignee !== undefined && bead.assignee.trim().length > 0;
 
-  if (!hasAssignee && ageMs >= BEAD_STALE_ATTENTION_MS) {
+  if (!hasAssignee && createdAgeMs >= BEAD_STALE_ATTENTION_MS) {
     return domainAttention('beads', {
       id: `beads:${bead.id}:stale-unclaimed`,
       title: `${bead.id} unclaimed`,
-      summary: `${bead.title} opened ${formatElapsed(ageMs)} ago`,
+      summary: `${bead.title} opened ${formatElapsed(createdAgeMs)} ago`,
       href: beadHref(bead.id),
       updatedAt: bead.created_at,
     });
   }
-  if (!hasAssignee && ageMs >= BEAD_UNCLAIMED_WATCH_MS) {
+  if (!hasAssignee && createdAgeMs >= BEAD_UNCLAIMED_WATCH_MS) {
     return domainWatch('beads', {
       id: `beads:${bead.id}:ready-unclaimed`,
       title: `${bead.id} still unclaimed`,
-      summary: `${bead.title} opened ${formatElapsed(ageMs)} ago`,
+      summary: `${bead.title} opened ${formatElapsed(createdAgeMs)} ago`,
       href: beadHref(bead.id),
       updatedAt: bead.created_at,
     });
   }
-  if (hasAssignee && ageMs >= BEAD_STALE_ATTENTION_MS) {
+  const movementAt = bead.updated_at ?? bead.created_at;
+  const movementAgeMs = elapsedSince(movementAt, nowMs);
+  if (hasAssignee && movementAgeMs !== null && movementAgeMs >= BEAD_STALE_ATTENTION_MS) {
     return domainAttention('beads', {
       id: `beads:${bead.id}:stale-assigned`,
       title: `${bead.id} assigned without movement`,
-      summary: `${bead.title} assigned to ${bead.assignee} for ${formatElapsed(ageMs)}`,
+      summary: `${bead.title} assigned to ${bead.assignee} without movement for ${formatElapsed(movementAgeMs)}`,
       href: beadHref(bead.id),
-      updatedAt: bead.created_at,
+      updatedAt: movementAt,
     });
   }
   return null;

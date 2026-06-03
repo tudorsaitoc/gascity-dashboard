@@ -13,6 +13,7 @@ const backendTestTsconfigUrl = new URL('../tsconfig.test.json', import.meta.url)
 const frontendPackageUrl = new URL('../../frontend/package.json', import.meta.url);
 const frontendTsconfigUrl = new URL('../../frontend/tsconfig.json', import.meta.url);
 const gcClientUrl = new URL('../src/gc-client.ts', import.meta.url);
+const gcSupervisorDecodersUrl = new URL('../src/gc-supervisor-decoders.ts', import.meta.url);
 const generatorUrl = new URL('../../scripts/generate-gc-supervisor-client.mjs', import.meta.url);
 const generatedClientUrl = new URL('../src/generated/gc-supervisor-client/', import.meta.url);
 const frontendGeneratedClientUrl = new URL(
@@ -252,7 +253,7 @@ test('GcClient does not mirror the supervisor agent roster through shared DTOs',
   assert.doesNotMatch(source, /\bGcAgent\b/);
   assert.doesNotMatch(source, /\bGcAgentList\b/);
   assert.match(source, /\bListBodyAgentResponse\b/);
-  assert.match(source, /\bAgentResponse\b/);
+  assert.doesNotMatch(source, /\bAgentResponse\b/);
 });
 
 test('GcClient does not mirror the supervisor rig roster through shared DTOs', async () => {
@@ -289,6 +290,28 @@ test('GcClient keeps only generated formula feed and no unused formula/order mir
   assert.doesNotMatch(source, /\blistOrderHistory\s*\(/);
   assert.doesNotMatch(source, /\bgetOrderHistoryDetail\s*\(/);
   assert.match(source, /\bFormulaFeedBody\b/);
+});
+
+test('GcClient has no unused backend detail/transcript supervisor mirrors', async () => {
+  const clientSource = await readFile(gcClientUrl, 'utf8');
+  const decodersSource = await readFile(gcSupervisorDecodersUrl, 'utf8');
+
+  for (const method of [
+    'getAgent',
+    'getBead',
+    'getRun',
+    'getFormulaDetail',
+    'fetchTranscript',
+  ]) {
+    assert.doesNotMatch(clientSource, new RegExp(`\\basync ${method}\\s*\\(`));
+    assert.doesNotMatch(decodersSource, new RegExp(`\\b${method}\\s*\\(`));
+  }
+
+  assert.doesNotMatch(clientSource, /\bgetV0CityByCityNameAgentByBase\b/);
+  assert.doesNotMatch(clientSource, /\bgetV0CityByCityNameBeadById\b/);
+  assert.doesNotMatch(clientSource, /\bgetV0CityByCityNameWorkflowByWorkflowId\b/);
+  assert.doesNotMatch(clientSource, /\bgetV0CityByCityNameFormulasByName\b/);
+  assert.doesNotMatch(clientSource, /\bgetV0CityByCityNameSessionByIdTranscript\b/);
 });
 
 async function exists(url: URL): Promise<boolean> {

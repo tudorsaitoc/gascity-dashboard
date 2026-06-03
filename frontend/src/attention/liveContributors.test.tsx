@@ -246,8 +246,8 @@ describe('useLiveAttentionContributors', () => {
     invalidate('attention:');
   });
 
-  it('composes Home/nav attention from direct supervisor facts and dashboard-local facts', async () => {
-    const { result } = renderHook(() => useLiveAttentionContributors());
+  it('composes Home/nav attention from direct supervisor facts and enabled dashboard-local module facts', async () => {
+    const { result } = renderHook(() => useLiveAttentionContributors(['maintainer']));
 
     await waitFor(() => {
       const model = composeAttention(result.current);
@@ -284,6 +284,18 @@ describe('useLiveAttentionContributors', () => {
     expect(mockApi.maintainerTriage).toHaveBeenCalledTimes(1);
     expect(mockApi.systemHealth).toHaveBeenCalledTimes(1);
     expect(mockApi.doltTrend).toHaveBeenCalledTimes(1);
+  });
+
+  it('does not fetch maintainer triage before the enabled module config is loaded', async () => {
+    const { result } = renderHook(() => useLiveAttentionContributors(null));
+
+    await waitFor(() => {
+      const model = composeAttention(result.current);
+      expect(model.byDomain.health.attention).toBe(1);
+    });
+
+    expect(mockApi.maintainerTriage).not.toHaveBeenCalled();
+    expect(composeAttention(result.current).byDomain.maintainer.attention).toBe(0);
   });
 
   it('does not fetch maintainer triage when the maintainer module is disabled', async () => {

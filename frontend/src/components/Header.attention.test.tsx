@@ -54,10 +54,12 @@ describe('Header attention indicators', () => {
         item('run-2', 'runs', 'watch'),
       ]),
       contributor('mail', [item('mail-1', 'mail', 'watch')]),
+      contributor('activity', [item('activity-1', 'activity', 'attention')]),
     ]);
 
     expect((await screen.findByLabelText('Runs: 2 attention items')).textContent).toBe('2');
     expect(screen.getByLabelText('Mail: 1 watch item').textContent).toBe('1');
+    expect(screen.getByLabelText('Activity: 1 attention item').textContent).toBe('1');
     expect(screen.queryByLabelText(/Agents:/)).toBeNull();
   });
 });

@@ -289,30 +289,6 @@ describe('GcClient error handling', () => {
     assert.doesNotMatch(msg, /secret-city/, `message leaked city name: ${msg}`);
   });
 
-  test('uses generated OpenAPI path and query params for supervisor workflow lookup', async () => {
-    let seenUrl = '';
-    fake.setHandler((req, res) => {
-      seenUrl = req.url ?? '';
-      res.statusCode = 200;
-      res.setHeader('content-type', 'application/json');
-      res.end(JSON.stringify(validRunSnapshot('wf/one')));
-    });
-    const gc = new GcClient({
-      baseUrl: fake.baseUrl,
-      cityName: 'city one',
-      defaultTimeoutMs: 5_000,
-    });
-    const snapshot = await gc.getRun('wf/one', undefined, {
-      scopeKind: 'rig',
-      scopeRef: 'rig-a',
-    });
-    const seen = new URL(`http://example.test${seenUrl}`);
-    assert.equal(seen.pathname, '/v0/city/city%20one/workflow/wf%2Fone');
-    assert.equal(seen.searchParams.get('scope_kind'), 'rig');
-    assert.equal(seen.searchParams.get('scope_ref'), 'rig-a');
-    assert.equal(snapshot.run_id, 'wf/one');
-  });
-
   test('passes filtered include-closed query when listing beads', async () => {
     let seenUrl = '';
     fake.setHandler((req, res) => {
@@ -373,23 +349,6 @@ describe('GcClient error handling', () => {
     await assert.rejects(
       () => gc.listSessions(),
       /invalid gc supervisor listSessions payload: payload\.total must be/i,
-    );
-  });
-
-  test('rejects malformed bead payloads at the supervisor boundary', async () => {
-    fake.setHandler((_req, res) => {
-      res.statusCode = 200;
-      res.setHeader('content-type', 'application/json');
-      res.end(JSON.stringify({ id: 'td-abc' }));
-    });
-    const gc = new GcClient({
-      baseUrl: fake.baseUrl,
-      cityName: 'test',
-      defaultTimeoutMs: 5_000,
-    });
-    await assert.rejects(
-      () => gc.getBead('td-abc'),
-      /invalid gc supervisor getBead payload/i,
     );
   });
 
@@ -543,90 +502,6 @@ describe('GcClient error handling', () => {
       () => gc.listSessions(),
       /invalid gc supervisor listSessions payload/i,
     );
-  });
-
-  test('F2: fetchTranscript with turns=null normalizes to [] (raw format degradation)', async () => {
-    fake.setHandler((_req, res) => {
-      res.statusCode = 200;
-      res.setHeader('content-type', 'application/json');
-      res.end(JSON.stringify({
-        id: 'gc-session-1',
-        template: 'claude-haiku-4-5',
-        provider: 'claude',
-        format: 'raw',
-        turns: null,
-      }));
-    });
-    const gc = new GcClient({
-      baseUrl: fake.baseUrl,
-      cityName: 'test',
-      defaultTimeoutMs: 5_000,
-    });
-    const out = await gc.fetchTranscript('gc-session-1');
-    assert.deepEqual(out.turns, []);
-    assert.equal(out.format, 'raw');
-  });
-
-  test('F2: fetchTranscript with turns omitted normalizes to []', async () => {
-    fake.setHandler((_req, res) => {
-      res.statusCode = 200;
-      res.setHeader('content-type', 'application/json');
-      // raw format is the live data near-miss: the supervisor returns
-      // {id, template, provider, format, messages} with NO turns key.
-      res.end(JSON.stringify({
-        id: 'gc-session-2',
-        template: 'codex-1',
-        provider: 'codex',
-        format: 'raw',
-      }));
-    });
-    const gc = new GcClient({
-      baseUrl: fake.baseUrl,
-      cityName: 'test',
-      defaultTimeoutMs: 5_000,
-    });
-    const out = await gc.fetchTranscript('gc-session-2');
-    assert.deepEqual(out.turns, []);
-  });
-
-  test('F5: getFormulaDetail with steps=null decodes', async () => {
-    fake.setHandler((_req, res) => {
-      res.statusCode = 200;
-      res.setHeader('content-type', 'application/json');
-      res.end(JSON.stringify({
-        ...validFormulaDetail('mol-demo'),
-        steps: null,
-        deps: [],
-      }));
-    });
-    const gc = new GcClient({
-      baseUrl: fake.baseUrl,
-      cityName: 'test',
-      defaultTimeoutMs: 5_000,
-    });
-    const out = await gc.getFormulaDetail('mol-demo', { scopeKind: 'rig', scopeRef: 'demo' }, 'plan');
-    assert.equal(out.steps, undefined);
-    assert.deepEqual(out.deps, []);
-  });
-
-  test('F6: getFormulaDetail with deps=null decodes', async () => {
-    fake.setHandler((_req, res) => {
-      res.statusCode = 200;
-      res.setHeader('content-type', 'application/json');
-      res.end(JSON.stringify({
-        ...validFormulaDetail('mol-demo'),
-        steps: [],
-        deps: null,
-      }));
-    });
-    const gc = new GcClient({
-      baseUrl: fake.baseUrl,
-      cityName: 'test',
-      defaultTimeoutMs: 5_000,
-    });
-    const out = await gc.getFormulaDetail('mol-demo', { scopeKind: 'rig', scopeRef: 'demo' }, 'plan');
-    assert.deepEqual(out.steps, []);
-    assert.equal(out.deps, undefined);
   });
 
   // gascity-dashboard-ej9y: /v0/city/<city>/formulas/feed surfaces cross-rig
@@ -935,103 +810,6 @@ describe('GcClient error handling', () => {
     );
   });
 
-  test('ay6: getAgent decodes a single-agent detail response', async () => {
-    fake.setHandler((req, res) => {
-      assert.match(req.url ?? '', /\/v0\/city\/test\/agent\/mayor$/);
-      res.statusCode = 200;
-      res.setHeader('content-type', 'application/json');
-      res.end(JSON.stringify({
-        name: 'mayor',
-        display_name: 'Mayor',
-        available: true,
-        running: true,
-        suspended: false,
-        state: 'active',
-        provider: 'claude-code',
-      }));
-    });
-    const gc = new GcClient({
-      baseUrl: fake.baseUrl,
-      cityName: 'test',
-      defaultTimeoutMs: 5_000,
-    });
-    const out = await gc.getAgent('mayor');
-    assert.equal(out.name, 'mayor');
-    assert.equal(out.display_name, 'Mayor');
-    assert.equal(out.state, 'active');
-    assert.equal(out.running, true);
-  });
-
-  test('rejects malformed run snapshots at the supervisor boundary', async () => {
-    fake.setHandler((_req, res) => {
-      res.statusCode = 200;
-      res.setHeader('content-type', 'application/json');
-      res.end(JSON.stringify({
-        workflow_id: 'gc-root',
-        root_bead_id: 'gc-root',
-        root_store_ref: 'city:test',
-        resolved_root_store: 'city:test',
-        scope_kind: 'city',
-        scope_ref: 'test',
-        snapshot_version: 1,
-        partial: false,
-      }));
-    });
-    const gc = new GcClient({
-      baseUrl: fake.baseUrl,
-      cityName: 'test',
-      defaultTimeoutMs: 5_000,
-    });
-    await assert.rejects(
-      () => gc.getRun('gc-root'),
-      /invalid gc supervisor getRun payload/i,
-    );
-  });
-
-  test('rejects malformed formula detail payloads at the supervisor boundary', async () => {
-    fake.setHandler((_req, res) => {
-      res.statusCode = 200;
-      res.setHeader('content-type', 'application/json');
-      res.end(JSON.stringify({
-        name: 'mol-demo',
-        preview: {
-          nodes: [{ title: 'missing id' }],
-          edges: [],
-        },
-      }));
-    });
-    const gc = new GcClient({
-      baseUrl: fake.baseUrl,
-      cityName: 'test',
-      defaultTimeoutMs: 5_000,
-    });
-    await assert.rejects(
-      () => gc.getFormulaDetail('mol-demo', { scopeKind: 'rig', scopeRef: 'demo' }, 'plan'),
-      /invalid gc supervisor getFormulaDetail payload/i,
-    );
-  });
-
-  test('rejects transcript payloads with malformed turn shape at the supervisor boundary', async () => {
-    // F2 widens absent/null turns to [] (per OpenAPI: turns?: T[] | null),
-    // so the prior test that asserted absent-turns failed is obsolete. The
-    // decoder must still reject genuinely malformed turns — wrong type
-    // inside the array, etc.
-    fake.setHandler((_req, res) => {
-      res.statusCode = 200;
-      res.setHeader('content-type', 'application/json');
-      res.end(JSON.stringify({ id: 'gc-session-1', turns: [{ role: 123 }] }));
-    });
-    const gc = new GcClient({
-      baseUrl: fake.baseUrl,
-      cityName: 'test',
-      defaultTimeoutMs: 5_000,
-    });
-    await assert.rejects(
-      () => gc.fetchTranscript('gc-session-1'),
-      /invalid gc supervisor fetchTranscript payload/i,
-    );
-  });
-
   // ── 6bv7 wire-shape tightening regression tests ────────────────────────
   //
   // These pin the decoder edge against the OpenAPI ground truth so a future
@@ -1184,31 +962,6 @@ describe('GcClient error handling', () => {
     void bead.comment_count;
   });
 
-  test('6bv7 F19: getFormulaDetail rejects a preview node missing title or kind', async () => {
-    fake.setHandler((_req, res) => {
-      res.statusCode = 200;
-      res.setHeader('content-type', 'application/json');
-      res.end(JSON.stringify({
-        name: 'mol-x',
-        preview: {
-          nodes: [{ id: 'n1' }], // title + kind missing
-        },
-      }));
-    });
-    const gc = new GcClient({
-      baseUrl: fake.baseUrl,
-      cityName: 'test',
-      defaultTimeoutMs: 5_000,
-    });
-    await assert.rejects(
-      () => gc.getFormulaDetail(
-        'mol-x',
-        { scopeKind: 'city', scopeRef: 'test' },
-        '/tmp/x',
-      ),
-      /invalid gc supervisor getFormulaDetail payload/i,
-    );
-  });
 });
 
 // gascity-dashboard-x82: GcClient.getStatus GETs /v0/city/{name}/status,
@@ -1610,21 +1363,6 @@ function validBead(id: string) {
   };
 }
 
-function validFormulaDetail(name: string) {
-  return {
-    name,
-    description: 'demo formula',
-    version: 'v1',
-    var_defs: [],
-    steps: [],
-    deps: [],
-    preview: {
-      nodes: [],
-      edges: [],
-    },
-  };
-}
-
 function validStatusBody(name: string) {
   return {
     name,
@@ -1653,24 +1391,5 @@ function validStatusBody(name: string) {
       total: 0,
       unread: 0,
     },
-  };
-}
-
-function validRunSnapshot(runId: string) {
-  return {
-    workflow_id: runId,
-    root_bead_id: 'gc-root',
-    root_store_ref: 'city:test',
-    resolved_root_store: 'city:test',
-    scope_kind: 'city',
-    scope_ref: 'test',
-    snapshot_version: 1,
-    partial: false,
-    stores_scanned: [],
-    beads: [],
-    deps: [],
-    logical_nodes: [],
-    logical_edges: [],
-    scope_groups: [],
   };
 }
