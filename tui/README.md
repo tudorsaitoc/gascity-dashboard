@@ -24,7 +24,21 @@ Each is a full-screen toggle over the same navigable area; the selection
 persists across the live refresh. `enter` drills the selected row into a single
 reused tmux split (see Peek).
 
-- **Agents** (default): grouped by rig (orchestration layer first; within a rig,
+- **Overview** (`o`): the calm mayor-companion view — one scrollable, peekable list
+  with attention-first sections, **LEDGER** (what's waiting on you: needs-operator
+  runs then mayor-escalated mail, worker chatter folded away with the folded count
+  shown, the single red heading) → **ACTIVE** (live agents, orchestration
+  first) → **BEADS** (in-progress) → **RUNS** (summary). `↑`/`↓`/wheel scroll the
+  whole list; `enter` peeks the selected row whatever it is — a run (`bd show` +
+  diff), a **mail** (`gc mail peek`, read-only, doesn't mark read), an agent (live
+  log), or a bead; `enter` again or `x` closes the peek; `p` opens an agent's
+  detail. ACTIVE rows show `on <run>` when the agent is in a run lane's
+  `activeAssignees`, else the activity hint; city-level agents read as the city
+  name, not `orchestration`. This is the default view when the panel is launched
+  beside another session (`--split` / `--target`, which pass `--compact`); `o`
+  toggles to the full dashboard and back. Greyscale, one red region (DESIGN.md
+  Reading Room / One Mark).
+- **Agents** (default standalone): grouped by rig (orchestration layer first; within a rig,
   active before idle), one line each as `glyph · agent · kind · ctx% · activity ·
   model · last-active`. A leading glyph + short word carries the agent kind so it
   reads in greyscale (no color-as-signal, per `DESIGN.md`): `△ orch` (mayor,
@@ -76,9 +90,11 @@ reused tmux split (see Peek).
 
 ## Peek (tmux split)
 
-`enter` on a row opens **one reused** tmux split beside the dashboard and points
+`enter` on a row opens **one reused** tmux split **below** the dashboard and points
 it at the selected row's drill-in (agent → live `session logs -f`; bead →
-`bd show`; run → `bd show` + diff). `enter` retargets that pane to a new
+`bd show`; run → `bd show` + diff; mail → `gc mail peek`). Splitting below (not to
+the right) keeps the dashboard's full width, which matters when it's pinned narrow
+beside the mayor. `enter` retargets that pane to a new
 selection (no pile-up); `enter` on the row it's already showing, or `x`, closes
 it. Quitting (`q`) tears the peek pane down. All drill-ins READ (logs/show/diff)
 — none attaches as a tmux client, so peeking can't resize or disturb an agent.
@@ -109,6 +125,53 @@ use the launcher, which creates/attaches a dedicated `gc-tui` session:
 ```bash
 npm --workspace tui run start:tmux -- <city>     # or ./tui/start-tmux.sh <city>
 ```
+
+### Pin it beside another session (the mayor)
+
+To leave the dashboard glancing on the *side* of the session you're working in
+(the way an operator keeps it next to the mayor) rather than taking over the
+pane, run the launcher with `--split` **from inside the tmux window you want to
+split**. It adds a right-hand pane running the TUI and leaves your original pane
+in place:
+
+```bash
+./tui/start-tmux.sh --split <city>            # 40% wide by default
+./tui/start-tmux.sh --split --pct 30 <city>   # narrower side panel
+# or: npm --workspace tui run start:tmux -- --split <city>
+```
+
+**Mouse vs drag-resize.** The full dashboard grabs the mouse for wheel scrolling.
+Pinned companion panels (`--split` / `--target`) default to `--no-mouse` so tmux
+keeps the mouse and you can **drag the pane border to resize** the panel (scroll
+the lists with the keyboard: `↑↓` / `PgUp` / `PgDn` / `g` / `G`). Force either way
+with `--mouse` / `--no-mouse`.
+
+`--split` needs an existing tmux window to split into; run outside tmux it falls
+back to the dedicated `gc-tui` session (with a note). Without `--split` the
+default is unchanged: take over the current pane when already in tmux, else a
+dedicated `gc-tui` session. Press `m` once it's up for the city board.
+
+**One-shot, from anywhere — `--target`.** You don't have to attach and hand-split.
+gc runs each city's tmux on a socket named after the city, so the launcher can
+split a named session directly:
+
+```bash
+./tui/start-tmux.sh --target mayor <city>            # pin beside the mayor
+./tui/start-tmux.sh --target mayor --pct 30 <city>   # narrower
+```
+
+This splits `tmux -L <city> -t <session>` (override the socket with
+`--socket <name>`), adding the dashboard to the right of that session's window
+and leaving it in place. Then `gc session attach mayor` shows the mayor and the
+dashboard side by side. If the session or socket isn't found, it lists what's on
+the socket and exits non-zero rather than guessing.
+
+**Driving it (focus).** Pinning deliberately keeps focus on the session you were
+in (so you keep typing to the mayor), which means the keyboard reaches the
+dashboard only once you focus its pane: **`Ctrl-b →`** steps into the dashboard
+(then `↑↓`/`enter`/`o`/`q` work there), **`Ctrl-b ←`** goes back to the mayor,
+`Ctrl-b o` toggles. One keyboard, two panes — you switch focus between typing and
+driving the dashboard. The launcher prints this hint when it pins.
 
 Env: `DASHBOARD_URL` (default `http://127.0.0.1:8081`), `GC_CITY_NAME` or
 `--city=<name>` (required — no silent fallback to a default city). Press `q` to

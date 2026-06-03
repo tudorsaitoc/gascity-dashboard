@@ -3,11 +3,10 @@ import { describe, test } from 'node:test';
 
 import type {
   AlertItem,
-  GcMailItem,
-  GcMailList,
   GcSession,
   SourceState,
 } from 'gas-city-dashboard-shared';
+import type { MailListBody, Message } from '../src/generated/gc-supervisor-client/types.gen.js';
 
 import { deriveOperatorMailAlerts } from '../src/snapshot/mail-alerts.js';
 
@@ -32,7 +31,7 @@ function session(overrides: Partial<GcSession>): GcSession {
   };
 }
 
-function mail(overrides: Partial<GcMailItem>): GcMailItem {
+function mail(overrides: Partial<Message>): Message {
   return {
     id: 'm1',
     from: 'mayor',
@@ -46,10 +45,10 @@ function mail(overrides: Partial<GcMailItem>): GcMailItem {
 }
 
 function mailState(
-  items: GcMailItem[],
+  items: Message[],
   status: 'fresh' | 'stale' | 'fixture' = 'fresh',
   fetchedAt = '2026-06-02T00:00:00.000Z',
-): SourceState<GcMailList> {
+): SourceState<MailListBody> {
   return {
     source: 'city',
     status,
@@ -60,7 +59,7 @@ function mailState(
   };
 }
 
-function errorMailState(): SourceState<GcMailList> {
+function errorMailState(): SourceState<MailListBody> {
   return { source: 'city', status: 'error', error: 'mail fetch failed' };
 }
 

@@ -6,7 +6,6 @@ import type {
   DashboardRuntimeConfig,
   DashboardSnapshot,
   DashboardSources,
-  GcMailList,
   GcSession,
   GcSessionList,
   MailDigest,
@@ -18,6 +17,7 @@ import type {
   SourceStatus,
   WorkSummary,
 } from 'gas-city-dashboard-shared';
+import type { MailListBody } from '../generated/gc-supervisor-client/types.gen.js';
 
 import type { GcClient } from '../gc-client.js';
 import { compareAlerts, deriveRunAlerts } from './alerts.js';
@@ -130,7 +130,7 @@ export interface CreateSnapshotServiceOptions {
    * only the derived AlertItems + an out-of-band MailDigest reach the snapshot.
    * Tests inject a spy/fake; otherwise built from `gc` (empty when no gc).
    */
-  mail?: SourceCache<GcMailList> | undefined;
+  mail?: SourceCache<MailListBody> | undefined;
   /**
    * Per-session pending subscriber (gascity-dashboard-mbcy). Injected in tests
    * with a fake; in production defaults to the supervisor SSE subscriber when
@@ -441,13 +441,13 @@ function buildSessionsCache(options: CreateSnapshotServiceOptions): SourceCache<
  * it loads empty 'fixture' mail — either way operator-mail derivation is a
  * no-op, keeping the fixtures/no-gc path dark by design.
  */
-function buildMailCache(options: CreateSnapshotServiceOptions): SourceCache<GcMailList> {
+function buildMailCache(options: CreateSnapshotServiceOptions): SourceCache<MailListBody> {
   const { gc, now } = options;
   const useFixture = options.config.useFixtures;
-  const empty = (): GcMailList => ({ items: [], total: 0 });
+  const empty = (): MailListBody => ({ items: [], total: 0 });
 
   if (!gc) {
-    return new SourceCache<GcMailList>({
+    return new SourceCache<MailListBody>({
       source: 'city',
       ttlMs: SESSIONS_CACHE_TTL_MS,
       now,
@@ -456,7 +456,7 @@ function buildMailCache(options: CreateSnapshotServiceOptions): SourceCache<GcMa
     });
   }
 
-  return new SourceCache<GcMailList>({
+  return new SourceCache<MailListBody>({
     source: 'city',
     ttlMs: SESSIONS_CACHE_TTL_MS,
     now,
@@ -606,9 +606,9 @@ async function readSessions(
  * so it does NOT inherit readSources' settle wrapper and needs this catch.
  */
 async function readMail(
-  cache: SourceCache<GcMailList>,
+  cache: SourceCache<MailListBody>,
   refreshSources?: ReadonlySet<SourceName>,
-): Promise<SourceState<GcMailList>> {
+): Promise<SourceState<MailListBody>> {
   try {
     if (refreshSources === undefined) return await cache.get();
     if (refreshSources.has('runs')) return await cache.refresh();

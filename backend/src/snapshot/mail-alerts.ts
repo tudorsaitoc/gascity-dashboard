@@ -23,12 +23,14 @@ import {
   makeAlertDedupKey,
   operatorMail,
   type AlertItem,
-  type GcMailItem,
-  type GcMailList,
   type GcSession,
   type SourceState,
   type SourceStatus,
 } from 'gas-city-dashboard-shared';
+import type {
+  MailListBody,
+  Message,
+} from '../generated/gc-supervisor-client/types.gen.js';
 
 export interface OperatorMailAlerts {
   /** One 'operator-mail' AlertItem per kept (orchestration-sender) mail, newest first. */
@@ -44,7 +46,7 @@ export interface OperatorMailAlerts {
 const MAIL_HREF = '/mail';
 
 function operatorMailAlert(
-  mail: GcMailItem,
+  mail: Message,
   version: number,
   provenance: Exclude<SourceStatus, 'error'>,
   foldedCount: number | undefined,
@@ -78,13 +80,13 @@ function operatorMailAlert(
  * signalled.
  */
 export function deriveOperatorMailAlerts(
-  mailState: SourceState<GcMailList>,
+  mailState: SourceState<MailListBody>,
   sessions: readonly GcSession[],
 ): OperatorMailAlerts {
   if (mailState.status === 'error') return { alerts: [], folded: 0 };
   const provenance = mailState.status;
   const version = Date.parse(mailState.fetchedAt);
-  const items = mailState.data.items;
+  const items = mailState.data.items ?? [];
   const kept = operatorMail(items, sessions);
   const folded = foldedMailCount(items, kept);
   // operatorMail already orders newest-first; the top item (index 0) carries

@@ -8,10 +8,24 @@
 // drift between the two surfaces becomes a compile error, not a silent
 // divergence. The TUI re-exports these from derive.ts for back-compat.
 //
-// Pure over the shared wire types (GcSession, GcMailItem) — no IO, no React.
+// Pure over the shared wire types (GcSession + a minimal OperatorMailItem) — no IO, no React.
 
 import type { GcSession } from './gc-client-types.js';
-import type { GcMailItem } from './gc-mail.js';
+
+/**
+ * The mail fields the operator-mail sender-role filter reads — read state,
+ * sender, and timestamp. Kept as a minimal structural shape rather than a
+ * specific wire DTO so the filter stays portable across mail sources (the
+ * backend snapshot alert path and the TUI ledger each pass their own wire
+ * mail items, which are structurally compatible). The direct-supervisor
+ * migration removed the shared GcMailItem DTO; this is the only mail surface
+ * this module needs.
+ */
+export interface OperatorMailItem {
+  readonly from: string;
+  readonly read: boolean;
+  readonly created_at: string;
+}
 
 /**
  * Agent kind, derived from the wire data (the supervisor does not label kinds
@@ -83,10 +97,10 @@ export function agentKind(s: GcSession): AgentKind {
  * (resolved against the live session list) or the mayor, fold away pool-worker
  * chatter. Newest first.
  */
-export function operatorMail(
-  mail: readonly GcMailItem[],
+export function operatorMail<T extends OperatorMailItem>(
+  mail: readonly T[],
   sessions: readonly GcSession[],
-): readonly GcMailItem[] {
+): readonly T[] {
   const orchSenders = new Set<string>([MAYOR]);
   for (const s of sessions) {
     if (agentKind(s) === 'orch') orchSenders.add(basename(s.title ?? s.alias ?? s.id) || s.id);
@@ -100,8 +114,8 @@ export function operatorMail(
 /** Count of unread mail folded away by {@link operatorMail} — the worker
  *  reports the mayor handles. Surfaced so the filter is never silent. */
 export function foldedMailCount(
-  mail: readonly GcMailItem[],
-  shown: readonly GcMailItem[],
+  mail: readonly OperatorMailItem[],
+  shown: readonly OperatorMailItem[],
 ): number {
   const unread = mail.filter((m) => !m.read).length;
   return Math.max(0, unread - shown.length);

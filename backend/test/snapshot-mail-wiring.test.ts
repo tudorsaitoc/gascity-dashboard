@@ -3,14 +3,13 @@ import { describe, test } from 'node:test';
 
 import type {
   CityStatusSummary,
-  GcMailItem,
-  GcMailList,
   GcSession,
   GcSessionList,
   ResourceSummary,
   RunSummary,
   WorkSummary,
 } from 'gas-city-dashboard-shared';
+import type { MailListBody, Message } from '../src/generated/gc-supervisor-client/types.gen.js';
 
 import { SourceCache } from '../src/snapshot/cache.js';
 import {
@@ -66,7 +65,7 @@ function session(id: string, overrides: Partial<GcSession>): GcSession {
   } as GcSession;
 }
 
-function mail(id: string, from: string, overrides: Partial<GcMailItem> = {}): GcMailItem {
+function mail(id: string, from: string, overrides: Partial<Message> = {}): Message {
   return {
     id, from, to: 'human', subject: id, body: 'b',
     created_at: '2026-06-02T12:00:00.000Z', read: false, ...overrides,
@@ -79,14 +78,14 @@ function sessionsCacheOf(items: GcSession[]): SourceCache<GcSessionList> {
   });
 }
 
-function mailCacheOf(items: GcMailItem[]): SourceCache<GcMailList> {
-  return new SourceCache<GcMailList>({
+function mailCacheOf(items: Message[]): SourceCache<MailListBody> {
+  return new SourceCache<MailListBody>({
     source: 'city', ttlMs: 45_000, load: async () => ({ items, total: items.length }),
   });
 }
 
-function failingMailCache(): SourceCache<GcMailList> {
-  return new SourceCache<GcMailList>({
+function failingMailCache(): SourceCache<MailListBody> {
+  return new SourceCache<MailListBody>({
     source: 'city', ttlMs: 45_000, sanitizeErrorMessage: null,
     load: async () => { throw new Error('mail backend down'); },
   });
