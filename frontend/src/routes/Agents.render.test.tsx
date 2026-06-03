@@ -201,7 +201,8 @@ describe('AgentsPage (post-ay6 regressions)', () => {
       </MemoryRouter>,
     );
 
-    // Alias is the primary label — must be rendered as a Link.
+    // mayor has no rig (cross-rig orchestration) → the label is just the
+    // alias, rendered as a Link.
     const mayorLink = await screen.findByRole('link', { name: /mayor/i });
     expect(mayorLink).toBeDefined();
     expect(mayorLink.textContent).toBe('mayor');
@@ -209,6 +210,71 @@ describe('AgentsPage (post-ay6 regressions)', () => {
     expect(fetchUrls()).not.toContain('/api/city/test-city/agents');
     // display_name appears as secondary muted text — present but not the link.
     expect(screen.getByText('Claude (Account 5)')).toBeDefined();
+  });
+
+  it('boots with the running checkbox checked and renders in-rig agents as "rig · agent"', async () => {
+    // gascity-dashboard-fgzf: the reverted simple view defaults to the
+    // actively-running agents (running checkbox ON) and restores the
+    // 'rig · agent' label format lost in the table refactor.
+    vi.unstubAllGlobals();
+    stubFetch({
+      agentsPayload: {
+        items: [
+          {
+            name: 'polecat-1',
+            available: true,
+            running: true,
+            suspended: false,
+            state: 'active',
+            rig: 'gascity-packs',
+            display_name: 'Claude (Account 5)',
+            provider: 'claude-5',
+            session: {
+              name: 'polecat-1',
+              attached: false,
+              last_activity: '2026-05-30T00:56:31Z',
+            },
+          },
+          // asleep, in-rig — hidden while the running checkbox is checked.
+          {
+            name: 'polecat-2',
+            available: true,
+            running: false,
+            suspended: false,
+            state: 'asleep',
+            rig: 'gascity-packs',
+            provider: 'claude-5',
+          },
+        ],
+        total: 2,
+      },
+    });
+
+    render(
+      <MemoryRouter future={{ v7_relativeSplatPath: true, v7_startTransition: true }}>
+        <NowProvider intervalMs={1_000_000}>
+          <AgentsPage />
+        </NowProvider>
+      </MemoryRouter>,
+    );
+
+    // The running checkbox is the only filter control, and it boots checked.
+    const runningCheckbox = await screen.findByRole<HTMLInputElement>('checkbox', {
+      name: /running/i,
+    });
+    expect(runningCheckbox.checked).toBe(true);
+
+    // The running agent is shown with the restored 'rig · agent' label.
+    const runningLink = await screen.findByRole('link', { name: /polecat-1/i });
+    expect(runningLink.textContent).toBe('gascity-packs · polecat-1');
+
+    // The asleep agent is hidden by the default-on running filter.
+    expect(screen.queryByRole('link', { name: /polecat-2/i })).toBeNull();
+
+    // Unchecking the box reveals the full roster (asleep agent appears).
+    fireEvent.click(runningCheckbox);
+    const sleepingLink = await screen.findByRole('link', { name: /polecat-2/i });
+    expect(sleepingLink.textContent).toBe('gascity-packs · polecat-2');
   });
 
   it('renders generated supervisor validation failures as operator-safe copy', async () => {
@@ -390,12 +456,12 @@ describe('AgentsPage (post-ay6 regressions)', () => {
   });
 });
 
-// The Agents view boots with the 'running' chip active. Tests that assert
-// on non-running agents (orphans/asleep) toggle it off to reveal the full
-// roster, mirroring the operator clicking the chip.
+// The Agents view boots with the 'running' checkbox checked. Tests that
+// assert on non-running agents (orphans/asleep) uncheck it to reveal the
+// full roster, mirroring the operator toggling the checkbox.
 async function showAllAgents(): Promise<void> {
-  const runningChip = await screen.findByRole('button', { name: /^running$/i });
-  fireEvent.click(runningChip);
+  const runningCheckbox = await screen.findByRole('checkbox', { name: /running/i });
+  fireEvent.click(runningCheckbox);
 }
 
 function contributor(

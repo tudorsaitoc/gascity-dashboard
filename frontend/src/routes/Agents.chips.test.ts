@@ -1,25 +1,17 @@
 import { describe, expect, it } from 'vitest';
 import type { AgentResponse } from '../generated/gc-supervisor-client/types.gen';
-import { AGENT_CHIPS, AGENT_DEFAULT_CHIPS, buildAgentSynopsis, stateTone } from './Agents';
+import {
+  agentRowLabel,
+  buildAgentSynopsis,
+  isRunningAgent,
+  stateTone,
+} from './Agents';
 
-// gascity-dashboard-ay6: the Agents view consumes the supervisor's
-// first-class agent roster (AgentResponse), not the session list. These tests
-// pin the chip-coverage invariant on the agent shape: every state the
-// supervisor reports must match at least one chip, otherwise agents in
-// that state vanish silently when any chip is active (parallels the bug
-// from gascity-dashboard-9yb on the session side).
-
-// AgentResponse.state is a free `string` in the OpenAPI; this is the set
-// observed in this deployment + the named states the supervisor commits
-// to today. Same conservative posture as the previous NAMED_STATES list.
-const NAMED_STATES = [
-  'creating',
-  'active',
-  'asleep',
-  'detached',
-  'failed',
-  'closed',
-] as const;
+// gascity-dashboard-fgzf: the Agents view was reverted from the flat
+// sortable/filterable table (chips + sort + rig dropdown) to the older,
+// simpler view — a single 'running' toggle over a plain list with the
+// 'rig · agent' label restored. These tests pin the toggle predicate and
+// the label format that drive that simpler view.
 
 function mkAgent(state: string, overrides: Partial<AgentResponse> = {}): AgentResponse {
   return {
@@ -32,72 +24,51 @@ function mkAgent(state: string, overrides: Partial<AgentResponse> = {}): AgentRe
   };
 }
 
-describe('AGENT_CHIPS', () => {
-  it('every named agent state matches at least one chip', () => {
-    for (const state of NAMED_STATES) {
-      const agent = mkAgent(state);
-      const matched = AGENT_CHIPS.some((chip) => chip.match(agent));
-      expect(
-        matched,
-        `state "${state}" must match at least one chip, otherwise it disappears when any chip is active`,
-      ).toBe(true);
-    }
+describe('isRunningAgent', () => {
+  it('treats active/running agents as running', () => {
+    expect(isRunningAgent(mkAgent('active'))).toBe(true);
+    expect(isRunningAgent(mkAgent('running'))).toBe(true);
   });
 
-  it('exposes a "detached" chip so detached agents stay visible under chip filters', () => {
-    const detached = mkAgent('detached');
-    const detachedChip = AGENT_CHIPS.find((chip) => chip.id === 'detached');
-    expect(detachedChip, 'detached chip should exist').toBeDefined();
-    expect(detachedChip?.match(detached)).toBe(true);
+  it('treats idle/asleep/detached agents as not running by default', () => {
+    expect(isRunningAgent(mkAgent('asleep'))).toBe(false);
+    expect(isRunningAgent(mkAgent('idle'))).toBe(false);
+    expect(isRunningAgent(mkAgent('detached'))).toBe(false);
   });
 
-  it('detached agents match only the detached chip when not running', () => {
-    const detached = mkAgent('detached');
-    const matchingIds = AGENT_CHIPS.filter((chip) => chip.match(detached)).map(
-      (chip) => chip.id,
-    );
-    expect(matchingIds).toEqual(['detached']);
-  });
-
-  it('a detached agent whose process is still running matches BOTH the running and detached chips', () => {
+  it('counts a detached-but-live process (running flag set) as running', () => {
     // gc can report state='detached' (tmux disconnected) while the
-    // underlying process is still running. The running chip keys on
-    // a.running===true; the detached chip keys on a.state==='detached'.
-    // Detached-but-running must surface under both filters so an
-    // operator scanning for 'what is alive right now' doesn't lose it
-    // just because the tmux attachment is gone. Mirrors the session-side
-    // invariant from gascity-dashboard-bi9.
-    const detachedAndRunning = mkAgent('detached', { running: true });
-    const matchingIds = AGENT_CHIPS.filter((chip) => chip.match(detachedAndRunning)).map(
-      (chip) => chip.id,
-    );
-    expect(matchingIds).toContain('running');
-    expect(matchingIds).toContain('detached');
-    // Bound the match set: only those two chips, no spurious third match.
-    expect(matchingIds).toHaveLength(2);
+    // underlying process is still alive. The 'running' toggle keys on the
+    // running flag too, so the operator scanning for "what is alive right
+    // now" does not lose a detached-but-running agent.
+    expect(isRunningAgent(mkAgent('detached', { running: true }))).toBe(true);
   });
 
-  it('defaults the Agents view to the actively-running chip', () => {
-    // The Agents view boots into "what's running right now" (restores
-    // commit 00cad8f, lost in the useListFilters migration). The default
-    // set must name the 'running' chip and only ids that AGENT_CHIPS
-    // actually defines, otherwise the seed silently filters to nothing.
-    expect(AGENT_DEFAULT_CHIPS).toEqual(['running']);
-    const chipIds = new Set(AGENT_CHIPS.map((chip) => chip.id));
-    for (const id of AGENT_DEFAULT_CHIPS) {
-      expect(chipIds.has(id), `default chip "${id}" must exist in AGENT_CHIPS`).toBe(true);
-    }
+  it('never counts a suspended agent as running, even if its state reads alive', () => {
+    expect(isRunningAgent(mkAgent('active', { suspended: true }))).toBe(false);
+    expect(isRunningAgent(mkAgent('detached', { running: true, suspended: true }))).toBe(false);
+  });
+});
+
+describe('agentRowLabel', () => {
+  it("formats in-rig agents as 'rig · agent'", () => {
+    const agent = mkAgent('active', { name: 'polecat-1', rig: 'gascity-packs' });
+    expect(agentRowLabel(agent)).toBe('gascity-packs · polecat-1');
   });
 
-  it('suspended agents match the suspended chip regardless of state', () => {
-    // Suspended is a roster-side signal the session list never carried
-    // (a suspended agent has no session). The dedicated chip lets the
-    // operator slice the new agent surface by it.
-    const suspended = mkAgent('asleep', { suspended: true });
-    const matchingIds = AGENT_CHIPS.filter((chip) => chip.match(suspended)).map(
-      (chip) => chip.id,
-    );
-    expect(matchingIds).toContain('suspended');
+  it('folds the rig path to its basename in the label', () => {
+    const agent = mkAgent('active', { name: 'worker', rig: '/home/ds/projects/geo' });
+    expect(agentRowLabel(agent)).toBe('geo · worker');
+  });
+
+  it('shows just the alias for cross-rig orchestration agents (no rig prefix)', () => {
+    const mayor = mkAgent('active', { name: 'mayor', rig: '' });
+    expect(agentRowLabel(mayor)).toBe('mayor');
+  });
+
+  it('shows just the alias for agents with no rig association', () => {
+    const orphan = mkAgent('asleep', { name: 'control-dispatcher', rig: '' });
+    expect(agentRowLabel(orphan)).toBe('control-dispatcher');
   });
 });
 

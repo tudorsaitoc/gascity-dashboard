@@ -1,5 +1,6 @@
 import { StatusBadge } from '../StatusBadge';
 import { PROMPT_INJECTION_NOTICE } from '../../lib/constants';
+import { formatMailSender } from '../../lib/mailSender';
 import type { AttentionSeverity } from '../../attention/compose';
 import type { SupervisorMailItem } from '../../supervisor/mailReads';
 
@@ -13,13 +14,13 @@ export function ThreadMessage({
   return (
     <article
       {...attentionAttrs(attentionSeverity)}
-      className={`space-y-3 pb-4 border-b border-rule last:border-0 ${attentionClass(attentionSeverity)}`}
+      className="space-y-3 pb-4 border-b border-rule last:border-0"
     >
       <header className="flex items-baseline justify-between gap-3">
         <div className="text-label uppercase tracking-wider text-fg-muted truncate">
-          <span className="text-fg font-medium">{message.from}</span>
+          <span className="text-fg font-medium">{formatMailSender(message.from)}</span>
           <span className="mx-1.5 text-fg-faint">→</span>
-          <span>{message.to}</span>
+          <span>{formatMailSender(message.to)}</span>
         </div>
         <span className="text-label uppercase tracking-wider text-fg-faint tnum">
           {formatAbsolute(message.created_at)}
@@ -38,12 +39,6 @@ function attentionAttrs(
   severity: AttentionSeverity | null,
 ): { 'data-attention-severity'?: AttentionSeverity } {
   return severity === null ? {} : { 'data-attention-severity': severity };
-}
-
-function attentionClass(severity: AttentionSeverity | null): string {
-  if (severity === 'attention') return 'bg-accent/10';
-  if (severity === 'watch') return 'bg-warn/10';
-  return '';
 }
 
 function formatAbsolute(iso: string): string {

@@ -7,23 +7,20 @@ import {
 import { Button } from '../components/Button';
 import { useAttentionModel } from '../attention/context';
 import {
-  attentionRowProps,
+  attentionDataProps,
   resourceAttentionSeverity,
 } from '../attention/routeHighlight';
-import { FilterChips } from '../components/FilterChips';
 import { ListSearchBar } from '../components/ListSearchBar';
 import { Modal } from '../components/Modal';
 import { PageHeader } from '../components/PageHeader';
 import { PartialDataNotice } from '../components/PartialDataNotice';
 import { LiveSessionPeek, isAgentStreamable } from '../components/LiveSessionPeek';
-import { SortToggle } from '../components/SortToggle';
 import { SseIndicator } from '../components/SseIndicator';
 import { StatusBadge, type StatusTone } from '../components/StatusBadge';
 import { Table, type TableColumn } from '../components/Table';
 import { useNow } from '../contexts/NowContext';
 import { useCachedData } from '../hooks/useCachedData';
 import { useGcEventRefresh } from '../hooks/useGcEvents';
-import { useListFilters, type FilterChip, type SortMode } from '../hooks/useListFilters';
 import { formatRelative } from '../hooks/time';
 import {
   attachCommand,
@@ -49,111 +46,34 @@ import { agentSlug } from '../hooks/sessionSlug';
 // any agent that wasn't currently running a session
 // (orphan / configured-but-asleep agents simply didn't appear).
 //
-// The cityStatus snapshot collector continues to aggregate over sessions
-// for now — sessionsByProvider migration is sd4's territory.
+// gascity-dashboard-fgzf: reverted from the flat sortable/filterable
+// table (chips + sort + rig dropdown + useListFilters) to the older,
+// simpler view — a single 'running' toggle (default on) over a plain
+// list, with the 'rig · agent' label restored. No sort control, no
+// persisted chip state.
 
-// Flat table: agents are not grouped by rig (the Rig column + sort carry that).
-// useListFilters still drives search/chips/sort, so we collapse every row into
-// one bucket and render the result as a single flat, sortable table.
-const FLAT_GROUP = () => '';
-
-// Sentinel for the rig dropdown's "all rigs" option. Empty string can't
-// collide with a real rig key because agentProject() never returns one.
-const RIG_FILTER_ALL = '';
-
-// Display label + stable key for a row's rig, reusing agentProject so the Rig
-// column, dropdown, and sort all agree (folds case/separator drift and lifts
-// cross-rig agents into the Orchestration bucket).
-function agentRigLabel(a: SupervisorAgent): string {
-  return agentProject(a).label;
+// An agent is "actively running" when it is not suspended and the
+// supervisor reports it as alive (state active/running, or running flag
+// set on a detached-but-live process). The default view shows only these.
+export function isRunningAgent(a: SupervisorAgent): boolean {
+  return (
+    !a.suspended &&
+    (a.state === 'active' || a.state === 'running' || a.running === true)
+  );
 }
 
-function agentRigKey(a: SupervisorAgent): string {
-  return agentProject(a).key;
+// Display label for the row: 'rig · agent' (e.g. 'gascity-packs · polecat-1').
+// Agents outside a rig (cross-rig orchestration or the residual no-rig
+// bucket) carry no rig prefix — just the alias.
+export function agentRowLabel(a: SupervisorAgent): string {
+  if (isAgentOutsideRig(a)) return a.name;
+  return `${agentProject(a).label} · ${a.name}`;
 }
 
-// Activity ordering uses the agent's bound session's last_activity. Agents
-// with no session (orphans) return undefined so the list-filter sink sends
-// them to the bottom under activity-sort rather than ranking them at the
-// epoch.
-function agentActivity(a: SupervisorAgent): number | undefined {
-  const raw = a.session?.last_activity;
-  if (!raw) return undefined;
-  const t = Date.parse(raw);
-  return Number.isFinite(t) ? t : undefined;
-}
-
-const SORT_OPTIONS: ReadonlyArray<{ id: SortMode; label: string }> = [
-  { id: 'activity', label: 'activity' },
-  { id: 'alpha', label: 'alphabetical' },
-];
-
-// Agent state chips collapse the gc supervisor's many states into buckets
-// the operator actually filters by. Every state an agent can carry must
-// match at least one chip — otherwise agents in that state vanish silently
-// when any chip is active (parallels gascity-dashboard-9yb's invariant for
-// sessions). Exported so tests can assert full state coverage.
-// Non-suspended chips all gate on `!a.suspended` so the chip filter
-// matches `stateBucket`'s priority order — `stateBucket` returns
-// 'suspended' before checking state, so a suspended-asleep agent is
-// counted in the suspended bucket only. Without the guard, the idle
-// chip would also surface suspended-asleep agents and the operator's
-// "what's idle?" filter would be over-broad. Same reasoning applies
-// to running/detached/stopped (a suspended agent that also reads as
-// running/detached/stopped via raw state should still only count as
-// suspended).
-export const AGENT_CHIPS: ReadonlyArray<FilterChip<SupervisorAgent>> = [
-  {
-    id: 'running',
-    label: 'running',
-    match: (a) =>
-      !a.suspended &&
-      (a.state === 'active' || a.state === 'running' || a.running === true),
-  },
-  {
-    id: 'idle',
-    label: 'idle',
-    match: (a) =>
-      !a.suspended &&
-      (a.state === 'asleep' || a.state === 'idle' || a.state === 'creating'),
-  },
-  {
-    id: 'detached',
-    label: 'detached',
-    match: (a) => !a.suspended && a.state === 'detached',
-  },
-  {
-    id: 'stopped',
-    label: 'stopped',
-    match: (a) =>
-      !a.suspended &&
-      (a.state === 'failed' ||
-        a.state === 'closed' ||
-        a.state === 'errored' ||
-        a.state === 'stuck'),
-  },
-  {
-    id: 'suspended',
-    label: 'suspended',
-    // The agent roster surfaces suspended agents that the session list
-    // never did — a distinct chip lets the operator slice by them
-    // without conflating with stopped/idle.
-    match: (a) => a.suspended === true,
-  },
-];
-
-// Chips the Agents view boots into: actively-running only. Exported so the
-// chips test can assert the default-active set stays in sync with AGENT_CHIPS.
-export const AGENT_DEFAULT_CHIPS: ReadonlyArray<string> = ['running'];
-
-const AGENT_SEARCH_FIELDS = (a: SupervisorAgent): ReadonlyArray<string | undefined> => [
-  a.name,
-  a.display_name,
-  a.pool,
-  a.rig,
-  a.provider,
-  a.model,
-];
+const AGENT_SEARCH_FIELDS = (a: SupervisorAgent): ReadonlyArray<string> =>
+  [a.name, a.display_name, a.pool, a.rig, a.provider, a.model].filter(
+    (field): field is string => typeof field === 'string' && field.length > 0,
+  );
 
 export function AgentsPage() {
   const attention = useAttentionModel();
@@ -195,6 +115,12 @@ export function AgentsPage() {
     return map;
   }, [pendingCache.data]);
   const now = useNow();
+
+  // Default to the actively-running view (restores the older simple view).
+  // Ephemeral: not persisted, resets between visits.
+  const [runningOnly, setRunningOnly] = useState(true);
+  const [search, setSearch] = useState('');
+  const [rigFilter, setRigFilter] = useState('');
 
   // Peek key is the agent alias (`name`); modal resolves the live session
   // by mapping agent.session.name -> session.id via the sessions cache.
@@ -239,92 +165,68 @@ export function AgentsPage() {
     }
   }, [pendingCache]);
 
-  const filters = useListFilters<SupervisorAgent>({
-    viewKey: 'agents',
-    rows,
-    projectOf: FLAT_GROUP,
-    searchOf: AGENT_SEARCH_FIELDS,
-    chips: AGENT_CHIPS,
-    // Default to the actively-running view (restores commit 00cad8f, lost
-    // in the useListFilters migration). Operator can toggle 'running' off
-    // to see all agents.
-    initialActiveChipIds: AGENT_DEFAULT_CHIPS,
-    defaultCollapsed: false,
-    activityOf: agentActivity,
-    defaultSortMode: 'activity',
-  });
-
-  // Rig dropdown (flat table): every rig present in the roster, by stable key
-  // with its display label, sorted alphabetically by label.
-  const [rigFilter, setRigFilter] = useState<string>(RIG_FILTER_ALL);
-  const rigOptions = useMemo(() => {
-    const byKey = new Map<string, string>();
-    for (const a of rows) byKey.set(agentRigKey(a), agentRigLabel(a));
-    return Array.from(byKey, ([key, label]) => ({ key, label })).sort((a, b) =>
-      a.label.localeCompare(b.label),
-    );
-  }, [rows]);
-  // If the selected rig leaves the roster (its agents all stopped and were
-  // pruned on an SSE/manual refresh), reset to "all rigs" so the controlled
-  // <select> doesn't strand the table empty with no visible cause.
+  // Rig dropdown options: the normalized rig labels (basenames, not raw
+  // paths) present in the current roster, sorted. Empty value = all rigs.
+  const rigOptions = useMemo(
+    () => Array.from(new Set(rows.map((a) => agentProject(a).label)))
+      .sort((x, y) => x.localeCompare(y)),
+    [rows],
+  );
+  // If the selected rig leaves the roster, fall back to all rigs.
   useEffect(() => {
-    if (rigFilter !== RIG_FILTER_ALL && !rigOptions.some((o) => o.key === rigFilter)) {
-      setRigFilter(RIG_FILTER_ALL);
-    }
+    if (rigFilter !== '' && !rigOptions.includes(rigFilter)) setRigFilter('');
   }, [rigOptions, rigFilter]);
 
-  // Flatten useListFilters' (now single) group into one sorted, search/chip
-  // filtered list, then apply the rig dropdown.
+  // Simple client-side filtering: rig dropdown, the 'running' toggle, then a
+  // free-text search. No sort mode, no chip group, no persisted state.
   const visibleRows = useMemo(() => {
-    const flat = filters.groups.flatMap((g) => g.rows);
-    if (rigFilter === RIG_FILTER_ALL) return flat;
-    return flat.filter((a) => agentRigKey(a) === rigFilter);
-  }, [filters.groups, rigFilter]);
+    const q = search.trim().toLowerCase();
+    return rows.filter((a) => {
+      if (rigFilter !== '' && agentProject(a).label !== rigFilter) return false;
+      // Always surface agents that need attention (e.g. blocked on a pending
+      // interaction) — they must never be hidden by the 'running' default,
+      // since a stuck agent is usually NOT running.
+      const needsAttention =
+        resourceAttentionSeverity(attention, 'agents', a.name) !== null;
+      if (runningOnly && !isRunningAgent(a) && !needsAttention) return false;
+      if (q.length === 0) return true;
+      return AGENT_SEARCH_FIELDS(a).some((field) => field.toLowerCase().includes(q));
+    });
+  }, [rows, rigFilter, runningOnly, search, attention]);
 
   const rowProps = useMemo(
     () => (agent: SupervisorAgent) =>
-      attentionRowProps(resourceAttentionSeverity(attention, 'agents', agent.name)),
+      attentionDataProps(resourceAttentionSeverity(attention, 'agents', agent.name)),
     [attention],
   );
   const rosterUnavailable = error !== null && rows.length === 0;
   const emptyMessage = rosterUnavailable
     ? 'Agent roster unavailable.'
-    : filters.search.length > 0 || filters.activeChipIds.size > 0
-      ? 'No agents match the current search or filter.'
-      : 'No agents configured.';
+    : rows.length === 0
+      ? 'No agents configured.'
+      : 'No agents match the current search or filter.';
 
   const columns = useMemo<ReadonlyArray<TableColumn<SupervisorAgent>>>(() => [
     {
       key: 'name',
       label: 'Agent',
       sortable: true,
-      // Sort by alias (the identity), not the display_name. Two agents
-      // with the same provider label ("Claude (Account 5)") would
-      // otherwise collide; alias is unique.
-      sortValue: (r) => r.name,
+      // Sort by the visible 'rig · agent' label so the column order matches.
+      sortValue: (r) => agentRowLabel(r),
       render: (r) => {
-        // Per-rig dispatchers (alias '<rig>/control-dispatcher') live
-        // inside their rig group but perform an orchestration role.
-        // Italicize the alias so the operator can spot them at a glance
-        // without lifting them out of their rig (cross-rig
-        // orchestration is handled separately by the Orchestration
-        // pinned group).
+        // Per-rig dispatchers (alias '<rig>/control-dispatcher') perform an
+        // orchestration role; italicize the label so the operator can spot
+        // them at a glance.
         const dispatcher = isPerRigDispatcherAgent(r);
-        // Primary label is the alias (`name`) — that's the identity the
-        // operator dispatches with (`gc sling <alias> ...`) and the only
-        // field guaranteed unique. display_name is the provider's
-        // human-readable label (e.g. "Claude (Account 5)") and is
-        // useful as secondary context but not as a primary identifier.
+        // Primary label is 'rig · agent' (e.g. 'gascity-packs · polecat-1').
+        // display_name is the provider's human-readable label
+        // (e.g. "Claude (Account 5)") and reads as muted secondary context.
         const secondary = r.display_name && r.display_name !== r.name
           ? r.display_name
           : (r.provider ?? r.model ?? '');
-        // ay6.2: orphan agents (no bound session) still render a link
-        // to /agents/<slug>, but AgentDetail will resolve nothing and
-        // show "no session matches" — a confusing dead-end if the
-        // operator clicks expecting a drilldown. A distinct title
-        // tooltip and a muted color pre-empt the surprise without
-        // disabling the link (the configured-but-not-running detail
-        // page is sd4's scope). Dispatchers keep their italic cue.
+        // ay6.2: orphan agents (no bound session) still render a link, but
+        // AgentDetail resolves nothing — a distinct title tooltip and muted
+        // color pre-empt the dead-end without disabling the link.
         const orphan = !r.session;
         const linkTitle = orphan
           ? `${r.name} — configured but not running; detail will show no live session`
@@ -339,7 +241,7 @@ export function AgentsPage() {
               }`}
               title={linkTitle}
             >
-              {r.name}
+              {agentRowLabel(r)}
             </Link>
             {secondary && (
               <div className="text-label uppercase tracking-wider text-fg-faint mt-1 truncate">
@@ -349,29 +251,6 @@ export function AgentsPage() {
           </div>
         );
       },
-    },
-    {
-      key: 'rig',
-      label: 'Rig',
-      sortable: true,
-      // Sort by the display label so the column's visual order matches the
-      // sort order (the key is lowercased/normalized and would diverge).
-      sortValue: (r) => agentRigLabel(r),
-      // Agents outside a rig (Orchestration roles + the residual no-rig bucket)
-      // are not in a real rig, so the column shows a neutral dot rather than a
-      // pseudo-rig label. The dot carries a title/aria-label so the state stays
-      // readable in greyscale and to assistive tech (DESIGN.md: states have words).
-      render: (r) =>
-        isAgentOutsideRig(r) ? (
-          <span
-            className="inline-block h-1.5 w-1.5 rounded-full bg-fg-faint align-middle"
-            title="Not associated with a rig"
-            aria-label="Not associated with a rig"
-          />
-        ) : (
-          <span className="text-fg-muted">{agentRigLabel(r)}</span>
-        ),
-      className: 'w-40',
     },
     {
       key: 'state',
@@ -471,9 +350,7 @@ export function AgentsPage() {
       label: '',
       render: (r) => {
         // Orphan agents (no bound session) have nothing to peek into.
-        // Hide the button so the operator doesn't get a 404 from the
-        // transcript fetch. Use visibility:hidden equivalent (render the
-        // empty cell) rather than collapsing the column width.
+        // Render an empty cell rather than collapsing the column width.
         if (!r.session) return null;
         const pending = pendingByAgent.get(r.name);
         return (
@@ -541,42 +418,43 @@ export function AgentsPage() {
 
       <div className="mb-6 space-y-3">
         <ListSearchBar
-          value={filters.search}
-          onChange={filters.setSearch}
+          value={search}
+          onChange={setSearch}
           placeholder="Search agents by alias, rig, pool, provider"
-          matchCount={filters.totalMatches}
+          matchCount={visibleRows.length}
           totalCount={rows.length}
           ariaLabel="Search agents"
         />
-        <div className="flex flex-wrap items-baseline gap-x-8 gap-y-3">
-          <FilterChips
-            chips={AGENT_CHIPS}
-            activeIds={filters.activeChipIds}
-            onToggle={filters.toggleChip}
-            legend="State"
-          />
-          <label className="flex items-baseline gap-2 text-label">
-            <span className="uppercase tracking-wider text-fg-muted">Rig</span>
-            <select
-              value={rigFilter}
-              onChange={(e) => setRigFilter(e.target.value)}
-              aria-label="Filter by rig"
-              className="text-label uppercase tracking-wider text-fg-muted bg-transparent border-0 focus-mark cursor-pointer hover:text-fg transition-colors duration-150 ease-out-quart"
-            >
-              <option value={RIG_FILTER_ALL}>all rigs</option>
-              {rigOptions.map((opt) => (
-                <option key={opt.key} value={opt.key}>
-                  {opt.label}
-                </option>
-              ))}
-            </select>
+        <div className="flex items-baseline gap-6">
+          <label className="inline-flex items-baseline gap-2 text-label uppercase tracking-wider text-fg-muted cursor-pointer hover:text-fg transition-colors duration-150 ease-out-quart">
+            <input
+              type="checkbox"
+              checked={runningOnly}
+              onChange={(e) => setRunningOnly(e.target.checked)}
+              // Neutral accent, not maroon: the adjacent "running" word already
+              // names the state (greyscale-safe), and a maroon check would be a
+              // second mark per DESIGN.md One Mark Rule.
+              style={{ accentColor: 'oklch(var(--fg-muted))' }}
+              className="translate-y-[2px]"
+            />
+            <span>running</span>
           </label>
-          <SortToggle<SortMode>
-            value={filters.sortMode}
-            options={SORT_OPTIONS}
-            onChange={filters.setSortMode}
-            legend="Sort"
-          />
+          {rigOptions.length > 1 && (
+            <label className="inline-flex items-baseline gap-2 text-label uppercase tracking-wider text-fg-muted">
+              <span>rig</span>
+              <select
+                value={rigFilter}
+                onChange={(e) => setRigFilter(e.target.value)}
+                aria-label="Rig filter"
+                className="text-label uppercase tracking-wider text-fg-muted bg-transparent border-0 focus-mark cursor-pointer hover:text-fg transition-colors duration-150 ease-out-quart"
+              >
+                <option value="">all rigs</option>
+                {rigOptions.map((rig) => (
+                  <option key={rig} value={rig}>{rig}</option>
+                ))}
+              </select>
+            </label>
+          )}
         </div>
       </div>
       {responseMessage && (

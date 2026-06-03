@@ -49,6 +49,17 @@ export function attentionRowProps(
   };
 }
 
+// Row props that expose the attention severity for tooling (home-alerts
+// panel, keyboard nav) WITHOUT painting a background tint. Used where a
+// domain is not an alert by default — e.g. mail (gascity-dashboard-s464):
+// unread mail is normal, so its rows render in the neutral foreground.
+export function attentionDataProps(
+  severity: AttentionSeverity | null,
+): AttentionAttributes<HTMLTableRowElement> {
+  if (severity === null) return {};
+  return { 'data-attention-severity': severity };
+}
+
 export function attentionListItemProps(
   severity: AttentionSeverity | null,
 ): AttentionAttributes<HTMLLIElement> {

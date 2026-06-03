@@ -137,8 +137,18 @@ export function agentProject(agent: AgentResponse): ProjectBucket {
     return { key: NO_RIG_PROJECT, label: NO_RIG_PROJECT };
   }
   const parts = candidate.split(/[\\/]/).filter(Boolean);
-  const basename = parts[parts.length - 1] ?? candidate;
+  const basename = canonicalRigLabel(parts[parts.length - 1] ?? candidate);
   return { key: normalizeRigKey(basename), label: basename };
+}
+
+/**
+ * A pool/worker template path often points at a "-main" build tree or worktree
+ * (e.g. `gascity-main` is the gc build tree, `gascity-packs-main` a packs
+ * worktree) rather than the registered rig. The agent's real rig is the base
+ * name — strip the suffix so the UI shows `gascity`, not `gascity-main`.
+ */
+export function canonicalRigLabel(name: string): string {
+  return name.endsWith('-main') ? name.slice(0, -'-main'.length) : name;
 }
 
 /**

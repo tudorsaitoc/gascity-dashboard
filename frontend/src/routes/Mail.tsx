@@ -1,10 +1,11 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { formatApiError } from '../api/client';
+import { formatMailSender } from '../lib/mailSender';
 import { useCachedData } from '../hooks/useCachedData';
 import { useAttentionModel } from '../attention/context';
 import {
-  attentionRowProps,
+  attentionDataProps,
   resourceAttentionSeverity,
 } from '../attention/routeHighlight';
 import { Button } from '../components/Button';
@@ -182,8 +183,8 @@ export function MailPage() {
       key: 'from',
       label: 'From',
       sortable: true,
-      sortValue: (r) => r.from,
-      render: (r) => <span className="text-fg-muted">{r.from}</span>,
+      sortValue: (r) => formatMailSender(r.from),
+      render: (r) => <span className="text-fg-muted">{formatMailSender(r.from)}</span>,
       className: 'w-48',
     },
     {
@@ -237,9 +238,14 @@ export function MailPage() {
     searchOf: MAIL_SEARCH_FIELDS,
     chips: MAIL_CHIPS,
   });
+  // gascity-dashboard-s464: mail is not an alert by default. We keep the
+  // data-attention-severity attribute (so the home-alerts panel and
+  // keyboard nav still see flagged rows), but DO NOT paint the warn/accent
+  // background tint that made unread mail read as "slightly red". Mail rows
+  // render in the neutral foreground; severity is exposed for tooling only.
   const rowProps = useMemo(
     () => (mail: SupervisorMailItem) =>
-      attentionRowProps(resourceAttentionSeverity(attention, 'mail', mail.id)),
+      attentionDataProps(resourceAttentionSeverity(attention, 'mail', mail.id)),
     [attention],
   );
   const mailSeverity = useCallback(

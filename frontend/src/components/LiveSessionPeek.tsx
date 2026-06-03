@@ -104,7 +104,7 @@ export function streamBadge(
  * Whether a session is worth opening a live stream for. A streamed dead
  * session would hold a connection that never emits a turn and show a
  * perpetual "connecting" badge, so gate on the running signal. Mirrors the
- * "running" filter chip predicate in routes/Agents.tsx (AGENT_CHIPS) so a
+ * "running" predicate (isRunningAgent) in routes/Agents.tsx so a
  * session the rest of the UI shows as running also streams: process
  * `running`, gc state `active`, OR gc state `running`.
  */
@@ -123,7 +123,7 @@ export function isSessionStreamable(session: GcSession | null): boolean {
  * signal is present (process `running` === true, gc state `active`, or gc
  * state `running`). The session check is a hard prerequisite — `running`
  * on an orphan agent does NOT make it streamable because there's nothing
- * to stream from. Mirrors the AGENT_CHIPS `running` predicate on the
+ * to stream from. Mirrors the isRunningAgent `running` predicate on the
  * agent shape so the peek-modal gate stays consistent with what the rest
  * of the Agents view labels as running.
  */

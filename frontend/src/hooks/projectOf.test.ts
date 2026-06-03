@@ -211,3 +211,13 @@ describe('isAgentOutsideRig', () => {
     expect(isAgentOutsideRig({ name: 'a1', pool: 'research' } as never)).toBe(false);
   });
 });
+
+describe('agentProject -main canonicalization', () => {
+  it('strips a -main worktree/build suffix to the base rig', () => {
+    expect(agentProject({ name: 'x', rig: '/home/ds/gascity-main' } as never).label).toBe('gascity');
+    expect(agentProject({ name: 'y', rig: '/home/ds/gascity-packs-main' } as never).label).toBe('gascity-packs');
+  });
+  it('leaves a normal rig path unchanged', () => {
+    expect(agentProject({ name: 'z', rig: '/home/ds/gascity-packs' } as never).label).toBe('gascity-packs');
+  });
+});
