@@ -56,6 +56,29 @@ export interface DashboardSnapshot {
    * SourceState (not this array) is the signal-unavailable channel (R6/R15).
    */
   alerts: readonly AlertItem[];
+  /**
+   * Out-of-band digest for the operator-mail signal (gascity-dashboard-mpfx,
+   * R4). Raw mail stays OFF this envelope (operator-private; payload), so this
+   * carries only what the home view needs without the bodies: the mail source's
+   * `status` (the signal-unavailable channel for the mail tier — R6/R15, used
+   * by 035r's tri-state) and `folded`, the count of unread worker-firehose mail
+   * suppressed by the sender-role filter. `folded` is reported even when zero
+   * operator-mail alerts are kept (the steady state — the mayor digests the
+   * firehose), so the fold is never silent.
+   */
+  mail: MailDigest;
+}
+
+/**
+ * Out-of-band operator-mail digest carried on {@link DashboardSnapshot}.
+ * Deliberately carries only `status` (not the source's error string): the mail
+ * cache runs with `sanitizeErrorMessage: null`, so were an error message ever
+ * added here it could leak raw supervisor detail to the client — keep this
+ * digest message-free, or sanitize at the edge if a detail field is added.
+ */
+export interface MailDigest {
+  readonly status: SourceStatus;
+  readonly folded: number;
 }
 
 export interface DashboardRuntimeConfig {

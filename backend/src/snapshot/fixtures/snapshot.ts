@@ -228,4 +228,5 @@ export const fixtureSnapshot = {
       },
     },
   },
+  mail: { status: 'fixture', folded: 0 },
 } satisfies DashboardSnapshot;

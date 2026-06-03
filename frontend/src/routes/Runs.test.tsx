@@ -63,6 +63,7 @@ function buildEnvelope(
   return {
     generatedAt: '2026-05-25T00:00:00.000Z',
     alerts: [],
+    mail: { status: 'fresh', folded: 0 },
     config: {
       cityName: 'racoon-city',
       cityRoot: '/tmp/example-city',

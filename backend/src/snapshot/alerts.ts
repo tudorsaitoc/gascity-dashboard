@@ -94,8 +94,10 @@ function thrashingAlert(
   };
 }
 
-/** Stable, deterministic order (R5): severity desc, then oldest first, then dedupKey. */
-function compareAlerts(a: AlertItem, b: AlertItem): number {
+/** Stable, deterministic order (R5): severity desc, then oldest first, then dedupKey.
+ *  Exported so the read path can re-rank the merged run+mail feed as one list —
+ *  authoritative cross-source dedup (R17) is bqey, but ordering is correct now. */
+export function compareAlerts(a: AlertItem, b: AlertItem): number {
   const sev = ALERT_SEVERITY_RANK[b.severity] - ALERT_SEVERITY_RANK[a.severity];
   if (sev !== 0) return sev;
   if (a.occurredAt !== b.occurredAt) return a.occurredAt < b.occurredAt ? -1 : 1;

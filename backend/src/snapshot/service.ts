@@ -6,8 +6,10 @@ import type {
   DashboardRuntimeConfig,
   DashboardSnapshot,
   DashboardSources,
+  GcMailList,
   GcSession,
   GcSessionList,
+  MailDigest,
   ResourceSummary,
   RunSummary,
   SourceAvailableState,
@@ -18,7 +20,8 @@ import type {
 } from 'gas-city-dashboard-shared';
 
 import type { GcClient } from '../gc-client.js';
-import { deriveRunAlerts } from './alerts.js';
+import { compareAlerts, deriveRunAlerts } from './alerts.js';
+import { deriveOperatorMailAlerts } from './mail-alerts.js';
 import { SourceCache } from './cache.js';
 import { createSupervisorPendingSubscriber } from './pending-subscriber.js';
 import { PendingStore } from './pending-store.js';
@@ -45,6 +48,11 @@ import {
  * staler than the city view already shows.
  */
 export const SESSIONS_CACHE_TTL_MS = 45 * 1000;
+
+/** Mail page size for the private mail cache (gascity-dashboard-mpfx, R4). The
+ *  supervisor defaults to 50 and caps at 1000; fetch the cap so the operator-mail
+ *  filter and `folded` count see the full unread set, not a silent 50-row slice. */
+const MAIL_FETCH_LIMIT = 1000;
 
 // SnapshotService — gascity-dashboard-8nj. Composes the active SourceCaches
 // behind one aggregate getSnapshot()/refresh() facade. Runtime collectors use
@@ -116,6 +124,14 @@ export interface CreateSnapshotServiceOptions {
    */
   sessions?: SourceCache<GcSessionList> | undefined;
   /**
+   * Private mail cache (gascity-dashboard-mpfx, R4). Feeds the operator-mail
+   * alert derivation on the read path. Like `sessions`, it is NOT a wire-shape
+   * source — raw mail stays off /api/snapshot (operator-private; payload), and
+   * only the derived AlertItems + an out-of-band MailDigest reach the snapshot.
+   * Tests inject a spy/fake; otherwise built from `gc` (empty when no gc).
+   */
+  mail?: SourceCache<GcMailList> | undefined;
+  /**
    * Per-session pending subscriber (gascity-dashboard-mbcy). Injected in tests
    * with a fake; in production defaults to the supervisor SSE subscriber when
    * `gc` is present and fixtures are off. When neither is available the pending
@@ -144,6 +160,7 @@ export function createSnapshotService(
   // Sessions cache first — the city collector's seam reads from it, so it
   // must exist before buildDefaultCaches wires city.
   const sessionsCache = options.sessions ?? buildSessionsCache(options);
+  const mailCache = options.mail ?? buildMailCache(options);
   const caches = options.caches ?? buildDefaultCaches(options, sessionsCache);
 
   // Cross-cycle progress marks for the monotonicity predicate (R1) +
@@ -264,11 +281,14 @@ export function createSnapshotService(
     refreshSources?: ReadonlySet<SourceName>,
   ): Promise<DashboardSnapshot> => {
     const startedAt = Date.now();
-    // Read sessions in the SAME mode as runs so the bead×session join
-    // samples one instant — a TTL desync would cross two clocks (R2).
-    const [sources, sessionsState] = await Promise.all([
+    // Read sessions AND mail in the SAME mode as runs so the bead×session join
+    // and the mail-sender×session role filter each sample one instant — a TTL
+    // desync would cross two clocks (R2). Mail is fetched HERE (outside
+    // enrichRuns), so that function's load-bearing no-`await` invariant holds.
+    const [sources, sessionsState, mailState] = await Promise.all([
       readSources(caches, refreshSources),
       readSessions(sessionsCache, refreshSources),
+      readMail(mailCache, refreshSources),
     ]);
     // Reconcile the pending aggregator to the active-session set (R3). This is
     // synchronous and runs OUTSIDE enrichRuns, preserving that function's
@@ -277,10 +297,19 @@ export function createSnapshotService(
     if (pendingManager !== undefined && pendingActive() && sourceIsAvailable(sessionsState)) {
       pendingManager.syncActiveSessions(activeSessionIds(sessionsState.data.items));
     }
+    // Operator-mail alerts (R4): resolve orchestration senders against the live
+    // session list. A sessions failure degrades to no orch sessions (mayor
+    // fallback still applies); a mail failure yields no items, its status='error'
+    // carried on the out-of-band MailDigest for 035r's tri-state.
+    const mailSessions = sourceIsAvailable(sessionsState) ? sessionsState.data.items : [];
+    const mailAlerts = deriveOperatorMailAlerts(mailState, mailSessions);
+    const mailDigest: MailDigest = { status: mailState.status, folded: mailAlerts.folded };
     const snapshot = buildSnapshot(
       options.config,
       enrichRuns(sources, sessionsState),
       now(),
+      mailAlerts.alerts,
+      mailDigest,
     );
     const durationMs = Date.now() - startedAt;
 
@@ -348,13 +377,22 @@ export function buildSnapshot(
   config: DashboardRuntimeConfig,
   sources: DashboardSources,
   generatedAt: Date,
+  extraAlerts: readonly AlertItem[],
+  mail: MailDigest,
 ): DashboardSnapshot {
+  // Run alerts are derived here from `sources.runs`; off-wire signals (mail —
+  // and, in future, anything else not on the snapshot envelope) arrive
+  // pre-derived as `extraAlerts`. Re-rank the merged list as one feed so the
+  // One Mark (top item) is correct now; authoritative cross-source dedup (R17)
+  // is bqey. `extraAlerts` is required — a forgotten wire is a compile error,
+  // not a silently mail-free feed.
   return {
     generatedAt: generatedAt.toISOString(),
     config,
     headline: buildHeadline(sources),
     sources,
-    alerts: deriveRunAlerts(sources.runs),
+    alerts: [...deriveRunAlerts(sources.runs), ...extraAlerts].sort(compareAlerts),
+    mail,
   };
 }
 
@@ -391,6 +429,45 @@ function buildSessionsCache(options: CreateSnapshotServiceOptions): SourceCache<
     load: () => gc.listSessions(),
     useFixture,
     loadFixture: useFixture ? () => fixtureSessions : undefined,
+  });
+}
+
+/**
+ * Private mail cache (gascity-dashboard-mpfx, R4). Labeled with an existing
+ * SourceName and held privately — raw mail never reaches DashboardSources / the
+ * /api/snapshot wire (operator-private; payload), mirroring the sessions cache.
+ * TTL matches SESSIONS_CACHE_TTL_MS so the mail-sender × session role filter
+ * joins one clock (R2). Without a live `gc` it loads empty mail; under fixtures
+ * it loads empty 'fixture' mail — either way operator-mail derivation is a
+ * no-op, keeping the fixtures/no-gc path dark by design.
+ */
+function buildMailCache(options: CreateSnapshotServiceOptions): SourceCache<GcMailList> {
+  const { gc, now } = options;
+  const useFixture = options.config.useFixtures;
+  const empty = (): GcMailList => ({ items: [], total: 0 });
+
+  if (!gc) {
+    return new SourceCache<GcMailList>({
+      source: 'city',
+      ttlMs: SESSIONS_CACHE_TTL_MS,
+      now,
+      sanitizeErrorMessage: null,
+      load: empty,
+    });
+  }
+
+  return new SourceCache<GcMailList>({
+    source: 'city',
+    ttlMs: SESSIONS_CACHE_TTL_MS,
+    now,
+    sanitizeErrorMessage: null,
+    // Pass the explicit cap: the supervisor's mail default is 50 (it caps at
+    // 1000), so an unparametrized listMail() would silently truncate the feed
+    // and could drop an orchestration-sender escalation or misreport `folded`.
+    // Matches routes/mail.ts's FETCH_LIMIT posture.
+    load: () => gc.listMail(undefined, { limit: MAIL_FETCH_LIMIT }),
+    useFixture,
+    loadFixture: useFixture ? empty : undefined,
   });
 }
 
@@ -512,6 +589,26 @@ async function readSessions(
   cache: SourceCache<GcSessionList>,
   refreshSources?: ReadonlySet<SourceName>,
 ): Promise<SourceState<GcSessionList>> {
+  try {
+    if (refreshSources === undefined) return await cache.get();
+    if (refreshSources.has('runs')) return await cache.refresh();
+    return cache.snapshot();
+  } catch (error) {
+    return errorState(cache, error);
+  }
+}
+
+/**
+ * Read the private mail cache in the SAME mode as sessions/runs (R4). Like
+ * readSessions, a load failure surfaces as status='error' rather than throwing,
+ * so a mail outage degrades operator-mail to no items (signal-unavailable on
+ * the MailDigest) and can never 500 the snapshot — the mail cache is off-wire,
+ * so it does NOT inherit readSources' settle wrapper and needs this catch.
+ */
+async function readMail(
+  cache: SourceCache<GcMailList>,
+  refreshSources?: ReadonlySet<SourceName>,
+): Promise<SourceState<GcMailList>> {
   try {
     if (refreshSources === undefined) return await cache.get();
     if (refreshSources.has('runs')) return await cache.refresh();

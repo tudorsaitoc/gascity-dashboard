@@ -159,6 +159,7 @@ function envelope({
   return {
     generatedAt,
     alerts: [],
+    mail: { status: 'fresh', folded: 0 },
     config: {
       cityName: 'racoon-city',
       cityRoot: '/tmp/x',

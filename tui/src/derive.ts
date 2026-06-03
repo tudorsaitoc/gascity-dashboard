@@ -4,12 +4,33 @@
 
 import {
   effectiveContextPct,
+  AGENT_KINDS,
+  ORCHESTRATION,
+  agentKind,
+  basename,
+  rigLabel,
+  operatorMail,
+  foldedMailCount,
+  type AgentKind,
   type GcSession,
   type GcBead,
-  type GcMailItem,
   type DashboardSnapshot,
   type RunLane,
 } from 'gas-city-dashboard-shared';
+
+// Sender-role classification (agentKind/operatorMail/…) moved to shared/
+// (gascity-dashboard-mpfx) so the dashboard backend's operator-mail alerts and
+// this TUI ledger share one owner. Re-exported for this module's consumers.
+export {
+  AGENT_KINDS,
+  ORCHESTRATION,
+  agentKind,
+  basename,
+  rigLabel,
+  operatorMail,
+  foldedMailCount,
+  type AgentKind,
+};
 
 /**
  * Context usage as a percent of the model's TRUE window. gc reports
@@ -22,19 +43,6 @@ export function ctxPct(s: GcSession): number | undefined {
 
 export type Category = 'failed' | 'active' | 'idle';
 
-/**
- * Agent kind, derived from the wire data (the supervisor does not label kinds
- * directly — see classification rules in `agentKind`):
- * - `pool`: a multi-session worker (a "polecat"); the `pool` field is set, or
- *   the template names the polecat pool.
- * - `role`: a named, single-purpose agent (project-lead, reviewer, deacon, …).
- * - `orch`: city/orchestration layer (mayor, control-dispatcher) that directs
- *   the rest; rig-less, or a control-dispatcher.
- */
-export type AgentKind = 'pool' | 'role' | 'orch';
-
-export const AGENT_KINDS: readonly AgentKind[] = ['pool', 'role', 'orch'];
-
 export interface AgentView {
   readonly session: GcSession;
   /** Rig basename, e.g. `gascity` from `/home/ds/gascity`. */
@@ -45,39 +53,10 @@ export interface AgentView {
   readonly kind: AgentKind;
 }
 
-export function basename(path: string | null | undefined): string {
-  if (!path) return '';
-  const trimmed = path.replace(/\/+$/, '');
-  const seg = trimmed.slice(trimmed.lastIndexOf('/') + 1);
-  return seg || trimmed;
-}
-
 export function categorize(s: GcSession): Category {
   if (s.state === 'failed') return 'failed';
   if (s.state === 'active' || s.state === 'creating') return 'active';
   return 'idle';
-}
-
-const CONTROL_DISPATCHER = 'control-dispatcher';
-
-/**
- * Classifies an agent's kind from the wire fields. The supervisor does not
- * carry a pool/role label (its `agent_kind` is the unrelated agent/provider
- * axis), so we derive it: orchestration first (a control-dispatcher or a
- * rig-less agent like the mayor directs the rest, regardless of any pool
- * bucket), then a pool worker (a multi-session "polecat", identified by the
- * `pool` field or the polecat template), else a named role agent.
- */
-export function agentKind(s: GcSession): AgentKind {
-  const template = s.template ?? '';
-  const isDispatcher =
-    template === CONTROL_DISPATCHER || template.endsWith(`/${CONTROL_DISPATCHER}`) ||
-    template.endsWith(`.${CONTROL_DISPATCHER}`);
-  if (isDispatcher || rigLabel(s.rig) === ORCHESTRATION) return 'orch';
-  if ((s.pool && s.pool.length > 0) || template === 'polecat' || template.endsWith('/polecat')) {
-    return 'pool';
-  }
-  return 'role';
 }
 
 /** Leading sigil per kind. The glyph is the primary, greyscale-readable signal
@@ -117,21 +96,6 @@ export function matchesStatusFilter(category: Category, filter: StatusFilter): b
 export function nextStatusFilter(filter: StatusFilter): StatusFilter {
   const i = STATUS_FILTERS.indexOf(filter);
   return STATUS_FILTERS[(i + 1) % STATUS_FILTERS.length] ?? 'active+idle';
-}
-
-/** Label for the city-level (rig-less) agents: mayor, city control-dispatcher. */
-export const ORCHESTRATION = 'orchestration';
-
-/**
- * Canonical rig label. The supervisor reports a rig inconsistently — sometimes
- * a filesystem path (`/home/ds/projects/scix_experiments`), sometimes a name
- * (`scix-experiments`), with varying case — which split one project across two
- * groups. Normalise (basename · `_`→`-` · lowercase) so a project is one group.
- */
-export function rigLabel(rig: string | null | undefined): string {
-  const base = basename(rig);
-  if (!base) return ORCHESTRATION;
-  return base.replace(/_/g, '-').toLowerCase();
 }
 
 export function toAgentView(s: GcSession): AgentView {
@@ -556,43 +520,10 @@ export function activityPhrase(s: GcSession): string {
 }
 
 // ── operator ledger (things waiting on the user) ─────────────────────────────
-
-/** The operator's canonical mail triager. By Gas City convention the mayor
- *  digests the worker firehose and forwards only what needs the human. */
-const MAYOR = 'mayor';
-
-/**
- * Mail the operator should actually see: escalations from the orchestration
- * layer (the mayor), not the worker firehose. The wire's `read`/`priority`
- * flags are unusable as a "needs you" signal here — the supervisor never sets
- * priority and the operator never marks mail read (the mayor handles it) — so
- * we filter by SENDER ROLE instead: keep mail from an orchestration-kind agent
- * (resolved against the live session list) or the mayor, fold away pool-worker
- * chatter. Newest first.
- */
-export function operatorMail(
-  mail: readonly GcMailItem[],
-  sessions: readonly GcSession[],
-): GcMailItem[] {
-  const orchSenders = new Set<string>([MAYOR]);
-  for (const s of sessions) {
-    if (agentKind(s) === 'orch') orchSenders.add(basename(s.title ?? s.alias ?? s.id) || s.id);
-  }
-  return mail
-    .filter((m) => !m.read && orchSenders.has(basename(m.from)))
-    .slice()
-    .sort((a, b) => (b.created_at ?? '').localeCompare(a.created_at ?? ''));
-}
-
-/** Count of unread mail folded away by {@link operatorMail} — the worker
- *  reports the mayor handles. Surfaced so the filter is never silent. */
-export function foldedMailCount(
-  mail: readonly GcMailItem[],
-  shown: readonly GcMailItem[],
-): number {
-  const unread = mail.filter((m) => !m.read).length;
-  return Math.max(0, unread - shown.length);
-}
+//
+// operatorMail / foldedMailCount moved to shared/ (gascity-dashboard-mpfx) and
+// are re-exported at the top of this module; mailSnippet stays here (TUI-only
+// presentation).
 
 /** One-line snippet of a mail body: whitespace collapsed, hard-truncated with
  *  an ellipsis so a long body can't blow out the ledger row. */
