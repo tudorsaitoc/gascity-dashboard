@@ -295,6 +295,16 @@ describe('MailPage supervisor reads', () => {
     expect(fetchCalls.some((call) => call.url.startsWith('/api/city/test-city/mail/threads'))).toBe(false);
   });
 
+  it('opens a message thread from the message query parameter', async () => {
+    renderMailPage('/mail?message=mail-inbox');
+
+    await screen.findByText('oldest in thread');
+
+    expect(screen.getByText('newest in thread')).toBeTruthy();
+    expect(fetchCalls.map((call) => call.url)).toContain('/gc-supervisor/v0/city/test-city/mail?limit=1000');
+    expect(fetchCalls.map((call) => call.url)).toContain('/gc-supervisor/v0/city/test-city/mail/thread/thread-direct');
+  });
+
   it('sends mail through the supervisor API instead of the dashboard write mirror', async () => {
     renderMailPage();
 
@@ -449,9 +459,12 @@ describe('MailPage supervisor reads', () => {
   });
 });
 
-function renderMailPage() {
+function renderMailPage(initialEntry = '/mail') {
   render(
-    <MemoryRouter future={{ v7_relativeSplatPath: true, v7_startTransition: true }}>
+    <MemoryRouter
+      initialEntries={[initialEntry]}
+      future={{ v7_relativeSplatPath: true, v7_startTransition: true }}
+    >
       <NowProvider intervalMs={1_000_000}>
         <MailPage />
       </NowProvider>

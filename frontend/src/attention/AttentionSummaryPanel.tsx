@@ -1,5 +1,7 @@
+import { Fragment } from 'react';
+import { Link } from 'react-router-dom';
 import { useAttentionModel } from './context';
-import { attentionDomainLabel } from './labels';
+import { attentionDomainHref, attentionDomainLabel } from './labels';
 import type { AttentionItem, AttentionSeverity } from './compose';
 
 export function AttentionSummaryPanel() {
@@ -23,9 +25,17 @@ export function AttentionSummaryPanel() {
       </ul>
       {attention.overflowByDomain.length > 0 && (
         <p className="text-label uppercase tracking-wider text-fg-muted">
-          {attention.overflowByDomain
-            .map((group) => `${group.total} more in ${attentionDomainLabel(group.domain)}`)
-            .join(' · ')}
+          {attention.overflowByDomain.map((group, index) => (
+            <Fragment key={group.domain}>
+              {index > 0 && ' · '}
+              <Link
+                to={attentionDomainHref(group.domain)}
+                className="hover:text-fg focus-mark"
+              >
+                {group.total} more in {attentionDomainLabel(group.domain)}
+              </Link>
+            </Fragment>
+          ))}
         </p>
       )}
     </section>
@@ -37,9 +47,9 @@ function AttentionTitle({ item }: { item: AttentionItem }) {
     return <span className="font-medium">{item.title}</span>;
   }
   return (
-    <a href={item.href} className="font-medium hover:text-fg focus-mark">
+    <Link to={item.href} className="font-medium hover:text-fg focus-mark">
       {item.title}
-    </a>
+    </Link>
   );
 }
 

@@ -259,6 +259,48 @@ describe('supervisor client wrapper', () => {
     expect(requestedUrl(fetchSpy.mock.calls[0]?.[0])).toBe('http://gc-supervisor.test/v0/city/test-city/agents');
   });
 
+  it('accepts RFC3339 offset datetimes from supervisor agent sessions', async () => {
+    const fetchSpy = vi.fn(async (_input: RequestInfo | URL) =>
+      new Response(
+        JSON.stringify({
+          items: [
+            {
+              name: 'control-dispatcher',
+              available: true,
+              running: true,
+              suspended: false,
+              state: 'idle',
+              provider: 'codex',
+              session: {
+                name: 'control-dispatcher',
+                attached: false,
+                last_activity: '2026-05-24T16:41:12-07:00',
+              },
+            },
+          ],
+          total: 1,
+        }),
+        {
+          status: 200,
+          headers: { 'content-type': 'application/json' },
+        },
+      ),
+    );
+
+    const api = createSupervisorApi({
+      baseUrl: 'http://gc-supervisor.test',
+      fetch: fetchSpy as typeof fetch,
+    });
+
+    await expect(api.listAgents('test-city')).resolves.toMatchObject({
+      items: [{
+        name: 'control-dispatcher',
+        session: { last_activity: '2026-05-24T16:41:12-07:00' },
+      }],
+      total: 1,
+    });
+  });
+
   it('calls supervisor beads through the generated SDK without dashboard DTO stripping', async () => {
     const fetchSpy = vi.fn(async (_input: RequestInfo | URL) =>
       new Response(
@@ -925,6 +967,46 @@ describe('supervisor client wrapper', () => {
       message: 'supervisor unavailable',
       requestId: 'req-42',
     });
+  });
+
+  it('does not leak generated schema validation internals into supervisor error messages', async () => {
+    const fetchSpy = vi.fn(async () =>
+      new Response(
+        JSON.stringify({
+          items: [
+            {
+              name: 'mayor',
+              available: true,
+              running: true,
+              suspended: false,
+              state: 'idle',
+              provider: 'claude',
+              session: {
+                name: 'mayor',
+                attached: true,
+                last_activity: 'not-a-date',
+              },
+            },
+          ],
+          total: 1,
+        }),
+        {
+          status: 200,
+          headers: { 'content-type': 'application/json' },
+        },
+      ),
+    );
+
+    const api = createSupervisorApi({
+      baseUrl: 'http://gc-supervisor.test',
+      fetch: fetchSpy as typeof fetch,
+    });
+
+    await expect(api.listAgents('test-city')).rejects.toMatchObject({
+      name: 'SupervisorApiError',
+      message: 'gc supervisor response failed validation',
+    });
+    await expect(api.listAgents('test-city')).rejects.not.toThrow(/invalid_format|datetime|\[\{/);
   });
 
   it('publishes mutation headers required by the supervisor', () => {

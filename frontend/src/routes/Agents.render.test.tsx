@@ -31,9 +31,13 @@ const fetchCalls: FetchCall[] = [];
 
 const fetchUrls = () => fetchCalls.map((call) => call.url);
 
+interface StubFetchOptions {
+  agentsPayload?: unknown;
+}
+
 // Minimal fetch stub that mimics the surface the AgentsPage hits: dashboard
 // local agents plus direct supervisor sessions/transcript reads.
-function stubFetch() {
+function stubFetch(options: StubFetchOptions = {}) {
   vi.stubGlobal('fetch', vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
     const url = requestUrl(input);
     const method = requestMethod(input, init);
@@ -44,7 +48,7 @@ function stubFetch() {
       throw new Error('old dashboard agents roster route should not be called');
     }
     if (url === '/gc-supervisor/v0/city/test-city/agents' && method === 'GET') {
-      return jsonResponse({
+      return jsonResponse(options.agentsPayload ?? {
         items: [
           {
             name: 'mayor',
@@ -205,6 +209,47 @@ describe('AgentsPage (post-ay6 regressions)', () => {
     expect(fetchUrls()).not.toContain('/api/city/test-city/agents');
     // display_name appears as secondary muted text — present but not the link.
     expect(screen.getByText('Claude (Account 5)')).toBeDefined();
+  });
+
+  it('renders generated supervisor validation failures as operator-safe copy', async () => {
+    vi.unstubAllGlobals();
+    stubFetch({
+      agentsPayload: {
+        items: [
+          {
+            name: 'mayor',
+            available: true,
+            running: true,
+            suspended: false,
+            state: 'idle',
+            provider: 'claude',
+            session: {
+              name: 'mayor',
+              attached: true,
+              last_activity: 'not-a-date',
+            },
+          },
+        ],
+        total: 1,
+      },
+    });
+
+    const { container } = render(
+      <MemoryRouter future={{ v7_relativeSplatPath: true, v7_startTransition: true }}>
+        <NowProvider intervalMs={1_000_000}>
+          <AgentsPage />
+        </NowProvider>
+      </MemoryRouter>,
+    );
+
+    expect((await screen.findByRole('alert')).textContent).toBe(
+      'gc supervisor response failed validation',
+    );
+    expect(container.textContent).not.toContain('invalid_format');
+    expect(container.textContent).not.toContain('datetime');
+    expect(container.textContent).not.toContain('[{"origin"');
+    expect(container.textContent).toContain('Agent roster unavailable.');
+    expect(container.textContent).not.toContain('No agents configured.');
   });
 
   it('Peek resolves agent.session.name -> session.id via direct supervisor sessions and fetches the right transcript', async () => {

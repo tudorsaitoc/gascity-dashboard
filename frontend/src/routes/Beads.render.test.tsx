@@ -114,6 +114,33 @@ function stubFetch() {
     if (url === '/gc-supervisor/v0/city/test-city/bead/td-bead-abc123' && method === 'PATCH') {
       return jsonResponse({ status: 'ok' });
     }
+    if (url === '/gc-supervisor/v0/city/test-city/bead/td-window-miss' && method === 'GET') {
+      return jsonResponse({
+        id: 'td-window-miss',
+        title: 'detail-only bead',
+        status: 'open',
+        issue_type: 'task',
+        created_at: '2026-06-01T00:00:00Z',
+        description: 'fetched by deep-link id',
+        labels: [],
+      });
+    }
+    if (url === '/api/city/test-city/links/td-window-miss') {
+      return jsonResponse({
+        focus: {
+          key: 'bead:td-window-miss',
+          type: 'bead',
+          ref: 'td-window-miss',
+          label: 'detail-only bead',
+          title: 'detail-only bead',
+        },
+        nodes: [],
+        edges: [],
+        stats: [],
+        partial: false,
+        generatedAt: '2026-06-01T00:00:00Z',
+      });
+    }
     if (url === '/gc-supervisor/v0/city/test-city/agent/mayor/nudge' && method === 'POST') {
       return jsonResponse({ status: 'ok' });
     }
@@ -190,6 +217,42 @@ describe('BeadsPage supervisor reads', () => {
     expect(fetchCalls.map((call) => call.url)).toContain('/gc-supervisor/v0/city/test-city/beads?limit=1000');
     expect(fetchCalls.map((call) => call.url)).not.toContain('/api/city/test-city/beads');
     expect(fetchCalls.map((call) => call.url)).not.toContain('/api/city/test-city/beads?showAll=1');
+  });
+
+  it('deep-links to the selected bead detail rail from the bead query param', async () => {
+    render(
+      <MemoryRouter
+        initialEntries={['/beads?bead=td-bead-abc123']}
+        future={{ v7_relativeSplatPath: true, v7_startTransition: true }}
+      >
+        <NowProvider intervalMs={1_000_000}>
+          <BeadsPage />
+        </NowProvider>
+      </MemoryRouter>,
+    );
+
+    const selected = await screen.findByTitle('Select td-bead-abc123');
+    expect(selected.getAttribute('aria-pressed')).toBe('true');
+    expect(screen.getByRole('heading', { name: 'direct supervisor bead' })).toBeTruthy();
+  });
+
+  it('resolves a bead query param even when the bead is outside the list window', async () => {
+    render(
+      <MemoryRouter
+        initialEntries={['/beads?bead=td-window-miss']}
+        future={{ v7_relativeSplatPath: true, v7_startTransition: true }}
+      >
+        <NowProvider intervalMs={1_000_000}>
+          <BeadsPage />
+        </NowProvider>
+      </MemoryRouter>,
+    );
+
+    expect(await screen.findByRole('heading', { name: 'detail-only bead' })).toBeTruthy();
+    expect(screen.getAllByText(/td-window-miss/i).length).toBeGreaterThan(0);
+    expect(fetchCalls.map((call) => call.url)).toContain(
+      '/gc-supervisor/v0/city/test-city/bead/td-window-miss',
+    );
   });
 
   it('keeps the local engineering-work filter when the list view is open-only', async () => {

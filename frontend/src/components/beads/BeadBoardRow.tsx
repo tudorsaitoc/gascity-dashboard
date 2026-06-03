@@ -1,3 +1,4 @@
+import { useEffect, useRef } from 'react';
 import type { BeadNode } from '../../lib/beadGraph';
 import type { AttentionSeverity } from '../../attention/compose';
 import { attentionListItemProps } from '../../attention/routeHighlight';
@@ -23,6 +24,7 @@ export function BeadBoardRow({
   onSelect,
 }: BeadBoardRowProps) {
   const { bead, deps, blocks, hasUnresolvedDeps } = node;
+  const rowRef = useRef<HTMLLIElement | null>(null);
   const depCount = deps.length;
   const blockCount = blocks.length;
   const hasNeighbourhood = depCount > 0 || blockCount > 0;
@@ -32,8 +34,17 @@ export function BeadBoardRow({
     ...attentionProps
   } = attentionListItemProps(attentionSeverity);
 
+  useEffect(() => {
+    if (!selected) return;
+    rowRef.current?.scrollIntoView?.({
+      block: 'center',
+      inline: 'nearest',
+    });
+  }, [selected]);
+
   return (
     <li
+      ref={rowRef}
       {...attentionProps}
       className={`px-2 py-2 -mx-2 rounded-sm transition-colors duration-150 ease-out-quart ${
         selected ? 'bg-surface-tint' : 'hover:bg-surface-tint/60'

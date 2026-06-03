@@ -236,6 +236,12 @@ export function AgentsPage() {
       attentionRowProps(resourceAttentionSeverity(attention, 'agents', agent.name)),
     [attention],
   );
+  const rosterUnavailable = error !== null && rows.length === 0;
+  const emptyMessage = rosterUnavailable
+    ? 'Agent roster unavailable.'
+    : filters.search.length > 0 || filters.activeChipIds.size > 0
+      ? 'No agents match the current search or filter.'
+      : 'No agents configured.';
 
   const columns = useMemo<ReadonlyArray<TableColumn<SupervisorAgent>>>(() => [
     {
@@ -439,7 +445,7 @@ export function AgentsPage() {
     <section>
       <PageHeader
         title="Agents"
-        synopsis={synopsis}
+        synopsis={rosterUnavailable ? 'Agent roster unavailable.' : synopsis}
         meta={
           <>
             <SseIndicator state={sseState} />
@@ -501,11 +507,7 @@ export function AgentsPage() {
         rowKey={(r) => r.name}
         onToggleProject={filters.toggleProject}
         rowProps={rowProps}
-        emptyMessage={
-          filters.search.length > 0 || filters.activeChipIds.size > 0
-            ? 'No agents match the current search or filter.'
-            : 'No agents configured.'
-        }
+        emptyMessage={emptyMessage}
         perProjectEmpty="No agents in this project."
         initialSort={{ key: 'last_active', dir: 'desc' }}
       />

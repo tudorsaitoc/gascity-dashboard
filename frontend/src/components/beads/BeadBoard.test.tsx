@@ -1,10 +1,20 @@
 import { cleanup, fireEvent, render, screen, within } from '@testing-library/react';
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { BeadStatus } from 'gas-city-dashboard-shared';
 import type { SupervisorBead } from '../../supervisor/beadReads';
 import { buildBeadGraph } from '../../lib/beadGraph';
 import { assertAtMostOneMark } from '../../test/assertions/oneMarkRule';
 import { BeadBoard } from './BeadBoard';
+
+const scrollIntoView = vi.fn();
+
+beforeEach(() => {
+  scrollIntoView.mockClear();
+  Object.defineProperty(HTMLElement.prototype, 'scrollIntoView', {
+    configurable: true,
+    value: scrollIntoView,
+  });
+});
 
 afterEach(() => cleanup());
 
@@ -71,6 +81,31 @@ describe('BeadBoard', () => {
     renderBoard([bead('A', 'closed'), bead('B', 'open', { needs: ['A'] })]);
     expect(screen.getByText(/needs 1/)).toBeTruthy();
     expect(screen.getByText(/blocks 1/)).toBeTruthy();
+  });
+
+  it('scrolls the selected bead row into view on initial deep-link selection', () => {
+    renderBoard([bead('A', 'open', { title: 'deep linked bead' })], 'A');
+
+    expect(screen.getByTitle('Select A').getAttribute('aria-pressed')).toBe('true');
+    expect(scrollIntoView).toHaveBeenCalledWith({
+      block: 'center',
+      inline: 'nearest',
+    });
+  });
+
+  it('expands needs/blocks sub-rows for the selected bead and re-centres on click', () => {
+    const onSelect = vi.fn();
+    // A is closed (done column); B needs A so B is ready (ready column). The
+    // selected bead B shows its upstream dependency A as a typeset sub-row
+    // inside its own column, distinct from A's own row in the done column.
+    renderBoard(
+      [bead('A', 'closed'), bead('B', 'open', { needs: ['A'] })],
+      'B',
+      onSelect,
+    );
+    const ready = screen.getByRole('region', { name: 'ready' });
+    fireEvent.click(within(ready).getByTitle('Select A'));
+    expect(onSelect).toHaveBeenCalledWith('A');
   });
 
   it('flags an unresolved upstream edge on the row summary', () => {

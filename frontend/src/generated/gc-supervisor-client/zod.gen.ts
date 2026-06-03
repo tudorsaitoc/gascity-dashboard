@@ -288,7 +288,7 @@ export const zDeliveryContextRecord = z.object({
     Conversation: zConversationRef,
     ID: z.string(),
     LastMessageID: z.string(),
-    LastPublishedAt: z.iso.datetime(),
+    LastPublishedAt: z.iso.datetime({ offset: true }),
     Metadata: z.record(z.string(), z.string()),
     SchemaVersion: z.coerce.bigint().min(BigInt('-9223372036854775808'), { error: 'Invalid value: Expected int64 to be >= -9223372036854775808' }).max(BigInt('9223372036854775807'), { error: 'Invalid value: Expected int64 to be <= 9223372036854775807' }),
     SessionID: z.string(),
@@ -303,7 +303,7 @@ export const zDep = z.object({
 
 export const zBead = z.object({
     assignee: z.string().optional(),
-    created_at: z.iso.datetime(),
+    created_at: z.iso.datetime({ offset: true }),
     dependencies: z.array(zDep).nullish(),
     description: z.string().optional(),
     ephemeral: z.boolean().optional(),
@@ -318,7 +318,7 @@ export const zBead = z.object({
     ref: z.string().optional(),
     status: z.string(),
     title: z.string(),
-    updated_at: z.iso.datetime().optional()
+    updated_at: z.iso.datetime({ offset: true }).optional()
 });
 
 export const zBeadDepsResponse = z.object({
@@ -363,7 +363,7 @@ export const zEventEmitRequest = z.object({
 
 export const zEventRotateAnchor = z.object({
     seq: z.coerce.bigint().gte(BigInt(0)).max(BigInt('9223372036854775807'), { error: 'Invalid value: Expected int64 to be <= 9223372036854775807' }),
-    ts: z.iso.datetime(),
+    ts: z.iso.datetime({ offset: true }),
     type: z.string()
 });
 
@@ -465,7 +465,7 @@ export const zExternalInboundMessage = z.object({
     dedup_key: z.string().optional(),
     explicit_target: z.string().optional(),
     provider_message_id: z.string(),
-    received_at: z.iso.datetime(),
+    received_at: z.iso.datetime({ offset: true }),
     reply_to_message_id: z.string().optional(),
     text: z.string()
 });
@@ -667,7 +667,7 @@ export const zMailSendInputBody = z.object({
 export const zMessage = z.object({
     body: z.string(),
     cc: z.array(z.string()).nullish(),
-    created_at: z.iso.datetime(),
+    created_at: z.iso.datetime({ offset: true }),
     from: z.string(),
     id: z.string(),
     priority: z.coerce.bigint().min(BigInt('-9223372036854775808'), { error: 'Invalid value: Expected int64 to be >= -9223372036854775808' }).max(BigInt('9223372036854775807'), { error: 'Invalid value: Expected int64 to be <= 9223372036854775807' }).optional(),
@@ -1181,7 +1181,7 @@ export const zRigResponse = z.object({
     agent_count: z.coerce.bigint().min(BigInt('-9223372036854775808'), { error: 'Invalid value: Expected int64 to be >= -9223372036854775808' }).max(BigInt('9223372036854775807'), { error: 'Invalid value: Expected int64 to be <= 9223372036854775807' }),
     default_branch: z.string().optional(),
     git: zGitStatus.optional(),
-    last_activity: z.iso.datetime().optional(),
+    last_activity: z.iso.datetime({ offset: true }).optional(),
     name: z.string(),
     path: z.string(),
     prefix: z.string().optional(),
@@ -1233,9 +1233,9 @@ export const zSessionAgentListResponse = z.object({
 
 export const zSessionBindingRecord = z.object({
     BindingGeneration: z.coerce.bigint().min(BigInt('-9223372036854775808'), { error: 'Invalid value: Expected int64 to be >= -9223372036854775808' }).max(BigInt('9223372036854775807'), { error: 'Invalid value: Expected int64 to be <= 9223372036854775807' }),
-    BoundAt: z.iso.datetime(),
+    BoundAt: z.iso.datetime({ offset: true }),
     Conversation: zConversationRef,
-    ExpiresAt: z.iso.datetime().nullable(),
+    ExpiresAt: z.iso.datetime({ offset: true }).nullable(),
     ID: z.string(),
     Metadata: z.record(z.string(), z.string()),
     SchemaVersion: z.coerce.bigint().min(BigInt('-9223372036854775808'), { error: 'Invalid value: Expected int64 to be >= -9223372036854775808' }).max(BigInt('9223372036854775807'), { error: 'Invalid value: Expected int64 to be <= 9223372036854775807' }),
@@ -1277,7 +1277,7 @@ export const zSessionDrainAckedWithAssignedWorkPayload = z.object({
 
 export const zSessionInfo = z.object({
     attached: z.boolean(),
-    last_activity: z.iso.datetime().optional(),
+    last_activity: z.iso.datetime({ offset: true }).optional(),
     name: z.string()
 });
 
@@ -1445,7 +1445,7 @@ export const zStatus = z.object({
     service_name: z.string(),
     state: z.string().optional(),
     state_root: z.string(),
-    updated_at: z.iso.datetime(),
+    updated_at: z.iso.datetime({ offset: true }),
     url: z.string().optional(),
     visibility: z.string().optional(),
     workflow_contract: z.string().optional()
@@ -1677,7 +1677,7 @@ export const zConversationTranscriptRecord = z.object({
     Actor: zExternalActor,
     Attachments: z.array(zExternalAttachment).nullable(),
     Conversation: zConversationRef,
-    CreatedAt: z.iso.datetime(),
+    CreatedAt: z.iso.datetime({ offset: true }),
     ExplicitTarget: z.string(),
     ID: z.string(),
     Kind: zTranscriptMessageKind,
@@ -1728,7 +1728,7 @@ export const zWorkerOperationEventPayload = z.object({
     delivered: z.boolean().optional(),
     duration_ms: z.coerce.bigint().min(BigInt('-9223372036854775808'), { error: 'Invalid value: Expected int64 to be >= -9223372036854775808' }).max(BigInt('9223372036854775807'), { error: 'Invalid value: Expected int64 to be <= 9223372036854775807' }),
     error: z.string().optional(),
-    finished_at: z.iso.datetime(),
+    finished_at: z.iso.datetime({ offset: true }),
     latency_ms: z.coerce.bigint().min(BigInt('-9223372036854775808'), { error: 'Invalid value: Expected int64 to be >= -9223372036854775808' }).max(BigInt('9223372036854775807'), { error: 'Invalid value: Expected int64 to be <= 9223372036854775807' }).optional(),
     model: z.string().optional(),
     op_id: z.string(),
@@ -1741,7 +1741,7 @@ export const zWorkerOperationEventPayload = z.object({
     result: z.string(),
     session_id: z.string().optional(),
     session_name: z.string().optional(),
-    started_at: z.iso.datetime(),
+    started_at: z.iso.datetime({ offset: true }),
     template: z.string().optional(),
     transport: z.string().optional()
 });
@@ -1839,7 +1839,7 @@ export const zEventStreamEnvelope = z.object({
     payload: zEventPayload.optional(),
     seq: z.coerce.bigint().gte(BigInt(0)).max(BigInt('9223372036854775807'), { error: 'Invalid value: Expected int64 to be <= 9223372036854775807' }),
     subject: z.string().optional(),
-    ts: z.iso.datetime(),
+    ts: z.iso.datetime({ offset: true }),
     type: z.string(),
     workflow: zWorkflowEventProjection.optional()
 });
@@ -1851,7 +1851,7 @@ export const zTaggedEventStreamEnvelope = z.object({
     payload: zEventPayload.optional(),
     seq: z.coerce.bigint().gte(BigInt(0)).max(BigInt('9223372036854775807'), { error: 'Invalid value: Expected int64 to be <= 9223372036854775807' }),
     subject: z.string().optional(),
-    ts: z.iso.datetime(),
+    ts: z.iso.datetime({ offset: true }),
     type: z.string(),
     workflow: zWorkflowEventProjection.optional()
 });
@@ -1865,7 +1865,7 @@ export const zTypedEventStreamEnvelopeBeadClosed = z.object({
     payload: zBeadEventPayload,
     seq: z.coerce.bigint().gte(BigInt(0)).max(BigInt('9223372036854775807'), { error: 'Invalid value: Expected int64 to be <= 9223372036854775807' }),
     subject: z.string().optional(),
-    ts: z.iso.datetime(),
+    ts: z.iso.datetime({ offset: true }),
     type: z.literal('bead.closed'),
     workflow: zWorkflowEventProjection.optional()
 });
@@ -1879,7 +1879,7 @@ export const zTypedEventStreamEnvelopeBeadCreated = z.object({
     payload: zBeadEventPayload,
     seq: z.coerce.bigint().gte(BigInt(0)).max(BigInt('9223372036854775807'), { error: 'Invalid value: Expected int64 to be <= 9223372036854775807' }),
     subject: z.string().optional(),
-    ts: z.iso.datetime(),
+    ts: z.iso.datetime({ offset: true }),
     type: z.literal('bead.created'),
     workflow: zWorkflowEventProjection.optional()
 });
@@ -1893,7 +1893,7 @@ export const zTypedEventStreamEnvelopeBeadUpdated = z.object({
     payload: zBeadEventPayload,
     seq: z.coerce.bigint().gte(BigInt(0)).max(BigInt('9223372036854775807'), { error: 'Invalid value: Expected int64 to be <= 9223372036854775807' }),
     subject: z.string().optional(),
-    ts: z.iso.datetime(),
+    ts: z.iso.datetime({ offset: true }),
     type: z.literal('bead.updated'),
     workflow: zWorkflowEventProjection.optional()
 });
@@ -1907,7 +1907,7 @@ export const zTypedEventStreamEnvelopeCityCreated = z.object({
     payload: zCityLifecyclePayload,
     seq: z.coerce.bigint().gte(BigInt(0)).max(BigInt('9223372036854775807'), { error: 'Invalid value: Expected int64 to be <= 9223372036854775807' }),
     subject: z.string().optional(),
-    ts: z.iso.datetime(),
+    ts: z.iso.datetime({ offset: true }),
     type: z.literal('city.created'),
     workflow: zWorkflowEventProjection.optional()
 });
@@ -1921,7 +1921,7 @@ export const zTypedEventStreamEnvelopeCityResumed = z.object({
     payload: zNoPayload,
     seq: z.coerce.bigint().gte(BigInt(0)).max(BigInt('9223372036854775807'), { error: 'Invalid value: Expected int64 to be <= 9223372036854775807' }),
     subject: z.string().optional(),
-    ts: z.iso.datetime(),
+    ts: z.iso.datetime({ offset: true }),
     type: z.literal('city.resumed'),
     workflow: zWorkflowEventProjection.optional()
 });
@@ -1935,7 +1935,7 @@ export const zTypedEventStreamEnvelopeCitySuspended = z.object({
     payload: zNoPayload,
     seq: z.coerce.bigint().gte(BigInt(0)).max(BigInt('9223372036854775807'), { error: 'Invalid value: Expected int64 to be <= 9223372036854775807' }),
     subject: z.string().optional(),
-    ts: z.iso.datetime(),
+    ts: z.iso.datetime({ offset: true }),
     type: z.literal('city.suspended'),
     workflow: zWorkflowEventProjection.optional()
 });
@@ -1949,7 +1949,7 @@ export const zTypedEventStreamEnvelopeCityUnregisterRequested = z.object({
     payload: zCityLifecyclePayload,
     seq: z.coerce.bigint().gte(BigInt(0)).max(BigInt('9223372036854775807'), { error: 'Invalid value: Expected int64 to be <= 9223372036854775807' }),
     subject: z.string().optional(),
-    ts: z.iso.datetime(),
+    ts: z.iso.datetime({ offset: true }),
     type: z.literal('city.unregister_requested'),
     workflow: zWorkflowEventProjection.optional()
 });
@@ -1963,7 +1963,7 @@ export const zTypedEventStreamEnvelopeControllerStarted = z.object({
     payload: zNoPayload,
     seq: z.coerce.bigint().gte(BigInt(0)).max(BigInt('9223372036854775807'), { error: 'Invalid value: Expected int64 to be <= 9223372036854775807' }),
     subject: z.string().optional(),
-    ts: z.iso.datetime(),
+    ts: z.iso.datetime({ offset: true }),
     type: z.literal('controller.started'),
     workflow: zWorkflowEventProjection.optional()
 });
@@ -1977,7 +1977,7 @@ export const zTypedEventStreamEnvelopeControllerStopped = z.object({
     payload: zNoPayload,
     seq: z.coerce.bigint().gte(BigInt(0)).max(BigInt('9223372036854775807'), { error: 'Invalid value: Expected int64 to be <= 9223372036854775807' }),
     subject: z.string().optional(),
-    ts: z.iso.datetime(),
+    ts: z.iso.datetime({ offset: true }),
     type: z.literal('controller.stopped'),
     workflow: zWorkflowEventProjection.optional()
 });
@@ -1991,7 +1991,7 @@ export const zTypedEventStreamEnvelopeConvoyClosed = z.object({
     payload: zNoPayload,
     seq: z.coerce.bigint().gte(BigInt(0)).max(BigInt('9223372036854775807'), { error: 'Invalid value: Expected int64 to be <= 9223372036854775807' }),
     subject: z.string().optional(),
-    ts: z.iso.datetime(),
+    ts: z.iso.datetime({ offset: true }),
     type: z.literal('convoy.closed'),
     workflow: zWorkflowEventProjection.optional()
 });
@@ -2005,7 +2005,7 @@ export const zTypedEventStreamEnvelopeConvoyCreated = z.object({
     payload: zNoPayload,
     seq: z.coerce.bigint().gte(BigInt(0)).max(BigInt('9223372036854775807'), { error: 'Invalid value: Expected int64 to be <= 9223372036854775807' }),
     subject: z.string().optional(),
-    ts: z.iso.datetime(),
+    ts: z.iso.datetime({ offset: true }),
     type: z.literal('convoy.created'),
     workflow: zWorkflowEventProjection.optional()
 });
@@ -2019,7 +2019,7 @@ export const zTypedEventStreamEnvelopeCustom = z.object({
     payload: z.unknown(),
     seq: z.coerce.bigint().gte(BigInt(0)).max(BigInt('9223372036854775807'), { error: 'Invalid value: Expected int64 to be <= 9223372036854775807' }),
     subject: z.string().optional(),
-    ts: z.iso.datetime(),
+    ts: z.iso.datetime({ offset: true }),
     type: z.string(),
     workflow: zWorkflowEventProjection.optional()
 });
@@ -2033,7 +2033,7 @@ export const zTypedEventStreamEnvelopeEventsRotated = z.object({
     payload: zRotatedPayload,
     seq: z.coerce.bigint().gte(BigInt(0)).max(BigInt('9223372036854775807'), { error: 'Invalid value: Expected int64 to be <= 9223372036854775807' }),
     subject: z.string().optional(),
-    ts: z.iso.datetime(),
+    ts: z.iso.datetime({ offset: true }),
     type: z.literal('events.rotated'),
     workflow: zWorkflowEventProjection.optional()
 });
@@ -2047,7 +2047,7 @@ export const zTypedEventStreamEnvelopeExtmsgAdapterAdded = z.object({
     payload: zAdapterEventPayload,
     seq: z.coerce.bigint().gte(BigInt(0)).max(BigInt('9223372036854775807'), { error: 'Invalid value: Expected int64 to be <= 9223372036854775807' }),
     subject: z.string().optional(),
-    ts: z.iso.datetime(),
+    ts: z.iso.datetime({ offset: true }),
     type: z.literal('extmsg.adapter_added'),
     workflow: zWorkflowEventProjection.optional()
 });
@@ -2061,7 +2061,7 @@ export const zTypedEventStreamEnvelopeExtmsgAdapterRemoved = z.object({
     payload: zAdapterEventPayload,
     seq: z.coerce.bigint().gte(BigInt(0)).max(BigInt('9223372036854775807'), { error: 'Invalid value: Expected int64 to be <= 9223372036854775807' }),
     subject: z.string().optional(),
-    ts: z.iso.datetime(),
+    ts: z.iso.datetime({ offset: true }),
     type: z.literal('extmsg.adapter_removed'),
     workflow: zWorkflowEventProjection.optional()
 });
@@ -2075,7 +2075,7 @@ export const zTypedEventStreamEnvelopeExtmsgBound = z.object({
     payload: zBoundEventPayload,
     seq: z.coerce.bigint().gte(BigInt(0)).max(BigInt('9223372036854775807'), { error: 'Invalid value: Expected int64 to be <= 9223372036854775807' }),
     subject: z.string().optional(),
-    ts: z.iso.datetime(),
+    ts: z.iso.datetime({ offset: true }),
     type: z.literal('extmsg.bound'),
     workflow: zWorkflowEventProjection.optional()
 });
@@ -2089,7 +2089,7 @@ export const zTypedEventStreamEnvelopeExtmsgGroupCreated = z.object({
     payload: zGroupCreatedEventPayload,
     seq: z.coerce.bigint().gte(BigInt(0)).max(BigInt('9223372036854775807'), { error: 'Invalid value: Expected int64 to be <= 9223372036854775807' }),
     subject: z.string().optional(),
-    ts: z.iso.datetime(),
+    ts: z.iso.datetime({ offset: true }),
     type: z.literal('extmsg.group_created'),
     workflow: zWorkflowEventProjection.optional()
 });
@@ -2103,7 +2103,7 @@ export const zTypedEventStreamEnvelopeExtmsgInbound = z.object({
     payload: zInboundEventPayload,
     seq: z.coerce.bigint().gte(BigInt(0)).max(BigInt('9223372036854775807'), { error: 'Invalid value: Expected int64 to be <= 9223372036854775807' }),
     subject: z.string().optional(),
-    ts: z.iso.datetime(),
+    ts: z.iso.datetime({ offset: true }),
     type: z.literal('extmsg.inbound'),
     workflow: zWorkflowEventProjection.optional()
 });
@@ -2117,7 +2117,7 @@ export const zTypedEventStreamEnvelopeExtmsgOutbound = z.object({
     payload: zOutboundEventPayload,
     seq: z.coerce.bigint().gte(BigInt(0)).max(BigInt('9223372036854775807'), { error: 'Invalid value: Expected int64 to be <= 9223372036854775807' }),
     subject: z.string().optional(),
-    ts: z.iso.datetime(),
+    ts: z.iso.datetime({ offset: true }),
     type: z.literal('extmsg.outbound'),
     workflow: zWorkflowEventProjection.optional()
 });
@@ -2131,7 +2131,7 @@ export const zTypedEventStreamEnvelopeExtmsgUnbound = z.object({
     payload: zUnboundEventPayload,
     seq: z.coerce.bigint().gte(BigInt(0)).max(BigInt('9223372036854775807'), { error: 'Invalid value: Expected int64 to be <= 9223372036854775807' }),
     subject: z.string().optional(),
-    ts: z.iso.datetime(),
+    ts: z.iso.datetime({ offset: true }),
     type: z.literal('extmsg.unbound'),
     workflow: zWorkflowEventProjection.optional()
 });
@@ -2145,7 +2145,7 @@ export const zTypedEventStreamEnvelopeGcStoreMaintenanceDone = z.object({
     payload: zStoreMaintenanceDonePayload,
     seq: z.coerce.bigint().gte(BigInt(0)).max(BigInt('9223372036854775807'), { error: 'Invalid value: Expected int64 to be <= 9223372036854775807' }),
     subject: z.string().optional(),
-    ts: z.iso.datetime(),
+    ts: z.iso.datetime({ offset: true }),
     type: z.literal('gc.store.maintenance.done'),
     workflow: zWorkflowEventProjection.optional()
 });
@@ -2159,7 +2159,7 @@ export const zTypedEventStreamEnvelopeGcStoreMaintenanceFailed = z.object({
     payload: zStoreMaintenanceFailedPayload,
     seq: z.coerce.bigint().gte(BigInt(0)).max(BigInt('9223372036854775807'), { error: 'Invalid value: Expected int64 to be <= 9223372036854775807' }),
     subject: z.string().optional(),
-    ts: z.iso.datetime(),
+    ts: z.iso.datetime({ offset: true }),
     type: z.literal('gc.store.maintenance.failed'),
     workflow: zWorkflowEventProjection.optional()
 });
@@ -2173,7 +2173,7 @@ export const zTypedEventStreamEnvelopeMailArchived = z.object({
     payload: zMailEventPayload,
     seq: z.coerce.bigint().gte(BigInt(0)).max(BigInt('9223372036854775807'), { error: 'Invalid value: Expected int64 to be <= 9223372036854775807' }),
     subject: z.string().optional(),
-    ts: z.iso.datetime(),
+    ts: z.iso.datetime({ offset: true }),
     type: z.literal('mail.archived'),
     workflow: zWorkflowEventProjection.optional()
 });
@@ -2187,7 +2187,7 @@ export const zTypedEventStreamEnvelopeMailDeleted = z.object({
     payload: zMailEventPayload,
     seq: z.coerce.bigint().gte(BigInt(0)).max(BigInt('9223372036854775807'), { error: 'Invalid value: Expected int64 to be <= 9223372036854775807' }),
     subject: z.string().optional(),
-    ts: z.iso.datetime(),
+    ts: z.iso.datetime({ offset: true }),
     type: z.literal('mail.deleted'),
     workflow: zWorkflowEventProjection.optional()
 });
@@ -2201,7 +2201,7 @@ export const zTypedEventStreamEnvelopeMailMarkedRead = z.object({
     payload: zMailEventPayload,
     seq: z.coerce.bigint().gte(BigInt(0)).max(BigInt('9223372036854775807'), { error: 'Invalid value: Expected int64 to be <= 9223372036854775807' }),
     subject: z.string().optional(),
-    ts: z.iso.datetime(),
+    ts: z.iso.datetime({ offset: true }),
     type: z.literal('mail.marked_read'),
     workflow: zWorkflowEventProjection.optional()
 });
@@ -2215,7 +2215,7 @@ export const zTypedEventStreamEnvelopeMailMarkedUnread = z.object({
     payload: zMailEventPayload,
     seq: z.coerce.bigint().gte(BigInt(0)).max(BigInt('9223372036854775807'), { error: 'Invalid value: Expected int64 to be <= 9223372036854775807' }),
     subject: z.string().optional(),
-    ts: z.iso.datetime(),
+    ts: z.iso.datetime({ offset: true }),
     type: z.literal('mail.marked_unread'),
     workflow: zWorkflowEventProjection.optional()
 });
@@ -2229,7 +2229,7 @@ export const zTypedEventStreamEnvelopeMailRead = z.object({
     payload: zMailEventPayload,
     seq: z.coerce.bigint().gte(BigInt(0)).max(BigInt('9223372036854775807'), { error: 'Invalid value: Expected int64 to be <= 9223372036854775807' }),
     subject: z.string().optional(),
-    ts: z.iso.datetime(),
+    ts: z.iso.datetime({ offset: true }),
     type: z.literal('mail.read'),
     workflow: zWorkflowEventProjection.optional()
 });
@@ -2243,7 +2243,7 @@ export const zTypedEventStreamEnvelopeMailReplied = z.object({
     payload: zMailEventPayload,
     seq: z.coerce.bigint().gte(BigInt(0)).max(BigInt('9223372036854775807'), { error: 'Invalid value: Expected int64 to be <= 9223372036854775807' }),
     subject: z.string().optional(),
-    ts: z.iso.datetime(),
+    ts: z.iso.datetime({ offset: true }),
     type: z.literal('mail.replied'),
     workflow: zWorkflowEventProjection.optional()
 });
@@ -2257,7 +2257,7 @@ export const zTypedEventStreamEnvelopeMailSent = z.object({
     payload: zMailEventPayload,
     seq: z.coerce.bigint().gte(BigInt(0)).max(BigInt('9223372036854775807'), { error: 'Invalid value: Expected int64 to be <= 9223372036854775807' }),
     subject: z.string().optional(),
-    ts: z.iso.datetime(),
+    ts: z.iso.datetime({ offset: true }),
     type: z.literal('mail.sent'),
     workflow: zWorkflowEventProjection.optional()
 });
@@ -2271,7 +2271,7 @@ export const zTypedEventStreamEnvelopeOrderCompleted = z.object({
     payload: zNoPayload,
     seq: z.coerce.bigint().gte(BigInt(0)).max(BigInt('9223372036854775807'), { error: 'Invalid value: Expected int64 to be <= 9223372036854775807' }),
     subject: z.string().optional(),
-    ts: z.iso.datetime(),
+    ts: z.iso.datetime({ offset: true }),
     type: z.literal('order.completed'),
     workflow: zWorkflowEventProjection.optional()
 });
@@ -2285,7 +2285,7 @@ export const zTypedEventStreamEnvelopeOrderFailed = z.object({
     payload: zNoPayload,
     seq: z.coerce.bigint().gte(BigInt(0)).max(BigInt('9223372036854775807'), { error: 'Invalid value: Expected int64 to be <= 9223372036854775807' }),
     subject: z.string().optional(),
-    ts: z.iso.datetime(),
+    ts: z.iso.datetime({ offset: true }),
     type: z.literal('order.failed'),
     workflow: zWorkflowEventProjection.optional()
 });
@@ -2299,7 +2299,7 @@ export const zTypedEventStreamEnvelopeOrderFired = z.object({
     payload: zNoPayload,
     seq: z.coerce.bigint().gte(BigInt(0)).max(BigInt('9223372036854775807'), { error: 'Invalid value: Expected int64 to be <= 9223372036854775807' }),
     subject: z.string().optional(),
-    ts: z.iso.datetime(),
+    ts: z.iso.datetime({ offset: true }),
     type: z.literal('order.fired'),
     workflow: zWorkflowEventProjection.optional()
 });
@@ -2313,7 +2313,7 @@ export const zTypedEventStreamEnvelopePgCredentialResolved = z.object({
     payload: zPostgresCredentialResolvedPayload,
     seq: z.coerce.bigint().gte(BigInt(0)).max(BigInt('9223372036854775807'), { error: 'Invalid value: Expected int64 to be <= 9223372036854775807' }),
     subject: z.string().optional(),
-    ts: z.iso.datetime(),
+    ts: z.iso.datetime({ offset: true }),
     type: z.literal('pg.credential_resolved'),
     workflow: zWorkflowEventProjection.optional()
 });
@@ -2327,7 +2327,7 @@ export const zTypedEventStreamEnvelopeProjectIdentityStamped = z.object({
     payload: zProjectIdentityStampedPayload,
     seq: z.coerce.bigint().gte(BigInt(0)).max(BigInt('9223372036854775807'), { error: 'Invalid value: Expected int64 to be <= 9223372036854775807' }),
     subject: z.string().optional(),
-    ts: z.iso.datetime(),
+    ts: z.iso.datetime({ offset: true }),
     type: z.literal('project.identity.stamped'),
     workflow: zWorkflowEventProjection.optional()
 });
@@ -2341,7 +2341,7 @@ export const zTypedEventStreamEnvelopeProviderSwapped = z.object({
     payload: zNoPayload,
     seq: z.coerce.bigint().gte(BigInt(0)).max(BigInt('9223372036854775807'), { error: 'Invalid value: Expected int64 to be <= 9223372036854775807' }),
     subject: z.string().optional(),
-    ts: z.iso.datetime(),
+    ts: z.iso.datetime({ offset: true }),
     type: z.literal('provider.swapped'),
     workflow: zWorkflowEventProjection.optional()
 });
@@ -2355,7 +2355,7 @@ export const zTypedEventStreamEnvelopeRequestFailed = z.object({
     payload: zRequestFailedPayload,
     seq: z.coerce.bigint().gte(BigInt(0)).max(BigInt('9223372036854775807'), { error: 'Invalid value: Expected int64 to be <= 9223372036854775807' }),
     subject: z.string().optional(),
-    ts: z.iso.datetime(),
+    ts: z.iso.datetime({ offset: true }),
     type: z.literal('request.failed'),
     workflow: zWorkflowEventProjection.optional()
 });
@@ -2369,7 +2369,7 @@ export const zTypedEventStreamEnvelopeRequestResultCityCreate = z.object({
     payload: zCityCreateSucceededPayload,
     seq: z.coerce.bigint().gte(BigInt(0)).max(BigInt('9223372036854775807'), { error: 'Invalid value: Expected int64 to be <= 9223372036854775807' }),
     subject: z.string().optional(),
-    ts: z.iso.datetime(),
+    ts: z.iso.datetime({ offset: true }),
     type: z.literal('request.result.city.create'),
     workflow: zWorkflowEventProjection.optional()
 });
@@ -2383,7 +2383,7 @@ export const zTypedEventStreamEnvelopeRequestResultCityUnregister = z.object({
     payload: zCityUnregisterSucceededPayload,
     seq: z.coerce.bigint().gte(BigInt(0)).max(BigInt('9223372036854775807'), { error: 'Invalid value: Expected int64 to be <= 9223372036854775807' }),
     subject: z.string().optional(),
-    ts: z.iso.datetime(),
+    ts: z.iso.datetime({ offset: true }),
     type: z.literal('request.result.city.unregister'),
     workflow: zWorkflowEventProjection.optional()
 });
@@ -2397,7 +2397,7 @@ export const zTypedEventStreamEnvelopeRequestResultSessionCreate = z.object({
     payload: zSessionCreateSucceededPayload,
     seq: z.coerce.bigint().gte(BigInt(0)).max(BigInt('9223372036854775807'), { error: 'Invalid value: Expected int64 to be <= 9223372036854775807' }),
     subject: z.string().optional(),
-    ts: z.iso.datetime(),
+    ts: z.iso.datetime({ offset: true }),
     type: z.literal('request.result.session.create'),
     workflow: zWorkflowEventProjection.optional()
 });
@@ -2411,7 +2411,7 @@ export const zTypedEventStreamEnvelopeRequestResultSessionMessage = z.object({
     payload: zSessionMessageSucceededPayload,
     seq: z.coerce.bigint().gte(BigInt(0)).max(BigInt('9223372036854775807'), { error: 'Invalid value: Expected int64 to be <= 9223372036854775807' }),
     subject: z.string().optional(),
-    ts: z.iso.datetime(),
+    ts: z.iso.datetime({ offset: true }),
     type: z.literal('request.result.session.message'),
     workflow: zWorkflowEventProjection.optional()
 });
@@ -2425,7 +2425,7 @@ export const zTypedEventStreamEnvelopeRequestResultSessionSubmit = z.object({
     payload: zSessionSubmitSucceededPayload,
     seq: z.coerce.bigint().gte(BigInt(0)).max(BigInt('9223372036854775807'), { error: 'Invalid value: Expected int64 to be <= 9223372036854775807' }),
     subject: z.string().optional(),
-    ts: z.iso.datetime(),
+    ts: z.iso.datetime({ offset: true }),
     type: z.literal('request.result.session.submit'),
     workflow: zWorkflowEventProjection.optional()
 });
@@ -2439,7 +2439,7 @@ export const zTypedEventStreamEnvelopeSessionCrashed = z.object({
     payload: zSessionLifecyclePayload,
     seq: z.coerce.bigint().gte(BigInt(0)).max(BigInt('9223372036854775807'), { error: 'Invalid value: Expected int64 to be <= 9223372036854775807' }),
     subject: z.string().optional(),
-    ts: z.iso.datetime(),
+    ts: z.iso.datetime({ offset: true }),
     type: z.literal('session.crashed'),
     workflow: zWorkflowEventProjection.optional()
 });
@@ -2453,7 +2453,7 @@ export const zTypedEventStreamEnvelopeSessionDrainAckedWithAssignedWork = z.obje
     payload: zSessionDrainAckedWithAssignedWorkPayload,
     seq: z.coerce.bigint().gte(BigInt(0)).max(BigInt('9223372036854775807'), { error: 'Invalid value: Expected int64 to be <= 9223372036854775807' }),
     subject: z.string().optional(),
-    ts: z.iso.datetime(),
+    ts: z.iso.datetime({ offset: true }),
     type: z.literal('session.drain_acked_with_assigned_work'),
     workflow: zWorkflowEventProjection.optional()
 });
@@ -2467,7 +2467,7 @@ export const zTypedEventStreamEnvelopeSessionDraining = z.object({
     payload: zNoPayload,
     seq: z.coerce.bigint().gte(BigInt(0)).max(BigInt('9223372036854775807'), { error: 'Invalid value: Expected int64 to be <= 9223372036854775807' }),
     subject: z.string().optional(),
-    ts: z.iso.datetime(),
+    ts: z.iso.datetime({ offset: true }),
     type: z.literal('session.draining'),
     workflow: zWorkflowEventProjection.optional()
 });
@@ -2481,7 +2481,7 @@ export const zTypedEventStreamEnvelopeSessionIdleKilled = z.object({
     payload: zNoPayload,
     seq: z.coerce.bigint().gte(BigInt(0)).max(BigInt('9223372036854775807'), { error: 'Invalid value: Expected int64 to be <= 9223372036854775807' }),
     subject: z.string().optional(),
-    ts: z.iso.datetime(),
+    ts: z.iso.datetime({ offset: true }),
     type: z.literal('session.idle_killed'),
     workflow: zWorkflowEventProjection.optional()
 });
@@ -2495,7 +2495,7 @@ export const zTypedEventStreamEnvelopeSessionMaxAgeKilled = z.object({
     payload: zNoPayload,
     seq: z.coerce.bigint().gte(BigInt(0)).max(BigInt('9223372036854775807'), { error: 'Invalid value: Expected int64 to be <= 9223372036854775807' }),
     subject: z.string().optional(),
-    ts: z.iso.datetime(),
+    ts: z.iso.datetime({ offset: true }),
     type: z.literal('session.max_age_killed'),
     workflow: zWorkflowEventProjection.optional()
 });
@@ -2509,7 +2509,7 @@ export const zTypedEventStreamEnvelopeSessionQuarantined = z.object({
     payload: zNoPayload,
     seq: z.coerce.bigint().gte(BigInt(0)).max(BigInt('9223372036854775807'), { error: 'Invalid value: Expected int64 to be <= 9223372036854775807' }),
     subject: z.string().optional(),
-    ts: z.iso.datetime(),
+    ts: z.iso.datetime({ offset: true }),
     type: z.literal('session.quarantined'),
     workflow: zWorkflowEventProjection.optional()
 });
@@ -2523,7 +2523,7 @@ export const zTypedEventStreamEnvelopeSessionStopped = z.object({
     payload: zSessionLifecyclePayload,
     seq: z.coerce.bigint().gte(BigInt(0)).max(BigInt('9223372036854775807'), { error: 'Invalid value: Expected int64 to be <= 9223372036854775807' }),
     subject: z.string().optional(),
-    ts: z.iso.datetime(),
+    ts: z.iso.datetime({ offset: true }),
     type: z.literal('session.stopped'),
     workflow: zWorkflowEventProjection.optional()
 });
@@ -2537,7 +2537,7 @@ export const zTypedEventStreamEnvelopeSessionStranded = z.object({
     payload: zNoPayload,
     seq: z.coerce.bigint().gte(BigInt(0)).max(BigInt('9223372036854775807'), { error: 'Invalid value: Expected int64 to be <= 9223372036854775807' }),
     subject: z.string().optional(),
-    ts: z.iso.datetime(),
+    ts: z.iso.datetime({ offset: true }),
     type: z.literal('session.stranded'),
     workflow: zWorkflowEventProjection.optional()
 });
@@ -2551,7 +2551,7 @@ export const zTypedEventStreamEnvelopeSessionSuspended = z.object({
     payload: zNoPayload,
     seq: z.coerce.bigint().gte(BigInt(0)).max(BigInt('9223372036854775807'), { error: 'Invalid value: Expected int64 to be <= 9223372036854775807' }),
     subject: z.string().optional(),
-    ts: z.iso.datetime(),
+    ts: z.iso.datetime({ offset: true }),
     type: z.literal('session.suspended'),
     workflow: zWorkflowEventProjection.optional()
 });
@@ -2565,7 +2565,7 @@ export const zTypedEventStreamEnvelopeSessionUndrained = z.object({
     payload: zNoPayload,
     seq: z.coerce.bigint().gte(BigInt(0)).max(BigInt('9223372036854775807'), { error: 'Invalid value: Expected int64 to be <= 9223372036854775807' }),
     subject: z.string().optional(),
-    ts: z.iso.datetime(),
+    ts: z.iso.datetime({ offset: true }),
     type: z.literal('session.undrained'),
     workflow: zWorkflowEventProjection.optional()
 });
@@ -2579,7 +2579,7 @@ export const zTypedEventStreamEnvelopeSessionUpdated = z.object({
     payload: zNoPayload,
     seq: z.coerce.bigint().gte(BigInt(0)).max(BigInt('9223372036854775807'), { error: 'Invalid value: Expected int64 to be <= 9223372036854775807' }),
     subject: z.string().optional(),
-    ts: z.iso.datetime(),
+    ts: z.iso.datetime({ offset: true }),
     type: z.literal('session.updated'),
     workflow: zWorkflowEventProjection.optional()
 });
@@ -2593,7 +2593,7 @@ export const zTypedEventStreamEnvelopeSessionWoke = z.object({
     payload: zNoPayload,
     seq: z.coerce.bigint().gte(BigInt(0)).max(BigInt('9223372036854775807'), { error: 'Invalid value: Expected int64 to be <= 9223372036854775807' }),
     subject: z.string().optional(),
-    ts: z.iso.datetime(),
+    ts: z.iso.datetime({ offset: true }),
     type: z.literal('session.woke'),
     workflow: zWorkflowEventProjection.optional()
 });
@@ -2607,7 +2607,7 @@ export const zTypedEventStreamEnvelopeSessionWorkQueryFailed = z.object({
     payload: zSessionLifecyclePayload,
     seq: z.coerce.bigint().gte(BigInt(0)).max(BigInt('9223372036854775807'), { error: 'Invalid value: Expected int64 to be <= 9223372036854775807' }),
     subject: z.string().optional(),
-    ts: z.iso.datetime(),
+    ts: z.iso.datetime({ offset: true }),
     type: z.literal('session.work_query_failed'),
     workflow: zWorkflowEventProjection.optional()
 });
@@ -2621,7 +2621,7 @@ export const zTypedEventStreamEnvelopeSupervisorFsPressureSkippedTick = z.object
     payload: zSupervisorFsPressureSkippedTickPayload,
     seq: z.coerce.bigint().gte(BigInt(0)).max(BigInt('9223372036854775807'), { error: 'Invalid value: Expected int64 to be <= 9223372036854775807' }),
     subject: z.string().optional(),
-    ts: z.iso.datetime(),
+    ts: z.iso.datetime({ offset: true }),
     type: z.literal('supervisor.fs_pressure.skipped_tick'),
     workflow: zWorkflowEventProjection.optional()
 });
@@ -2635,7 +2635,7 @@ export const zTypedEventStreamEnvelopeSupervisorShutdownRequested = z.object({
     payload: zSupervisorShutdownPayload,
     seq: z.coerce.bigint().gte(BigInt(0)).max(BigInt('9223372036854775807'), { error: 'Invalid value: Expected int64 to be <= 9223372036854775807' }),
     subject: z.string().optional(),
-    ts: z.iso.datetime(),
+    ts: z.iso.datetime({ offset: true }),
     type: z.literal('supervisor.shutdown_requested'),
     workflow: zWorkflowEventProjection.optional()
 });
@@ -2649,7 +2649,7 @@ export const zTypedEventStreamEnvelopeWorkerOperation = z.object({
     payload: zWorkerOperationEventPayload,
     seq: z.coerce.bigint().gte(BigInt(0)).max(BigInt('9223372036854775807'), { error: 'Invalid value: Expected int64 to be <= 9223372036854775807' }),
     subject: z.string().optional(),
-    ts: z.iso.datetime(),
+    ts: z.iso.datetime({ offset: true }),
     type: z.literal('worker.operation'),
     workflow: zWorkflowEventProjection.optional()
 });
@@ -2737,7 +2737,7 @@ export const zTypedTaggedEventStreamEnvelopeBeadClosed = z.object({
     payload: zBeadEventPayload,
     seq: z.coerce.bigint().gte(BigInt(0)).max(BigInt('9223372036854775807'), { error: 'Invalid value: Expected int64 to be <= 9223372036854775807' }),
     subject: z.string().optional(),
-    ts: z.iso.datetime(),
+    ts: z.iso.datetime({ offset: true }),
     type: z.literal('bead.closed'),
     workflow: zWorkflowEventProjection.optional()
 });
@@ -2752,7 +2752,7 @@ export const zTypedTaggedEventStreamEnvelopeBeadCreated = z.object({
     payload: zBeadEventPayload,
     seq: z.coerce.bigint().gte(BigInt(0)).max(BigInt('9223372036854775807'), { error: 'Invalid value: Expected int64 to be <= 9223372036854775807' }),
     subject: z.string().optional(),
-    ts: z.iso.datetime(),
+    ts: z.iso.datetime({ offset: true }),
     type: z.literal('bead.created'),
     workflow: zWorkflowEventProjection.optional()
 });
@@ -2767,7 +2767,7 @@ export const zTypedTaggedEventStreamEnvelopeBeadUpdated = z.object({
     payload: zBeadEventPayload,
     seq: z.coerce.bigint().gte(BigInt(0)).max(BigInt('9223372036854775807'), { error: 'Invalid value: Expected int64 to be <= 9223372036854775807' }),
     subject: z.string().optional(),
-    ts: z.iso.datetime(),
+    ts: z.iso.datetime({ offset: true }),
     type: z.literal('bead.updated'),
     workflow: zWorkflowEventProjection.optional()
 });
@@ -2782,7 +2782,7 @@ export const zTypedTaggedEventStreamEnvelopeCityCreated = z.object({
     payload: zCityLifecyclePayload,
     seq: z.coerce.bigint().gte(BigInt(0)).max(BigInt('9223372036854775807'), { error: 'Invalid value: Expected int64 to be <= 9223372036854775807' }),
     subject: z.string().optional(),
-    ts: z.iso.datetime(),
+    ts: z.iso.datetime({ offset: true }),
     type: z.literal('city.created'),
     workflow: zWorkflowEventProjection.optional()
 });
@@ -2797,7 +2797,7 @@ export const zTypedTaggedEventStreamEnvelopeCityResumed = z.object({
     payload: zNoPayload,
     seq: z.coerce.bigint().gte(BigInt(0)).max(BigInt('9223372036854775807'), { error: 'Invalid value: Expected int64 to be <= 9223372036854775807' }),
     subject: z.string().optional(),
-    ts: z.iso.datetime(),
+    ts: z.iso.datetime({ offset: true }),
     type: z.literal('city.resumed'),
     workflow: zWorkflowEventProjection.optional()
 });
@@ -2812,7 +2812,7 @@ export const zTypedTaggedEventStreamEnvelopeCitySuspended = z.object({
     payload: zNoPayload,
     seq: z.coerce.bigint().gte(BigInt(0)).max(BigInt('9223372036854775807'), { error: 'Invalid value: Expected int64 to be <= 9223372036854775807' }),
     subject: z.string().optional(),
-    ts: z.iso.datetime(),
+    ts: z.iso.datetime({ offset: true }),
     type: z.literal('city.suspended'),
     workflow: zWorkflowEventProjection.optional()
 });
@@ -2827,7 +2827,7 @@ export const zTypedTaggedEventStreamEnvelopeCityUnregisterRequested = z.object({
     payload: zCityLifecyclePayload,
     seq: z.coerce.bigint().gte(BigInt(0)).max(BigInt('9223372036854775807'), { error: 'Invalid value: Expected int64 to be <= 9223372036854775807' }),
     subject: z.string().optional(),
-    ts: z.iso.datetime(),
+    ts: z.iso.datetime({ offset: true }),
     type: z.literal('city.unregister_requested'),
     workflow: zWorkflowEventProjection.optional()
 });
@@ -2842,7 +2842,7 @@ export const zTypedTaggedEventStreamEnvelopeControllerStarted = z.object({
     payload: zNoPayload,
     seq: z.coerce.bigint().gte(BigInt(0)).max(BigInt('9223372036854775807'), { error: 'Invalid value: Expected int64 to be <= 9223372036854775807' }),
     subject: z.string().optional(),
-    ts: z.iso.datetime(),
+    ts: z.iso.datetime({ offset: true }),
     type: z.literal('controller.started'),
     workflow: zWorkflowEventProjection.optional()
 });
@@ -2857,7 +2857,7 @@ export const zTypedTaggedEventStreamEnvelopeControllerStopped = z.object({
     payload: zNoPayload,
     seq: z.coerce.bigint().gte(BigInt(0)).max(BigInt('9223372036854775807'), { error: 'Invalid value: Expected int64 to be <= 9223372036854775807' }),
     subject: z.string().optional(),
-    ts: z.iso.datetime(),
+    ts: z.iso.datetime({ offset: true }),
     type: z.literal('controller.stopped'),
     workflow: zWorkflowEventProjection.optional()
 });
@@ -2872,7 +2872,7 @@ export const zTypedTaggedEventStreamEnvelopeConvoyClosed = z.object({
     payload: zNoPayload,
     seq: z.coerce.bigint().gte(BigInt(0)).max(BigInt('9223372036854775807'), { error: 'Invalid value: Expected int64 to be <= 9223372036854775807' }),
     subject: z.string().optional(),
-    ts: z.iso.datetime(),
+    ts: z.iso.datetime({ offset: true }),
     type: z.literal('convoy.closed'),
     workflow: zWorkflowEventProjection.optional()
 });
@@ -2887,7 +2887,7 @@ export const zTypedTaggedEventStreamEnvelopeConvoyCreated = z.object({
     payload: zNoPayload,
     seq: z.coerce.bigint().gte(BigInt(0)).max(BigInt('9223372036854775807'), { error: 'Invalid value: Expected int64 to be <= 9223372036854775807' }),
     subject: z.string().optional(),
-    ts: z.iso.datetime(),
+    ts: z.iso.datetime({ offset: true }),
     type: z.literal('convoy.created'),
     workflow: zWorkflowEventProjection.optional()
 });
@@ -2902,7 +2902,7 @@ export const zTypedTaggedEventStreamEnvelopeCustom = z.object({
     payload: z.unknown(),
     seq: z.coerce.bigint().gte(BigInt(0)).max(BigInt('9223372036854775807'), { error: 'Invalid value: Expected int64 to be <= 9223372036854775807' }),
     subject: z.string().optional(),
-    ts: z.iso.datetime(),
+    ts: z.iso.datetime({ offset: true }),
     type: z.string(),
     workflow: zWorkflowEventProjection.optional()
 });
@@ -2917,7 +2917,7 @@ export const zTypedTaggedEventStreamEnvelopeEventsRotated = z.object({
     payload: zRotatedPayload,
     seq: z.coerce.bigint().gte(BigInt(0)).max(BigInt('9223372036854775807'), { error: 'Invalid value: Expected int64 to be <= 9223372036854775807' }),
     subject: z.string().optional(),
-    ts: z.iso.datetime(),
+    ts: z.iso.datetime({ offset: true }),
     type: z.literal('events.rotated'),
     workflow: zWorkflowEventProjection.optional()
 });
@@ -2932,7 +2932,7 @@ export const zTypedTaggedEventStreamEnvelopeExtmsgAdapterAdded = z.object({
     payload: zAdapterEventPayload,
     seq: z.coerce.bigint().gte(BigInt(0)).max(BigInt('9223372036854775807'), { error: 'Invalid value: Expected int64 to be <= 9223372036854775807' }),
     subject: z.string().optional(),
-    ts: z.iso.datetime(),
+    ts: z.iso.datetime({ offset: true }),
     type: z.literal('extmsg.adapter_added'),
     workflow: zWorkflowEventProjection.optional()
 });
@@ -2947,7 +2947,7 @@ export const zTypedTaggedEventStreamEnvelopeExtmsgAdapterRemoved = z.object({
     payload: zAdapterEventPayload,
     seq: z.coerce.bigint().gte(BigInt(0)).max(BigInt('9223372036854775807'), { error: 'Invalid value: Expected int64 to be <= 9223372036854775807' }),
     subject: z.string().optional(),
-    ts: z.iso.datetime(),
+    ts: z.iso.datetime({ offset: true }),
     type: z.literal('extmsg.adapter_removed'),
     workflow: zWorkflowEventProjection.optional()
 });
@@ -2962,7 +2962,7 @@ export const zTypedTaggedEventStreamEnvelopeExtmsgBound = z.object({
     payload: zBoundEventPayload,
     seq: z.coerce.bigint().gte(BigInt(0)).max(BigInt('9223372036854775807'), { error: 'Invalid value: Expected int64 to be <= 9223372036854775807' }),
     subject: z.string().optional(),
-    ts: z.iso.datetime(),
+    ts: z.iso.datetime({ offset: true }),
     type: z.literal('extmsg.bound'),
     workflow: zWorkflowEventProjection.optional()
 });
@@ -2977,7 +2977,7 @@ export const zTypedTaggedEventStreamEnvelopeExtmsgGroupCreated = z.object({
     payload: zGroupCreatedEventPayload,
     seq: z.coerce.bigint().gte(BigInt(0)).max(BigInt('9223372036854775807'), { error: 'Invalid value: Expected int64 to be <= 9223372036854775807' }),
     subject: z.string().optional(),
-    ts: z.iso.datetime(),
+    ts: z.iso.datetime({ offset: true }),
     type: z.literal('extmsg.group_created'),
     workflow: zWorkflowEventProjection.optional()
 });
@@ -2992,7 +2992,7 @@ export const zTypedTaggedEventStreamEnvelopeExtmsgInbound = z.object({
     payload: zInboundEventPayload,
     seq: z.coerce.bigint().gte(BigInt(0)).max(BigInt('9223372036854775807'), { error: 'Invalid value: Expected int64 to be <= 9223372036854775807' }),
     subject: z.string().optional(),
-    ts: z.iso.datetime(),
+    ts: z.iso.datetime({ offset: true }),
     type: z.literal('extmsg.inbound'),
     workflow: zWorkflowEventProjection.optional()
 });
@@ -3007,7 +3007,7 @@ export const zTypedTaggedEventStreamEnvelopeExtmsgOutbound = z.object({
     payload: zOutboundEventPayload,
     seq: z.coerce.bigint().gte(BigInt(0)).max(BigInt('9223372036854775807'), { error: 'Invalid value: Expected int64 to be <= 9223372036854775807' }),
     subject: z.string().optional(),
-    ts: z.iso.datetime(),
+    ts: z.iso.datetime({ offset: true }),
     type: z.literal('extmsg.outbound'),
     workflow: zWorkflowEventProjection.optional()
 });
@@ -3022,7 +3022,7 @@ export const zTypedTaggedEventStreamEnvelopeExtmsgUnbound = z.object({
     payload: zUnboundEventPayload,
     seq: z.coerce.bigint().gte(BigInt(0)).max(BigInt('9223372036854775807'), { error: 'Invalid value: Expected int64 to be <= 9223372036854775807' }),
     subject: z.string().optional(),
-    ts: z.iso.datetime(),
+    ts: z.iso.datetime({ offset: true }),
     type: z.literal('extmsg.unbound'),
     workflow: zWorkflowEventProjection.optional()
 });
@@ -3037,7 +3037,7 @@ export const zTypedTaggedEventStreamEnvelopeGcStoreMaintenanceDone = z.object({
     payload: zStoreMaintenanceDonePayload,
     seq: z.coerce.bigint().gte(BigInt(0)).max(BigInt('9223372036854775807'), { error: 'Invalid value: Expected int64 to be <= 9223372036854775807' }),
     subject: z.string().optional(),
-    ts: z.iso.datetime(),
+    ts: z.iso.datetime({ offset: true }),
     type: z.literal('gc.store.maintenance.done'),
     workflow: zWorkflowEventProjection.optional()
 });
@@ -3052,7 +3052,7 @@ export const zTypedTaggedEventStreamEnvelopeGcStoreMaintenanceFailed = z.object(
     payload: zStoreMaintenanceFailedPayload,
     seq: z.coerce.bigint().gte(BigInt(0)).max(BigInt('9223372036854775807'), { error: 'Invalid value: Expected int64 to be <= 9223372036854775807' }),
     subject: z.string().optional(),
-    ts: z.iso.datetime(),
+    ts: z.iso.datetime({ offset: true }),
     type: z.literal('gc.store.maintenance.failed'),
     workflow: zWorkflowEventProjection.optional()
 });
@@ -3067,7 +3067,7 @@ export const zTypedTaggedEventStreamEnvelopeMailArchived = z.object({
     payload: zMailEventPayload,
     seq: z.coerce.bigint().gte(BigInt(0)).max(BigInt('9223372036854775807'), { error: 'Invalid value: Expected int64 to be <= 9223372036854775807' }),
     subject: z.string().optional(),
-    ts: z.iso.datetime(),
+    ts: z.iso.datetime({ offset: true }),
     type: z.literal('mail.archived'),
     workflow: zWorkflowEventProjection.optional()
 });
@@ -3082,7 +3082,7 @@ export const zTypedTaggedEventStreamEnvelopeMailDeleted = z.object({
     payload: zMailEventPayload,
     seq: z.coerce.bigint().gte(BigInt(0)).max(BigInt('9223372036854775807'), { error: 'Invalid value: Expected int64 to be <= 9223372036854775807' }),
     subject: z.string().optional(),
-    ts: z.iso.datetime(),
+    ts: z.iso.datetime({ offset: true }),
     type: z.literal('mail.deleted'),
     workflow: zWorkflowEventProjection.optional()
 });
@@ -3097,7 +3097,7 @@ export const zTypedTaggedEventStreamEnvelopeMailMarkedRead = z.object({
     payload: zMailEventPayload,
     seq: z.coerce.bigint().gte(BigInt(0)).max(BigInt('9223372036854775807'), { error: 'Invalid value: Expected int64 to be <= 9223372036854775807' }),
     subject: z.string().optional(),
-    ts: z.iso.datetime(),
+    ts: z.iso.datetime({ offset: true }),
     type: z.literal('mail.marked_read'),
     workflow: zWorkflowEventProjection.optional()
 });
@@ -3112,7 +3112,7 @@ export const zTypedTaggedEventStreamEnvelopeMailMarkedUnread = z.object({
     payload: zMailEventPayload,
     seq: z.coerce.bigint().gte(BigInt(0)).max(BigInt('9223372036854775807'), { error: 'Invalid value: Expected int64 to be <= 9223372036854775807' }),
     subject: z.string().optional(),
-    ts: z.iso.datetime(),
+    ts: z.iso.datetime({ offset: true }),
     type: z.literal('mail.marked_unread'),
     workflow: zWorkflowEventProjection.optional()
 });
@@ -3127,7 +3127,7 @@ export const zTypedTaggedEventStreamEnvelopeMailRead = z.object({
     payload: zMailEventPayload,
     seq: z.coerce.bigint().gte(BigInt(0)).max(BigInt('9223372036854775807'), { error: 'Invalid value: Expected int64 to be <= 9223372036854775807' }),
     subject: z.string().optional(),
-    ts: z.iso.datetime(),
+    ts: z.iso.datetime({ offset: true }),
     type: z.literal('mail.read'),
     workflow: zWorkflowEventProjection.optional()
 });
@@ -3142,7 +3142,7 @@ export const zTypedTaggedEventStreamEnvelopeMailReplied = z.object({
     payload: zMailEventPayload,
     seq: z.coerce.bigint().gte(BigInt(0)).max(BigInt('9223372036854775807'), { error: 'Invalid value: Expected int64 to be <= 9223372036854775807' }),
     subject: z.string().optional(),
-    ts: z.iso.datetime(),
+    ts: z.iso.datetime({ offset: true }),
     type: z.literal('mail.replied'),
     workflow: zWorkflowEventProjection.optional()
 });
@@ -3157,7 +3157,7 @@ export const zTypedTaggedEventStreamEnvelopeMailSent = z.object({
     payload: zMailEventPayload,
     seq: z.coerce.bigint().gte(BigInt(0)).max(BigInt('9223372036854775807'), { error: 'Invalid value: Expected int64 to be <= 9223372036854775807' }),
     subject: z.string().optional(),
-    ts: z.iso.datetime(),
+    ts: z.iso.datetime({ offset: true }),
     type: z.literal('mail.sent'),
     workflow: zWorkflowEventProjection.optional()
 });
@@ -3172,7 +3172,7 @@ export const zTypedTaggedEventStreamEnvelopeOrderCompleted = z.object({
     payload: zNoPayload,
     seq: z.coerce.bigint().gte(BigInt(0)).max(BigInt('9223372036854775807'), { error: 'Invalid value: Expected int64 to be <= 9223372036854775807' }),
     subject: z.string().optional(),
-    ts: z.iso.datetime(),
+    ts: z.iso.datetime({ offset: true }),
     type: z.literal('order.completed'),
     workflow: zWorkflowEventProjection.optional()
 });
@@ -3187,7 +3187,7 @@ export const zTypedTaggedEventStreamEnvelopeOrderFailed = z.object({
     payload: zNoPayload,
     seq: z.coerce.bigint().gte(BigInt(0)).max(BigInt('9223372036854775807'), { error: 'Invalid value: Expected int64 to be <= 9223372036854775807' }),
     subject: z.string().optional(),
-    ts: z.iso.datetime(),
+    ts: z.iso.datetime({ offset: true }),
     type: z.literal('order.failed'),
     workflow: zWorkflowEventProjection.optional()
 });
@@ -3202,7 +3202,7 @@ export const zTypedTaggedEventStreamEnvelopeOrderFired = z.object({
     payload: zNoPayload,
     seq: z.coerce.bigint().gte(BigInt(0)).max(BigInt('9223372036854775807'), { error: 'Invalid value: Expected int64 to be <= 9223372036854775807' }),
     subject: z.string().optional(),
-    ts: z.iso.datetime(),
+    ts: z.iso.datetime({ offset: true }),
     type: z.literal('order.fired'),
     workflow: zWorkflowEventProjection.optional()
 });
@@ -3217,7 +3217,7 @@ export const zTypedTaggedEventStreamEnvelopePgCredentialResolved = z.object({
     payload: zPostgresCredentialResolvedPayload,
     seq: z.coerce.bigint().gte(BigInt(0)).max(BigInt('9223372036854775807'), { error: 'Invalid value: Expected int64 to be <= 9223372036854775807' }),
     subject: z.string().optional(),
-    ts: z.iso.datetime(),
+    ts: z.iso.datetime({ offset: true }),
     type: z.literal('pg.credential_resolved'),
     workflow: zWorkflowEventProjection.optional()
 });
@@ -3232,7 +3232,7 @@ export const zTypedTaggedEventStreamEnvelopeProjectIdentityStamped = z.object({
     payload: zProjectIdentityStampedPayload,
     seq: z.coerce.bigint().gte(BigInt(0)).max(BigInt('9223372036854775807'), { error: 'Invalid value: Expected int64 to be <= 9223372036854775807' }),
     subject: z.string().optional(),
-    ts: z.iso.datetime(),
+    ts: z.iso.datetime({ offset: true }),
     type: z.literal('project.identity.stamped'),
     workflow: zWorkflowEventProjection.optional()
 });
@@ -3247,7 +3247,7 @@ export const zTypedTaggedEventStreamEnvelopeProviderSwapped = z.object({
     payload: zNoPayload,
     seq: z.coerce.bigint().gte(BigInt(0)).max(BigInt('9223372036854775807'), { error: 'Invalid value: Expected int64 to be <= 9223372036854775807' }),
     subject: z.string().optional(),
-    ts: z.iso.datetime(),
+    ts: z.iso.datetime({ offset: true }),
     type: z.literal('provider.swapped'),
     workflow: zWorkflowEventProjection.optional()
 });
@@ -3262,7 +3262,7 @@ export const zTypedTaggedEventStreamEnvelopeRequestFailed = z.object({
     payload: zRequestFailedPayload,
     seq: z.coerce.bigint().gte(BigInt(0)).max(BigInt('9223372036854775807'), { error: 'Invalid value: Expected int64 to be <= 9223372036854775807' }),
     subject: z.string().optional(),
-    ts: z.iso.datetime(),
+    ts: z.iso.datetime({ offset: true }),
     type: z.literal('request.failed'),
     workflow: zWorkflowEventProjection.optional()
 });
@@ -3277,7 +3277,7 @@ export const zTypedTaggedEventStreamEnvelopeRequestResultCityCreate = z.object({
     payload: zCityCreateSucceededPayload,
     seq: z.coerce.bigint().gte(BigInt(0)).max(BigInt('9223372036854775807'), { error: 'Invalid value: Expected int64 to be <= 9223372036854775807' }),
     subject: z.string().optional(),
-    ts: z.iso.datetime(),
+    ts: z.iso.datetime({ offset: true }),
     type: z.literal('request.result.city.create'),
     workflow: zWorkflowEventProjection.optional()
 });
@@ -3292,7 +3292,7 @@ export const zTypedTaggedEventStreamEnvelopeRequestResultCityUnregister = z.obje
     payload: zCityUnregisterSucceededPayload,
     seq: z.coerce.bigint().gte(BigInt(0)).max(BigInt('9223372036854775807'), { error: 'Invalid value: Expected int64 to be <= 9223372036854775807' }),
     subject: z.string().optional(),
-    ts: z.iso.datetime(),
+    ts: z.iso.datetime({ offset: true }),
     type: z.literal('request.result.city.unregister'),
     workflow: zWorkflowEventProjection.optional()
 });
@@ -3307,7 +3307,7 @@ export const zTypedTaggedEventStreamEnvelopeRequestResultSessionCreate = z.objec
     payload: zSessionCreateSucceededPayload,
     seq: z.coerce.bigint().gte(BigInt(0)).max(BigInt('9223372036854775807'), { error: 'Invalid value: Expected int64 to be <= 9223372036854775807' }),
     subject: z.string().optional(),
-    ts: z.iso.datetime(),
+    ts: z.iso.datetime({ offset: true }),
     type: z.literal('request.result.session.create'),
     workflow: zWorkflowEventProjection.optional()
 });
@@ -3322,7 +3322,7 @@ export const zTypedTaggedEventStreamEnvelopeRequestResultSessionMessage = z.obje
     payload: zSessionMessageSucceededPayload,
     seq: z.coerce.bigint().gte(BigInt(0)).max(BigInt('9223372036854775807'), { error: 'Invalid value: Expected int64 to be <= 9223372036854775807' }),
     subject: z.string().optional(),
-    ts: z.iso.datetime(),
+    ts: z.iso.datetime({ offset: true }),
     type: z.literal('request.result.session.message'),
     workflow: zWorkflowEventProjection.optional()
 });
@@ -3337,7 +3337,7 @@ export const zTypedTaggedEventStreamEnvelopeRequestResultSessionSubmit = z.objec
     payload: zSessionSubmitSucceededPayload,
     seq: z.coerce.bigint().gte(BigInt(0)).max(BigInt('9223372036854775807'), { error: 'Invalid value: Expected int64 to be <= 9223372036854775807' }),
     subject: z.string().optional(),
-    ts: z.iso.datetime(),
+    ts: z.iso.datetime({ offset: true }),
     type: z.literal('request.result.session.submit'),
     workflow: zWorkflowEventProjection.optional()
 });
@@ -3352,7 +3352,7 @@ export const zTypedTaggedEventStreamEnvelopeSessionCrashed = z.object({
     payload: zSessionLifecyclePayload,
     seq: z.coerce.bigint().gte(BigInt(0)).max(BigInt('9223372036854775807'), { error: 'Invalid value: Expected int64 to be <= 9223372036854775807' }),
     subject: z.string().optional(),
-    ts: z.iso.datetime(),
+    ts: z.iso.datetime({ offset: true }),
     type: z.literal('session.crashed'),
     workflow: zWorkflowEventProjection.optional()
 });
@@ -3367,7 +3367,7 @@ export const zTypedTaggedEventStreamEnvelopeSessionDrainAckedWithAssignedWork = 
     payload: zSessionDrainAckedWithAssignedWorkPayload,
     seq: z.coerce.bigint().gte(BigInt(0)).max(BigInt('9223372036854775807'), { error: 'Invalid value: Expected int64 to be <= 9223372036854775807' }),
     subject: z.string().optional(),
-    ts: z.iso.datetime(),
+    ts: z.iso.datetime({ offset: true }),
     type: z.literal('session.drain_acked_with_assigned_work'),
     workflow: zWorkflowEventProjection.optional()
 });
@@ -3382,7 +3382,7 @@ export const zTypedTaggedEventStreamEnvelopeSessionDraining = z.object({
     payload: zNoPayload,
     seq: z.coerce.bigint().gte(BigInt(0)).max(BigInt('9223372036854775807'), { error: 'Invalid value: Expected int64 to be <= 9223372036854775807' }),
     subject: z.string().optional(),
-    ts: z.iso.datetime(),
+    ts: z.iso.datetime({ offset: true }),
     type: z.literal('session.draining'),
     workflow: zWorkflowEventProjection.optional()
 });
@@ -3397,7 +3397,7 @@ export const zTypedTaggedEventStreamEnvelopeSessionIdleKilled = z.object({
     payload: zNoPayload,
     seq: z.coerce.bigint().gte(BigInt(0)).max(BigInt('9223372036854775807'), { error: 'Invalid value: Expected int64 to be <= 9223372036854775807' }),
     subject: z.string().optional(),
-    ts: z.iso.datetime(),
+    ts: z.iso.datetime({ offset: true }),
     type: z.literal('session.idle_killed'),
     workflow: zWorkflowEventProjection.optional()
 });
@@ -3412,7 +3412,7 @@ export const zTypedTaggedEventStreamEnvelopeSessionMaxAgeKilled = z.object({
     payload: zNoPayload,
     seq: z.coerce.bigint().gte(BigInt(0)).max(BigInt('9223372036854775807'), { error: 'Invalid value: Expected int64 to be <= 9223372036854775807' }),
     subject: z.string().optional(),
-    ts: z.iso.datetime(),
+    ts: z.iso.datetime({ offset: true }),
     type: z.literal('session.max_age_killed'),
     workflow: zWorkflowEventProjection.optional()
 });
@@ -3427,7 +3427,7 @@ export const zTypedTaggedEventStreamEnvelopeSessionQuarantined = z.object({
     payload: zNoPayload,
     seq: z.coerce.bigint().gte(BigInt(0)).max(BigInt('9223372036854775807'), { error: 'Invalid value: Expected int64 to be <= 9223372036854775807' }),
     subject: z.string().optional(),
-    ts: z.iso.datetime(),
+    ts: z.iso.datetime({ offset: true }),
     type: z.literal('session.quarantined'),
     workflow: zWorkflowEventProjection.optional()
 });
@@ -3442,7 +3442,7 @@ export const zTypedTaggedEventStreamEnvelopeSessionStopped = z.object({
     payload: zSessionLifecyclePayload,
     seq: z.coerce.bigint().gte(BigInt(0)).max(BigInt('9223372036854775807'), { error: 'Invalid value: Expected int64 to be <= 9223372036854775807' }),
     subject: z.string().optional(),
-    ts: z.iso.datetime(),
+    ts: z.iso.datetime({ offset: true }),
     type: z.literal('session.stopped'),
     workflow: zWorkflowEventProjection.optional()
 });
@@ -3457,7 +3457,7 @@ export const zTypedTaggedEventStreamEnvelopeSessionStranded = z.object({
     payload: zNoPayload,
     seq: z.coerce.bigint().gte(BigInt(0)).max(BigInt('9223372036854775807'), { error: 'Invalid value: Expected int64 to be <= 9223372036854775807' }),
     subject: z.string().optional(),
-    ts: z.iso.datetime(),
+    ts: z.iso.datetime({ offset: true }),
     type: z.literal('session.stranded'),
     workflow: zWorkflowEventProjection.optional()
 });
@@ -3472,7 +3472,7 @@ export const zTypedTaggedEventStreamEnvelopeSessionSuspended = z.object({
     payload: zNoPayload,
     seq: z.coerce.bigint().gte(BigInt(0)).max(BigInt('9223372036854775807'), { error: 'Invalid value: Expected int64 to be <= 9223372036854775807' }),
     subject: z.string().optional(),
-    ts: z.iso.datetime(),
+    ts: z.iso.datetime({ offset: true }),
     type: z.literal('session.suspended'),
     workflow: zWorkflowEventProjection.optional()
 });
@@ -3487,7 +3487,7 @@ export const zTypedTaggedEventStreamEnvelopeSessionUndrained = z.object({
     payload: zNoPayload,
     seq: z.coerce.bigint().gte(BigInt(0)).max(BigInt('9223372036854775807'), { error: 'Invalid value: Expected int64 to be <= 9223372036854775807' }),
     subject: z.string().optional(),
-    ts: z.iso.datetime(),
+    ts: z.iso.datetime({ offset: true }),
     type: z.literal('session.undrained'),
     workflow: zWorkflowEventProjection.optional()
 });
@@ -3502,7 +3502,7 @@ export const zTypedTaggedEventStreamEnvelopeSessionUpdated = z.object({
     payload: zNoPayload,
     seq: z.coerce.bigint().gte(BigInt(0)).max(BigInt('9223372036854775807'), { error: 'Invalid value: Expected int64 to be <= 9223372036854775807' }),
     subject: z.string().optional(),
-    ts: z.iso.datetime(),
+    ts: z.iso.datetime({ offset: true }),
     type: z.literal('session.updated'),
     workflow: zWorkflowEventProjection.optional()
 });
@@ -3517,7 +3517,7 @@ export const zTypedTaggedEventStreamEnvelopeSessionWoke = z.object({
     payload: zNoPayload,
     seq: z.coerce.bigint().gte(BigInt(0)).max(BigInt('9223372036854775807'), { error: 'Invalid value: Expected int64 to be <= 9223372036854775807' }),
     subject: z.string().optional(),
-    ts: z.iso.datetime(),
+    ts: z.iso.datetime({ offset: true }),
     type: z.literal('session.woke'),
     workflow: zWorkflowEventProjection.optional()
 });
@@ -3532,7 +3532,7 @@ export const zTypedTaggedEventStreamEnvelopeSessionWorkQueryFailed = z.object({
     payload: zSessionLifecyclePayload,
     seq: z.coerce.bigint().gte(BigInt(0)).max(BigInt('9223372036854775807'), { error: 'Invalid value: Expected int64 to be <= 9223372036854775807' }),
     subject: z.string().optional(),
-    ts: z.iso.datetime(),
+    ts: z.iso.datetime({ offset: true }),
     type: z.literal('session.work_query_failed'),
     workflow: zWorkflowEventProjection.optional()
 });
@@ -3547,7 +3547,7 @@ export const zTypedTaggedEventStreamEnvelopeSupervisorFsPressureSkippedTick = z.
     payload: zSupervisorFsPressureSkippedTickPayload,
     seq: z.coerce.bigint().gte(BigInt(0)).max(BigInt('9223372036854775807'), { error: 'Invalid value: Expected int64 to be <= 9223372036854775807' }),
     subject: z.string().optional(),
-    ts: z.iso.datetime(),
+    ts: z.iso.datetime({ offset: true }),
     type: z.literal('supervisor.fs_pressure.skipped_tick'),
     workflow: zWorkflowEventProjection.optional()
 });
@@ -3562,7 +3562,7 @@ export const zTypedTaggedEventStreamEnvelopeSupervisorShutdownRequested = z.obje
     payload: zSupervisorShutdownPayload,
     seq: z.coerce.bigint().gte(BigInt(0)).max(BigInt('9223372036854775807'), { error: 'Invalid value: Expected int64 to be <= 9223372036854775807' }),
     subject: z.string().optional(),
-    ts: z.iso.datetime(),
+    ts: z.iso.datetime({ offset: true }),
     type: z.literal('supervisor.shutdown_requested'),
     workflow: zWorkflowEventProjection.optional()
 });
@@ -3577,7 +3577,7 @@ export const zTypedTaggedEventStreamEnvelopeWorkerOperation = z.object({
     payload: zWorkerOperationEventPayload,
     seq: z.coerce.bigint().gte(BigInt(0)).max(BigInt('9223372036854775807'), { error: 'Invalid value: Expected int64 to be <= 9223372036854775807' }),
     subject: z.string().optional(),
-    ts: z.iso.datetime(),
+    ts: z.iso.datetime({ offset: true }),
     type: z.literal('worker.operation'),
     workflow: zWorkflowEventProjection.optional()
 });

@@ -167,6 +167,8 @@ type SupervisorResult<T> = {
   response?: Response;
 };
 
+const SUPERVISOR_SCHEMA_VALIDATION_MESSAGE = 'gc supervisor response failed validation';
+
 let testSupervisorApi: SupervisorApi | null = null;
 let defaultSupervisorApi: SupervisorApi | null = null;
 
@@ -607,15 +609,59 @@ function normalizeThrownSupervisorError(err: unknown): SupervisorApiError {
 }
 
 function messageFromUnknown(value: unknown, fallback = 'gc supervisor request failed'): string {
-  if (typeof value === 'string' && value.trim().length > 0) return value;
-  if (value instanceof Error && value.message.trim().length > 0) return value.message;
+  if (isGeneratedSchemaValidationError(value)) return SUPERVISOR_SCHEMA_VALIDATION_MESSAGE;
+  if (typeof value === 'string' && value.trim().length > 0) {
+    return sanitizeSupervisorMessage(value);
+  }
+  if (value instanceof Error && value.message.trim().length > 0) {
+    return sanitizeSupervisorMessage(value.message);
+  }
   if (isRecord(value)) {
     for (const key of ['error', 'message', 'detail']) {
       const field = value[key];
-      if (typeof field === 'string' && field.trim().length > 0) return field;
+      if (typeof field === 'string' && field.trim().length > 0) {
+        return sanitizeSupervisorMessage(field);
+      }
     }
   }
   return fallback;
+}
+
+function sanitizeSupervisorMessage(message: string): string {
+  const trimmed = message.trim();
+  return isGeneratedSchemaValidationMessage(trimmed)
+    ? SUPERVISOR_SCHEMA_VALIDATION_MESSAGE
+    : trimmed;
+}
+
+function isGeneratedSchemaValidationError(value: unknown): boolean {
+  if (value instanceof Error) {
+    return value.name === 'ZodError' || isGeneratedSchemaValidationMessage(value.message);
+  }
+  return isZodIssueList(value);
+}
+
+function isGeneratedSchemaValidationMessage(message: string): boolean {
+  if (!message.startsWith('[') && !message.startsWith('{')) return false;
+  try {
+    return isZodIssueList(JSON.parse(message));
+  } catch {
+    return false;
+  }
+}
+
+function isZodIssueList(value: unknown): boolean {
+  const issues = Array.isArray(value)
+    ? value
+    : isRecord(value) && Array.isArray(value.issues)
+      ? value.issues
+      : null;
+  return issues !== null &&
+    issues.length > 0 &&
+    issues.every((issue) =>
+      isRecord(issue) &&
+      typeof issue.code === 'string' &&
+      Array.isArray(issue.path));
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {

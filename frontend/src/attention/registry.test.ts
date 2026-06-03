@@ -145,6 +145,7 @@ describe('createAttentionContributors', () => {
     }));
 
     expect(model.byDomain.runs.attention).toBe(1);
+    expect(model.byDomain.runs.items[0]?.href).toBe('/runs/run-1?scope_kind=city&scope_ref=test-city');
     expect(model.byDomain.agents.attention).toBe(1);
     expect(model.byDomain.beads.attention).toBe(1);
     expect(model.byDomain.mail.attention).toBe(1);
@@ -291,8 +292,15 @@ describe('createAttentionContributors', () => {
       'beads:B-stale-open:stale-unclaimed',
       'beads:B-stale-assigned:stale-assigned',
     ]);
+    expect(model.byDomain.beads.items.map((item) => item.href)).toEqual([
+      '/beads?bead=B-stale-open',
+      '/beads?bead=B-stale-assigned',
+    ]);
     expect(model.byDomain.mail.items.map((item) => item.id)).toContain(
       'mail:M-stale-unread:unread-stale',
+    );
+    expect(model.byDomain.mail.items.map((item) => item.href)).toContain(
+      '/mail?message=M-stale-unread',
     );
   });
 

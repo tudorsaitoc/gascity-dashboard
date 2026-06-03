@@ -1,4 +1,5 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { formatApiError } from '../api/client';
 import { useCachedData } from '../hooks/useCachedData';
 import { useAttentionModel } from '../attention/context';
@@ -58,9 +59,12 @@ const MAIL_SEARCH_FIELDS = (m: SupervisorMailItem): ReadonlyArray<string | undef
 
 type MailBox = 'inbox' | 'sent' | 'all';
 type MailAction = 'archive' | 'read' | 'reply' | 'unread';
+const DEEP_LINK_MAIL_HISTORY_LIMIT: MailHistoryLimit = 1000;
 
 export function MailPage() {
   const attention = useAttentionModel();
+  const [searchParams] = useSearchParams();
+  const selectedMessageParam = normalizeSelectedMessageParam(searchParams.get('message'));
   const {
     viewingAs,
     setAlias,
@@ -70,8 +74,10 @@ export function MailPage() {
     sessionsUnavailable,
     loadAliases,
   } = useViewingAs();
-  const [box, setBox] = useState<MailBox>('inbox');
-  const [historyLimit, setHistoryLimit] = useState<MailHistoryLimit>(DEFAULT_MAIL_HISTORY_LIMIT);
+  const [box, setBox] = useState<MailBox>(() => selectedMessageParam === null ? 'inbox' : 'all');
+  const [historyLimit, setHistoryLimit] = useState<MailHistoryLimit>(
+    () => selectedMessageParam === null ? DEFAULT_MAIL_HISTORY_LIMIT : DEEP_LINK_MAIL_HISTORY_LIMIT,
+  );
 
   // Lazy alias prefetch — Mail is the only consumer of the dropdown, so
   // non-Mail routes don't pay the cost (code-reviewer HIGH-1). Idempotent
@@ -96,6 +102,7 @@ export function MailPage() {
   const [threadFor, setThreadFor] = useState<SupervisorMailItem | null>(null);
   const [threadItems, setThreadItems] = useState<SupervisorMailItem[]>([]);
   const [threadLoading, setThreadLoading] = useState(false);
+  const openedMessageParam = useRef<string | null>(null);
   const [replyBody, setReplyBody] = useState('');
   const [actionInFlight, setActionInFlight] = useState<MailAction | null>(null);
 
@@ -120,6 +127,18 @@ export function MailPage() {
     },
     [historyLimit, viewingAs.alias],
   );
+
+  useEffect(() => {
+    if (selectedMessageParam === null) {
+      openedMessageParam.current = null;
+      return;
+    }
+    if (openedMessageParam.current === selectedMessageParam) return;
+    const selectedMessage = items.find((mail) => mail.id === selectedMessageParam);
+    if (selectedMessage === undefined) return;
+    openedMessageParam.current = selectedMessageParam;
+    void openThread(selectedMessage);
+  }, [items, openThread, selectedMessageParam]);
 
   const runMailAction = useCallback(
     async (action: MailAction) => {
@@ -465,6 +484,11 @@ function toMailHistoryLimit(value: string): MailHistoryLimit {
   return MAIL_HISTORY_LIMITS.includes(parsed as MailHistoryLimit)
     ? parsed as MailHistoryLimit
     : DEFAULT_MAIL_HISTORY_LIMIT;
+}
+
+function normalizeSelectedMessageParam(value: string | null): string | null {
+  const clean = value?.trim();
+  return clean && clean.length > 0 ? clean : null;
 }
 
 function capitalize(s: string): string {

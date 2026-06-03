@@ -1,10 +1,17 @@
 import { useMemo } from 'react';
-import { OPERATOR_WIRE_ALIAS } from 'gas-city-dashboard-shared';
+import {
+  OPERATOR_DISPLAY_ALIAS,
+  OPERATOR_WIRE_ALIAS,
+} from 'gas-city-dashboard-shared';
 import { api, formatApiError } from '../api/client';
 import { getActiveCity } from '../api/cityBase';
 import { useCachedData } from '../hooks/useCachedData';
 import { listAgentPendingInteractions } from '../supervisor/agentPending';
 import { supervisorApi } from '../supervisor/client';
+import {
+  DEFAULT_MAIL_HISTORY_LIMIT,
+  listSupervisorMail,
+} from '../supervisor/mailReads';
 import type { AttentionContributor } from './compose';
 import {
   createAttentionContributors,
@@ -144,7 +151,11 @@ async function fetchMailAttention(
 ): Promise<MailAttentionFacts> {
   if (cityName === null) return { operatorAlias: OPERATOR_WIRE_ALIAS };
   try {
-    const list = await supervisorApi().listMail(cityName, { limit: ATTENTION_LIST_LIMIT });
+    const list = await listSupervisorMail(
+      'inbox',
+      OPERATOR_DISPLAY_ALIAS,
+      DEFAULT_MAIL_HISTORY_LIMIT,
+    );
     return {
       items: list.items ?? [],
       nowMs: Date.now(),

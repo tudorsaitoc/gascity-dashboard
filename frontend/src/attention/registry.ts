@@ -243,7 +243,7 @@ function attentionForFormulaFeedItem(
   item: MonitorFeedItemResponse,
 ): AttentionItem | null {
   const status = item.status.toLowerCase();
-  const href = `/runs/${encodeURIComponent(item.id)}`;
+  const href = runHref(item.id, item.scope_kind, item.scope_ref);
   if (isRunAttentionStatus(status)) {
     return domainAttention('runs', {
       id: `runs:${item.id}:${status}`,
@@ -274,7 +274,9 @@ function attentionForFormulaFeedItem(
 }
 
 function attentionForRunLane(lane: RunLane): AttentionItem | null {
-  const href = `/runs/${encodeURIComponent(lane.id)}`;
+  const href = lane.scope?.status === 'available'
+    ? runHref(lane.id, lane.scope.kind, lane.scope.ref)
+    : runHref(lane.id);
   if (lane.health.status !== 'available') {
     return domainWatch('runs', {
       id: `runs:${lane.id}:health-unavailable`,
@@ -307,6 +309,15 @@ function attentionForRunLane(lane: RunLane): AttentionItem | null {
     });
   }
   return null;
+}
+
+function runHref(runId: string, scopeKind?: string, scopeRef?: string): string {
+  const path = `/runs/${encodeURIComponent(runId)}`;
+  if (scopeKind === undefined || scopeRef === undefined) return path;
+  const search = new URLSearchParams();
+  search.set('scope_kind', scopeKind);
+  search.set('scope_ref', scopeRef);
+  return `${path}?${search.toString()}`;
 }
 
 function deriveAgentsAttention(
@@ -431,7 +442,7 @@ function deriveBeadsAttention(
         id: `beads:${bead.id}:blocked`,
         title: `${bead.id} blocked`,
         summary: bead.title,
-        href: '/beads',
+        href: beadHref(bead.id),
       }));
       continue;
     }
@@ -440,7 +451,7 @@ function deriveBeadsAttention(
         id: `beads:${bead.id}:high-priority`,
         title: `${bead.id} high priority`,
         summary: bead.title,
-        href: '/beads',
+        href: beadHref(bead.id),
       }));
     }
     const stale = attentionForStaleBead(bead, nowMs);
@@ -460,7 +471,7 @@ function attentionForStaleBead(bead: Bead, nowMs: number): AttentionItem | null 
       id: `beads:${bead.id}:stale-unclaimed`,
       title: `${bead.id} unclaimed`,
       summary: `${bead.title} opened ${formatElapsed(ageMs)} ago`,
-      href: '/beads',
+      href: beadHref(bead.id),
       updatedAt: bead.created_at,
     });
   }
@@ -469,7 +480,7 @@ function attentionForStaleBead(bead: Bead, nowMs: number): AttentionItem | null 
       id: `beads:${bead.id}:ready-unclaimed`,
       title: `${bead.id} still unclaimed`,
       summary: `${bead.title} opened ${formatElapsed(ageMs)} ago`,
-      href: '/beads',
+      href: beadHref(bead.id),
       updatedAt: bead.created_at,
     });
   }
@@ -478,11 +489,17 @@ function attentionForStaleBead(bead: Bead, nowMs: number): AttentionItem | null 
       id: `beads:${bead.id}:stale-assigned`,
       title: `${bead.id} assigned without movement`,
       summary: `${bead.title} assigned to ${bead.assignee} for ${formatElapsed(ageMs)}`,
-      href: '/beads',
+      href: beadHref(bead.id),
       updatedAt: bead.created_at,
     });
   }
   return null;
+}
+
+function beadHref(beadId: string): string {
+  const search = new URLSearchParams();
+  search.set('bead', beadId);
+  return `/beads?${search.toString()}`;
 }
 
 function deriveMailAttention(
@@ -518,11 +535,17 @@ function deriveMailAttention(
       summary: stale
         ? `from ${message.from}, unread for ${formatElapsed(staleAgeMs)}`
         : `from ${message.from}`,
-      href: '/mail',
+      href: mailHref(message.id),
       updatedAt: message.created_at,
     }));
   }
   return items;
+}
+
+function mailHref(messageId: string): string {
+  const search = new URLSearchParams();
+  search.set('message', messageId);
+  return `/mail?${search.toString()}`;
 }
 
 function deriveActivityAttention(

@@ -121,7 +121,7 @@ describe('useLiveAttentionContributors', () => {
       }],
     });
     mockSupervisorApi.listMail.mockResolvedValue({
-      total: 1,
+      total: 2,
       items: [{
         body: '',
         created_at: '2026-05-29T20:00:00.000Z',
@@ -130,6 +130,14 @@ describe('useLiveAttentionContributors', () => {
         read: false,
         subject: 'Need approval',
         to: 'human',
+      }, {
+        body: '',
+        created_at: '2026-05-29T20:01:00.000Z',
+        from: 'sam',
+        id: 'M-other',
+        read: false,
+        subject: 'Someone else needs approval',
+        to: 'mayor',
       }],
     });
     mockSupervisorApi.listEvents.mockResolvedValue({
@@ -240,6 +248,10 @@ describe('useLiveAttentionContributors', () => {
       expect(model.byDomain.agents.attention).toBe(2);
       expect(model.byDomain.beads.attention).toBe(1);
       expect(model.byDomain.mail.attention).toBe(1);
+      expect(model.byDomain.mail.watch).toBe(0);
+      expect(model.byDomain.mail.items.map((item) => item.id)).toEqual([
+        'mail:M-1:unread-stale',
+      ]);
       expect(model.byDomain.activity.attention).toBe(2);
       expect(model.byDomain.health.attention).toBe(1);
       expect(model.byDomain.maintainer.attention).toBe(1);
@@ -255,7 +267,7 @@ describe('useLiveAttentionContributors', () => {
     expect(mockSupervisorApi.sessionPending).toHaveBeenCalledWith('test-city', 'gc-2568');
     expect(mockSupervisorApi.listBeads).toHaveBeenCalledWith('test-city', { limit: 1000 });
     expect(mockSupervisorApi.listEvents).toHaveBeenCalledWith('test-city', { limit: 100, since: '24h' });
-    expect(mockSupervisorApi.listMail).toHaveBeenCalledWith('test-city', { limit: 1000 });
+    expect(mockSupervisorApi.listMail).toHaveBeenCalledWith('test-city', { limit: 100 });
     expect(mockSupervisorApi.cityHealth).toHaveBeenCalledWith('test-city');
     expect(mockApi.listBuilds).toHaveBeenCalledTimes(1);
     expect(mockApi.maintainerTriage).toHaveBeenCalledTimes(1);

@@ -1,4 +1,5 @@
-import { useCallback, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { GC_EVENT_PREFIX } from 'gas-city-dashboard-shared';
 import { formatApiError } from '../api/client';
 import { useAttentionModel } from '../attention/context';
@@ -62,6 +63,8 @@ const BEAD_SEARCH_FIELDS = (b: SupervisorBead): ReadonlyArray<string | undefined
 
 export function BeadsPage() {
   const attention = useAttentionModel();
+  const [searchParams] = useSearchParams();
+  const selectedBeadParam = normalizeSelectedBeadParam(searchParams.get('bead'));
   const [labelFilter, setLabelFilter] = useState<string | null>(null);
   const [rigFilter, setRigFilter] = useState('');
   const [showAll, setShowAll] = useState(false);
@@ -85,7 +88,7 @@ export function BeadsPage() {
   const [actionInFlight, setActionInFlight] = useState<{ id: string; action: string } | null>(null);
   const [actionResult, setActionResult] = useState<string | null>(null);
   const [viewing, setViewing] = useState<SupervisorBead | null>(null);
-  const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [selectedId, setSelectedId] = useState<string | null>(selectedBeadParam);
   const [creating, setCreating] = useState(false);
   const [createInFlight, setCreateInFlight] = useState(false);
   const [createError, setCreateError] = useState<string | null>(null);
@@ -133,6 +136,10 @@ export function BeadsPage() {
   });
 
   useGcEventRefresh([GC_EVENT_PREFIX.bead], () => void refresh());
+
+  useEffect(() => {
+    if (selectedBeadParam !== null) setSelectedId(selectedBeadParam);
+  }, [selectedBeadParam]);
 
   // The board operates on the same search/chip/label-filtered set the list
   // does, flattened across project groups. The dependency graph (columns +
@@ -726,6 +733,11 @@ function priorityColor(p: number | null | undefined): string {
 
 function isNonEmptyString(value: string | undefined): value is string {
   return typeof value === 'string' && value.length > 0;
+}
+
+function normalizeSelectedBeadParam(value: string | null): string | null {
+  const clean = value?.trim();
+  return clean && clean.length > 0 ? clean : null;
 }
 
 function buildSynopsis(
