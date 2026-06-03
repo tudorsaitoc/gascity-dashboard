@@ -101,6 +101,14 @@ start_dedicated_session() {
   exec tmux new-session -s gc-tui "$run"
 }
 
+# Pinned beside another pane, focus deliberately stays where you were (so you
+# keep typing there) — so the keyboard reaches the dashboard only once you focus
+# it. Spell that out; it's the #1 "how do I use this" question.
+focus_hint() { # focus_hint <where-focus-stays>
+  echo "  Keyboard goes to the focused pane. Press Ctrl-b →  to drive the dashboard"
+  echo "  (scroll, enter to peek, q to quit) and Ctrl-b ←  to get back to $1."
+}
+
 # --target: split a named session on the city socket, from anywhere.
 if [ -n "$target" ]; then
   if [ -z "$socket" ]; then
@@ -116,6 +124,7 @@ if [ -n "$target" ]; then
   fi
   split_h "$socket" "$target"
   echo "Dashboard pinned beside '$target' (socket '$socket'). Attach with: gc session attach $target"
+  focus_hint "$target"
   exit 0
 fi
 
@@ -123,6 +132,8 @@ fi
 if [ "$split" = "1" ]; then
   if [ -n "${TMUX:-}" ]; then
     split_h "" ""
+    echo "Dashboard pinned beside this pane."
+    focus_hint "this pane"
   else
     echo "start-tmux.sh: --split needs an existing tmux window to split into;" >&2
     echo "  not inside tmux, so launching the dedicated 'gc-tui' session instead." >&2

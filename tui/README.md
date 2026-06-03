@@ -166,6 +166,13 @@ and leaving it in place. Then `gc session attach mayor` shows the mayor and the
 dashboard side by side. If the session or socket isn't found, it lists what's on
 the socket and exits non-zero rather than guessing.
 
+**Driving it (focus).** Pinning deliberately keeps focus on the session you were
+in (so you keep typing to the mayor), which means the keyboard reaches the
+dashboard only once you focus its pane: **`Ctrl-b →`** steps into the dashboard
+(then `↑↓`/`enter`/`o`/`q` work there), **`Ctrl-b ←`** goes back to the mayor,
+`Ctrl-b o` toggles. One keyboard, two panes — you switch focus between typing and
+driving the dashboard. The launcher prints this hint when it pins.
+
 Env: `DASHBOARD_URL` (default `http://127.0.0.1:8081`), `GC_CITY_NAME` or
 `--city=<name>` (required — no silent fallback to a default city). Press `q` to
 quit.
