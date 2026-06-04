@@ -173,43 +173,58 @@ export function RunsPage() {
                 {freshnessLabel}
               </span>
             )}
-            <PartialDataNotice
-              show={lanesPartial}
-              label="runs partial"
-              title="one or more rigs' recent runs were unavailable; the lane set may be incomplete"
-            />
-            <SseIndicator state={sseState} />
-            <Button
-              size="sm"
-              onClick={toggleHistory}
-              // yh5i: disable only when the toggle is off AND there's
-              // nothing to show. If the user already opened history
-              // (showHistory=true) we must let them close it, even if
-              // the last historical lane has since dropped out — otherwise
-              // a back-button + SSE refresh sequence locks the toggle open.
-              disabled={!showHistory && totalHistorical === 0}
-              aria-expanded={showHistory}
-              // aria-controls only references the historical section's id
-              // when that element is actually in the DOM; the WAI-ARIA
-              // spec requires referenced ids to exist.
-              {...(showHistory ? { 'aria-controls': RUNS_HISTORICAL_SECTION_ID } : {})}
-              aria-label={
-                showHistory
-                  ? 'Hide historical formula runs.'
-                  : totalHistorical === 0
-                    ? 'No completed formula runs in the current window.'
-                    : `Show ${totalHistorical} completed formula runs.`
-              }
-            >
-              {showHistory
-                ? 'Hide history'
-                : totalHistorical > 0
-                  ? `Show history (${totalHistorical})`
-                  : 'Show history'}
-            </Button>
-            <Button size="sm" onClick={() => void refresh()} disabled={loading}>
-              {loading ? "Refreshing" : "Refresh"}
-            </Button>
+            <div className="grid grid-cols-[10rem_7rem] items-center gap-x-4 gap-y-3 sm:grid-cols-[7rem_6.5rem_10rem_7rem]">
+              <SseIndicator state={sseState} />
+              <span>
+                {lanesPartial ? (
+                  <PartialDataNotice
+                    label="runs partial"
+                    title="one or more rigs' recent runs were unavailable; the lane set may be incomplete"
+                  />
+                ) : (
+                  <span aria-hidden="true" className="invisible normal-case text-body text-warn">
+                    runs partial
+                  </span>
+                )}
+              </span>
+              <Button
+                size="sm"
+                className="w-full justify-center"
+                onClick={toggleHistory}
+                // yh5i: disable only when the toggle is off AND there's
+                // nothing to show. If the user already opened history
+                // (showHistory=true) we must let them close it, even if
+                // the last historical lane has since dropped out — otherwise
+                // a back-button + SSE refresh sequence locks the toggle open.
+                disabled={!showHistory && totalHistorical === 0}
+                aria-expanded={showHistory}
+                // aria-controls only references the historical section's id
+                // when that element is actually in the DOM; the WAI-ARIA
+                // spec requires referenced ids to exist.
+                {...(showHistory ? { 'aria-controls': RUNS_HISTORICAL_SECTION_ID } : {})}
+                aria-label={
+                  showHistory
+                    ? 'Hide historical formula runs.'
+                    : totalHistorical === 0
+                      ? 'No completed formula runs in the current window.'
+                      : `Show ${totalHistorical} completed formula runs.`
+                }
+              >
+                {showHistory
+                  ? 'Hide history'
+                  : totalHistorical > 0
+                    ? `Show history (${totalHistorical})`
+                    : 'Show history'}
+              </Button>
+              <Button
+                size="sm"
+                className="w-full justify-center"
+                onClick={() => void refresh()}
+                disabled={loading}
+              >
+                {loading ? "Refreshing" : "Refresh"}
+              </Button>
+            </div>
           </>
         }
       />

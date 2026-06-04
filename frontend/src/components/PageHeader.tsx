@@ -14,7 +14,9 @@ interface PageHeaderProps {
 
 export function PageHeader({ title, synopsis, meta, className = '' }: PageHeaderProps) {
   return (
-    <header className={`flex items-end justify-between gap-6 flex-wrap mb-10 ${className}`}>
+    <header
+      className={`grid grid-cols-1 items-start gap-x-6 gap-y-4 mb-10 md:grid-cols-[minmax(0,1fr)_auto] md:items-end ${className}`}
+    >
       <div className="min-w-0 space-y-2">
         <h1 className="text-display font-semibold tracking-tighter text-fg leading-[1.05]">
           {title}
@@ -24,7 +26,7 @@ export function PageHeader({ title, synopsis, meta, className = '' }: PageHeader
         )}
       </div>
       {meta && (
-        <div className="flex items-center gap-4 shrink-0 text-label uppercase tracking-wider">
+        <div className="flex flex-wrap items-center gap-4 text-label uppercase tracking-wider md:justify-end">
           {meta}
         </div>
       )}

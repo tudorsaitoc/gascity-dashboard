@@ -539,15 +539,19 @@ describe('RunsPage — partial lane set (gascity-dashboard-n6f1)', () => {
     await waitForMount();
 
     const marker = screen.getByText(/runs partial/i);
+    const live = screen.getByText(/^live$/i);
     expect(marker).toBeTruthy();
     expect(marker.getAttribute('role')).toBe('status');
+    expect(
+      live.compareDocumentPosition(marker) & Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy();
   });
 
   it('omits the partial signal on a clean direct run source', async () => {
     mount();
     await waitForMount();
 
-    expect(screen.queryByText(/runs partial/i)).toBeNull();
+    expect(screen.queryByRole('status')).toBeNull();
   });
 });
 
