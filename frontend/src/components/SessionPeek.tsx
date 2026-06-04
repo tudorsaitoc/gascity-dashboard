@@ -3,6 +3,7 @@ import { useMemo, type ReactNode } from 'react';
 import type { OutputTurn } from '../generated/gc-supervisor-client/types.gen';
 import { formatClockTime, formatRelative, formatShortDate } from '../hooks/time';
 import { PROMPT_INJECTION_NOTICE } from '../lib/constants';
+import { stripTerminalControls } from '../lib/stripTerminalControls';
 import type { SessionTranscriptView } from '../supervisor/sessionReads';
 
 // Render layer for a session's transcript snapshot. Used by:
@@ -127,9 +128,15 @@ function TurnBlock({ turn, index, now }: { turn: OutputTurn; index: number; now:
 }
 
 function ansiToReactNodes(text: string): ReactNode[] {
+  // Strip OSC / non-SGR CSI / lone-ESC / bare C1 control bytes before
+  // ansi_up runs. ansi_up colorizes SGR but passes every other control
+  // sequence through as visible text, leaking `^[`, `\x9c`, OSC titles, etc.
+  // into the peek (gascity-dashboard-5e5v / xl07). SGR is preserved here so
+  // ansi_up can still render colour.
+  const cleaned = stripTerminalControls(text);
   const renderer = new AnsiUp();
   renderer.use_classes = true;
-  const html = renderer.ansi_to_html(text);
+  const html = renderer.ansi_to_html(cleaned);
   if (typeof DOMParser === 'undefined') return [text];
 
   const doc = new DOMParser().parseFromString(`<body>${html}</body>`, 'text/html');
