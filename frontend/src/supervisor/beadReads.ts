@@ -57,16 +57,15 @@ export async function listSupervisorBeads(
     ...(includeClosed ? { all: true } : {}),
     ...(rigFilter.length === 0 ? {} : { rig: rigFilter }),
   };
-  const lists = includeBookkeeping
-    ? [await supervisorApi().listBeads(cityName, baseQuery)]
-    : await Promise.all(
-      Array.from(ENGINEERING_BEAD_TYPES, (type) =>
-        supervisorApi().listBeads(cityName, { ...baseQuery, type }),
-      ),
-    );
-  const items = uniqueById(lists.flatMap((list) => list.items ?? []));
-  const filtered = includeBookkeeping ? items : items.filter(defaultBeadFilter);
-  const upstreamTotal = sumTotals(lists);
+  const list = await supervisorApi().listBeads(cityName, baseQuery);
+  const items = uniqueById(list.items ?? []);
+  const statusFiltered = includeClosed
+    ? items
+    : items.filter((bead) => bead.status !== 'closed');
+  const filtered = includeBookkeeping
+    ? statusFiltered
+    : statusFiltered.filter(defaultBeadFilter);
+  const upstreamTotal = countAsNumber(list.total);
   return {
     items: filtered,
     total: filtered.length,

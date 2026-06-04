@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { GC_EVENT_PREFIX } from 'gas-city-dashboard-shared';
 import { formatApiError } from '../api/client';
+import { getActiveCity } from '../api/cityBase';
 import { useAttentionModel } from '../attention/context';
 import { resourceAttentionSeverity } from '../attention/routeHighlight';
 import { BeadBoardSection } from '../components/beads/BeadBoardSection';
@@ -48,7 +49,7 @@ const BEAD_CHIPS: ReadonlyArray<FilterChip<SupervisorBead>> = [
   { id: 'open', label: 'open', match: (b) => b.status === 'open' },
   { id: 'in_progress', label: 'in progress', match: (b) => b.status === 'in_progress' },
   { id: 'blocked', label: 'blocked', match: (b) => b.status === 'blocked' },
-  { id: 'closed', label: 'closed', match: (b) => b.status === 'closed' },
+  { id: CLOSED_CHIP_ID, label: 'closed', match: (b) => b.status === 'closed' },
 ];
 
 const BEAD_SEARCH_FIELDS = (b: SupervisorBead): ReadonlyArray<string | undefined> => [
@@ -60,6 +61,8 @@ const BEAD_SEARCH_FIELDS = (b: SupervisorBead): ReadonlyArray<string | undefined
 
 export function BeadsPage() {
   const attention = useAttentionModel();
+  const cityName = getActiveCity();
+  const cityCacheKey = cityName ?? 'no-city';
   const [searchParams] = useSearchParams();
   const selectedBeadParam = normalizeSelectedBeadParam(searchParams.get('bead'));
   const [rigFilter, setRigFilter] = useState<string>(RIG_FILTER_ALL);
@@ -94,7 +97,7 @@ export function BeadsPage() {
   const [newAgent, setNewAgent] = useState('');
 
   const { data, loading, error, refresh } = useCachedData(
-    `beads:board:${rigFilter}:${showClosed ? 'all' : 'open'}`,
+    `beads:board:${cityCacheKey}:${rigFilter}:${showClosed ? 'all' : 'open'}`,
     () => listSupervisorBeads({
       includeClosed: showClosed,
       ...(rigFilter === RIG_FILTER_ALL ? {} : { rigFilter }),
@@ -105,13 +108,14 @@ export function BeadsPage() {
   const upstreamTotal = data?.upstream_total;
   const upstreamFetched = data?.upstream_fetched;
   const fetchLimit = data?.fetch_limit;
+  const hasLoadedBoard = data !== undefined;
 
-  const sessions = useCachedData('sessions', listSupervisorSessions);
+  const sessions = useCachedData(`sessions:${cityCacheKey}`, listSupervisorSessions);
   const sessionItems = useMemo(
     () => sessions.data?.items ?? [],
     [sessions.data],
   );
-  const agents = useCachedData('agents', listSupervisorAgents);
+  const agents = useCachedData(`agents:${cityCacheKey}`, listSupervisorAgents);
   const agentItems = useMemo(
     () => agents.data?.items ?? [],
     [agents.data],
@@ -336,8 +340,12 @@ export function BeadsPage() {
   }, [actionInFlight, runAction]);
 
   const synopsis = useMemo(
-    () => buildSynopsis(filteredRows, totalShown, rigFilter),
-    [filteredRows, totalShown, rigFilter],
+    () => (
+      hasLoadedBoard
+        ? buildSynopsis(filteredRows, totalShown, rigFilter)
+        : 'Loading beads.'
+    ),
+    [filteredRows, hasLoadedBoard, totalShown, rigFilter],
   );
 
   const isTruncated =
@@ -379,7 +387,7 @@ export function BeadsPage() {
               New bead
             </Button>
             <Button size="sm" onClick={() => void refresh()} disabled={loading}>
-              {loading ? 'Refreshing' : 'Refresh'}
+              {loading && !hasLoadedBoard ? 'Loading' : loading ? 'Refreshing' : 'Refresh'}
             </Button>
           </>
         }
@@ -390,7 +398,7 @@ export function BeadsPage() {
           <p className="text-warn">
             <StatusBadge
               tone="warn"
-              label={`Fetch window covered ${upstreamFetched} of ${upstreamTotal} store beads. Raise the per-type limit (currently ${fetchLimit ?? '?'}) if engineering work sits past the window.`}
+              label={`Fetch window covered ${upstreamFetched} of ${upstreamTotal} store beads. Raise the fetch limit (currently ${fetchLimit ?? '?'}) if engineering work sits past the window.`}
             />
           </p>
         )}
@@ -453,7 +461,11 @@ export function BeadsPage() {
         </div>
       </div>
 
-      {matched.length === 0 ? (
+      {!hasLoadedBoard && loading ? (
+        <p className="text-body text-fg-muted italic">
+          Loading beads.
+        </p>
+      ) : matched.length === 0 ? (
         <p className="text-body text-fg-muted italic">
           {filters.search.length > 0 || filters.activeChipIds.size > 0
             ? 'No beads match the current search or filter.'

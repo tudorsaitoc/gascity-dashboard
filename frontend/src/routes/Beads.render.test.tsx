@@ -2,7 +2,7 @@ import { cleanup, render, screen, within } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { setActiveCity } from '../api/cityBase';
-import { invalidate } from '../api/cache';
+import { invalidate, setCached } from '../api/cache';
 import { AttentionProvider } from '../attention/context';
 import type { AttentionContributor } from '../attention/compose';
 import { NowProvider } from '../contexts/NowContext';
@@ -32,16 +32,31 @@ afterEach(() => {
 });
 
 describe('BeadsPage supervisor reads', () => {
-  it('shows only real work while requesting open supervisor statuses by default', async () => {
+  it('shows only real current work without requesting the slow closed-history supervisor path', async () => {
     renderPage();
 
     await screen.findByText('direct supervisor bead');
 
     expect(screen.queryByText('supervisor noise bead')).toBeNull();
     expect(fetchCalls.some((call) => call.path === '/api/city/test-city/beads')).toBe(false);
-    // Default board scope is open-only: no all=true unless the operator
-    // activates the closed status control.
-    expect(beadFetches().every((call) => !call.query.has('all'))).toBe(true);
+    expect(beadFetches()).toHaveLength(1);
+    expect(beadFetches().every((call) => call.query.has('all'))).toBe(false);
+    expect(beadFetches().every((call) => call.query.has('type'))).toBe(false);
+  });
+
+  it('does not seed the board from another city cache entry', async () => {
+    setCached('beads:board:', {
+      items: [bead({ id: 'legacy-city-bead', title: 'legacy city bead' })],
+      total: 1,
+      upstream_fetched: 1,
+      fetch_limit: 2000,
+    });
+
+    renderPage();
+
+    expect(screen.queryByText('legacy city bead')).toBeNull();
+    expect(screen.getAllByText('Loading beads.').length).toBeGreaterThan(0);
+    expect(await screen.findByText('direct supervisor bead')).toBeTruthy();
   });
 
   it('resolves a bead query param even when the bead is outside the list window', async () => {
@@ -103,7 +118,7 @@ function stubFetch() {
     fetchCalls.push({ method, path: url.pathname, query: url.searchParams });
 
     if (url.pathname === '/gc-supervisor/v0/city/test-city/beads') {
-      return jsonResponse(beadListForType(url.searchParams.get('type')));
+      return jsonResponse(beadListForQuery(url.searchParams.get('type')));
     }
     if (url.pathname === '/gc-supervisor/v0/city/test-city/bead/td-window-miss') {
       return jsonResponse(bead({
@@ -161,8 +176,8 @@ function stubFetch() {
   }));
 }
 
-function beadListForType(type: string | null): { items: SupervisorBead[]; total: number } {
-  if (type === 'task') {
+function beadListForQuery(type: string | null): { items: SupervisorBead[]; total: number } {
+  if (type === null || type === 'task') {
     return {
       items: [
         bead({
@@ -176,8 +191,14 @@ function beadListForType(type: string | null): { items: SupervisorBead[]; total:
           title: 'supervisor noise bead',
           labels: ['gc:session'],
         }),
+        bead({
+          id: 'td-parent-1',
+          title: 'parent bead',
+          status: 'open',
+          issue_type: 'bug',
+        }),
       ],
-      total: 2,
+      total: 3,
     };
   }
   if (type === 'bug') {
@@ -186,7 +207,7 @@ function beadListForType(type: string | null): { items: SupervisorBead[]; total:
         bead({
           id: 'td-parent-1',
           title: 'parent bead',
-          status: 'closed',
+          status: 'open',
           issue_type: 'bug',
         }),
       ],

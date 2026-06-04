@@ -7,6 +7,7 @@ import { api, formatApiError } from '../api/client';
 import { getActiveCity } from '../api/cityBase';
 import { useCachedData } from '../hooks/useCachedData';
 import { listAgentPendingInteractions } from '../supervisor/agentPending';
+import { listSupervisorBeads } from '../supervisor/beadReads';
 import { supervisorApi } from '../supervisor/client';
 import {
   DEFAULT_MAIL_HISTORY_LIMIT,
@@ -140,15 +141,12 @@ async function fetchBeadsAttention(
   // separately so one failing does not blank the other — the decision queue
   // and generic bead alerts are distinct signals.
   const [list, decisions] = await Promise.allSettled([
-    supervisorApi().listBeads(cityName, { limit: ATTENTION_LIST_LIMIT }),
-    supervisorApi().listBeads(cityName, {
-      label: NEEDS_STEPHANIE_LABEL,
-      status: 'open',
-    }),
+    listSupervisorBeads({ limit: ATTENTION_LIST_LIMIT }),
+    listDecisionBeads(cityName),
   ]);
   const facts: BeadsAttentionFacts = { nowMs: Date.now() };
   if (list.status === 'fulfilled') {
-    facts.items = list.value.items ?? [];
+    facts.items = list.value.items;
     facts.partial = list.value.partial === true;
   } else {
     facts.error = formatApiError(list.reason, 'bead list unavailable');
@@ -162,6 +160,13 @@ async function fetchBeadsAttention(
     );
   }
   return facts;
+}
+
+async function listDecisionBeads(cityName: string) {
+  return supervisorApi().listBeads(cityName, {
+    label: NEEDS_STEPHANIE_LABEL,
+    status: 'open',
+  });
 }
 
 async function fetchMailAttention(

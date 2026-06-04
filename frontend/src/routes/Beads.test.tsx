@@ -37,7 +37,7 @@ beforeEach(() => {
       if (url.pathname === '/gc-supervisor/v0/city/test-city/beads' && method === 'GET') {
         beadQueries.push(url.searchParams);
         return jsonResponse(beadListPayload(
-          url.searchParams.get('type') === 'task' ? [sampleBead()] : [],
+          url.searchParams.has('type') ? [] : [sampleBead()],
         ));
       }
       if (url.pathname === '/gc-supervisor/v0/city/test-city/beads' && method === 'POST') {
@@ -125,30 +125,24 @@ describe('BeadsPage', () => {
     expect(screen.getByRole('button', { name: /new bead/i })).toBeTruthy();
   });
 
-  it('requests direct supervisor engineering beads, open-only by default (no all=true)', async () => {
+  it('requests direct supervisor current engineering beads without type fan-out or closed history', async () => {
     renderPage();
 
     await screen.findByText('Sample bead');
 
-    expect(beadQueries.length).toBe(3);
-    expect(new Set(beadQueries.map((query) => query.get('type')))).toEqual(
-      new Set(['feature', 'bug', 'task']),
-    );
-    // Default board scope is non-closed work: the supervisor returns
-    // open/in_progress/blocked when `all` is absent. Closed beads (~199.7K
-    // on this city) are fetched lazily, only when the operator opts in.
-    for (const query of beadQueries) {
-      expect(query.get('limit')).toBe('2000');
-      expect(query.has('all')).toBe(false);
-      expect(query.has('showAll')).toBe(false);
-    }
+    expect(beadQueries.length).toBe(1);
+    const [query] = beadQueries;
+    expect(query?.get('limit')).toBe('2000');
+    expect(query?.has('all')).toBe(false);
+    expect(query?.has('type')).toBe(false);
+    expect(query?.has('showAll')).toBe(false);
   });
 
   it('refetches with all=true when the operator activates the closed status control', async () => {
     renderPage();
 
     await screen.findByText('Sample bead');
-    expect(beadQueries.length).toBe(3);
+    expect(beadQueries.length).toBe(1);
     for (const query of beadQueries) {
       expect(query.has('all')).toBe(false);
     }
@@ -156,24 +150,20 @@ describe('BeadsPage', () => {
     fireEvent.click(screen.getByRole('button', { name: /^closed$/i }));
 
     // Activating `closed` flips the data scope, forcing exactly one fresh
-    // fan-out that now carries all=true (closed beads included).
-    await waitFor(() => expect(beadQueries.length).toBe(6));
-    const closedQueries = beadQueries.slice(-3);
-    expect(new Set(closedQueries.map((query) => query.get('type')))).toEqual(
-      new Set(['feature', 'bug', 'task']),
-    );
-    for (const query of closedQueries) {
-      expect(query.get('all')).toBe('true');
-    }
+    // read that now carries all=true (closed beads included).
+    await waitFor(() => expect(beadQueries.length).toBe(2));
+    const closedQuery = beadQueries.at(-1);
+    expect(closedQuery?.get('all')).toBe('true');
+    expect(closedQuery?.has('type')).toBe(false);
 
     // Deactivating `closed` must revert to an open-only fetch — otherwise the
     // chip would read inactive while the board silently keeps scanning closed
     // history (the showClosed/chip desync this dual-state wiring must avoid).
     fireEvent.click(screen.getByRole('button', { name: /^closed$/i }));
-    await waitFor(() => expect(beadQueries.length).toBe(9));
-    for (const query of beadQueries.slice(-3)) {
-      expect(query.has('all')).toBe(false);
-    }
+    await waitFor(() => expect(beadQueries.length).toBe(3));
+    const reopenedQuery = beadQueries.at(-1);
+    expect(reopenedQuery?.has('all')).toBe(false);
+    expect(reopenedQuery?.has('type')).toBe(false);
   });
 
   it('passes the selected rig to the generated supervisor bead query', async () => {
@@ -184,17 +174,11 @@ describe('BeadsPage', () => {
       target: { value: 'east' },
     });
 
-    await waitFor(() => expect(beadQueries.length).toBe(6));
-    const latestQueries = beadQueries.slice(-3);
-    expect(new Set(latestQueries.map((query) => query.get('type')))).toEqual(
-      new Set(['feature', 'bug', 'task']),
-    );
-    for (const query of latestQueries) {
-      expect(query.get('rig')).toBe('east');
-      // Rig filtering inherits the default open-only scope: no all=true
-      // unless the operator separately opts into closed beads.
-      expect(query.has('all')).toBe(false);
-    }
+    await waitFor(() => expect(beadQueries.length).toBe(2));
+    const latestQuery = beadQueries.at(-1);
+    expect(latestQuery?.get('rig')).toBe('east');
+    expect(latestQuery?.has('all')).toBe(false);
+    expect(latestQuery?.has('type')).toBe(false);
   });
 
   it('deep-links to and selects a bead from the bead query param', async () => {
