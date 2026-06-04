@@ -7,9 +7,13 @@ afterEach(() => cleanup());
 
 describe('RunDiffPanel', () => {
   it('shows quiet skipped states when the execution folder is unknown or not git', () => {
-    const { rerender } = render(<RunDiffPanel diff={diffFor('path_unknown')} />);
+    const { container, rerender } = render(<RunDiffPanel diff={diffFor('path_unknown')} />);
 
-    expect(screen.getByText(/execution folder is unknown/i)).toBeTruthy();
+    // A missing work_dir is a calm absence, not a failure: explain why there
+    // is no diff and never raise the maroon accent for it.
+    expect(screen.getByText(/no diff available for this run/i)).toBeTruthy();
+    expect(screen.getByText(/did not record a work_dir/i)).toBeTruthy();
+    expect(container.querySelectorAll('.text-accent').length).toBe(0);
 
     rerender(<RunDiffPanel diff={diffFor('not_git')} />);
     expect(screen.getByText(/not a git work tree/i)).toBeTruthy();

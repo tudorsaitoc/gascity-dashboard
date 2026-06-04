@@ -51,7 +51,11 @@ export function BeadDetailModal({
   sessions,
   renderActions,
 }: BeadDetailModalProps) {
-  const { bead, loading, error, now } = useBeadDetail(open, beadId, initialBead);
+  const { bead, loading, error, notFound, now } = useBeadDetail(
+    open,
+    beadId,
+    initialBead,
+  );
   const links = useEntityLinks(open ? beadId : null);
   const [runOpen, setRunOpen] = useState(false);
 
@@ -94,7 +98,15 @@ export function BeadDetailModal({
         widthClass="max-w-3xl"
         footer={footer}
       >
-        {error ? (
+        {notFound ? (
+          <div className="space-y-2">
+            <p className="text-fg-muted">This decision was resolved or removed.</p>
+            <p className="text-fg-faint text-sm">
+              The bead it pointed to is no longer in the supervisor — it was
+              likely closed or pruned since this link was surfaced.
+            </p>
+          </div>
+        ) : error ? (
           <p className="text-accent" role="alert">
             {error}
           </p>

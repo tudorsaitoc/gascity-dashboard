@@ -239,7 +239,7 @@ async function runTheme(browser, theme) {
       timeout: 5_000,
     });
     await page.getByRole('tab', { name: /diff/i }).click();
-    await page.getByText(/execution folder is unknown/i).waitFor({ timeout: 5_000 });
+    await page.getByText(/no diff available for this run/i).waitFor({ timeout: 5_000 });
 
     await page.goto(`${CITY_BASE}/runs/gc-clean-worktree`, {
       waitUntil: 'domcontentloaded',

@@ -16,7 +16,18 @@ interface RunDiffPanelProps {
 export function RunDiffPanel({ diff }: RunDiffPanelProps) {
   switch (diff.kind) {
     case 'path_unknown':
-      return <p className="text-body text-fg-muted italic">Execution folder is unknown for this run.</p>;
+      // The run bead carries no work_dir / cwd / rig_root, so there is no
+      // folder to diff against. This is expected for rig-store run beads the
+      // supervisor doesn't yet stamp with `gc.work_dir` (gascity-dashboard-j7np,
+      // upstream-gated) — present it as a calm absence, not a failure.
+      return (
+        <div className="space-y-1">
+          <p className="text-body text-fg-muted italic">No diff available for this run.</p>
+          <p className="text-label text-fg-faint">
+            The run did not record a work_dir, so there is no work tree to compare.
+          </p>
+        </div>
+      );
     case 'not_git':
       return <p className="text-body text-fg-muted italic">Execution folder is not a git work tree.</p>;
     case 'error':

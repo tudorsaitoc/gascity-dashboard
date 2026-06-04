@@ -13,6 +13,14 @@ export interface BeadDetailState {
   bead: SupervisorBead | null;
   loading: boolean;
   error: string | null;
+  /**
+   * The bead id resolved to a 404 — it no longer exists in the supervisor.
+   * Distinct from `error` so callers can render a calm "resolved or removed"
+   * state for a stale deep-link (gascity-dashboard-sg9o / -jrs0) rather than a
+   * hard failure. A pruned or since-closed-and-swept bead is an expected,
+   * non-alarming outcome when an attention deep-link outlives its target.
+   */
+  notFound: boolean;
   /** Live clock (ms) for RelatedEntities staleness / "as of". */
   now: number;
 }
@@ -31,6 +39,7 @@ export function useBeadDetail(
   const [bead, setBead] = useState<SupervisorBead | null>(initialBead);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [notFound, setNotFound] = useState(false);
   const now = useNow();
 
   useEffect(() => {
@@ -42,11 +51,13 @@ export function useBeadDetail(
     ) {
       setBead(initialBead);
       setError(null);
+      setNotFound(false);
       return;
     }
     setBead(initialBead?.id === beadId ? initialBead : null);
     setLoading(true);
     setError(null);
+    setNotFound(false);
     let cancelled = false;
     void (async () => {
       try {
@@ -54,11 +65,14 @@ export function useBeadDetail(
         if (!cancelled) setBead(result);
       } catch (err) {
         if (cancelled) return;
-        setError(
-          err instanceof SupervisorApiError && err.status === 404
-            ? 'Bead not found in the supervisor.'
-            : formatSupervisorError(err),
-        );
+        if (err instanceof SupervisorApiError && err.status === 404) {
+          // The deep-linked bead is gone (pruned, or closed-and-swept since
+          // the attention queue cached it). Surface as a calm absence, not an
+          // error banner.
+          setNotFound(true);
+        } else {
+          setError(formatSupervisorError(err));
+        }
       } finally {
         if (!cancelled) setLoading(false);
       }
@@ -68,7 +82,7 @@ export function useBeadDetail(
     };
   }, [active, beadId, initialBead]);
 
-  return { bead, loading, error, now };
+  return { bead, loading, error, notFound, now };
 }
 
 function formatSupervisorError(err: unknown): string {
