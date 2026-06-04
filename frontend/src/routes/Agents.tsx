@@ -439,6 +439,15 @@ export function AgentsPage() {
         sessions={sessionsCache.data?.items ?? []}
       />
 
+      {/* The bottom roster is the "available agents" view — the mayor, PLs, and
+          dispatchers that are running-but-idle, distinct from the working
+          sessions above. A calm section header (matching the "Workers active"
+          style) keeps the two groups from bleeding into one. */}
+      <header className="flex items-baseline justify-between border-b border-rule pb-2 mb-4">
+        <h2 className="text-headline text-fg">Available agents</h2>
+        <span className="text-label tnum text-fg-muted">{rows.length}</span>
+      </header>
+
       <div className="mb-6 space-y-3">
         <ListSearchBar
           value={search}

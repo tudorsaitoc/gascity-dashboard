@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import type { SupervisorBead } from '../supervisor/beadReads';
 import type { SupervisorSession } from '../supervisor/sessionReads';
@@ -8,6 +9,9 @@ import {
   summarizeActiveWorkers,
   type ActiveWorker,
 } from '../hooks/activeWorkers';
+import { Button } from './Button';
+import { Modal } from './Modal';
+import { LiveSessionPeek } from './LiveSessionPeek';
 import { StatusBadge, stateTone } from './StatusBadge';
 
 // "Workers active" — the operator's calm at-a-glance answer to "what is
@@ -33,7 +37,15 @@ interface WorkInFlightProps {
   sessions: readonly SupervisorSession[];
 }
 
-function WorkerRow({ worker, accent }: { worker: ActiveWorker; accent: boolean }) {
+function WorkerRow({
+  worker,
+  accent,
+  onPeek,
+}: {
+  worker: ActiveWorker;
+  accent: boolean;
+  onPeek: (sessionId: string) => void;
+}) {
   const now = useNow();
   const { session, rig, bead } = worker;
   // Workers being "active" is normal, not an alert. Per the One Mark Rule, only
@@ -65,15 +77,41 @@ function WorkerRow({ worker, accent }: { worker: ActiveWorker; accent: boolean }
           <span className="tnum text-fg-muted w-10 text-right">
             {formatRelative(session.last_active, now)}
           </span>
+          {/* The worker row IS a live session, so its session.id is directly
+              available — no name→id remap (unlike the Agents roster, where
+              SessionInfo carries only the name). Peek opens that session's
+              transcript in the shared LiveSessionPeek modal. */}
+          <Button size="sm" tone="quiet" onClick={() => onPeek(session.id)}>
+            Peek
+          </Button>
         </div>
       </div>
     </li>
   );
 }
 
+// A worker session is worth a live stream when it carries the running signal
+// (mirrors isSessionStreamable / isRunningAgent: process `running`, or gc state
+// `active`/`running`). Workers in this section are active by construction, but
+// a freshly-stuck worker may not be — gate the stream so a dead session shows a
+// snapshot instead of a perpetual "connecting" badge.
+function isWorkerStreamable(session: SupervisorSession): boolean {
+  return (
+    session.running === true ||
+    session.state === 'active' ||
+    session.state === 'running'
+  );
+}
+
 export function WorkInFlight({ beads, sessions }: WorkInFlightProps) {
   const active = deriveActiveWorkers(sessions, beads);
   const summary = summarizeActiveWorkers(active);
+
+  // Peek key is the worker's live session id (directly available on the row).
+  const [peekSessionId, setPeekSessionId] = useState<string | null>(null);
+  const peekWorker = peekSessionId
+    ? active.workers.find((w) => w.session.id === peekSessionId) ?? null
+    : null;
 
   // One Mark Rule: render at most one accent state badge — the first worker
   // whose state is stuck/failed (an actual anomaly). Every other worker's state
@@ -99,11 +137,46 @@ export function WorkInFlight({ beads, sessions }: WorkInFlightProps) {
                 key={worker.session.id}
                 worker={worker}
                 accent={i === accentIndex}
+                onPeek={setPeekSessionId}
               />
             ))}
           </ul>
         </>
       )}
+
+      <Modal
+        open={peekWorker !== null}
+        onClose={() => setPeekSessionId(null)}
+        title={
+          peekWorker
+            ? `${peekWorker.rig} · ${peekWorker.worker}`
+            : 'Transcript'
+        }
+        caption={
+          peekWorker?.bead ? (
+            // Surface the worker's captured bead beside the peek so its work
+            // is one click away from the transcript.
+            <Link
+              to={`/beads?bead=${encodeURIComponent(peekWorker.bead.id)}`}
+              className="text-fg-muted hover:text-accent focus-mark"
+              title={`Open ${peekWorker.bead.id}`}
+            >
+              <span className="tnum">{peekWorker.bead.id}</span>
+              <span>: {peekWorker.bead.title}</span>
+            </Link>
+          ) : (
+            "Live transcript from the supervisor's session stream."
+          )
+        }
+        widthClass="max-w-5xl"
+      >
+        <LiveSessionPeek
+          sessionId={peekSessionId}
+          stream={peekWorker ? isWorkerStreamable(peekWorker.session) : false}
+          showBadge
+          showCaption
+        />
+      </Modal>
     </section>
   );
 }

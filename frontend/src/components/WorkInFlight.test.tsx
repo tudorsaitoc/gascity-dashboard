@@ -1,8 +1,9 @@
-import { cleanup, render, screen } from '@testing-library/react';
+import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
-import { afterEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { WorkInFlight } from './WorkInFlight';
 import { NowProvider } from '../contexts/NowContext';
+import { setActiveCity } from '../api/cityBase';
 import type { SupervisorBead } from '../supervisor/beadReads';
 import type { SupervisorSession } from '../supervisor/sessionReads';
 
@@ -48,7 +49,40 @@ function renderSection(
   );
 }
 
-afterEach(() => cleanup());
+const transcriptUrls: string[] = [];
+
+function stubTranscriptFetch() {
+  transcriptUrls.length = 0;
+  vi.stubGlobal(
+    'fetch',
+    vi.fn(async (input: RequestInfo | URL) => {
+      const url = input instanceof Request ? input.url : String(input);
+      const path = url.startsWith(window.location.origin)
+        ? url.slice(window.location.origin.length)
+        : url;
+      transcriptUrls.push(path);
+      return new Response(
+        JSON.stringify({
+          id: 'gc-335825',
+          template: 'polecat',
+          provider: 'claude',
+          format: 'conversation',
+          turns: [{ role: 'assistant', text: 'worker transcript snapshot' }],
+        }),
+        { status: 200, headers: { 'content-type': 'application/json' } },
+      );
+    }),
+  );
+}
+
+beforeEach(() => {
+  setActiveCity('test-city');
+});
+
+afterEach(() => {
+  cleanup();
+  vi.unstubAllGlobals();
+});
 
 describe('WorkInFlight (Workers active)', () => {
   it('renders the calm session-driven summary line grouped by rig', () => {
@@ -105,6 +139,42 @@ describe('WorkInFlight (Workers active)', () => {
     expect(screen.queryByText(/gc-stalled/)).toBeNull();
     // No bead link rendered for the worker without a captured bead.
     expect(screen.queryByRole('link')).toBeNull();
+  });
+
+  it('opens the peek for the worker\'s own session id when its Peek control is clicked', async () => {
+    stubTranscriptFetch();
+    const sessions = [
+      session({ id: 'gc-335825', template: 'polecat', rig: 'gascity', state: 'active' }),
+    ];
+    renderSection([], sessions);
+
+    fireEvent.click(screen.getByRole('button', { name: /peek/i }));
+
+    // The worker row carries session.id directly (no name→id remap), so the
+    // peek must hit the transcript route for THAT exact session id.
+    await waitFor(() => {
+      expect(transcriptUrls).toContain(
+        '/gc-supervisor/v0/city/test-city/session/gc-335825/transcript?format=conversation',
+      );
+    });
+  });
+
+  it('surfaces the captured bead as a link beside the peek transcript', async () => {
+    stubTranscriptFetch();
+    const sessions = [session({ id: 'gc-335825', template: 'polecat', rig: 'gascity' })];
+    const beads = [bead({ id: 'gc-5rarj', title: 'fix the thing', assignee: 'polecat-gc-335825' })];
+    renderSection(beads, sessions);
+
+    fireEvent.click(screen.getByRole('button', { name: /peek/i }));
+
+    // The peek caption links the worker's captured bead to its detail view.
+    const beadLinks = await screen.findAllByRole('link', { name: /gc-5rarj/ });
+    expect(beadLinks.some((l) => l.getAttribute('href') === '/beads?bead=gc-5rarj')).toBe(true);
+  });
+
+  it('renders no Peek control when there are no active workers', () => {
+    renderSection([], [session({ id: 'gc-m', template: 'mayor', rig: '' })]);
+    expect(screen.queryByRole('button', { name: /peek/i })).toBeNull();
   });
 
   it('shows the calm empty state when no workers are active', () => {
