@@ -8,8 +8,7 @@ import { HTTP_STATUS } from '../lib/http-status.js';
 // '192.168.1.58') are added at runtime via hostHeaderAllowlistFactory() —
 // see td-9u9im9 for the headless-VM run this supports.
 const ALLOWED_HOSTS_FLOOR: ReadonlyArray<string> = ['127.0.0.1', 'localhost'];
-const THEME_BOOT_SCRIPT_HASH =
-  "'sha256-UwUdbc/TSVCB3Er6sM8M1BP5Fk3RrQVkswCUvEjf08g='";
+const THEME_BOOT_SCRIPT_HASH = "'sha256-UwUdbc/TSVCB3Er6sM8M1BP5Fk3RrQVkswCUvEjf08g='";
 
 function hostnameOnly(host: string | undefined): string | null {
   if (!host) return null;
@@ -33,10 +32,7 @@ export function hostHeaderAllowlistFactory(extraAllowedHosts: ReadonlyArray<stri
 }
 
 export function originCheck(port: number, extraAllowedHosts: ReadonlyArray<string> = []) {
-  const allowedOrigins = new Set<string>([
-    `http://127.0.0.1:${port}`,
-    `http://localhost:${port}`,
-  ]);
+  const allowedOrigins = new Set<string>([`http://127.0.0.1:${port}`, `http://localhost:${port}`]);
   for (const h of extraAllowedHosts) {
     allowedOrigins.add(`http://${h.toLowerCase()}:${port}`);
   }
@@ -49,9 +45,10 @@ export function originCheck(port: number, extraAllowedHosts: ReadonlyArray<strin
     }
     const origin = req.headers.origin;
     if (typeof origin !== 'string' || !allowedOrigins.has(origin)) {
-      res.status(HTTP_STATUS.forbidden).type('application/json').send(
-        JSON.stringify({ error: 'Origin not allowed', kind: 'origin' }),
-      );
+      res
+        .status(HTTP_STATUS.forbidden)
+        .type('application/json')
+        .send(JSON.stringify({ error: 'Origin not allowed', kind: 'origin' }));
       return;
     }
     next();

@@ -13,7 +13,7 @@ directly. Two modes of use coexist:
 
 - **Ambient glance**, several times an hour, between other tasks.
   The question is "is anything off?" not "show me everything."
-- **Triggered investigation**, when something *is* off — a stuck agent,
+- **Triggered investigation**, when something _is_ off — a stuck agent,
   a memory spike, a bead that didn't get claimed. Full attention,
   needs the answer fast.
 
@@ -25,8 +25,8 @@ for attention.
 
 A calm, opinionated cockpit for a single Gas City operator. Surfaces
 the things she actually checks — Agents, Beads, Mail, Health — in a
-way that prioritises *what's interesting right now*
-over *all available information*.
+way that prioritises _what's interesting right now_
+over _all available information_.
 
 Success: she can answer "is anything off?" in under a second from
 peripheral vision, and "what's happening with X?" in two clicks.
@@ -38,16 +38,16 @@ are secondary surfaces visited deliberately.
 
 **Considered, literary, instrumental.**
 
-- *Considered* — every element earns its place. Numbers are typeset,
+- _Considered_ — every element earns its place. Numbers are typeset,
   not boxed.
-- *Literary* — bookish typography. Headings carry weight, whitespace
+- _Literary_ — bookish typography. Headings carry weight, whitespace
   is structural, the hierarchy comes from type. The page reads like a
   thoughtfully-set page, even when it's full of numbers.
-- *Instrumental* — it's a tool, not a poster. The aesthetic serves the
+- _Instrumental_ — it's a tool, not a poster. The aesthetic serves the
   reading, the reading serves the operating.
 
-Reference flavour: the *FT Edit* app, *NYT Cooking* in its quiet moments,
-*Are.na*. Bookish but not ornamental. Confident, not loud.
+Reference flavour: the _FT Edit_ app, _NYT Cooking_ in its quiet moments,
+_Are.na_. Bookish but not ornamental. Confident, not loud.
 
 ## Anti-references
 
@@ -56,7 +56,7 @@ Reference flavour: the *FT Edit* app, *NYT Cooking* in its quiet moments,
   pretends to be insight. The opposite of what an ambient tab needs.
 - **Linear, Vercel, Resend.** Dark slate + neon accent + perfectly-rounded
   cards: the visual default for every developer tool in 2026. Citadel
-  already drifts toward this. We will explicitly *not* go there.
+  already drifts toward this. We will explicitly _not_ go there.
 - **Glassmorphism and big gradient hero metrics.** SaaS cliché. Even more
   out of place here because the data is the point.
 - **Identical card grids of "five KPIs across the top."** The hero-metric

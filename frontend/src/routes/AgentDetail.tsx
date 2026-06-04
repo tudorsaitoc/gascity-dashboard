@@ -1,44 +1,28 @@
-import {
-    errorMessage,
-    GC_EVENT_PREFIX,
-} from "gas-city-dashboard-shared";
-import { useCallback, useEffect, useMemo, useState } from "react";
-import { Link, useNavigate, useParams } from "react-router-dom";
-import { apiErrorParts, formatApiError } from "../api/client";
-import { BeadDetailModal } from "../components/BeadDetailModal";
-import { Button } from "../components/Button";
-import { PageHeader } from "../components/PageHeader";
-import { RelatedEntities } from "../components/RelatedEntities";
-import { StatusBadge } from "../components/StatusBadge";
-import { AgentBeadsAssigned } from "../components/agent/AgentBeadsAssigned";
-import { AgentChatThread } from "../components/agent/AgentChatThread";
-import {
-    AgentDirectives,
-    type AgentDirectivesError,
-} from "../components/agent/AgentDirectives";
-import { AgentLivePeek } from "../components/agent/AgentLivePeek";
-import { AgentMetadata } from "../components/agent/AgentMetadata";
-import { useViewingAs } from "../contexts/ViewingAsContext";
-import { useNow } from "../contexts/NowContext";
-import { useAbortableVisibleRefresh } from "../hooks/useAbortableVisibleRefresh";
-import { useEntityLinks } from "../hooks/useEntityLinks";
-import { useGcEventRefresh } from "../hooks/useGcEvents";
-import { useVisibleRefresh } from "../hooks/useVisibleRefresh";
-import { reportClientError } from "../lib/clientErrorReporting";
-import { fetchSupervisorAgentPrime } from "../supervisor/agentReads";
-import {
-  listSupervisorBeadsAssignedTo,
-  type SupervisorBead,
-} from "../supervisor/beadReads";
-import {
-  listSupervisorMail,
-  type SupervisorMailItem,
-} from "../supervisor/mailReads";
-import {
-  listSupervisorSessions,
-  type SupervisorSession,
-} from "../supervisor/sessionReads";
-import { stateTone } from "./Agents";
+import { errorMessage, GC_EVENT_PREFIX } from 'gas-city-dashboard-shared';
+import { useCallback, useEffect, useMemo, useState } from 'react';
+import { Link, useNavigate, useParams } from 'react-router-dom';
+import { apiErrorParts, formatApiError } from '../api/client';
+import { BeadDetailModal } from '../components/BeadDetailModal';
+import { Button } from '../components/Button';
+import { PageHeader } from '../components/PageHeader';
+import { RelatedEntities } from '../components/RelatedEntities';
+import { StatusBadge } from '../components/StatusBadge';
+import { AgentBeadsAssigned } from '../components/agent/AgentBeadsAssigned';
+import { AgentChatThread } from '../components/agent/AgentChatThread';
+import { AgentDirectives, type AgentDirectivesError } from '../components/agent/AgentDirectives';
+import { AgentLivePeek } from '../components/agent/AgentLivePeek';
+import { AgentMetadata } from '../components/agent/AgentMetadata';
+import { useViewingAs } from '../contexts/ViewingAsContext';
+import { useNow } from '../contexts/NowContext';
+import { useAbortableVisibleRefresh } from '../hooks/useAbortableVisibleRefresh';
+import { useEntityLinks } from '../hooks/useEntityLinks';
+import { useGcEventRefresh } from '../hooks/useGcEvents';
+import { reportClientError } from '../lib/clientErrorReporting';
+import { fetchSupervisorAgentPrime } from '../supervisor/agentReads';
+import { listSupervisorBeadsAssignedTo, type SupervisorBead } from '../supervisor/beadReads';
+import { listSupervisorMail, type SupervisorMailItem } from '../supervisor/mailReads';
+import { listSupervisorSessions, type SupervisorSession } from '../supervisor/sessionReads';
+import { stateTone } from './Agents';
 
 // Read-only drilldown for a single agent. Route: /agents/:slug where
 // slug resolves against session_name, alias, then id (see sessionSlug).
@@ -52,12 +36,10 @@ import { stateTone } from "./Agents";
 // Read-only scope: nudge actions, chat compose, and directive edits stay
 // out of this route until the backend exposes explicit write endpoints.
 
-const SESSIONS_REFRESH_MS = 60_000;
-const BEADS_REFRESH_MS = 60_000;
 const CHAT_REFRESH_MS = 10_000;
 const CHAT_MAX_MESSAGES = 200;
 export function AgentDetailPage() {
-  const { slug = "" } = useParams<{ slug: string }>();
+  const { slug = '' } = useParams<{ slug: string }>();
   const navigate = useNavigate();
   const { viewingAs } = useViewingAs();
 
@@ -72,16 +54,15 @@ export function AgentDetailPage() {
 
   const [directivesPrompt, setDirectivesPrompt] = useState<string | null>(null);
   const [directivesLoading, setDirectivesLoading] = useState(false);
-  const [directivesError, setDirectivesError] =
-    useState<AgentDirectivesError | null>(null);
+  const [directivesError, setDirectivesError] = useState<AgentDirectivesError | null>(null);
 
   const decoded = useMemo(() => {
     try {
       return decodeURIComponent(slug);
     } catch (err) {
       void reportClientError({
-        component: "AgentDetail",
-        operation: "decodeSlug",
+        component: 'AgentDetail',
+        operation: 'decodeSlug',
         message: errorMessage(err),
       });
       return slug;
@@ -94,7 +75,7 @@ export function AgentDetailPage() {
       setSessions(items ?? []);
       setError(null);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "sessions failed");
+      setError(err instanceof Error ? err.message : 'sessions failed');
     }
   }, []);
 
@@ -110,11 +91,7 @@ export function AgentDetailPage() {
 
   const beadAssignees = useMemo<readonly string[]>(() => {
     if (session === null) return [];
-    return [
-      session.alias ?? '',
-      session.session_name,
-      session.id,
-    ];
+    return [session.alias ?? '', session.session_name, session.id];
   }, [session]);
 
   const refreshBeads = useCallback(async () => {
@@ -131,10 +108,10 @@ export function AgentDetailPage() {
       setBeadsError(null);
     } catch (err) {
       setBeads([]);
-      setBeadsError(formatApiError(err, "assigned beads unavailable"));
+      setBeadsError(formatApiError(err, 'assigned beads unavailable'));
       void reportClientError({
-        component: "AgentDetail",
-        operation: "refreshBeads",
+        component: 'AgentDetail',
+        operation: 'refreshBeads',
         message: errorMessage(err),
       });
     }
@@ -148,10 +125,7 @@ export function AgentDetailPage() {
     void refreshBeads();
   }, [refreshBeads]);
 
-  // SSE is the primary freshness channel; these intervals keep the view
-  // current if an event stream is dropped or unavailable.
-  useVisibleRefresh(refreshSessions, SESSIONS_REFRESH_MS);
-  useVisibleRefresh(refreshBeads, BEADS_REFRESH_MS);
+  // SSE is the freshness channel for supervisor session/bead changes.
   useGcEventRefresh([GC_EVENT_PREFIX.session, GC_EVENT_PREFIX.bead], () => {
     void refreshSessions();
     void refreshBeads();
@@ -197,12 +171,12 @@ export function AgentDetailPage() {
   }, [session]);
 
   const operatorAliases = useMemo<ReadonlyArray<string>>(
-    () => [viewingAs.alias.toLowerCase(), "human"],
+    () => [viewingAs.alias.toLowerCase(), 'human'],
     [viewingAs.alias],
   );
 
   const loadChatItems = useCallback(async (): Promise<SupervisorMailItem[]> => {
-    const { items } = await listSupervisorMail("all", viewingAs.alias);
+    const { items } = await listSupervisorMail('all', viewingAs.alias);
     return items;
   }, [viewingAs.alias]);
 
@@ -213,11 +187,11 @@ export function AgentDetailPage() {
     formatError: formatApiError,
   });
 
-  const chatLoading = chatState.status === "loading";
+  const chatLoading = chatState.status === 'loading';
   const chatError =
-    chatState.status === "failed"
+    chatState.status === 'failed'
       ? chatState.error
-      : chatState.status === "ready" && chatState.error.length > 0
+      : chatState.status === 'ready' && chatState.error.length > 0
         ? chatState.error
         : null;
 
@@ -238,7 +212,7 @@ export function AgentDetailPage() {
       const result = await fetchSupervisorAgentPrime(primeAlias);
       setDirectivesPrompt(result.prompt);
     } catch (err) {
-      const parts = apiErrorParts(err, "directives fetch failed");
+      const parts = apiErrorParts(err, 'directives fetch failed');
       const directivesError: {
         status?: number;
         kind?: string;
@@ -260,12 +234,12 @@ export function AgentDetailPage() {
   const links = useEntityLinks(session?.id ?? null);
 
   const chatMessages = useMemo<ReadonlyArray<SupervisorMailItem>>(() => {
-    const chatItems = chatState.status === "ready" ? chatState.data : [];
+    const chatItems = chatState.status === 'ready' ? chatState.data : [];
     const agents = new Set(agentAliases);
     const operators = new Set(operatorAliases);
     const filtered = chatItems.filter((m) => {
-      const from = (m.from ?? "").toLowerCase();
-      const to = (m.to ?? "").toLowerCase();
+      const from = (m.from ?? '').toLowerCase();
+      const to = (m.to ?? '').toLowerCase();
       // Operator → agent
       if (operators.has(from) && agents.has(to)) return true;
       // Agent → operator
@@ -298,14 +272,14 @@ export function AgentDetailPage() {
             </>
           }
           meta={
-            <Button size="sm" tone="quiet" onClick={() => navigate("/agents")}>
+            <Button size="sm" tone="quiet" onClick={() => navigate('/agents')}>
               ← Agents
             </Button>
           }
         />
         <p className="text-body text-fg-muted max-w-prose">
-          The slug doesn't match any current session's session_name, alias, or
-          id. Sessions are listed at{" "}
+          The slug doesn't match any current session's session_name, alias, or id. Sessions are
+          listed at{' '}
           <Link to="/agents" className="text-accent hover:underline">
             /agents
           </Link>
@@ -336,13 +310,11 @@ export function AgentDetailPage() {
             <StatusBadge
               tone={tone}
               label={session.state}
-              {...(session.attached ? { trailing: "att" } : {})}
-              {...(session.reason
-                ? { title: `reason: ${session.reason}` }
-                : {})}
+              {...(session.attached ? { trailing: 'att' } : {})}
+              {...(session.reason ? { title: `reason: ${session.reason}` } : {})}
             />
             <span className="text-fg-faint">·</span>
-            <code className="text-fg-muted">{session.template ?? "—"}</code>
+            <code className="text-fg-muted">{session.template ?? '—'}</code>
             {session.session_name && session.session_name !== session.alias && (
               <>
                 <span className="text-fg-faint">·</span>
@@ -402,12 +374,7 @@ export function AgentDetailPage() {
         />
       )}
 
-      <AgentChatThread
-        messages={chatMessages}
-        loading={chatLoading}
-        error={chatError}
-        now={now}
-      />
+      <AgentChatThread messages={chatMessages} loading={chatLoading} error={chatError} now={now} />
 
       <BeadDetailModal
         open={viewingBead !== null || viewingBeadId !== null}

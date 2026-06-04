@@ -46,13 +46,9 @@ export interface MaintainerRefresher extends BackgroundWorker {
   stop(): Promise<void>;
 }
 
-type TimerState =
-  | { status: 'idle' }
-  | { status: 'scheduled'; timer: RefresherTimer };
+type TimerState = { status: 'idle' } | { status: 'scheduled'; timer: RefresherTimer };
 
-type RefreshState =
-  | { status: 'idle' }
-  | { status: 'running'; promise: Promise<void> };
+type RefreshState = { status: 'idle' } | { status: 'running'; promise: Promise<void> };
 
 const idleTimer = (): TimerState => ({ status: 'idle' });
 const idleRefresh = (): RefreshState => ({ status: 'idle' });
@@ -154,7 +150,10 @@ export function createMaintainerRefresher(
       };
       refreshTimer.timer.unref();
 
-      logInfo(LOG_COMPONENT.maintainer, `refresher started for ${opts.repo}, interval ${formatInterval(opts.intervalMs)}`);
+      logInfo(
+        LOG_COMPONENT.maintainer,
+        `refresher started for ${opts.repo}, interval ${formatInterval(opts.intervalMs)}`,
+      );
     },
     async stop() {
       startupTimer = clearScheduledTimer(startupTimer, runtime.clearTimeout);
@@ -197,14 +196,13 @@ export async function runRefresh(opts: WorkerOptions): Promise<void> {
     notifyRefresh(envelope);
     const issues = envelope.totals.issues_open;
     const prs = envelope.totals.prs_open;
-    logInfo(LOG_COMPONENT.maintainer, `refresh ok: ${issues} issues, ${prs} PRs in ${Date.now() - start}ms`);
+    logInfo(
+      LOG_COMPONENT.maintainer,
+      `refresh ok: ${issues} issues, ${prs} PRs in ${Date.now() - start}ms`,
+    );
   } catch (err) {
     const msg =
-      err instanceof ExecError
-        ? err.message
-        : err instanceof Error
-          ? err.message
-          : 'unknown error';
+      err instanceof ExecError ? err.message : err instanceof Error ? err.message : 'unknown error';
     logError(LOG_COMPONENT.maintainer, `refresh failed: ${msg}`);
   }
 }

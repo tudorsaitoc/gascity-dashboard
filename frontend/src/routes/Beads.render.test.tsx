@@ -64,9 +64,11 @@ describe('BeadsPage supervisor reads', () => {
 
     expect(await screen.findByRole('heading', { name: 'detail-only bead' })).toBeTruthy();
     expect(screen.getAllByText(/td-window-miss/i).length).toBeGreaterThan(0);
-    expect(fetchCalls.some((call) =>
-      call.path === '/gc-supervisor/v0/city/test-city/bead/td-window-miss'
-    )).toBe(true);
+    expect(
+      fetchCalls.some(
+        (call) => call.path === '/gc-supervisor/v0/city/test-city/bead/td-window-miss',
+      ),
+    ).toBe(true);
   });
 
   it('renders dependency navigation and live-run access in the bead detail modal', async () => {
@@ -83,12 +85,14 @@ describe('BeadsPage supervisor reads', () => {
 
   it('marks attention beads on the board while preserving non-attention rows', async () => {
     renderPage('/beads', [
-      contributor('beads', [{
-        id: 'beads:td-bead-abc123:high-priority',
-        domain: 'beads',
-        severity: 'attention',
-        title: 'td-bead-abc123 high priority',
-      }]),
+      contributor('beads', [
+        {
+          id: 'beads:td-bead-abc123:high-priority',
+          domain: 'beads',
+          severity: 'attention',
+          title: 'td-bead-abc123 high priority',
+        },
+      ]),
     ]);
 
     const boardRow = (await screen.findByText('direct supervisor bead')).closest('li');
@@ -112,62 +116,73 @@ function renderPage(path = '/beads', contributors: readonly AttentionContributor
 }
 
 function stubFetch() {
-  vi.stubGlobal('fetch', vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
-    const url = parsedUrl(input);
-    const method = init?.method ?? (input instanceof Request ? input.method : 'GET');
-    fetchCalls.push({ method, path: url.pathname, query: url.searchParams });
+  vi.stubGlobal(
+    'fetch',
+    vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+      const url = parsedUrl(input);
+      const method = init?.method ?? (input instanceof Request ? input.method : 'GET');
+      fetchCalls.push({ method, path: url.pathname, query: url.searchParams });
 
-    if (url.pathname === '/gc-supervisor/v0/city/test-city/beads') {
-      return jsonResponse(beadListForQuery(url.searchParams.get('type')));
-    }
-    if (url.pathname === '/gc-supervisor/v0/city/test-city/bead/td-window-miss') {
-      return jsonResponse(bead({
-        id: 'td-window-miss',
-        title: 'detail-only bead',
-        description: 'fetched by deep-link id',
-      }));
-    }
-    if (url.pathname === '/gc-supervisor/v0/city/test-city/bead/td-bead-abc123') {
-      return jsonResponse(bead({
-        id: 'td-bead-abc123',
-        title: 'direct supervisor bead',
-        assignee: 'mayor',
-        needs: ['td-parent-1'],
-      }));
-    }
-    if (url.pathname === '/gc-supervisor/v0/city/test-city/sessions') {
-      return jsonResponse({
-        items: [{
-          id: 'gc-session-1',
-          session_name: 'mayor',
-          alias: 'mayor',
-          template: 'mayor',
-          title: 'mayor',
-          state: 'active',
-          provider: 'claude',
-          running: true,
-          attached: false,
-          created_at: '2026-06-01T00:00:00Z',
-        }],
-        total: 1,
-      });
-    }
-    if (url.pathname === '/gc-supervisor/v0/city/test-city/agents') {
-      return jsonResponse({
-        items: [{
-          name: 'mayor',
-          display_name: 'Mayor',
-          rig: 'east',
-          available: true,
-          running: true,
-          state: 'active',
-          suspended: false,
-        }],
-        total: 1,
-      });
-    }
-    throw new Error(`unexpected fetch: ${url.pathname}${url.search}`);
-  }));
+      if (url.pathname === '/gc-supervisor/v0/city/test-city/beads') {
+        return jsonResponse(beadListForQuery(url.searchParams.get('type')));
+      }
+      if (url.pathname === '/gc-supervisor/v0/city/test-city/bead/td-window-miss') {
+        return jsonResponse(
+          bead({
+            id: 'td-window-miss',
+            title: 'detail-only bead',
+            description: 'fetched by deep-link id',
+          }),
+        );
+      }
+      if (url.pathname === '/gc-supervisor/v0/city/test-city/bead/td-bead-abc123') {
+        return jsonResponse(
+          bead({
+            id: 'td-bead-abc123',
+            title: 'direct supervisor bead',
+            assignee: 'mayor',
+            needs: ['td-parent-1'],
+          }),
+        );
+      }
+      if (url.pathname === '/gc-supervisor/v0/city/test-city/sessions') {
+        return jsonResponse({
+          items: [
+            {
+              id: 'gc-session-1',
+              session_name: 'mayor',
+              alias: 'mayor',
+              template: 'mayor',
+              title: 'mayor',
+              state: 'active',
+              provider: 'claude',
+              running: true,
+              attached: false,
+              created_at: '2026-06-01T00:00:00Z',
+            },
+          ],
+          total: 1,
+        });
+      }
+      if (url.pathname === '/gc-supervisor/v0/city/test-city/agents') {
+        return jsonResponse({
+          items: [
+            {
+              name: 'mayor',
+              display_name: 'Mayor',
+              rig: 'east',
+              available: true,
+              running: true,
+              state: 'active',
+              suspended: false,
+            },
+          ],
+          total: 1,
+        });
+      }
+      throw new Error(`unexpected fetch: ${url.pathname}${url.search}`);
+    }),
+  );
 }
 
 function beadListForQuery(type: string | null): { items: SupervisorBead[]; total: number } {
@@ -236,11 +251,8 @@ function jsonResponse(payload: unknown, init: ResponseInit = {}): Response {
 }
 
 function parsedUrl(input: RequestInfo | URL): URL {
-  const value = input instanceof Request
-    ? input.url
-    : input instanceof URL
-      ? input.toString()
-      : String(input);
+  const value =
+    input instanceof Request ? input.url : input instanceof URL ? input.toString() : String(input);
   return new URL(value, window.location.origin);
 }
 

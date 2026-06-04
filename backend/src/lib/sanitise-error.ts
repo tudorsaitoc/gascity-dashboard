@@ -31,8 +31,7 @@ export function toWireExecError(
   err: ExecError,
   status: number,
 ): { status: number; body: { error: string; kind: ExecError['kind'] } } {
-  const error =
-    err.kind === 'spawn' ? 'subprocess could not be started' : err.message;
+  const error = err.kind === 'spawn' ? 'subprocess could not be started' : err.message;
   return { status, body: { error, kind: err.kind } };
 }
 
@@ -59,7 +58,7 @@ export function writeExecError(
       ? 400
       : err.kind === 'timeout'
         ? 504
-        : options.fallbackStatus ?? 500;
+        : (options.fallbackStatus ?? 500);
   if (err.kind === 'spawn') {
     const log = options.log ?? logWarn;
     log(component, `${endpoint} spawn failed: ${err.message}`);

@@ -301,11 +301,12 @@ async function installApiFixtureRoutes(context) {
     const url = new URL(route.request().url());
     const limit = url.searchParams.get('limit');
     const type = url.searchParams.get('type');
-    const items = limit === '5000' && type === null
-      ? highVolumeLinkBeads()
-      : type === null
-        ? [runRootBeadFixture()]
-        : [];
+    const items =
+      limit === '5000' && type === null
+        ? highVolumeLinkBeads()
+        : type === null
+          ? [runRootBeadFixture()]
+          : [];
     await route.fulfill({
       status: 200,
       contentType: 'application/json',
@@ -417,16 +418,18 @@ async function installApiFixtureRoutes(context) {
     await route.fulfill({
       status: 200,
       contentType: 'application/json',
-      body: JSON.stringify(workflowSnapshot(
-        {
-          ...fixture.detail,
-          runId,
-          completeness: partial
-            ? { kind: 'partial', reasons: ['supervisor_snapshot_partial'] }
-            : fixture.detail.completeness,
-        },
-        { partial },
-      )),
+      body: JSON.stringify(
+        workflowSnapshot(
+          {
+            ...fixture.detail,
+            runId,
+            completeness: partial
+              ? { kind: 'partial', reasons: ['supervisor_snapshot_partial'] }
+              : fixture.detail.completeness,
+          },
+          { partial },
+        ),
+      ),
     });
   });
 
@@ -480,10 +483,8 @@ async function installApiFixtureRoutes(context) {
       .request()
       .url()
       .match(/\/gc-supervisor\/v0\/city\/[^/]+\/session\/([^/]+)\/stream(?:\?|$)/)?.[1];
-    const turns = sessionId ? fixture.streamTurns[decodeURIComponent(sessionId)] ?? [] : [];
-    const body = turns
-      .map((turn) => `event: turn\ndata: ${JSON.stringify(turn)}\n\n`)
-      .join('');
+    const turns = sessionId ? (fixture.streamTurns[decodeURIComponent(sessionId)] ?? []) : [];
+    const body = turns.map((turn) => `event: turn\ndata: ${JSON.stringify(turn)}\n\n`).join('');
     await route.fulfill({
       status: 200,
       headers: {
@@ -627,9 +628,7 @@ function workflowBead(detail, node, instance, graph) {
     ...(instance.attempt.kind === 'attempt' ? { attempt: instance.attempt.value } : {}),
     ...(isRoot ? {} : { logical_bead_id: node.semanticNodeId }),
     ...(node.scope.kind === 'scoped' ? { scope_ref: node.scope.ref } : {}),
-    ...(instance.session.kind === 'attached'
-      ? { assignee: instance.session.link.assignee }
-      : {}),
+    ...(instance.session.kind === 'attached' ? { assignee: instance.session.link.assignee } : {}),
     metadata,
   };
 }
@@ -644,7 +643,8 @@ function controlBead(detail, node, badge) {
     logical_bead_id: node.semanticNodeId,
     metadata: {
       'gc.kind': 'run-finalize',
-      'gc.control_for': node.semanticNodeId === detail.rootBeadId ? detail.runId : node.semanticNodeId,
+      'gc.control_for':
+        node.semanticNodeId === detail.rootBeadId ? detail.runId : node.semanticNodeId,
       'gc.step_id': badge.id,
       'gc.step_ref': `${node.semanticNodeId}.${badge.label}`,
     },

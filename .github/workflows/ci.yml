@@ -12,7 +12,6 @@
 #
 # Not yet in CI (file a separate bead if you want to change this):
 #   - scripts/snap.mjs (Playwright visual snaps — too heavy, no golden source)
-#   - npm audit / dependency scans
 #
 # The job is single + sequential. Split into a matrix later if the wall-clock
 # time becomes a problem; for the current size it runs comfortably under
@@ -75,8 +74,14 @@ jobs:
       - name: Check generated gc supervisor client
         run: npm run openapi:gc-supervisor:check
 
+      - name: Audit dependencies
+        run: npm audit --audit-level=high
+
       - name: Typecheck (src)
         run: npm run typecheck
+
+      - name: Check formatting
+        run: npm run format:check
 
       - name: Typecheck (backend tests)
         run: npm --workspace backend run typecheck:test

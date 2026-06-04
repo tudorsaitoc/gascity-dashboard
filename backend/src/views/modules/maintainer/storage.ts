@@ -56,10 +56,7 @@ export async function readCache(cachePath: string): Promise<CacheReadResult> {
 // so no two writers ever share a tmp path or interleave their fs.writeFile.
 let writeChain: Promise<void> = Promise.resolve();
 
-export async function writeCache(
-  cachePath: string,
-  envelope: MaintainerTriage,
-): Promise<void> {
+export async function writeCache(cachePath: string, envelope: MaintainerTriage): Promise<void> {
   const next = writeChain.then(() => persistAtomic(cachePath, envelope));
   // Keep the chain alive after a failed write so the next enqueued writer
   // still runs, but never swallow the failure — surface it to the awaiting

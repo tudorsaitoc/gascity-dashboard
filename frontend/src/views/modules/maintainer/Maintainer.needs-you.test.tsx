@@ -109,18 +109,14 @@ beforeEach(() => {
   invalidateKey('maintainer-triage');
   mockListSupervisorSessions.mockResolvedValue({ items: [] });
   mockListSupervisorMail.mockResolvedValue({ items: [] });
-  (globalThis as unknown as { EventSource: typeof NoopEventSource }).EventSource =
-    NoopEventSource;
+  (globalThis as unknown as { EventSource: typeof NoopEventSource }).EventSource = NoopEventSource;
 });
 
 afterEach(() => {
   cleanup();
 });
 
-function mount(
-  initialEntries: string[],
-  options: { attention?: MaintainerTriage } = {},
-) {
+function mount(initialEntries: string[], options: { attention?: MaintainerTriage } = {}) {
   const contributors = createAttentionContributors(
     options.attention === undefined
       ? {}
@@ -204,9 +200,7 @@ describe('MaintainerPage — needs-you mode (dw8)', () => {
   });
 
   it('keeps the "Awaiting triage only" chip on plain /maintainer', async () => {
-    mockTriage.mockResolvedValue(
-      envelope([mkItem({ kind: 'pr', number: 1, status: 'open' })]),
-    );
+    mockTriage.mockResolvedValue(envelope([mkItem({ kind: 'pr', number: 1, status: 'open' })]));
     mount(['/maintainer']);
     expect(await screen.findByRole('button', { name: /awaiting triage only/i })).toBeTruthy();
   });

@@ -153,18 +153,14 @@ interface FocusResult {
   beadFocus: boolean;
 }
 
-function resolveFocus(
-  index: RelationIndex,
-  parsed: Extract<ParsedRef, { ok: true }>,
-): FocusResult {
+function resolveFocus(index: RelationIndex, parsed: Extract<ParsedRef, { ok: true }>): FocusResult {
   if (parsed.type === 'github_pr' || parsed.type === 'github_issue') {
-    const type: LinkNodeType =
-      parsed.type === 'github_pr' ? 'github_pr' : 'github_issue';
+    const type: LinkNodeType = parsed.type === 'github_pr' ? 'github_pr' : 'github_issue';
     const ref = parsed.type === 'github_pr' ? `pr/${parsed.value}` : `issue/${parsed.value}`;
     const ids =
       parsed.type === 'github_pr'
-        ? index.beadsForPr.get(parsed.value) ?? []
-        : index.beadsForIssue.get(parsed.value) ?? [];
+        ? (index.beadsForPr.get(parsed.value) ?? [])
+        : (index.beadsForIssue.get(parsed.value) ?? []);
     const beads = ids
       .map((id) => index.beads.get(id))
       .filter((b): b is IndexBead => b !== undefined);
@@ -409,13 +405,10 @@ function finalize(
   supervisorFetchedAt: string | null,
   githubFetchedAt: string | null,
 ): void {
-  acc.view.stats = [...acc.stats.values()].sort((a, b) =>
-    a.relation.localeCompare(b.relation),
-  );
+  acc.view.stats = [...acc.stats.values()].sort((a, b) => a.relation.localeCompare(b.relation));
   let asOf: string | null = null;
   for (const node of acc.view.nodes) {
     asOf = olderOf(asOf, node.fetchedAt);
   }
-  acc.view.asOf =
-    asOf ?? olderOf(supervisorFetchedAt, githubFetchedAt);
+  acc.view.asOf = asOf ?? olderOf(supervisorFetchedAt, githubFetchedAt);
 }

@@ -4,10 +4,7 @@ import express from 'express';
 import type { AddressInfo } from 'node:net';
 import type { Server } from 'node:http';
 
-import {
-  createCityRegistry,
-  type SupervisorCityDescriptor,
-} from '../src/city/registry.js';
+import { createCityRegistry, type SupervisorCityDescriptor } from '../src/city/registry.js';
 import type { CityRuntime } from '../src/city/runtime.js';
 import { cityDispatch } from '../src/middleware/city-dispatch.js';
 import type { AdminConfig } from '../src/config.js';
@@ -132,10 +129,7 @@ describe('city registry: get-or-create + single-flight', () => {
     const b = await registry.resolve('gas-town');
     assert.equal(a.kind, 'ok');
     assert.equal(b.kind, 'ok');
-    assert.notEqual(
-      a.kind === 'ok' ? a.runtime : null,
-      b.kind === 'ok' ? b.runtime : null,
-    );
+    assert.notEqual(a.kind === 'ok' ? a.runtime : null, b.kind === 'ok' ? b.runtime : null);
     assert.deepEqual(built, ['racoon-city', 'gas-town']);
   });
 
@@ -269,10 +263,7 @@ describe('city registry: get-or-create + single-flight', () => {
 
 // ── Middleware-level dispatch (validation precedence + status mapping) ────
 
-async function withApp<T>(
-  app: express.Express,
-  fn: (url: string) => Promise<T>,
-): Promise<T> {
+async function withApp<T>(app: express.Express, fn: (url: string) => Promise<T>): Promise<T> {
   const server = await new Promise<Server>((resolve) => {
     const listening = app.listen(0, '127.0.0.1', () => resolve(listening));
   });

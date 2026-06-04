@@ -149,9 +149,7 @@ describe('formatShortDate', () => {
     // The implementation pins the locale to en-US, so the output shape
     // is deterministic regardless of host system locale: a 3-letter
     // month, space, day, comma, year.
-    expect(formatShortDate('2026-05-20T12:34:56Z')).toMatch(
-      /^[A-Z][a-z]{2} \d{1,2}, \d{4}$/,
-    );
+    expect(formatShortDate('2026-05-20T12:34:56Z')).toMatch(/^[A-Z][a-z]{2} \d{1,2}, \d{4}$/);
   });
 
   it('uses the local-time date (matches the host TZ)', () => {

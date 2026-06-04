@@ -1,6 +1,6 @@
-import type { RunLane, RunSummary, SourceState } from "gas-city-dashboard-shared";
-import type { AttentionSeverity } from "../../attention/compose";
-import { LaneCard } from "./LaneCard";
+import type { RunLane, RunSummary, SourceState } from 'gas-city-dashboard-shared';
+import type { AttentionSeverity } from '../../attention/compose';
+import { LaneCard } from './LaneCard';
 
 // Run phase-lane map (gascity-dashboard-0t6). Renders the snapshot's
 // runs source as a typographic block list — count summary up top,
@@ -21,22 +21,17 @@ interface RunMapProps {
   attentionSeverity?: (lane: RunLane) => AttentionSeverity | null;
 }
 
-const COUNT_LABELS: Array<[keyof RunSummary["runCounts"], string]> = [
-  ["prReview", "PR"],
-  ["designReview", "Design"],
-  ["bugfix", "Bugfix"],
-  ["other", "Other"],
+const COUNT_LABELS: Array<[keyof RunSummary['runCounts'], string]> = [
+  ['prReview', 'PR'],
+  ['designReview', 'Design'],
+  ['bugfix', 'Bugfix'],
+  ['other', 'Other'],
 ];
 
 const HISTORICAL_SECTION_ID = 'runs-historical-section';
 
-export function RunMap({
-  source,
-  now,
-  showHistory,
-  attentionSeverity,
-}: RunMapProps) {
-  if (source.status === "error") {
+export function RunMap({ source, now, showHistory, attentionSeverity }: RunMapProps) {
+  if (source.status === 'error') {
     return (
       <section>
         <CountsHeader summary={null} />
@@ -79,14 +74,9 @@ function ActiveSection({
 }) {
   if (summary.lanes.length === 0) {
     // Distinguish "nothing at all" from "nothing active but N completed".
-    const trailer =
-      summary.totalHistorical > 0
-        ? ` (${summary.totalHistorical} completed.)`
-        : '';
+    const trailer = summary.totalHistorical > 0 ? ` (${summary.totalHistorical} completed.)` : '';
     return (
-      <p className="mt-8 text-body text-fg-muted italic">
-        {`No active formula runs.${trailer}`}
-      </p>
+      <p className="mt-8 text-body text-fg-muted italic">{`No active formula runs.${trailer}`}</p>
     );
   }
   // gascity-dashboard-7hek: organize active lanes by rig (the run-root store).
@@ -99,9 +89,7 @@ function ActiveSection({
     <>
       {groups.map(({ rig, lanes }) => (
         <div key={rig} className="mt-6">
-          <h3 className="text-label uppercase tracking-wider text-fg-faint">
-            {rigLabel(rig)}
-          </h3>
+          <h3 className="text-label uppercase tracking-wider text-fg-faint">{rigLabel(rig)}</h3>
           <ol className="mt-3 divide-y divide-rule">
             {lanes.map((lane) => (
               <LaneCard
@@ -127,14 +115,11 @@ function ActiveSection({
 
 /** Group lanes by their run-root rig, preserving first-seen (pre-sorted)
  *  order so the most-recently-active rig surfaces first. */
-function groupLanesByRig(
-  lanes: readonly RunLane[],
-): Array<{ rig: string; lanes: RunLane[] }> {
+function groupLanesByRig(lanes: readonly RunLane[]): Array<{ rig: string; lanes: RunLane[] }> {
   const order: string[] = [];
   const byRig = new Map<string, RunLane[]>();
   for (const lane of lanes) {
-    const rig =
-      lane.scope.status === 'available' ? lane.scope.rootStoreRef : 'unknown';
+    const rig = lane.scope.status === 'available' ? lane.scope.rootStoreRef : 'unknown';
     let bucket = byRig.get(rig);
     if (bucket === undefined) {
       bucket = [];
@@ -161,14 +146,8 @@ function HistoricalSection({
   attentionSeverity?: (lane: RunLane) => AttentionSeverity | null;
 }) {
   return (
-    <section
-      id={HISTORICAL_SECTION_ID}
-      aria-label="Historical runs"
-      className="mt-12"
-    >
-      <h2 className="text-label uppercase tracking-wider text-fg-faint">
-        Historical
-      </h2>
+    <section id={HISTORICAL_SECTION_ID} aria-label="Historical runs" className="mt-12">
+      <h2 className="text-label uppercase tracking-wider text-fg-faint">Historical</h2>
       {summary.historicalLanes.length === 0 ? (
         <p className="mt-3 text-body text-fg-muted italic">
           No completed runs in the current window.
@@ -211,16 +190,9 @@ function CountsHeader({ summary }: { summary: RunSummary | null }) {
       <div className="flex items-baseline gap-x-6 gap-y-2 flex-wrap">
         <CountTile label="Active" value={total} tone="strong" />
         {COUNT_LABELS.map(([key, label]) => (
-          <CountTile
-            key={key}
-            label={label}
-            value={summary?.runCounts[key] ?? 0}
-            tone="muted"
-          />
+          <CountTile key={key} label={label} value={summary?.runCounts[key] ?? 0} tone="muted" />
         ))}
-        {blocked > 0 && (
-          <CountTile label="Blocked" value={blocked} tone="accent" />
-        )}
+        {blocked > 0 && <CountTile label="Blocked" value={blocked} tone="accent" />}
       </div>
     </header>
   );
@@ -233,21 +205,15 @@ function CountTile({
 }: {
   label: string;
   value: number;
-  tone: "strong" | "muted" | "accent";
+  tone: 'strong' | 'muted' | 'accent';
 }) {
   // tnum + tracked-uppercase label per the column-head register elsewhere on
   // the page; value sits below in body weight. No box around either.
   const valueTone =
-    tone === "strong"
-      ? "text-fg"
-      : tone === "accent"
-        ? "text-accent"
-        : "text-fg-muted";
+    tone === 'strong' ? 'text-fg' : tone === 'accent' ? 'text-accent' : 'text-fg-muted';
   return (
     <div className="flex flex-col">
-      <span className="text-label uppercase tracking-wider text-fg-faint">
-        {label}
-      </span>
+      <span className="text-label uppercase tracking-wider text-fg-faint">{label}</span>
       <span className={`text-title tnum ${valueTone}`}>{value}</span>
     </div>
   );

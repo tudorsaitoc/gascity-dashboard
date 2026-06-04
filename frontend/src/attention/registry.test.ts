@@ -32,18 +32,20 @@ describe('createAttentionContributors', () => {
   });
 
   it('derives health attention from supervisor reachability and critical host pressure', () => {
-    const model = composeAttention(createAttentionContributors({
-      health: {
-        system: systemHealth({
-          free_mem_bytes: 4,
-          total_mem_bytes: 100,
-          load_avg_1: 13,
-          cpu_count: 8,
-        }),
-        supervisor: { status: 'unavailable', error: 'connect ECONNREFUSED' },
-        trend: healthyTrend(),
-      },
-    }));
+    const model = composeAttention(
+      createAttentionContributors({
+        health: {
+          system: systemHealth({
+            free_mem_bytes: 4,
+            total_mem_bytes: 100,
+            load_avg_1: 13,
+            cpu_count: 8,
+          }),
+          supervisor: { status: 'unavailable', error: 'connect ECONNREFUSED' },
+          trend: healthyTrend(),
+        },
+      }),
+    );
 
     expect(model.byDomain.health.attention).toBe(3);
     expect(model.byDomain.health.watch).toBe(0);
@@ -55,23 +57,25 @@ describe('createAttentionContributors', () => {
   });
 
   it('derives health watch items from optional supervisor fields and dolt-noms gaps', () => {
-    const model = composeAttention(createAttentionContributors({
-      health: {
-        system: systemHealth(),
-        supervisor: {
-          status: 'available',
-          data: {
-            status: 'ok',
-            uptime_sec: 300,
-          } satisfies HealthOutputBody,
+    const model = composeAttention(
+      createAttentionContributors({
+        health: {
+          system: systemHealth(),
+          supervisor: {
+            status: 'available',
+            data: {
+              status: 'ok',
+              uptime_sec: 300,
+            } satisfies HealthOutputBody,
+          },
+          trend: {
+            available: false,
+            samples: [],
+            reason: 'store_health_absent',
+          } satisfies DoltNomsTrend,
         },
-        trend: {
-          available: false,
-          samples: [],
-          reason: 'store_health_absent',
-        } satisfies DoltNomsTrend,
-      },
-    }));
+      }),
+    );
 
     expect(model.byDomain.health.attention).toBe(0);
     expect(model.byDomain.health.watch).toBe(3);
@@ -83,17 +87,22 @@ describe('createAttentionContributors', () => {
   });
 
   it('derives dashboard-process attention from local admin process metrics', () => {
-    const model = composeAttention(createAttentionContributors({
-      health: {
-        system: systemHealth({}, {
-          heap_used_bytes: 1_400_000_000,
-          rss_bytes: 2_200_000_000,
-          uptime_sec: 8,
-        }),
-        supervisor: { status: 'available', data: presentSupervisor() },
-        trend: healthyTrend(),
-      },
-    }));
+    const model = composeAttention(
+      createAttentionContributors({
+        health: {
+          system: systemHealth(
+            {},
+            {
+              heap_used_bytes: 1_400_000_000,
+              rss_bytes: 2_200_000_000,
+              uptime_sec: 8,
+            },
+          ),
+          supervisor: { status: 'available', data: presentSupervisor() },
+          trend: healthyTrend(),
+        },
+      }),
+    );
 
     expect(model.byDomain.health.attention).toBe(3);
     expect(model.byDomain.health.items.map((item) => item.id)).toEqual([
@@ -104,73 +113,77 @@ describe('createAttentionContributors', () => {
   });
 
   it('derives city-wide attention from existing facts for every operational domain', () => {
-    const model = composeAttention(createAttentionContributors({
-      runs: {
-        feed: formulaFeed({
+    const model = composeAttention(
+      createAttentionContributors({
+        runs: {
+          feed: formulaFeed({
+            items: [
+              {
+                id: 'run-1',
+                root_bead_id: 'B-root',
+                root_store_ref: 'city:B-root',
+                scope_kind: 'city',
+                scope_ref: 'test-city',
+                started_at: '2026-05-29T20:00:00.000Z',
+                status: 'failed',
+                target: 'mayor',
+                title: 'Review formula output',
+                type: 'formula',
+                updated_at: '2026-05-29T20:05:00.000Z',
+              },
+            ],
+          }),
+        },
+        agents: {
           items: [
-            {
-              id: 'run-1',
-              root_bead_id: 'B-root',
-              root_store_ref: 'city:B-root',
-              scope_kind: 'city',
-              scope_ref: 'test-city',
-              started_at: '2026-05-29T20:00:00.000Z',
-              status: 'failed',
-              target: 'mayor',
-              title: 'Review formula output',
-              type: 'formula',
-              updated_at: '2026-05-29T20:05:00.000Z',
-            },
+            agent({
+              name: 'reviewer',
+              running: true,
+              state: 'failed',
+            }),
           ],
-        }),
-      },
-      agents: {
-        items: [
-          agent({
-            name: 'reviewer',
-            running: true,
-            state: 'failed',
+        },
+        beads: {
+          items: [
+            bead({
+              id: 'B-1',
+              title: 'Fix broken formula',
+              status: 'blocked',
+            }),
+          ],
+        },
+        mail: {
+          operatorAlias: 'stephanie',
+          items: [
+            message({
+              id: 'M-1',
+              subject: 'Need approval',
+              read: false,
+              to: 'stephanie',
+            }),
+          ],
+        },
+        activity: {
+          deploys: deploys({
+            failed_marker: true,
+            items: [],
           }),
-        ],
-      },
-      beads: {
-        items: [
-          bead({
-            id: 'B-1',
-            title: 'Fix broken formula',
-            status: 'blocked',
+        },
+        health: {
+          system: systemHealth({
+            free_mem_bytes: 4,
+            total_mem_bytes: 100,
           }),
-        ],
-      },
-      mail: {
-        operatorAlias: 'stephanie',
-        items: [
-          message({
-            id: 'M-1',
-            subject: 'Need approval',
-            read: false,
-            to: 'stephanie',
-          }),
-        ],
-      },
-      activity: {
-        deploys: deploys({
-          failed_marker: true,
-          items: [],
-        }),
-      },
-      health: {
-        system: systemHealth({
-          free_mem_bytes: 4,
-          total_mem_bytes: 100,
-        }),
-        supervisor: { status: 'available', data: presentSupervisor() },
-        trend: healthyTrend(),
-      },
-    }));
+          supervisor: { status: 'available', data: presentSupervisor() },
+          trend: healthyTrend(),
+        },
+      }),
+    );
 
     expect(model.byDomain.runs.attention).toBe(1);
-    expect(model.byDomain.runs.items[0]?.href).toBe('/runs/run-1?scope_kind=city&scope_ref=test-city');
+    expect(model.byDomain.runs.items[0]?.href).toBe(
+      '/runs/run-1?scope_kind=city&scope_ref=test-city',
+    );
     expect(model.byDomain.agents.attention).toBe(1);
     expect(model.byDomain.beads.attention).toBe(1);
     expect(model.byDomain.mail.attention).toBe(1);
@@ -179,43 +192,49 @@ describe('createAttentionContributors', () => {
   });
 
   it('still derives run attention from the existing RunSummary health model', () => {
-    const model = composeAttention(createAttentionContributors({
-      runs: {
-        summary: runSummary([
-          runLane({
-            id: 'run-1',
-            title: 'Review formula output',
-            phase: 'approval',
-            health: {
-              phaseConfidence: 'known',
-              needsOperator: true,
-              thrashingDetected: false,
-            },
-          }),
-        ]),
-      },
-    }));
+    const model = composeAttention(
+      createAttentionContributors({
+        runs: {
+          summary: runSummary([
+            runLane({
+              id: 'run-1',
+              title: 'Review formula output',
+              phase: 'approval',
+              health: {
+                phaseConfidence: 'known',
+                needsOperator: true,
+                thrashingDetected: false,
+              },
+            }),
+          ]),
+        },
+      }),
+    );
 
     expect(model.byDomain.runs.attention).toBe(1);
     expect(model.byDomain.runs.items[0]?.href).toBe('/runs/run-1');
   });
 
   it('derives agent attention from pending supervisor interactions', () => {
-    const model = composeAttention(createAttentionContributors({
-      agents: {
-        items: [],
-        pendingInteractions: [{
-          agentName: 'mayor',
-          sessionId: 'gc-2568',
-          sessionName: 'mayor',
-          pending: {
-            kind: 'tool_approval',
-            prompt: 'Approve deployment?',
-            request_id: 'req-1',
-          },
-        }],
-      } as AgentsAttentionFacts,
-    }));
+    const model = composeAttention(
+      createAttentionContributors({
+        agents: {
+          items: [],
+          pendingInteractions: [
+            {
+              agentName: 'mayor',
+              sessionId: 'gc-2568',
+              sessionName: 'mayor',
+              pending: {
+                kind: 'tool_approval',
+                prompt: 'Approve deployment?',
+                request_id: 'req-1',
+              },
+            },
+          ],
+        } as AgentsAttentionFacts,
+      }),
+    );
 
     expect(model.byDomain.agents.attention).toBe(1);
     expect(model.byDomain.agents.items[0]).toMatchObject({
@@ -226,29 +245,31 @@ describe('createAttentionContributors', () => {
   });
 
   it('derives Activity attention and watch items from supervisor event history', () => {
-    const model = composeAttention(createAttentionContributors({
-      activity: {
-        events: [
-          supervisorEvent({
-            message: 'session crashed while applying patch',
-            seq: 42,
-            subject: 'gc-session-1',
-            type: 'session.crashed',
-          }),
-          supervisorEvent({
-            message: 'event archive rotated',
-            payload: {
-              prior_archive: '/tmp/events-1.jsonl',
-              prior_first_seq: 1,
-              prior_last_seq: 40,
-            },
-            seq: 41,
-            subject: 'events',
-            type: 'events.rotated',
-          }),
-        ],
-      },
-    }));
+    const model = composeAttention(
+      createAttentionContributors({
+        activity: {
+          events: [
+            supervisorEvent({
+              message: 'session crashed while applying patch',
+              seq: 42,
+              subject: 'gc-session-1',
+              type: 'session.crashed',
+            }),
+            supervisorEvent({
+              message: 'event archive rotated',
+              payload: {
+                prior_archive: '/tmp/events-1.jsonl',
+                prior_first_seq: 1,
+                prior_last_seq: 40,
+              },
+              seq: 41,
+              subject: 'events',
+              type: 'events.rotated',
+            }),
+          ],
+        },
+      }),
+    );
 
     expect(model.byDomain.activity.attention).toBe(1);
     expect(model.byDomain.activity.watch).toBe(1);
@@ -264,51 +285,53 @@ describe('createAttentionContributors', () => {
 
   it('derives stale-threshold attention from agent, bead, and mail timestamps', () => {
     const nowMs = Date.parse('2026-06-01T12:00:00.000Z');
-    const model = composeAttention(createAttentionContributors({
-      agents: {
-        nowMs,
-        items: [
-          agent({
-            name: 'idle-agent',
-            running: true,
-            session: {
-              attached: true,
-              last_activity: '2026-06-01T07:30:00.000Z',
+    const model = composeAttention(
+      createAttentionContributors({
+        agents: {
+          nowMs,
+          items: [
+            agent({
               name: 'idle-agent',
-            },
-          }),
-        ],
-      },
-      beads: {
-        nowMs,
-        items: [
-          bead({
-            created_at: '2026-05-29T11:00:00.000Z',
-            id: 'B-stale-open',
-            status: 'open',
-          }),
-          bead({
-            assignee: 'reviewer',
-            created_at: '2026-05-29T11:00:00.000Z',
-            id: 'B-stale-assigned',
-            status: 'in_progress',
-          }),
-        ],
-      },
-      mail: {
-        nowMs,
-        operatorAlias: 'stephanie',
-        items: [
-          message({
-            created_at: '2026-05-31T08:00:00.000Z',
-            id: 'M-stale-unread',
-            read: false,
-            subject: 'Still waiting',
-            to: 'stephanie',
-          }),
-        ],
-      },
-    }));
+              running: true,
+              session: {
+                attached: true,
+                last_activity: '2026-06-01T07:30:00.000Z',
+                name: 'idle-agent',
+              },
+            }),
+          ],
+        },
+        beads: {
+          nowMs,
+          items: [
+            bead({
+              created_at: '2026-05-29T11:00:00.000Z',
+              id: 'B-stale-open',
+              status: 'open',
+            }),
+            bead({
+              assignee: 'reviewer',
+              created_at: '2026-05-29T11:00:00.000Z',
+              id: 'B-stale-assigned',
+              status: 'in_progress',
+            }),
+          ],
+        },
+        mail: {
+          nowMs,
+          operatorAlias: 'stephanie',
+          items: [
+            message({
+              created_at: '2026-05-31T08:00:00.000Z',
+              id: 'M-stale-unread',
+              read: false,
+              subject: 'Still waiting',
+              to: 'stephanie',
+            }),
+          ],
+        },
+      }),
+    );
 
     expect(model.byDomain.agents.items.map((item) => item.id)).toContain(
       'agents:idle-agent:stale-idle',
@@ -331,33 +354,35 @@ describe('createAttentionContributors', () => {
 
   it('waits for the idle threshold before surfacing asleep agents', () => {
     const nowMs = Date.parse('2026-06-01T12:00:00.000Z');
-    const model = composeAttention(createAttentionContributors({
-      agents: {
-        nowMs,
-        items: [
-          agent({
-            name: 'recent-asleep',
-            running: true,
-            state: 'asleep',
-            session: {
-              attached: true,
-              last_activity: '2026-06-01T11:45:00.000Z',
+    const model = composeAttention(
+      createAttentionContributors({
+        agents: {
+          nowMs,
+          items: [
+            agent({
               name: 'recent-asleep',
-            },
-          }),
-          agent({
-            name: 'stale-asleep',
-            running: true,
-            state: 'asleep',
-            session: {
-              attached: true,
-              last_activity: '2026-06-01T07:30:00.000Z',
+              running: true,
+              state: 'asleep',
+              session: {
+                attached: true,
+                last_activity: '2026-06-01T11:45:00.000Z',
+                name: 'recent-asleep',
+              },
+            }),
+            agent({
               name: 'stale-asleep',
-            },
-          }),
-        ],
-      },
-    }));
+              running: true,
+              state: 'asleep',
+              session: {
+                attached: true,
+                last_activity: '2026-06-01T07:30:00.000Z',
+                name: 'stale-asleep',
+              },
+            }),
+          ],
+        },
+      }),
+    );
 
     expect(model.byDomain.agents.items.map((item) => item.id)).toEqual([
       'agents:stale-asleep:stale-idle',
@@ -366,27 +391,29 @@ describe('createAttentionContributors', () => {
 
   it('uses bead update movement, not creation age, for stale assigned attention', () => {
     const nowMs = Date.parse('2026-06-01T12:00:00.000Z');
-    const model = composeAttention(createAttentionContributors({
-      beads: {
-        nowMs,
-        items: [
-          bead({
-            assignee: 'reviewer',
-            created_at: '2026-05-29T11:00:00.000Z',
-            id: 'B-active-assigned',
-            status: 'in_progress',
-            updated_at: '2026-06-01T11:30:00.000Z',
-          }),
-          bead({
-            assignee: 'reviewer',
-            created_at: '2026-05-29T11:00:00.000Z',
-            id: 'B-stale-assigned',
-            status: 'in_progress',
-            updated_at: '2026-05-29T11:30:00.000Z',
-          }),
-        ],
-      },
-    }));
+    const model = composeAttention(
+      createAttentionContributors({
+        beads: {
+          nowMs,
+          items: [
+            bead({
+              assignee: 'reviewer',
+              created_at: '2026-05-29T11:00:00.000Z',
+              id: 'B-active-assigned',
+              status: 'in_progress',
+              updated_at: '2026-06-01T11:30:00.000Z',
+            }),
+            bead({
+              assignee: 'reviewer',
+              created_at: '2026-05-29T11:00:00.000Z',
+              id: 'B-stale-assigned',
+              status: 'in_progress',
+              updated_at: '2026-05-29T11:30:00.000Z',
+            }),
+          ],
+        },
+      }),
+    );
 
     expect(model.byDomain.beads.items.map((item) => item.id)).toEqual([
       'beads:B-stale-assigned:stale-assigned',
@@ -394,20 +421,22 @@ describe('createAttentionContributors', () => {
   });
 
   it('surfaces each open mayor-decision bead as an attention item linked to the bead view', () => {
-    const model = composeAttention(createAttentionContributors({
-      beads: {
-        decisions: [
-          bead({
-            id: 'dec-nqy',
-            title: 'Decide: stale-CHANGES_REQUESTED merge-queue protocol',
-            assignee: 'stephanie',
-            labels: [NEEDS_STEPHANIE_LABEL],
-            updated_at: '2026-06-03T14:18:47.000Z',
-            metadata: { 'decision.decide': 'Auto-close or escalate stale CR PRs?' },
-          }),
-        ],
-      },
-    }));
+    const model = composeAttention(
+      createAttentionContributors({
+        beads: {
+          decisions: [
+            bead({
+              id: 'dec-nqy',
+              title: 'Decide: stale-CHANGES_REQUESTED merge-queue protocol',
+              assignee: 'stephanie',
+              labels: [NEEDS_STEPHANIE_LABEL],
+              updated_at: '2026-06-03T14:18:47.000Z',
+              metadata: { 'decision.decide': 'Auto-close or escalate stale CR PRs?' },
+            }),
+          ],
+        },
+      }),
+    );
 
     expect(model.byDomain.beads.items).toEqual([
       expect.objectContaining({
@@ -423,13 +452,19 @@ describe('createAttentionContributors', () => {
   });
 
   it('renders a mayor-decision with no decision.decide metadata using the title alone', () => {
-    const model = composeAttention(createAttentionContributors({
-      beads: {
-        decisions: [
-          bead({ id: 'dec-rwr', title: 'Decide: P0 baseline-honesty-gate halt', labels: [NEEDS_STEPHANIE_LABEL] }),
-        ],
-      },
-    }));
+    const model = composeAttention(
+      createAttentionContributors({
+        beads: {
+          decisions: [
+            bead({
+              id: 'dec-rwr',
+              title: 'Decide: P0 baseline-honesty-gate halt',
+              labels: [NEEDS_STEPHANIE_LABEL],
+            }),
+          ],
+        },
+      }),
+    );
 
     const item = model.byDomain.beads.items[0];
     expect(item?.id).toBe('beads:dec-rwr:mayor-decision');
@@ -437,18 +472,30 @@ describe('createAttentionContributors', () => {
   });
 
   it('does not double-surface a marker bead present in the general list', () => {
-    const model = composeAttention(createAttentionContributors({
-      beads: {
-        // Same bead in both the dedicated queue and the capped general list:
-        // priority 1 would otherwise also trip the generic high-priority branch.
-        decisions: [
-          bead({ id: 'dec-nqy', title: 'Decide: X', labels: [NEEDS_STEPHANIE_LABEL], priority: 1 }),
-        ],
-        items: [
-          bead({ id: 'dec-nqy', title: 'Decide: X', labels: [NEEDS_STEPHANIE_LABEL], priority: 1 }),
-        ],
-      },
-    }));
+    const model = composeAttention(
+      createAttentionContributors({
+        beads: {
+          // Same bead in both the dedicated queue and the capped general list:
+          // priority 1 would otherwise also trip the generic high-priority branch.
+          decisions: [
+            bead({
+              id: 'dec-nqy',
+              title: 'Decide: X',
+              labels: [NEEDS_STEPHANIE_LABEL],
+              priority: 1,
+            }),
+          ],
+          items: [
+            bead({
+              id: 'dec-nqy',
+              title: 'Decide: X',
+              labels: [NEEDS_STEPHANIE_LABEL],
+              priority: 1,
+            }),
+          ],
+        },
+      }),
+    );
 
     expect(model.byDomain.beads.items.map((item) => item.id)).toEqual([
       'beads:dec-nqy:mayor-decision',
@@ -456,12 +503,14 @@ describe('createAttentionContributors', () => {
   });
 
   it('surfaces a decision-queue fetch failure without blanking generic bead alerts', () => {
-    const model = composeAttention(createAttentionContributors({
-      beads: {
-        decisionsError: 'decision queue unavailable: ECONNREFUSED',
-        items: [bead({ id: 'B-1', title: 'Fix broken formula', status: 'blocked' })],
-      },
-    }));
+    const model = composeAttention(
+      createAttentionContributors({
+        beads: {
+          decisionsError: 'decision queue unavailable: ECONNREFUSED',
+          items: [bead({ id: 'B-1', title: 'Fix broken formula', status: 'blocked' })],
+        },
+      }),
+    );
 
     const ids = model.byDomain.beads.items.map((item) => item.id);
     expect(ids).toContain('beads:decisions-unavailable');
@@ -470,42 +519,44 @@ describe('createAttentionContributors', () => {
 
   it('derives maintainer attention from needs-you, awaiting-triage, and blocked slung facts', () => {
     const nowMs = Date.parse('2026-06-01T12:00:00.000Z');
-    const model = composeAttention(createAttentionContributors({
-      maintainer: {
-        nowMs,
-        triage: maintainerTriage({
-          items: [
-            triageItem({
-              kind: 'pr',
-              number: 101,
-              status: 'changes_requested',
-              title: 'review feedback needs operator',
-            }),
-            triageItem({
-              kind: 'issue',
-              number: 102,
-              status: 'open',
-              title: 'new bug needs triage',
-              updated_at: '2026-06-01T11:00:00.000Z',
-            }),
-          ],
-          slung: [
-            triageItem({
-              kind: 'pr',
-              number: 103,
-              status: 'open',
-              title: 'slung item has no live session',
-              slung: {
-                bead_id: 'gc-103',
-                resolved_session_name: null,
-                slung_at: '2026-06-01T10:00:00.000Z',
-                target: 'triage-agent',
-              },
-            }),
-          ],
-        }),
-      },
-    }));
+    const model = composeAttention(
+      createAttentionContributors({
+        maintainer: {
+          nowMs,
+          triage: maintainerTriage({
+            items: [
+              triageItem({
+                kind: 'pr',
+                number: 101,
+                status: 'changes_requested',
+                title: 'review feedback needs operator',
+              }),
+              triageItem({
+                kind: 'issue',
+                number: 102,
+                status: 'open',
+                title: 'new bug needs triage',
+                updated_at: '2026-06-01T11:00:00.000Z',
+              }),
+            ],
+            slung: [
+              triageItem({
+                kind: 'pr',
+                number: 103,
+                status: 'open',
+                title: 'slung item has no live session',
+                slung: {
+                  bead_id: 'gc-103',
+                  resolved_session_name: null,
+                  slung_at: '2026-06-01T10:00:00.000Z',
+                  target: 'triage-agent',
+                },
+              }),
+            ],
+          }),
+        },
+      }),
+    );
 
     expect(model.byDomain.maintainer.attention).toBe(3);
     expect(model.byDomain.maintainer.items.map((item) => item.id)).toEqual([
@@ -564,9 +615,7 @@ function presentSupervisor(): HealthOutputBody {
   };
 }
 
-function supervisorEvent(
-  overrides: Partial<TypedEventStreamEnvelope>,
-): TypedEventStreamEnvelope {
+function supervisorEvent(overrides: Partial<TypedEventStreamEnvelope>): TypedEventStreamEnvelope {
   return {
     actor: 'supervisor',
     message: 'event message',

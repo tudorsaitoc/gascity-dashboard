@@ -67,10 +67,7 @@ export function healthRouter(options: HealthRouterOptions = {}): Router {
   return router;
 }
 
-function localToolVersion(
-  result: VersionProbeResult,
-  source: string,
-): LocalToolVersion {
+function localToolVersion(result: VersionProbeResult, source: string): LocalToolVersion {
   return result.kind === 'ok'
     ? { status: 'available', version: result.version, source }
     : { status: 'unavailable', reason: result.reason };

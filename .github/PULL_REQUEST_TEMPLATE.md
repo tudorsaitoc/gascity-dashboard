@@ -8,8 +8,8 @@
 
 1 to 3 bullets. What this PR changes, and why.
 
-- 
-- 
+-
+-
 
 ## Scope
 

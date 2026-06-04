@@ -30,7 +30,10 @@ export function resolveSessionForTarget(
   return matchFirst(target, active) ?? matchFirst(target, sessions);
 }
 
-function matchFirst(target: string, sessions: readonly DashboardSession[]): DashboardSession | null {
+function matchFirst(
+  target: string,
+  sessions: readonly DashboardSession[],
+): DashboardSession | null {
   for (const s of sessions) {
     if (matchesSessionTarget(s, target)) return s;
   }

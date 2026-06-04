@@ -1,11 +1,4 @@
-import {
-  cleanup,
-  fireEvent,
-  render,
-  screen,
-  waitFor,
-  within,
-} from '@testing-library/react';
+import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { BeadsPage } from './Beads';
@@ -36,9 +29,7 @@ beforeEach(() => {
       const method = requestMethod(input, init);
       if (url.pathname === '/gc-supervisor/v0/city/test-city/beads' && method === 'GET') {
         beadQueries.push(url.searchParams);
-        return jsonResponse(beadListPayload(
-          url.searchParams.has('type') ? [] : [sampleBead()],
-        ));
+        return jsonResponse(beadListPayload(url.searchParams.has('type') ? [] : [sampleBead()]));
       }
       if (url.pathname === '/gc-supervisor/v0/city/test-city/beads' && method === 'POST') {
         supervisorWrites.push({
@@ -46,15 +37,18 @@ beforeEach(() => {
           path: url.pathname,
           body: await requestJson(input, init),
         });
-        return jsonResponse({
-          id: `${PROJECT}-0002`,
-          title: 'Route failing work',
-          status: 'open',
-          priority: 0,
-          issue_type: 'task',
-          labels: [],
-          created_at: '2026-01-01T01:00:00Z',
-        }, { status: 201 });
+        return jsonResponse(
+          {
+            id: `${PROJECT}-0002`,
+            title: 'Route failing work',
+            status: 'open',
+            priority: 0,
+            issue_type: 'task',
+            labels: [],
+            created_at: '2026-01-01T01:00:00Z',
+          },
+          { status: 201 },
+        );
       }
       if (url.pathname === '/gc-supervisor/v0/city/test-city/sling' && method === 'POST') {
         supervisorWrites.push({
@@ -64,7 +58,10 @@ beforeEach(() => {
         });
         return jsonResponse({ status: 'ok', bead: `${PROJECT}-0002`, target: 'mayor' });
       }
-      if (url.pathname === '/gc-supervisor/v0/city/test-city/bead/gascity-0001' && method === 'PATCH') {
+      if (
+        url.pathname === '/gc-supervisor/v0/city/test-city/bead/gascity-0001' &&
+        method === 'PATCH'
+      ) {
         supervisorWrites.push({
           method,
           path: url.pathname,
@@ -72,7 +69,10 @@ beforeEach(() => {
         });
         return jsonResponse({ status: 'ok' });
       }
-      if (url.pathname === '/gc-supervisor/v0/city/test-city/bead/gascity-0001/close' && method === 'POST') {
+      if (
+        url.pathname === '/gc-supervisor/v0/city/test-city/bead/gascity-0001/close' &&
+        method === 'POST'
+      ) {
         supervisorWrites.push({
           method,
           path: url.pathname,
@@ -80,7 +80,10 @@ beforeEach(() => {
         });
         return jsonResponse({ status: 'closed' });
       }
-      if (url.pathname === '/gc-supervisor/v0/city/test-city/agent/mayor/nudge' && method === 'POST') {
+      if (
+        url.pathname === '/gc-supervisor/v0/city/test-city/agent/mayor/nudge' &&
+        method === 'POST'
+      ) {
         supervisorWrites.push({ method, path: url.pathname });
         return jsonResponse({ status: 'ok' });
       }
@@ -89,10 +92,7 @@ beforeEach(() => {
       }
       if (url.pathname === '/gc-supervisor/v0/city/test-city/agents') {
         return jsonResponse({
-          items: [
-            agent('mayor', 'east'),
-            agent('west/mechanic', 'west'),
-          ],
+          items: [agent('mayor', 'east'), agent('west/mechanic', 'west')],
           total: 2,
         });
       }
@@ -325,11 +325,8 @@ function agent(name: string, rig: string): unknown {
 }
 
 function parsedUrl(input: RequestInfo | URL): URL {
-  const value = input instanceof Request
-    ? input.url
-    : input instanceof URL
-      ? input.toString()
-      : String(input);
+  const value =
+    input instanceof Request ? input.url : input instanceof URL ? input.toString() : String(input);
   return new URL(value, window.location.origin);
 }
 
@@ -338,10 +335,7 @@ function requestMethod(input: RequestInfo | URL, init?: RequestInit): string {
   return init?.method ?? 'GET';
 }
 
-async function requestJson(
-  input: RequestInfo | URL,
-  init?: RequestInit,
-): Promise<unknown> {
+async function requestJson(input: RequestInfo | URL, init?: RequestInit): Promise<unknown> {
   if (input instanceof Request) {
     return input.clone().json() as Promise<unknown>;
   }

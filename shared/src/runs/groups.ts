@@ -1,15 +1,6 @@
-import type {
-  RunSnapshotBead,
-} from '../run-snapshot.js';
-import type {
-  RunControlBadge,
-} from '../run-detail.js';
-import {
-  externalizeId,
-  meta,
-  nonEmpty,
-  normalizedStepRef,
-} from './bead-fields.js';
+import type { RunSnapshotBead } from '../run-snapshot.js';
+import type { RunControlBadge } from '../run-detail.js';
+import { externalizeId, meta, nonEmpty, normalizedStepRef } from './bead-fields.js';
 import type { RunNodeGroup } from './execution-instances.js';
 import {
   badgeLabelFor,
@@ -35,10 +26,7 @@ interface BeadIdentity {
   semanticNodeId: string;
 }
 
-export function groupRunBeads(
-  beads: RunSnapshotBead[],
-  rootBeadId: string,
-): RunBeadGroups {
+export function groupRunBeads(beads: RunSnapshotBead[], rootBeadId: string): RunBeadGroups {
   const groupedBeads = new Map<string, RunSnapshotBead[]>();
   const physicalToSemantic = new Map<string, string>();
   const badgesByTarget = new Map<string, RunControlBadge[]>();
@@ -94,8 +82,10 @@ function buildRunNodeGroup(
 ): RunNodeGroup {
   const shapeBead = preferredShapeBead(beads, rootBeadId);
   const constructKind = constructKindFor(shapeBead, rootBeadId);
-  const scopeRef = groupOptional(beads, shapeBead, (bead) =>
-    meta(bead, 'gc.scope_ref') ?? nonEmpty(bead.scope_ref),
+  const scopeRef = groupOptional(
+    beads,
+    shapeBead,
+    (bead) => meta(bead, 'gc.scope_ref') ?? nonEmpty(bead.scope_ref),
   );
   const loopControlNodeId = groupOptional(beads, shapeBead, loopControlNodeIdFor);
 
@@ -162,11 +152,7 @@ function sortedBeads(beads: readonly RunSnapshotBead[]): RunSnapshotBead[] {
 }
 
 function beadSortKey(bead: RunSnapshotBead): string {
-  return [
-    nonEmpty(bead.id),
-    normalizedStepRef(bead),
-    nonEmpty(bead.title),
-  ]
+  return [nonEmpty(bead.id), normalizedStepRef(bead), nonEmpty(bead.title)]
     .filter(isDefined)
     .join('\u0000');
 }
@@ -198,11 +184,10 @@ function resolveBeadIdentities(
 
   const resolved = new Map<RunSnapshotBead, BeadIdentity>();
   for (const bead of beads) {
-    const partial =
-      partialIdentities.get(bead) ?? {
-        base: semanticNodeIdFor(bead, rootBeadId),
-        disambiguator: undefined,
-      };
+    const partial = partialIdentities.get(bead) ?? {
+      base: semanticNodeIdFor(bead, rootBeadId),
+      disambiguator: undefined,
+    };
     const identities = identitiesByBase.get(partial.base);
     const semanticNodeId =
       identities && identities.size > 1 && partial.disambiguator
@@ -307,13 +292,9 @@ function isDefined<T>(value: T | undefined): value is T {
   return value !== undefined;
 }
 
-function referencedPhysicalLogicalTargets(
-  beads: readonly RunSnapshotBead[],
-): Set<string> {
+function referencedPhysicalLogicalTargets(beads: readonly RunSnapshotBead[]): Set<string> {
   const beadIds = new Set(
-    beads
-      .map((bead) => nonEmpty(bead.id))
-      .filter((value): value is string => value !== undefined),
+    beads.map((bead) => nonEmpty(bead.id)).filter((value): value is string => value !== undefined),
   );
   const targets = new Set<string>();
   for (const bead of beads) {
@@ -337,15 +318,8 @@ function resolveBadgeTarget(
   return fallback;
 }
 
-function hiddenBadgeTargetCandidates(
-  bead: RunSnapshotBead,
-  fallback: string | null,
-): string[] {
-  return [
-    meta(bead, 'gc.control_for'),
-    hiddenBadgeFullTargetFor(bead),
-    fallback ?? undefined,
-  ]
+function hiddenBadgeTargetCandidates(bead: RunSnapshotBead, fallback: string | null): string[] {
+  return [meta(bead, 'gc.control_for'), hiddenBadgeFullTargetFor(bead), fallback ?? undefined]
     .filter((value): value is string => value !== undefined)
     .flatMap((value) => {
       const stripped = stripControlSuffix(value);
@@ -354,10 +328,7 @@ function hiddenBadgeTargetCandidates(
     .map((value) => externalizeId(value));
 }
 
-function stableSemanticIdentity(
-  bead: RunSnapshotBead,
-  rootBeadId: string,
-): string | undefined {
+function stableSemanticIdentity(bead: RunSnapshotBead, rootBeadId: string): string | undefined {
   const beadId = nonEmpty(bead.id);
   if (beadId && beadId === rootBeadId) return rootBeadId;
   const explicit = meta(bead, 'gc.logical_bead_id') ?? nonEmpty(bead.logical_bead_id);

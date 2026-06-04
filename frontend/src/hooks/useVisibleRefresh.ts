@@ -53,7 +53,8 @@ export function useVisibleRefresh(
       if (inFlightRef.current) return;
       if (Date.now() < nextAllowedAtRef.current) return;
       inFlightRef.current = true;
-      void refreshRef.current()
+      void refreshRef
+        .current()
         .then(resetBackoff, recordFailure)
         .finally(() => {
           inFlightRef.current = false;

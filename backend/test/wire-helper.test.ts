@@ -15,11 +15,7 @@
 //     it must not carry raw stderr" (404 not-configured wire shape).
 import { describe, test } from 'node:test';
 import assert from 'node:assert/strict';
-import {
-  assertWireDetails,
-  isWireDetails,
-  type WireDetails,
-} from './helpers/wire.js';
+import { assertWireDetails, isWireDetails, type WireDetails } from './helpers/wire.js';
 
 describe('assertWireDetails', () => {
   test('narrows a plain object with a string `name` so all fields are readable', () => {
@@ -64,10 +60,7 @@ describe('assertWireDetails', () => {
 
   test('throws on an array (typeof array === "object" trap)', () => {
     assert.throws(() => assertWireDetails([]), /wire details/i);
-    assert.throws(
-      () => assertWireDetails([{ name: 'NonZeroExit' }]),
-      /wire details/i,
-    );
+    assert.throws(() => assertWireDetails([{ name: 'NonZeroExit' }]), /wire details/i);
   });
 });
 

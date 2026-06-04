@@ -31,7 +31,8 @@ const BUG_LABEL = 'kind/bug';
 // per-process singleton — the no-singletons grep gate is about hidden state
 // (audit C1's failure class), and a frozen constant set has no state.
 // Same-line `// module-allow:` marker so the grep gate sees it.
-const BREAKING_PRIORITY_LABELS: ReadonlySet<string> = new Set<string>([ // module-allow: frozen literal label table, no hidden state
+const BREAKING_PRIORITY_LABELS: ReadonlySet<string> = new Set<string>([
+  // module-allow: frozen literal label table, no hidden state
   'priority/p0',
   'priority/p1',
 ]);
@@ -103,8 +104,7 @@ export function isMarkCandidate(item: TriageItem, tier: TriageTier): boolean {
  * sorter — bubbles up items that the maintainer can dispatch quickly.
  */
 function computeTriageScore(item: TriageItem, tier: TriageTier): number {
-  const severityBase =
-    tier === 'regression_breaking' ? 300 : tier === 'regression' ? 200 : 100;
+  const severityBase = tier === 'regression_breaking' ? 300 : tier === 'regression' ? 200 : 100;
 
   let simplicityBonus = 0;
   const labels = new Set(item.labels);

@@ -43,9 +43,7 @@ describe('LaneCard navigation', () => {
     );
 
     const link = screen.getByRole('link', { name: /adopt pr #42/i });
-    expect(link.getAttribute('href')).toBe(
-      '/runs/gc-root?scope_kind=city&scope_ref=racoon-city',
-    );
+    expect(link.getAttribute('href')).toBe('/runs/gc-root?scope_kind=city&scope_ref=racoon-city');
   });
 
   it('omits scope query params when the lane has unavailable scope', () => {
@@ -149,10 +147,7 @@ describe('LaneCard historical-lane render', () => {
   it('does not render the health "unavailable" string for a historical lane', () => {
     render(
       <MemoryRouter future={{ v7_relativeSplatPath: true, v7_startTransition: true }}>
-        <LaneCard
-          lane={makeHistoricalLane()}
-          now={Date.parse('2026-05-29T12:00:00Z')}
-        />
+        <LaneCard lane={makeHistoricalLane()} now={Date.parse('2026-05-29T12:00:00Z')} />
       </MemoryRouter>,
     );
 
@@ -165,10 +160,7 @@ describe('LaneCard historical-lane render', () => {
   it('renders the phase label in a quieter (muted) tone for a historical lane', () => {
     render(
       <MemoryRouter future={{ v7_relativeSplatPath: true, v7_startTransition: true }}>
-        <LaneCard
-          lane={makeHistoricalLane()}
-          now={Date.parse('2026-05-29T12:00:00Z')}
-        />
+        <LaneCard lane={makeHistoricalLane()} now={Date.parse('2026-05-29T12:00:00Z')} />
       </MemoryRouter>,
     );
 

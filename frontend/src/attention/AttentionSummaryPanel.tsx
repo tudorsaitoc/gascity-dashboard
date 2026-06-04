@@ -15,7 +15,10 @@ export function AttentionSummaryPanel() {
       </h2>
       <ul className="space-y-2">
         {attention.topItems.map((item) => (
-          <li key={`${item.domain}:${item.id}`} className="text-body text-fg flex items-baseline gap-3">
+          <li
+            key={`${item.domain}:${item.id}`}
+            className="text-body text-fg flex items-baseline gap-3"
+          >
             <AttentionTitle item={item} />
             <span className={`text-label uppercase tracking-wider ${severityClass(item.severity)}`}>
               {attentionDomainLabel(item.domain)}
@@ -28,10 +31,7 @@ export function AttentionSummaryPanel() {
           {attention.overflowByDomain.map((group, index) => (
             <Fragment key={group.domain}>
               {index > 0 && ' · '}
-              <Link
-                to={attentionDomainHref(group.domain)}
-                className="hover:text-fg focus-mark"
-              >
+              <Link to={attentionDomainHref(group.domain)} className="hover:text-fg focus-mark">
                 {group.total} more in {attentionDomainLabel(group.domain)}
               </Link>
             </Fragment>

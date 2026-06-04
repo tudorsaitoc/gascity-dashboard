@@ -121,11 +121,7 @@ function loadOverrides(viewKey: string, defaultCollapsed: boolean): Set<string> 
   return new Set();
 }
 
-function saveOverrides(
-  viewKey: string,
-  defaultCollapsed: boolean,
-  ids: ReadonlySet<string>,
-): void {
+function saveOverrides(viewKey: string, defaultCollapsed: boolean, ids: ReadonlySet<string>): void {
   writeBrowserStorage(
     'localStorage',
     storageKey(viewKey, defaultCollapsed),
@@ -223,8 +219,7 @@ export function useListFilters<T>({
   );
 
   const isCollapsed = useCallback(
-    (project: string) =>
-      overrides.has(project) ? !defaultCollapsed : defaultCollapsed,
+    (project: string) => (overrides.has(project) ? !defaultCollapsed : defaultCollapsed),
     [overrides, defaultCollapsed],
   );
 
@@ -290,9 +285,7 @@ export function useListFilters<T>({
       let bestHasUpper = false;
       for (const [label, count] of counts) {
         const hasUpper = /[A-Z]/.test(label);
-        const wins =
-          count > bestCount ||
-          (count === bestCount && hasUpper && !bestHasUpper);
+        const wins = count > bestCount || (count === bestCount && hasUpper && !bestHasUpper);
         if (wins) {
           best = label;
           bestCount = count;

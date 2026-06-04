@@ -13,10 +13,7 @@ import {
 } from '../exec.js';
 import { MAX_RUN_DIFF_BYTES } from '../exec-core.js';
 import { LOG_COMPONENT, errorMessage, logWarn } from '../logging.js';
-import {
-  classifyRunDiffFile,
-  isReviewableRunDiffPath,
-} from './run-diff-policy.js';
+import { classifyRunDiffFile, isReviewableRunDiffPath } from './run-diff-policy.js';
 
 const MAX_UNTRACKED_PATCH_FILES = 50;
 const MAX_UNTRACKED_FILE_DIFF_BYTES = 96 * 1024;
@@ -51,8 +48,7 @@ export async function readRunGitDiff(
       .map((line) => line.trimEnd())
       .filter((line) => line.length > 0)
       .filter(isReviewableStatusLine);
-    const untrackedPaths = parseNulList(untrackedResult.stdout)
-      .filter(isReviewableRunDiffPath);
+    const untrackedPaths = parseNulList(untrackedResult.stdout).filter(isReviewableRunDiffPath);
     const [trackedPatch, trackedChangedFiles] = await Promise.all([
       readTrackedPatch(cwd, comparison, allowedRoots),
       readTrackedChangedFiles(cwd, comparison, allowedRoots),
@@ -180,11 +176,12 @@ async function readTrackedChangedFiles(
   comparison: RunDiffComparison,
   allowedRoots: readonly string[],
 ): Promise<RunChangedFile[]> {
-  const result = comparison.kind === 'upstream'
-    ? await execRunGitNameStatusFrom(cwd, comparison.mergeBase, allowedRoots)
-    : comparison.kind === 'head'
-      ? await execRunGit(cwd, 'name-status-head', allowedRoots)
-      : null;
+  const result =
+    comparison.kind === 'upstream'
+      ? await execRunGitNameStatusFrom(cwd, comparison.mergeBase, allowedRoots)
+      : comparison.kind === 'head'
+        ? await execRunGit(cwd, 'name-status-head', allowedRoots)
+        : null;
   if (result === null) return [];
   if (result.exitCode !== 0) {
     logWarn(
@@ -313,9 +310,7 @@ function untrackedPatchPriority(filePath: string): number {
 function isReviewableStatusLine(line: string): boolean {
   const payload = line.slice(3).trim();
   if (payload.length === 0) return true;
-  return payload
-    .split(' -> ')
-    .every((filePath) => isReviewableRunDiffPath(filePath));
+  return payload.split(' -> ').every((filePath) => isReviewableRunDiffPath(filePath));
 }
 
 function isReviewableNameStatusLine(line: string): boolean {

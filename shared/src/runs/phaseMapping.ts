@@ -11,13 +11,8 @@
 // older metadata['gc.parent_bead_id'] marker when present. When neither exists,
 // classification falls back to title + description + metadata text scans.
 
-import type {
-  DashboardBead,
-} from '../dashboard-beads.js';
-import type {
-  RunPhase as SharedRunPhase,
-  RunStage,
-} from '../snapshot/types.js';
+import type { DashboardBead } from '../dashboard-beads.js';
+import type { RunPhase as SharedRunPhase, RunStage } from '../snapshot/types.js';
 
 export interface RunIssue {
   id: string;
@@ -39,11 +34,7 @@ export interface PhaseMapping {
 }
 
 export function mapRunPhase(issues: RunIssue[]): PhaseMapping {
-  if (
-    issues.some(
-      (i) => i.status === 'blocked' || textForIssue(i).includes('blocked'),
-    )
-  ) {
+  if (issues.some((i) => i.status === 'blocked' || textForIssue(i).includes('blocked'))) {
     return { phase: 'blocked', label: 'blocked', reviewRound: null };
   }
 
@@ -51,28 +42,11 @@ export function mapRunPhase(issues: RunIssue[]): PhaseMapping {
     return { phase: 'complete', label: 'complete', reviewRound: null };
   }
 
-  if (
-    containsAny(issues, [
-      'approval',
-      'approved',
-      'gate',
-      'human',
-      'finalize-scope',
-    ])
-  ) {
+  if (containsAny(issues, ['approval', 'approved', 'gate', 'human', 'finalize-scope'])) {
     return { phase: 'approval', label: 'approval', reviewRound: null };
   }
 
-  if (
-    containsAny(issues, [
-      'post-merge',
-      'merge',
-      'close',
-      'report',
-      'finalization',
-      'finalize',
-    ])
-  ) {
+  if (containsAny(issues, ['post-merge', 'merge', 'close', 'report', 'finalization', 'finalize'])) {
     return {
       phase: 'finalization',
       label: 'finalization',
@@ -90,9 +64,7 @@ export function mapRunPhase(issues: RunIssue[]): PhaseMapping {
     };
   }
 
-  if (
-    containsAny(issues, ['implementation', 'work', 'patch', 'code', 'fix', 'do-work'])
-  ) {
+  if (containsAny(issues, ['implementation', 'work', 'patch', 'code', 'fix', 'do-work'])) {
     return {
       phase: 'implementation',
       label: 'implementation',
@@ -148,17 +120,13 @@ const ROUND_IN_VALUE = /(?:^|\.)(?:iteration|attempt)\.(\d+)$/;
 const ROUND_KEY_NO_DIGITS = /(?:^|\.)(?:iteration|attempt)$/;
 
 export function reviewRoundForIssues(issues: RunIssue[]): number | null {
-  const rounds = issues
-    .map(reviewRoundForIssue)
-    .filter((r): r is number => r !== null);
+  const rounds = issues.map(reviewRoundForIssue).filter((r): r is number => r !== null);
   if (rounds.length === 0) return null;
   return Math.max(...rounds);
 }
 
 export function fallbackReviewRound(issues: RunIssue[]): number {
-  const reviewIssueCount = issues.filter((i) =>
-    textForIssue(i).includes('review'),
-  ).length;
+  const reviewIssueCount = issues.filter((i) => textForIssue(i).includes('review')).length;
   return Math.max(reviewIssueCount, 1);
 }
 
@@ -265,9 +233,7 @@ export function stageProgress(
   return runStages.map(([key, label], idx) => ({
     key,
     label:
-      key === 'review' && phase.reviewRound !== null
-        ? `Review round ${phase.reviewRound}`
-        : label,
+      key === 'review' && phase.reviewRound !== null ? `Review round ${phase.reviewRound}` : label,
     status: (idx < activeIndex
       ? 'complete'
       : idx === activeIndex
@@ -323,10 +289,7 @@ export function stagesForFormula(
       {
         key: 'fanout',
         label: 'Persona fanout',
-        steps: [
-          'design-review.prepare-review-items',
-          'design-review.persona-review-fanout',
-        ],
+        steps: ['design-review.prepare-review-items', 'design-review.persona-review-fanout'],
       },
       {
         key: 'synthesis',
@@ -362,19 +325,12 @@ export function stagesForFormula(
       {
         key: 'classify',
         label: 'Classify',
-        steps: [
-          'investigation-synthesis',
-          'followup-evidence',
-          'normalize-outcome',
-        ],
+        steps: ['investigation-synthesis', 'followup-evidence', 'normalize-outcome'],
       },
       {
         key: 'approval',
         label: 'Human approval',
-        steps: [
-          'approve-classification',
-          'verify-classification-approval',
-        ],
+        steps: ['approve-classification', 'verify-classification-approval'],
       },
       { key: 'publish', label: 'Publish', steps: ['publish-classification'] },
       {
@@ -390,11 +346,7 @@ export function stagesForFormula(
       {
         key: 'plan',
         label: 'Plan approval',
-        steps: [
-          'approve-fix-plan',
-          'approve-test-hardening-plan',
-          'verify-selected-plan-approval',
-        ],
+        steps: ['approve-fix-plan', 'approve-test-hardening-plan', 'verify-selected-plan-approval'],
       },
       {
         key: 'design',
@@ -433,24 +385,19 @@ function formulaStageProgress(
   issues: RunIssue[],
 ): RunStage[] {
   const primary = issues.filter(isPrimaryStepIssue);
-  const activeStepId = latestStepId(
-    primary.filter((i) => i.status === 'in_progress'),
-  );
+  const activeStepId = latestStepId(primary.filter((i) => i.status === 'in_progress'));
   const activeIndex = activeStepId
     ? stages.findIndex((s) => s.steps.includes(activeStepId))
     : firstOpenStageIndex(stages, primary);
   const furthestClosedIndex = furthestClosedStageIndex(stages, primary);
 
   const stageHasClosed = (stage: { steps: string[] }): boolean =>
-    stage.steps.some((step) =>
-      stepIssues(primary, step).some((i) => i.status === 'closed'),
-    );
+    stage.steps.some((step) => stepIssues(primary, step).some((i) => i.status === 'closed'));
 
   return stages.map((stage, idx) => {
     let status: RunStage['status'];
     if (activeIndex >= 0) {
-      status =
-        idx < activeIndex ? 'complete' : idx === activeIndex ? 'active' : 'pending';
+      status = idx < activeIndex ? 'complete' : idx === activeIndex ? 'active' : 'pending';
     } else if (stageHasClosed(stage) || idx < furthestClosedIndex) {
       status = 'complete';
     } else {
@@ -460,28 +407,16 @@ function formulaStageProgress(
   });
 }
 
-function firstOpenStageIndex(
-  stages: Array<{ steps: string[] }>,
-  issues: RunIssue[],
-): number {
+function firstOpenStageIndex(stages: Array<{ steps: string[] }>, issues: RunIssue[]): number {
   return stages.findIndex((s) =>
-    s.steps.some((step) =>
-      stepIssues(issues, step).some((i) => i.status !== 'closed'),
-    ),
+    s.steps.some((step) => stepIssues(issues, step).some((i) => i.status !== 'closed')),
   );
 }
 
-function furthestClosedStageIndex(
-  stages: Array<{ steps: string[] }>,
-  issues: RunIssue[],
-): number {
+function furthestClosedStageIndex(stages: Array<{ steps: string[] }>, issues: RunIssue[]): number {
   let furthest = -1;
   stages.forEach((s, idx) => {
-    if (
-      s.steps.some((step) =>
-        stepIssues(issues, step).some((i) => i.status === 'closed'),
-      )
-    ) {
+    if (s.steps.some((step) => stepIssues(issues, step).some((i) => i.status === 'closed'))) {
       furthest = idx;
     }
   });
@@ -498,9 +433,7 @@ export function latestStepId(issues: RunIssue[]): string | null {
 }
 
 export function stepIssues(issues: RunIssue[], step: string): RunIssue[] {
-  return issues.filter(
-    (i) => stringValue(i.metadata?.['gc.step_id']) === step,
-  );
+  return issues.filter((i) => stringValue(i.metadata?.['gc.step_id']) === step);
 }
 
 export function isPrimaryStepIssue(issue: RunIssue): boolean {

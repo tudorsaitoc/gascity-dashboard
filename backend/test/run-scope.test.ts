@@ -86,10 +86,11 @@ describe('run scope helpers', () => {
         rootStoreRef: 'rig:worker-a',
       },
     );
-    assert.deepEqual(
-      fromFeedScope({ scope_kind: 'city', scope_ref: 'demo' }),
-      { scopeKind: 'city', scopeRef: 'demo', rootStoreRef: 'city:demo' },
-    );
+    assert.deepEqual(fromFeedScope({ scope_kind: 'city', scope_ref: 'demo' }), {
+      scopeKind: 'city',
+      scopeRef: 'demo',
+      rootStoreRef: 'city:demo',
+    });
     assert.equal(fromFeedScope({ scope_kind: 'city', scope_ref: '../bad' }), null);
   });
 

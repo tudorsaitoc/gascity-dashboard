@@ -84,13 +84,13 @@ const GASCITY_TOPICS: ReadonlyArray<TopicDef> = [
 // Word-boundary regex per pattern; case-insensitive. Trailing `s?` so
 // the singular catches plurals too. Each pattern resolves to its
 // topic's canonical name, so aliased patterns cluster as one.
-const TOPIC_REGEXES: ReadonlyArray<{ canonical: string; re: RegExp }> =
-  GASCITY_TOPICS.flatMap((t) =>
+const TOPIC_REGEXES: ReadonlyArray<{ canonical: string; re: RegExp }> = GASCITY_TOPICS.flatMap(
+  (t) =>
     t.patterns.map((p) => ({
       canonical: t.canonical,
       re: new RegExp(`\\b${escapeRegex(p)}s?\\b`, 'i'),
     })),
-  );
+);
 
 function escapeRegex(s: string): string {
   return s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
@@ -147,9 +147,7 @@ export function buildTopicClusters(items: TriageItem[]): {
     clusters.push({
       cluster_id: `@topic/${topic}`,
       files: [`@topic/${topic}`],
-      items: members
-        .slice()
-        .sort((a, b) => sortScore(b) - sortScore(a)),
+      items: members.slice().sort((a, b) => sortScore(b) - sortScore(a)),
       lines_pending: members
         .filter((m) => m.kind === 'pr')
         .reduce((sum, m) => sum + (m.lines_changed ?? 0), 0),

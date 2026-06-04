@@ -20,17 +20,10 @@
  * pre-filter null/undefined/'' — this helper assumes a real value.
  */
 function toEpochMs(ts: string | number | Date): number {
-  return ts instanceof Date
-    ? ts.getTime()
-    : typeof ts === 'number'
-    ? ts
-    : Date.parse(ts);
+  return ts instanceof Date ? ts.getTime() : typeof ts === 'number' ? ts : Date.parse(ts);
 }
 
-export function formatRelative(
-  ts: string | number | Date | undefined | null,
-  now: number,
-): string {
+export function formatRelative(ts: string | number | Date | undefined | null, now: number): string {
   if (ts === undefined || ts === null || ts === '') return '·';
 
   const ms = toEpochMs(ts);
@@ -52,9 +45,7 @@ export function formatRelative(
  * Seconds are truncated, not rounded — a turn at `HH:MM:59` renders as
  * `HH:MM`, keeping minute boundaries stable across the rendering tick.
  */
-export function formatClockTime(
-  ts: string | number | Date | undefined | null,
-): string {
+export function formatClockTime(ts: string | number | Date | undefined | null): string {
   if (ts === undefined || ts === null || ts === '') return '·';
 
   const ms = toEpochMs(ts);
@@ -78,9 +69,7 @@ export function formatClockTime(
  * Used as a once-per-modal "dateline" in the SessionPeek modal so the
  * operator knows the calendar context without per-turn date duplication.
  */
-export function formatShortDate(
-  ts: string | number | Date | undefined | null,
-): string {
+export function formatShortDate(ts: string | number | Date | undefined | null): string {
   if (ts === undefined || ts === null || ts === '') return '·';
 
   const ms = toEpochMs(ts);

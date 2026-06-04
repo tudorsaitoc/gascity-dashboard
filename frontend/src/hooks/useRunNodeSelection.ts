@@ -1,7 +1,4 @@
-import type {
-  RunDisplayNode,
-  FormulaRunDetail,
-} from 'gas-city-dashboard-shared';
+import type { RunDisplayNode, FormulaRunDetail } from 'gas-city-dashboard-shared';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 
 interface NodeSelection {
@@ -60,13 +57,16 @@ export function useRunNodeSelection(
     return () => window.removeEventListener('keydown', onKeyDown);
   }, [clearSelection]);
 
-  const toggleNode = useCallback((nodeId: string) => {
-    setSelection((current) => ({
-      nodeId: current.nodeId === nodeId ? null : nodeId,
-      routeKey,
-      source: 'user',
-    }));
-  }, [routeKey]);
+  const toggleNode = useCallback(
+    (nodeId: string) => {
+      setSelection((current) => ({
+        nodeId: current.nodeId === nodeId ? null : nodeId,
+        routeKey,
+        source: 'user',
+      }));
+    },
+    [routeKey],
+  );
 
   const selectedNodeId = selection.nodeId;
   const selectedNode = useMemo<RunDisplayNode | null>(
@@ -82,10 +82,7 @@ export function useRunNodeSelection(
   };
 }
 
-function selectedRouteNodeId(
-  detail: FormulaRunDetail,
-  nodeId: string | null,
-): string | null {
+function selectedRouteNodeId(detail: FormulaRunDetail, nodeId: string | null): string | null {
   if (!nodeId) return null;
   return detail.nodes.some((node) => node.id === nodeId) ? nodeId : null;
 }

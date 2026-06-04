@@ -136,27 +136,29 @@ describe('agentProject', () => {
     // Guarantees the rig-guard semantics: an agent named 'mayor' that
     // somehow got scoped to a rig is treated as a rig agent, not
     // accidentally lifted into the cross-rig Orchestration group.
-    expect(
-      agentProject({ name: 'mayor', rig: '/home/ds/gascity' } as never),
-    ).toEqual({ key: 'gascity', label: 'gascity' });
+    expect(agentProject({ name: 'mayor', rig: '/home/ds/gascity' } as never)).toEqual({
+      key: 'gascity',
+      label: 'gascity',
+    });
   });
 });
 
 describe('isPerRigDispatcherAgent', () => {
   it('matches a rig-scoped agent whose alias ends in /control-dispatcher', () => {
     expect(
-      isPerRigDispatcherAgent({ name: 'thriva/control-dispatcher', rig: '/home/ds/thriva' } as never),
+      isPerRigDispatcherAgent({
+        name: 'thriva/control-dispatcher',
+        rig: '/home/ds/thriva',
+      } as never),
     ).toBe(true);
   });
   it('is false for the bare cross-rig control-dispatcher (no rig)', () => {
-    expect(
-      isPerRigDispatcherAgent({ name: 'control-dispatcher' } as never),
-    ).toBe(false);
+    expect(isPerRigDispatcherAgent({ name: 'control-dispatcher' } as never)).toBe(false);
   });
   it('is false for any agent without a rig', () => {
-    expect(
-      isPerRigDispatcherAgent({ name: 'thriva/control-dispatcher', rig: '' } as never),
-    ).toBe(false);
+    expect(isPerRigDispatcherAgent({ name: 'thriva/control-dispatcher', rig: '' } as never)).toBe(
+      false,
+    );
   });
   it('is false for a rig-scoped agent without the dispatcher suffix', () => {
     expect(
@@ -174,11 +176,7 @@ describe('isPerRigDispatcherAgent', () => {
 // asserts every "orchestration" name produces the Orchestration bucket
 // on BOTH `agentProject` and `isOrchestrationSession`.
 describe('orchestration name sets stay in sync between sessions and agents', () => {
-  const orchestrationIdentifiers = [
-    'mayor',
-    'control-dispatcher',
-    'oversight-rig.chief-of-staff',
-  ];
+  const orchestrationIdentifiers = ['mayor', 'control-dispatcher', 'oversight-rig.chief-of-staff'];
 
   it.each(orchestrationIdentifiers)(
     '"%s" is classified as orchestration on both the session AND agent shapes',
@@ -214,10 +212,16 @@ describe('isAgentOutsideRig', () => {
 
 describe('agentProject -main canonicalization', () => {
   it('strips a -main worktree/build suffix to the base rig', () => {
-    expect(agentProject({ name: 'x', rig: '/home/ds/gascity-main' } as never).label).toBe('gascity');
-    expect(agentProject({ name: 'y', rig: '/home/ds/gascity-packs-main' } as never).label).toBe('gascity-packs');
+    expect(agentProject({ name: 'x', rig: '/home/ds/gascity-main' } as never).label).toBe(
+      'gascity',
+    );
+    expect(agentProject({ name: 'y', rig: '/home/ds/gascity-packs-main' } as never).label).toBe(
+      'gascity-packs',
+    );
   });
   it('leaves a normal rig path unchanged', () => {
-    expect(agentProject({ name: 'z', rig: '/home/ds/gascity-packs' } as never).label).toBe('gascity-packs');
+    expect(agentProject({ name: 'z', rig: '/home/ds/gascity-packs' } as never).label).toBe(
+      'gascity-packs',
+    );
   });
 });

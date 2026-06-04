@@ -1,30 +1,14 @@
-import type {
-  RunSnapshotBead,
-} from '../run-snapshot.js';
-import type {
-  RunConstructKind,
-} from '../run-detail.js';
-import {
-  externalizeId,
-  meta,
-  nonEmpty,
-  normalizedStepRef,
-} from './bead-fields.js';
+import type { RunSnapshotBead } from '../run-snapshot.js';
+import type { RunConstructKind } from '../run-detail.js';
+import { externalizeId, meta, nonEmpty, normalizedStepRef } from './bead-fields.js';
 
-const HIDDEN_CONSTRUCTS = new Set<RunConstructKind>([
-  'scope-check',
-  'run-finalize',
-  'spec',
-]);
+const HIDDEN_CONSTRUCTS = new Set<RunConstructKind>(['scope-check', 'run-finalize', 'spec']);
 
 export function isHiddenConstruct(kind: RunConstructKind): boolean {
   return HIDDEN_CONSTRUCTS.has(kind) || kind === 'control';
 }
 
-export function semanticNodeIdFor(
-  bead: RunSnapshotBead,
-  rootBeadId: string,
-): string {
+export function semanticNodeIdFor(bead: RunSnapshotBead, rootBeadId: string): string {
   const beadId = nonEmpty(bead.id);
   if (beadId && beadId === rootBeadId) return rootBeadId;
   const explicit = meta(bead, 'gc.logical_bead_id') ?? nonEmpty(bead.logical_bead_id);
@@ -39,10 +23,7 @@ export function semanticNodeIdFor(
   return externalizeId(beadId ?? 'run-node');
 }
 
-export function hiddenBadgeTargetFor(
-  bead: RunSnapshotBead,
-  rootBeadId: string,
-): string | null {
+export function hiddenBadgeTargetFor(bead: RunSnapshotBead, rootBeadId: string): string | null {
   const kind = constructKindFor(bead, rootBeadId);
   if (kind === 'run-finalize') return rootBeadId;
   const controlRef = meta(bead, 'gc.control_for');
@@ -56,10 +37,7 @@ export function hiddenBadgeTargetFor(
   return target ? externalizeId(target) : null;
 }
 
-export function constructKindFor(
-  bead: RunSnapshotBead,
-  rootBeadId: string,
-): RunConstructKind {
+export function constructKindFor(bead: RunSnapshotBead, rootBeadId: string): RunConstructKind {
   const beadId = nonEmpty(bead.id);
   if (beadId && beadId === rootBeadId) return 'run-root';
   const kind = rawKind(bead);
@@ -92,19 +70,14 @@ export function constructKindFor(
   }
 }
 
-export function externalKindFor(
-  bead: RunSnapshotBead,
-  constructKind: RunConstructKind,
-): string {
+export function externalKindFor(bead: RunSnapshotBead, constructKind: RunConstructKind): string {
   if (constructKind === 'check-loop') return 'check-loop';
   const kind = rawKind(bead);
   return kind === 'ralph' ? 'check-loop' : kind || constructKind;
 }
 
 export function displayTitleFor(bead: RunSnapshotBead, fallback: string): string {
-  return externalizeDisplayText(
-    nonEmpty(bead.title) ?? fallback.replace(/[-_]/g, ' '),
-  );
+  return externalizeDisplayText(nonEmpty(bead.title) ?? fallback.replace(/[-_]/g, ' '));
 }
 
 export function badgeLabelFor(kind: RunConstructKind): string {
@@ -141,12 +114,7 @@ export function loopControlNodeIdFor(bead: RunSnapshotBead): string | undefined 
 }
 
 function rawKind(bead: RunSnapshotBead): string {
-  return (
-    meta(bead, 'gc.kind') ??
-    meta(bead, 'gc.original_kind') ??
-    nonEmpty(bead.kind) ??
-    ''
-  );
+  return meta(bead, 'gc.kind') ?? meta(bead, 'gc.original_kind') ?? nonEmpty(bead.kind) ?? '';
 }
 
 function semanticIdFromStepRef(ref: string): string | undefined {
@@ -186,20 +154,14 @@ function stripRuntimeSuffix(parts: string[]): string[] {
     value &&
     marker &&
     isPositiveInteger(value) &&
-    (marker === 'attempt' ||
-      marker === 'run' ||
-      marker === 'check' ||
-      marker === 'eval')
+    (marker === 'attempt' || marker === 'run' || marker === 'check' || marker === 'eval')
   ) {
     return parts.slice(0, -2);
   }
   return parts;
 }
 
-function loopControlIdFromRuntimeRef(
-  ref: string,
-  markers: readonly string[],
-): string | undefined {
+function loopControlIdFromRuntimeRef(ref: string, markers: readonly string[]): string | undefined {
   const parts = ref.split('.').filter(Boolean);
   for (const marker of markers) {
     const markerIndex = parts.findIndex(

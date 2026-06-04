@@ -4,19 +4,9 @@ import { afterEach, beforeEach, describe, expect, it, vi, type Mock } from 'vite
 import { HealthPage } from './Health';
 import { invalidate } from '../api/cache';
 import { AttentionProvider } from '../attention/context';
-import {
-  createAttentionContributors,
-  type HealthAttentionFacts,
-} from '../attention/registry';
-import type {
-  HealthOutputBody,
-  StatusBody,
-} from '../generated/gc-supervisor-client/types.gen';
-import type {
-  DoltNomsTrend,
-  LocalToolVersions,
-  SystemHealth,
-} from 'gas-city-dashboard-shared';
+import { createAttentionContributors, type HealthAttentionFacts } from '../attention/registry';
+import type { HealthOutputBody, StatusBody } from '../generated/gc-supervisor-client/types.gen';
+import type { DoltNomsTrend, LocalToolVersions, SystemHealth } from 'gas-city-dashboard-shared';
 import { supervisorApiForRequestBudget } from '../supervisor/client';
 
 const mockCityHealth = vi.fn<(cityName: string) => Promise<HealthOutputBody>>();
@@ -55,25 +45,28 @@ beforeEach(() => {
   currentTrend = baseTrend();
   systemHealthMode = 'ok';
   trendMode = 'ok';
-  vi.stubGlobal('fetch', vi.fn(async (input: RequestInfo | URL) => {
-    const url = String(input);
-    if (url === '/api/health/system') {
-      if (systemHealthMode === 'fail') {
-        return errorResponse('system health offline');
+  vi.stubGlobal(
+    'fetch',
+    vi.fn(async (input: RequestInfo | URL) => {
+      const url = String(input);
+      if (url === '/api/health/system') {
+        if (systemHealthMode === 'fail') {
+          return errorResponse('system health offline');
+        }
+        return jsonResponse(currentHealth);
       }
-      return jsonResponse(currentHealth);
-    }
-    if (url === '/api/health/local-tools') {
-      return jsonResponse(currentLocalTools);
-    }
-    if (url === '/api/city/test-city/dolt-noms/trend') {
-      if (trendMode === 'fail') {
-        return errorResponse('dolt trend offline');
+      if (url === '/api/health/local-tools') {
+        return jsonResponse(currentLocalTools);
       }
-      return jsonResponse(currentTrend);
-    }
-    throw new Error(`unexpected fetch: ${url}`);
-  }));
+      if (url === '/api/city/test-city/dolt-noms/trend') {
+        if (trendMode === 'fail') {
+          return errorResponse('dolt trend offline');
+        }
+        return jsonResponse(currentTrend);
+      }
+      throw new Error(`unexpected fetch: ${url}`);
+    }),
+  );
 });
 
 afterEach(() => {
@@ -186,7 +179,11 @@ describe('HealthPage', () => {
     renderPage();
 
     await screen.findByRole('heading', { name: /host/i });
-    expect(screen.getByText('Supervisor not reachable. The dashboard shell stays up; live data is stale.')).toBeTruthy();
+    expect(
+      screen.getByText(
+        'Supervisor not reachable. The dashboard shell stays up; live data is stale.',
+      ),
+    ).toBeTruthy();
     expect(screen.getByText('8')).toBeTruthy();
   });
 

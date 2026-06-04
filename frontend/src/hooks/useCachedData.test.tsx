@@ -1,15 +1,15 @@
-import { act, cleanup, renderHook, waitFor } from "@testing-library/react";
-import { afterEach, describe, expect, it, vi } from "vitest";
-import { getCached, invalidate } from "../api/cache";
-import { useCachedData } from "./useCachedData";
+import { act, cleanup, renderHook, waitFor } from '@testing-library/react';
+import { afterEach, describe, expect, it, vi } from 'vitest';
+import { getCached, invalidate } from '../api/cache';
+import { useCachedData } from './useCachedData';
 
 afterEach(() => {
   cleanup();
-  invalidate("");
+  invalidate('');
 });
 
-describe("useCachedData", () => {
-  it("does not let a stale fetch overwrite state after the cache key changes", async () => {
+describe('useCachedData', () => {
+  it('does not let a stale fetch overwrite state after the cache key changes', async () => {
     const first = deferred<string>();
     const second = deferred<string>();
     const fetchers: Record<string, () => Promise<string>> = {
@@ -20,35 +20,35 @@ describe("useCachedData", () => {
     const { result, rerender } = renderHook(
       ({ cacheKey }: { cacheKey: string }) =>
         useCachedData(cacheKey, fetcherFor(fetchers, cacheKey)),
-      { initialProps: { cacheKey: "first" } },
+      { initialProps: { cacheKey: 'first' } },
     );
 
     expect(result.current.loading).toBe(true);
 
-    rerender({ cacheKey: "second" });
+    rerender({ cacheKey: 'second' });
 
     await act(async () => {
-      second.resolve("second result");
+      second.resolve('second result');
       await second.promise;
     });
-    await waitFor(() => expect(result.current.data).toBe("second result"));
+    await waitFor(() => expect(result.current.data).toBe('second result'));
 
     await act(async () => {
-      first.resolve("first result");
+      first.resolve('first result');
       await first.promise;
     });
 
-    expect(result.current.data).toBe("second result");
+    expect(result.current.data).toBe('second result');
     expect(result.current.loading).toBe(false);
     expect(result.current.error).toBeNull();
-    expect(getCached<string>("first")).toBeUndefined();
-    expect(getCached<string>("second")).toBe("second result");
+    expect(getCached<string>('first')).toBeUndefined();
+    expect(getCached<string>('second')).toBe('second result');
   });
 
-  it("does not let a stale same-key fetch overwrite the cache slot", async () => {
+  it('does not let a stale same-key fetch overwrite the cache slot', async () => {
     const slow = deferred<string>();
     const fast = deferred<string>();
-    const cacheKey = "run-run:active";
+    const cacheKey = 'run-run:active';
 
     const { result } = renderHook(() =>
       useCachedData(cacheKey, () => slow.promise, {
@@ -62,22 +62,22 @@ describe("useCachedData", () => {
     });
 
     await act(async () => {
-      fast.resolve("fresh result");
+      fast.resolve('fresh result');
       await refreshPromise;
     });
-    await waitFor(() => expect(result.current.data).toBe("fresh result"));
-    expect(getCached<string>(cacheKey)).toBe("fresh result");
+    await waitFor(() => expect(result.current.data).toBe('fresh result'));
+    expect(getCached<string>(cacheKey)).toBe('fresh result');
 
     await act(async () => {
-      slow.resolve("stale result");
+      slow.resolve('stale result');
       await slow.promise;
     });
 
-    expect(result.current.data).toBe("fresh result");
-    expect(getCached<string>(cacheKey)).toBe("fresh result");
+    expect(result.current.data).toBe('fresh result');
+    expect(getCached<string>(cacheKey)).toBe('fresh result');
   });
 
-  it("seeds data from a superseded run when no result has landed yet", async () => {
+  it('seeds data from a superseded run when no result has landed yet', async () => {
     // A busy SSE stream re-fires refresh() faster than the slow fetch
     // resolves, so every run is superseded before it completes. Without
     // first-paint rescue the latest-run guard never sets data and the
@@ -89,11 +89,9 @@ describe("useCachedData", () => {
     const calls = [first, second];
     let callIndex = 0;
     const fetcher = vi.fn(() => calls[callIndex++]!.promise);
-    const cacheKey = "beads:board:";
+    const cacheKey = 'beads:board:';
 
-    const { result } = renderHook(() =>
-      useCachedData(cacheKey, fetcher),
-    );
+    const { result } = renderHook(() => useCachedData(cacheKey, fetcher));
 
     // Mount fires run #1 (first). A refresh supersedes it with run #2
     // (second) before run #1 resolves.
@@ -103,57 +101,52 @@ describe("useCachedData", () => {
 
     // Run #1 resolves AFTER being superseded — first-paint rescue seeds it.
     await act(async () => {
-      first.resolve("first result");
+      first.resolve('first result');
       await first.promise;
     });
-    await waitFor(() => expect(result.current.data).toBe("first result"));
+    await waitFor(() => expect(result.current.data).toBe('first result'));
 
     // Once the latest run lands it wins, replacing the rescued value.
     await act(async () => {
-      second.resolve("second result");
+      second.resolve('second result');
       await second.promise;
     });
-    await waitFor(() => expect(result.current.data).toBe("second result"));
+    await waitFor(() => expect(result.current.data).toBe('second result'));
   });
 
-  it("does not write a resolved fetch into the cache after unmount", async () => {
+  it('does not write a resolved fetch into the cache after unmount', async () => {
     const pending = deferred<string>();
-    const cacheKey = "unmounted";
+    const cacheKey = 'unmounted';
 
-    const { unmount } = renderHook(() =>
-      useCachedData(cacheKey, () => pending.promise),
-    );
+    const { unmount } = renderHook(() => useCachedData(cacheKey, () => pending.promise));
 
     unmount();
     invalidate(cacheKey);
 
     await act(async () => {
-      pending.resolve("late result");
+      pending.resolve('late result');
       await pending.promise;
     });
 
     expect(getCached<string>(cacheKey)).toBeUndefined();
   });
 
-  it("reports the latest fetch failure through onError", async () => {
+  it('reports the latest fetch failure through onError', async () => {
     const onError = vi.fn();
-    const failure = new Error("network down");
+    const failure = new Error('network down');
 
     const { result } = renderHook(() =>
-      useCachedData("broken", () => Promise.reject(failure), { onError }),
+      useCachedData('broken', () => Promise.reject(failure), { onError }),
     );
 
     await waitFor(() => expect(result.current.loading).toBe(false));
 
-    expect(result.current.error).toBe("network down");
+    expect(result.current.error).toBe('network down');
     expect(onError).toHaveBeenCalledWith(failure);
   });
 });
 
-function fetcherFor<T>(
-  fetchers: Record<string, () => Promise<T>>,
-  key: string,
-) {
+function fetcherFor<T>(fetchers: Record<string, () => Promise<T>>, key: string) {
   const fetcher = fetchers[key];
   if (!fetcher) throw new Error(`missing fetcher for ${key}`);
   return fetcher;

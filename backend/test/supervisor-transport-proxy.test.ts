@@ -8,10 +8,7 @@ import { readFile } from 'node:fs/promises';
 
 import { supervisorTransportProxy } from '../src/routes/supervisor-transport-proxy.js';
 
-type Handler = (
-  req: http.IncomingMessage,
-  res: http.ServerResponse,
-) => void;
+type Handler = (req: http.IncomingMessage, res: http.ServerResponse) => void;
 
 interface RunningServer {
   url: string;

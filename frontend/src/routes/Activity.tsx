@@ -1,18 +1,10 @@
-import type {
-  DeployList,
-  DeployRecord,
-  GitCommit,
-  GitCommitList,
-} from 'gas-city-dashboard-shared';
+import type { DeployList, DeployRecord, GitCommit, GitCommitList } from 'gas-city-dashboard-shared';
 import type { ReactNode } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import { api, formatApiError } from '../api/client';
 import { getActiveCity } from '../api/cityBase';
 import { useAttentionModel } from '../attention/context';
-import {
-  attentionRowProps,
-  resourceAttentionSeverity,
-} from '../attention/routeHighlight';
+import { attentionRowProps, resourceAttentionSeverity } from '../attention/routeHighlight';
 import { Button } from '../components/Button';
 import { PageHeader } from '../components/PageHeader';
 import { StatusBadge, type StatusTone } from '../components/StatusBadge';
@@ -82,9 +74,8 @@ export function ActivityPage() {
     eventSignal,
     textFilter ?? '',
   ].join(':');
-  const { data, loading, error, refresh } = useCachedData(
-    cacheKey,
-    () => fetchActivityBundle(mode, eventType, eventActor, eventWindow, eventSignal, textFilter),
+  const { data, loading, error, refresh } = useCachedData(cacheKey, () =>
+    fetchActivityBundle(mode, eventType, eventActor, eventWindow, eventSignal, textFilter),
   );
 
   useVisibleRefresh(refresh, 30_000);
@@ -300,12 +291,7 @@ function ActivityFilters({
           aria-label="Event type"
           value={eventType ?? ''}
           onChange={(event) =>
-            setActivitySearchParam(
-              setSearchParams,
-              searchParams,
-              'type',
-              event.currentTarget.value,
-            )
+            setActivitySearchParam(setSearchParams, searchParams, 'type', event.currentTarget.value)
           }
           placeholder="session.crashed"
           className="min-w-44 rounded-sm border border-rule bg-surface px-2 py-1 text-body normal-case tracking-normal text-fg placeholder:text-fg-faint focus-mark"
@@ -357,12 +343,7 @@ function ActivityFilters({
           aria-label="Search activity"
           value={textFilter ?? ''}
           onChange={(event) =>
-            setActivitySearchParam(
-              setSearchParams,
-              searchParams,
-              'q',
-              event.currentTarget.value,
-            )
+            setActivitySearchParam(setSearchParams, searchParams, 'q', event.currentTarget.value)
           }
           placeholder="actor, subject, or message"
           className="rounded-sm border border-rule bg-surface px-2 py-1 text-body normal-case tracking-normal text-fg placeholder:text-fg-faint focus-mark"
@@ -405,11 +386,21 @@ function EventsSection({
       <ActivityTable label="Supervisor events">
         <thead>
           <tr className="border-b border-rule text-label uppercase tracking-wider text-fg-muted">
-            <th scope="col" className="pb-3 pr-6 text-left font-medium">Time</th>
-            <th scope="col" className="pb-3 pr-6 text-left font-medium">Signal</th>
-            <th scope="col" className="pb-3 pr-6 text-left font-medium">Type</th>
-            <th scope="col" className="pb-3 pr-6 text-left font-medium">Subject</th>
-            <th scope="col" className="pb-3 pr-6 text-left font-medium">Detail</th>
+            <th scope="col" className="pb-3 pr-6 text-left font-medium">
+              Time
+            </th>
+            <th scope="col" className="pb-3 pr-6 text-left font-medium">
+              Signal
+            </th>
+            <th scope="col" className="pb-3 pr-6 text-left font-medium">
+              Type
+            </th>
+            <th scope="col" className="pb-3 pr-6 text-left font-medium">
+              Subject
+            </th>
+            <th scope="col" className="pb-3 pr-6 text-left font-medium">
+              Detail
+            </th>
           </tr>
         </thead>
         <tbody>
@@ -438,12 +429,8 @@ function EventsSection({
                 <td className="py-3 pr-6 align-baseline">
                   <EventSignalBadge signal={supervisorEventSignal(event)} />
                 </td>
-                <td className="py-3 pr-6 align-baseline font-medium text-fg">
-                  {event.type}
-                </td>
-                <td className="py-3 pr-6 align-baseline text-fg-muted">
-                  {event.subject ?? '·'}
-                </td>
+                <td className="py-3 pr-6 align-baseline font-medium text-fg">{event.type}</td>
+                <td className="py-3 pr-6 align-baseline text-fg-muted">{event.subject ?? '·'}</td>
                 <td className="py-3 pr-6 align-baseline text-fg-muted">
                   {supervisorEventDetail(event)}
                 </td>
@@ -471,7 +458,7 @@ function DeploysSection({
   return (
     <ActivitySection
       title="Deploy history"
-      meta={deploys?.failed_marker === true ? 'failed marker present' : deploys?.source ?? null}
+      meta={deploys?.failed_marker === true ? 'failed marker present' : (deploys?.source ?? null)}
     >
       {error !== undefined && (
         <p className="text-body text-accent" role="alert">
@@ -481,9 +468,15 @@ function DeploysSection({
       <ActivityTable label="Deploy history">
         <thead>
           <tr className="border-b border-rule text-label uppercase tracking-wider text-fg-muted">
-            <th scope="col" className="pb-3 pr-6 text-left font-medium">Time</th>
-            <th scope="col" className="pb-3 pr-6 text-left font-medium">Status</th>
-            <th scope="col" className="pb-3 pr-6 text-left font-medium">Detail</th>
+            <th scope="col" className="pb-3 pr-6 text-left font-medium">
+              Time
+            </th>
+            <th scope="col" className="pb-3 pr-6 text-left font-medium">
+              Status
+            </th>
+            <th scope="col" className="pb-3 pr-6 text-left font-medium">
+              Detail
+            </th>
           </tr>
         </thead>
         <tbody>
@@ -506,9 +499,7 @@ function DeploysSection({
                 <td className="py-3 pr-6 align-baseline">
                   <DeployStatusBadge deploy={deploy} />
                 </td>
-                <td className="py-3 pr-6 align-baseline text-fg-muted">
-                  {deploy.detail}
-                </td>
+                <td className="py-3 pr-6 align-baseline text-fg-muted">{deploy.detail}</td>
               </tr>
             ))
           )}
@@ -529,10 +520,7 @@ function CommitsSection({
 }) {
   const items = commits?.items ?? [];
   return (
-    <ActivitySection
-      title="Git commits"
-      meta={commits === null ? null : commits.view}
-    >
+    <ActivitySection title="Git commits" meta={commits === null ? null : commits.view}>
       {error !== undefined && (
         <p className="text-body text-accent" role="alert">
           Git commits unavailable: {error}.
@@ -541,10 +529,18 @@ function CommitsSection({
       <ActivityTable label="Git commits">
         <thead>
           <tr className="border-b border-rule text-label uppercase tracking-wider text-fg-muted">
-            <th scope="col" className="pb-3 pr-6 text-left font-medium">Time</th>
-            <th scope="col" className="pb-3 pr-6 text-left font-medium">Commit</th>
-            <th scope="col" className="pb-3 pr-6 text-left font-medium">Author</th>
-            <th scope="col" className="pb-3 pr-6 text-left font-medium">Subject</th>
+            <th scope="col" className="pb-3 pr-6 text-left font-medium">
+              Time
+            </th>
+            <th scope="col" className="pb-3 pr-6 text-left font-medium">
+              Commit
+            </th>
+            <th scope="col" className="pb-3 pr-6 text-left font-medium">
+              Author
+            </th>
+            <th scope="col" className="pb-3 pr-6 text-left font-medium">
+              Subject
+            </th>
           </tr>
         </thead>
         <tbody>
@@ -553,9 +549,7 @@ function CommitsSection({
               {loading ? 'Reading git commits.' : 'No commits in this window.'}
             </EmptyRow>
           ) : (
-            items.map((commit) => (
-              <CommitRow key={commit.sha} commit={commit} />
-            ))
+            items.map((commit) => <CommitRow key={commit.sha} commit={commit} />)
           )}
         </tbody>
       </ActivityTable>
@@ -569,15 +563,9 @@ function CommitRow({ commit }: { commit: GitCommit }) {
       <td className="py-3 pr-6 align-baseline text-fg-muted">
         <TimeStamp ts={commit.date} />
       </td>
-      <td className="py-3 pr-6 align-baseline font-medium text-fg">
-        {commit.short_sha}
-      </td>
-      <td className="py-3 pr-6 align-baseline text-fg-muted">
-        {commit.author}
-      </td>
-      <td className="py-3 pr-6 align-baseline text-fg-muted">
-        {commit.subject}
-      </td>
+      <td className="py-3 pr-6 align-baseline font-medium text-fg">{commit.short_sha}</td>
+      <td className="py-3 pr-6 align-baseline text-fg-muted">{commit.author}</td>
+      <td className="py-3 pr-6 align-baseline text-fg-muted">{commit.subject}</td>
     </tr>
   );
 }
@@ -598,9 +586,7 @@ function ActivitySection({
           {title}
         </h2>
         {meta !== null && (
-          <span className="text-label uppercase tracking-wider text-fg-muted">
-            {meta}
-          </span>
+          <span className="text-label uppercase tracking-wider text-fg-muted">{meta}</span>
         )}
       </div>
       {children}
@@ -608,13 +594,7 @@ function ActivitySection({
   );
 }
 
-function ActivityTable({
-  children,
-  label,
-}: {
-  children: ReactNode;
-  label: string;
-}) {
+function ActivityTable({ children, label }: { children: ReactNode; label: string }) {
   return (
     <div className="overflow-x-auto">
       <table aria-label={label} className="w-full text-body tnum">
@@ -624,13 +604,7 @@ function ActivityTable({
   );
 }
 
-function EmptyRow({
-  children,
-  colSpan,
-}: {
-  children: ReactNode;
-  colSpan: number;
-}) {
+function EmptyRow({ children, colSpan }: { children: ReactNode; colSpan: number }) {
   return (
     <tr>
       <td colSpan={colSpan} className="py-10 text-center text-fg-muted italic">
@@ -641,11 +615,7 @@ function EmptyRow({
 }
 
 function TimeStamp({ ts }: { ts: string }) {
-  return (
-    <span title={formatShortDate(ts)}>
-      {formatClockTime(ts)}
-    </span>
-  );
+  return <span title={formatShortDate(ts)}>{formatClockTime(ts)}</span>;
 }
 
 function EventSignalBadge({ signal }: { signal: SupervisorEventSignal }) {
@@ -699,9 +669,7 @@ function shouldShow(active: ActivityMode, section: Exclude<ActivityMode, 'all'>)
 
 function readMode(searchParams: URLSearchParams): ActivityMode {
   const mode = searchParams.get('mode');
-  return mode === 'events' || mode === 'deploys' || mode === 'commits'
-    ? mode
-    : 'all';
+  return mode === 'events' || mode === 'deploys' || mode === 'commits' ? mode : 'all';
 }
 
 function normalizedParam(value: string | null): string | null {
@@ -740,13 +708,7 @@ function setActivitySearchParam(
 }
 
 function searchableEventText(event: TypedEventStreamEnvelope): string {
-  return [
-    event.type,
-    event.actor,
-    event.subject,
-    event.message,
-    supervisorEventDetail(event),
-  ]
+  return [event.type, event.actor, event.subject, event.message, supervisorEventDetail(event)]
     .filter((value): value is string => typeof value === 'string')
     .join('\n')
     .toLowerCase();

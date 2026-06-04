@@ -11,7 +11,5 @@ export const healthView: FrontendViewDescriptor = {
   kind: 'core',
   path: '/health',
   nav: { label: 'Health', order: 60 },
-  element: lazy(() =>
-    import('../../routes/Health').then((m) => ({ default: m.HealthPage })),
-  ),
+  element: lazy(() => import('../../routes/Health').then((m) => ({ default: m.HealthPage }))),
 };

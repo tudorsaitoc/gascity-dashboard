@@ -1,8 +1,4 @@
-import {
-  BOARD_COLUMNS,
-  type BeadNode,
-  type BoardColumnId,
-} from '../../lib/beadGraph';
+import { BOARD_COLUMNS, type BeadNode, type BoardColumnId } from '../../lib/beadGraph';
 import { BeadBoardRow } from './BeadBoardRow';
 import type { AttentionSeverity } from '../../attention/compose';
 
@@ -25,28 +21,18 @@ interface BeadBoardProps {
   onSelect: (beadId: string) => void;
 }
 
-export function BeadBoard({
-  columns,
-  selectedId,
-  attentionSeverity,
-  onSelect,
-}: BeadBoardProps) {
+export function BeadBoard({ columns, selectedId, attentionSeverity, onSelect }: BeadBoardProps) {
   return (
     <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-5 gap-x-8 gap-y-8">
       {BOARD_COLUMNS.map((col) => {
         const nodes = columns[col.id];
         const isBlocked = col.id === 'blocked';
-        const countTone =
-          isBlocked && nodes.length > 0 ? 'text-accent' : 'text-fg-muted';
+        const countTone = isBlocked && nodes.length > 0 ? 'text-accent' : 'text-fg-muted';
         return (
           <section key={col.id} aria-label={col.label}>
             <header className="flex items-baseline justify-between border-b border-rule pb-2 mb-3">
-              <h3 className="text-label uppercase tracking-wider text-fg-muted">
-                {col.label}
-              </h3>
-              <span className={`text-label tnum ${countTone}`}>
-                {nodes.length}
-              </span>
+              <h3 className="text-label uppercase tracking-wider text-fg-muted">{col.label}</h3>
+              <span className={`text-label tnum ${countTone}`}>{nodes.length}</span>
             </header>
             {nodes.length === 0 ? (
               <p className="text-body text-fg-faint italic">·</p>

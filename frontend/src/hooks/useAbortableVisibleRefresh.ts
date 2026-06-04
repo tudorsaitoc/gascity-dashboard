@@ -46,10 +46,7 @@ export function useAbortableVisibleRefresh<T>({
       nextAllowedAtRef.current = 0;
     };
     const recordFailure = () => {
-      const delay = Math.min(
-        initialBackoffMs * 2 ** failureCountRef.current,
-        maxBackoffMs,
-      );
+      const delay = Math.min(initialBackoffMs * 2 ** failureCountRef.current, maxBackoffMs);
       failureCountRef.current += 1;
       nextAllowedAtRef.current = Date.now() + delay;
     };

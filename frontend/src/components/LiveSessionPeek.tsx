@@ -2,13 +2,13 @@ import type { DashboardSession } from 'gas-city-dashboard-shared';
 import type { AgentResponse } from '../generated/gc-supervisor-client/types.gen';
 import { formatRelative } from '../hooks/time';
 import {
-    useSessionStream,
-    type SessionStreamConnState,
-    type SessionStreamProgress,
-} from "../hooks/useSessionStream";
-import { formatHumanSize } from "../lib/format";
-import { SessionPeekContent } from "./SessionPeek";
-import { StatusBadge, type StatusTone } from "./StatusBadge";
+  useSessionStream,
+  type SessionStreamConnState,
+  type SessionStreamProgress,
+} from '../hooks/useSessionStream';
+import { formatHumanSize } from '../lib/format';
+import { SessionPeekContent } from './SessionPeek';
+import { StatusBadge, type StatusTone } from './StatusBadge';
 
 // Composes the session transcript snapshot with a live SSE tail. Owns the
 // "fetch snapshot, then stream turns, show a connection badge" pattern so
@@ -42,18 +42,16 @@ export function LiveSessionPeek({
   showCaption = false,
 }: LiveSessionPeekProps) {
   const sessionState = useSessionStream(sessionId, stream);
-  const result = sessionState.status === "ready" ? sessionState.result : null;
-  const loading = sessionState.status === "loading";
-  const error = sessionState.status === "failed" ? sessionState.error : null;
+  const result = sessionState.status === 'ready' ? sessionState.result : null;
+  const loading = sessionState.status === 'loading';
+  const error = sessionState.status === 'failed' ? sessionState.error : null;
   const badge = streamBadge(sessionState.stream);
 
   const captionParts: string[] = [];
   if (showCaption && result) {
     captionParts.push(`${result.turns.length} turn(s)`);
-    captionParts.push(formatHumanSize(result.total_chars, "chars"));
-    captionParts.push(
-      `captured ${formatRelative(result.captured_at, Date.now())}`,
-    );
+    captionParts.push(formatHumanSize(result.total_chars, 'chars'));
+    captionParts.push(`captured ${formatRelative(result.captured_at, Date.now())}`);
   }
 
   return (
@@ -70,7 +68,7 @@ export function LiveSessionPeek({
       )}
       {captionParts.length > 0 && (
         <p className="text-label uppercase tracking-wider text-fg-faint tnum">
-          {captionParts.join(" · ")}
+          {captionParts.join(' · ')}
         </p>
       )}
       <SessionPeekContent loading={loading} error={error} result={result} />
@@ -79,24 +77,22 @@ export function LiveSessionPeek({
 }
 
 /** Maps the SSE connection state to a status badge tone + label. */
-export function streamBadge(
-  stream: SessionStreamProgress | SessionStreamConnState,
-): {
+export function streamBadge(stream: SessionStreamProgress | SessionStreamConnState): {
   tone: StatusTone;
   label: string;
 } {
-  const status = typeof stream === "string" ? stream : stream.status;
+  const status = typeof stream === 'string' ? stream : stream.status;
   switch (status) {
-    case "open":
-      return { tone: "ok", label: "live" };
-    case "connecting":
-      return { tone: "warn", label: "connecting" };
-    case "closed":
-      return { tone: "stuck", label: "offline" };
-    case "degraded":
-      return { tone: "warn", label: "degraded" };
-    case "idle":
-      return { tone: "neutral", label: "snapshot" };
+    case 'open':
+      return { tone: 'ok', label: 'live' };
+    case 'connecting':
+      return { tone: 'warn', label: 'connecting' };
+    case 'closed':
+      return { tone: 'stuck', label: 'offline' };
+    case 'degraded':
+      return { tone: 'warn', label: 'degraded' };
+    case 'idle':
+      return { tone: 'neutral', label: 'snapshot' };
   }
 }
 
@@ -110,11 +106,7 @@ export function streamBadge(
  */
 export function isSessionStreamable(session: DashboardSession | null): boolean {
   if (session === null) return false;
-  return (
-    session.running === true ||
-    session.state === "active" ||
-    session.state === "running"
-  );
+  return session.running === true || session.state === 'active' || session.state === 'running';
 }
 
 /**
@@ -130,9 +122,5 @@ export function isSessionStreamable(session: DashboardSession | null): boolean {
 export function isAgentStreamable(agent: AgentResponse | null): boolean {
   if (agent === null) return false;
   if (!agent.session) return false;
-  return (
-    agent.running === true ||
-    agent.state === 'active' ||
-    agent.state === 'running'
-  );
+  return agent.running === true || agent.state === 'active' || agent.state === 'running';
 }

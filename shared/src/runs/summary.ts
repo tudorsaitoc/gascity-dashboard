@@ -1,10 +1,4 @@
-import type {
-  RunChange,
-  RunCounts,
-  RunLane,
-  RunSummary,
-  RunStage,
-} from '../snapshot/types.js';
+import type { RunChange, RunCounts, RunLane, RunSummary, RunStage } from '../snapshot/types.js';
 import { fromRootMetadataScope } from '../run-scope.js';
 import { resolveRunFormulaIdentity } from './formula-name.js';
 import {
@@ -131,11 +125,7 @@ export function runKind(
   return 'other';
 }
 
-export function runLane(
-  rootId: string,
-  issues: RunIssue[],
-  feedScopes: RunFeedScopeMap,
-): RunLane {
+export function runLane(rootId: string, issues: RunIssue[], feedScopes: RunFeedScopeMap): RunLane {
   const phase = mapRunPhase(issues);
   const updatedAt = latestUpdatedAt(issues);
   const formula = runFormula(rootId, issues);
@@ -183,10 +173,7 @@ export function runRootId(issue: RunIssue): string {
   const explicitRoot = stringValue(metadata['gc.root_bead_id']);
   if (explicitRoot) return explicitRoot;
 
-  if (
-    stringValue(metadata['gc.kind']) === 'run' ||
-    issue.issue_type === 'molecule'
-  ) {
+  if (stringValue(metadata['gc.kind']) === 'run' || issue.issue_type === 'molecule') {
     return issue.id;
   }
 
@@ -202,16 +189,13 @@ function runScope(
   feedScopes: RunFeedScopeMap,
 ): RunLane['scope'] {
   const root = issues.find((issue) => issue.id === rootId);
-  const ordered = root
-    ? [root, ...issues.filter((issue) => issue !== root)]
-    : issues;
+  const ordered = root ? [root, ...issues.filter((issue) => issue !== root)] : issues;
   const rootStoreRef = metadataString(ordered, 'gc.root_store_ref');
   const metadataScope = fromRootMetadataScope({
     ...(root?.metadata ?? {}),
     ...(rootStoreRef ? { 'gc.root_store_ref': rootStoreRef } : {}),
     'gc.scope_ref':
-      stringValue(root?.metadata?.['gc.scope_ref']) ||
-      metadataString(ordered, 'gc.scope_ref'),
+      stringValue(root?.metadata?.['gc.scope_ref']) || metadataString(ordered, 'gc.scope_ref'),
   });
 
   if (metadataScope !== null) {
@@ -251,10 +235,7 @@ function sourceRunRootId(issue: RunIssue): string {
   );
 }
 
-function runFormula(
-  rootId: string,
-  issues: RunIssue[],
-): RunLane['formula'] {
+function runFormula(rootId: string, issues: RunIssue[]): RunLane['formula'] {
   const root = issues.find((issue) => issue.id === rootId);
   const resolved = resolveRunFormulaIdentity('lane', { root, issues });
   if (resolved.name !== null) return { status: 'known', name: resolved.name };
@@ -363,9 +344,7 @@ export function externalLabel(issues: RunIssue[]): string | null {
 }
 
 export function metadataString(issues: RunIssue[], key: string): string {
-  return (
-    issues.map((i) => stringValue(i.metadata?.[key])).find(Boolean) ?? ''
-  );
+  return issues.map((i) => stringValue(i.metadata?.[key])).find(Boolean) ?? '';
 }
 
 export function emptyRunSummary(): RunSummary {
@@ -402,7 +381,11 @@ export function runHealthUnavailable(): RunLane['health'] {
   };
 }
 
-export function runBeadFilter(bead: { issue_type: string; labels?: string[]; metadata?: Record<string, string> }): boolean {
+export function runBeadFilter(bead: {
+  issue_type: string;
+  labels?: string[];
+  metadata?: Record<string, string>;
+}): boolean {
   if (Array.isArray(bead.labels) && bead.labels.some((l) => l.startsWith('gc:'))) {
     return false;
   }
@@ -450,11 +433,11 @@ export function runStagePosition(
   return stage === undefined
     ? { status: 'unavailable', error: 'active run stage unavailable' }
     : {
-      status: 'available',
-      index: activeStageIndex,
-      key: stage.key,
-      label: stage.label,
-    };
+        status: 'available',
+        index: activeStageIndex,
+        key: stage.key,
+        label: stage.label,
+      };
 }
 
 export function runStepAttempt(

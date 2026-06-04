@@ -16,9 +16,7 @@ export function AgentChatThread({
   return (
     <section className="mt-12">
       <header className="flex items-baseline justify-between mb-4">
-        <h2 className="text-label uppercase tracking-wider text-fg-faint">
-          Chat thread
-        </h2>
+        <h2 className="text-label uppercase tracking-wider text-fg-faint">Chat thread</h2>
         <span className="text-label uppercase tracking-wider text-fg-faint tnum">
           {loading ? '·' : messages.length}
         </span>
@@ -50,9 +48,7 @@ export function AgentChatThread({
                   {formatRelative(m.created_at, now)}
                 </span>
               </header>
-              {m.subject && (
-                <p className="text-body font-medium text-fg">{m.subject}</p>
-              )}
+              {m.subject && <p className="text-body font-medium text-fg">{m.subject}</p>}
               <pre className="text-body whitespace-pre-wrap leading-relaxed text-fg overflow-x-auto">
                 {m.body}
               </pre>

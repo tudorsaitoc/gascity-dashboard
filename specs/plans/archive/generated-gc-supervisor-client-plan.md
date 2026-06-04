@@ -118,8 +118,8 @@ Keep the exported `GcClient` class and method names. Replace only the internals.
 Target shape:
 
 ```ts
-import createClient from "openapi-fetch";
-import type { paths } from "./generated/gc-supervisor.js";
+import createClient from 'openapi-fetch';
+import type { paths } from './generated/gc-supervisor.js';
 
 const client = createClient<paths>({ baseUrl });
 ```
@@ -145,10 +145,10 @@ private async getOperation<T>(
 Then each public method becomes a thin generated call:
 
 ```ts
-const { data, error, response } = await this.client.GET(
-  "/v0/city/{cityName}/sessions",
-  { params: { path: { cityName: this.cityName } }, signal },
-);
+const { data, error, response } = await this.client.GET('/v0/city/{cityName}/sessions', {
+  params: { path: { cityName: this.cityName } },
+  signal,
+});
 ```
 
 Map `!response.ok` or `error` to the same sanitized `Error('gc supervisor returned <status>')` style used today.

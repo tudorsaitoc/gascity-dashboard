@@ -1,16 +1,7 @@
-import {
-  OPERATOR_DISPLAY_ALIAS,
-  OPERATOR_WIRE_ALIAS,
-} from 'gas-city-dashboard-shared';
-import type {
-  MailListBody,
-  Message,
-} from '../generated/gc-supervisor-client/types.gen';
+import { OPERATOR_DISPLAY_ALIAS, OPERATOR_WIRE_ALIAS } from 'gas-city-dashboard-shared';
+import type { MailListBody, Message } from '../generated/gc-supervisor-client/types.gen';
 import { activeCityOrThrow } from '../api/cityBase';
-import {
-  SupervisorApiError,
-  supervisorApi,
-} from './client';
+import { SupervisorApiError, supervisorApi } from './client';
 
 export const MAIL_HISTORY_LIMITS = [100, 500, 1000] as const;
 export type MailHistoryLimit = (typeof MAIL_HISTORY_LIMITS)[number];

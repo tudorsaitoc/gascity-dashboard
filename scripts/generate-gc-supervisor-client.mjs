@@ -39,12 +39,11 @@ async function generateHeyApiClient(toPath) {
 async function allowRfc3339OffsetDateTimes(toPath) {
   const zodPath = path.join(toPath, 'zod.gen.ts');
   const content = await readFile(zodPath, 'utf8');
-  const patched = content.replaceAll(
-    'z.iso.datetime()',
-    'z.iso.datetime({ offset: true })',
-  );
+  const patched = content.replaceAll('z.iso.datetime()', 'z.iso.datetime({ offset: true })');
   if (patched === content) {
-    throw new Error(`${path.relative(process.cwd(), zodPath)} did not contain generated date-time validators`);
+    throw new Error(
+      `${path.relative(process.cwd(), zodPath)} did not contain generated date-time validators`,
+    );
   }
   await writeFile(zodPath, patched);
 }

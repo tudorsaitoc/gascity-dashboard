@@ -1,10 +1,5 @@
-import type {
-  RunSnapshotBead,
-} from '../run-snapshot.js';
-import type {
-  RunExecutionInstance,
-  RunNodeStatus,
-} from '../run-detail.js';
+import type { RunSnapshotBead } from '../run-snapshot.js';
+import type { RunExecutionInstance, RunNodeStatus } from '../run-detail.js';
 import { meta, nonEmpty } from './bead-fields.js';
 
 export function presentationStatus(bead: RunSnapshotBead): RunNodeStatus {

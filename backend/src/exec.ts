@@ -246,10 +246,7 @@ export async function execRunGitNewFileDiff(
  *     keeps the shape-only behavior, preserving deployments that don't
  *     configure RUN_CWD_ALLOWED_ROOTS.
  */
-export function isValidRunCwd(
-  cwd: string,
-  allowedRoots: readonly string[] = [],
-): boolean {
+export function isValidRunCwd(cwd: string, allowedRoots: readonly string[] = []): boolean {
   if (!isValidHostPath(cwd)) return false;
   if (allowedRoots.length === 0) return true;
   return allowedRoots.some((root) => isPathUnderRoot(cwd, root));
@@ -306,10 +303,7 @@ const GH_PR_FIELDS =
  * `gh issue list --repo <repo> --state open --json <fields> --limit <n>`
  * Returns the raw JSON array as stdout. Caller parses + maps.
  */
-export async function execGhIssueList(
-  repo: string,
-  limit: number,
-): Promise<ExecResult> {
+export async function execGhIssueList(repo: string, limit: number): Promise<ExecResult> {
   if (!GH_REPO_RE.test(repo)) {
     throw new ExecError('invalid repo (expected owner/name)', 'validation');
   }
@@ -342,10 +336,7 @@ export async function execGhIssueList(
  *  totals without per-login round-trips. Returned shape is intentionally
  *  thin: no titles, no bodies, no labels — only what's needed to count.
  */
-export async function execGhIssueListAll(
-  repo: string,
-  limit: number,
-): Promise<ExecResult> {
+export async function execGhIssueListAll(repo: string, limit: number): Promise<ExecResult> {
   if (!GH_REPO_RE.test(repo)) {
     throw new ExecError('invalid repo (expected owner/name)', 'validation');
   }
@@ -376,10 +367,7 @@ export async function execGhIssueListAll(
  *  — same idea as execGhIssueListAll but for PRs. state values include
  *  OPEN / CLOSED / MERGED.
  */
-export async function execGhPrListAll(
-  repo: string,
-  limit: number,
-): Promise<ExecResult> {
+export async function execGhPrListAll(repo: string, limit: number): Promise<ExecResult> {
   if (!GH_REPO_RE.test(repo)) {
     throw new ExecError('invalid repo (expected owner/name)', 'validation');
   }
@@ -408,10 +396,7 @@ export async function execGhPrListAll(
 /**
  * `gh pr list --repo <repo> --state open --json <fields> --limit <n>`
  */
-export async function execGhPrList(
-  repo: string,
-  limit: number,
-): Promise<ExecResult> {
+export async function execGhPrList(repo: string, limit: number): Promise<ExecResult> {
   if (!GH_REPO_RE.test(repo)) {
     throw new ExecError('invalid repo (expected owner/name)', 'validation');
   }

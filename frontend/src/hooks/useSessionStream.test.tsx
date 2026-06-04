@@ -81,10 +81,15 @@ describe('useSessionStream', () => {
       stream: { status: 'open' },
     });
 
-    act(() => eventSources[0]?.emit('message', JSON.stringify({
-      role: 'assistant',
-      text: 'streamed',
-    })));
+    act(() =>
+      eventSources[0]?.emit(
+        'message',
+        JSON.stringify({
+          role: 'assistant',
+          text: 'streamed',
+        }),
+      ),
+    );
     expect(result.current.status).toBe('ready');
     if (result.current.status !== 'ready') return;
     expect(result.current.result.turns).toHaveLength(2);

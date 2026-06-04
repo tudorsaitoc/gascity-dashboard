@@ -54,7 +54,11 @@ test('drops malformed options rather than passing a wrong-typed array through', 
 });
 
 test('maps to a pending-decision AlertItem with requestId-keyed dedup', () => {
-  const pi = parsePendingInteraction({ request_id: 'req-9', kind: 'tool_approval', prompt: 'Approve push?\nmore' })!;
+  const pi = parsePendingInteraction({
+    request_id: 'req-9',
+    kind: 'tool_approval',
+    prompt: 'Approve push?\nmore',
+  })!;
   const alert = pendingInteractionToAlert(pi, CTX);
   assert.equal(alert.kind, 'pending-decision');
   assert.equal(alert.source, 'pending');

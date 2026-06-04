@@ -39,20 +39,21 @@ describe('supervisor client wrapper', () => {
   });
 
   it('calls supervisor health through the generated SDK', async () => {
-    const fetchSpy = vi.fn(async (_input: RequestInfo | URL) =>
-      new Response(
-        JSON.stringify({
-          cities_running: 1,
-          cities_total: 2,
-          status: 'ok',
-          uptime_sec: 42,
-          version: '1.4.2',
-        }),
-        {
-          status: 200,
-          headers: { 'content-type': 'application/json' },
-        },
-      ),
+    const fetchSpy = vi.fn(
+      async (_input: RequestInfo | URL) =>
+        new Response(
+          JSON.stringify({
+            cities_running: 1,
+            cities_total: 2,
+            status: 'ok',
+            uptime_sec: 42,
+            version: '1.4.2',
+          }),
+          {
+            status: 200,
+            headers: { 'content-type': 'application/json' },
+          },
+        ),
     );
 
     const api = createSupervisorApi({
@@ -68,17 +69,18 @@ describe('supervisor client wrapper', () => {
   });
 
   it('calls supervisor cities through the generated SDK without dashboard DTO stripping', async () => {
-    const fetchSpy = vi.fn(async (_input: RequestInfo | URL) =>
-      new Response(
-        JSON.stringify({
-          items: [{ name: 'test-city', path: '/srv/gc/test-city', running: true }],
-          total: 1,
-        }),
-        {
-          status: 200,
-          headers: { 'content-type': 'application/json' },
-        },
-      ),
+    const fetchSpy = vi.fn(
+      async (_input: RequestInfo | URL) =>
+        new Response(
+          JSON.stringify({
+            items: [{ name: 'test-city', path: '/srv/gc/test-city', running: true }],
+            total: 1,
+          }),
+          {
+            status: 200,
+            headers: { 'content-type': 'application/json' },
+          },
+        ),
     );
 
     const api = createSupervisorApi({
@@ -94,19 +96,20 @@ describe('supervisor client wrapper', () => {
   });
 
   it('calls city-scoped supervisor health through the generated SDK', async () => {
-    const fetchSpy = vi.fn(async (_input: RequestInfo | URL) =>
-      new Response(
-        JSON.stringify({
-          city: 'test-city',
-          status: 'ok',
-          uptime_sec: 42,
-          version: '1.4.2',
-        }),
-        {
-          status: 200,
-          headers: { 'content-type': 'application/json' },
-        },
-      ),
+    const fetchSpy = vi.fn(
+      async (_input: RequestInfo | URL) =>
+        new Response(
+          JSON.stringify({
+            city: 'test-city',
+            status: 'ok',
+            uptime_sec: 42,
+            version: '1.4.2',
+          }),
+          {
+            status: 200,
+            headers: { 'content-type': 'application/json' },
+          },
+        ),
     );
 
     const api = createSupervisorApi({
@@ -118,31 +121,34 @@ describe('supervisor client wrapper', () => {
       city: 'test-city',
       status: 'ok',
     });
-    expect(requestedUrl(fetchSpy.mock.calls[0]?.[0])).toBe('http://gc-supervisor.test/v0/city/test-city/health');
+    expect(requestedUrl(fetchSpy.mock.calls[0]?.[0])).toBe(
+      'http://gc-supervisor.test/v0/city/test-city/health',
+    );
   });
 
   it('calls city-scoped supervisor status through the generated SDK', async () => {
-    const fetchSpy = vi.fn(async (_input: RequestInfo | URL) =>
-      new Response(
-        JSON.stringify({
-          agent_count: 1,
-          agents: { quarantined: 0, running: 1, suspended: 0, total: 1 },
-          mail: { total: 3, unread: 1 },
-          name: 'test-city',
-          path: '/srv/gc/test-city',
-          rig_count: 1,
-          rigs: { suspended: 0, total: 1 },
-          running: 1,
-          suspended: false,
-          uptime_sec: 42,
-          version: '1.4.2',
-          work: { open: 5, ready: 2, in_progress: 1 },
-        }),
-        {
-          status: 200,
-          headers: { 'content-type': 'application/json' },
-        },
-      ),
+    const fetchSpy = vi.fn(
+      async (_input: RequestInfo | URL) =>
+        new Response(
+          JSON.stringify({
+            agent_count: 1,
+            agents: { quarantined: 0, running: 1, suspended: 0, total: 1 },
+            mail: { total: 3, unread: 1 },
+            name: 'test-city',
+            path: '/srv/gc/test-city',
+            rig_count: 1,
+            rigs: { suspended: 0, total: 1 },
+            running: 1,
+            suspended: false,
+            uptime_sec: 42,
+            version: '1.4.2',
+            work: { open: 5, ready: 2, in_progress: 1 },
+          }),
+          {
+            status: 200,
+            headers: { 'content-type': 'application/json' },
+          },
+        ),
     );
 
     const api = createSupervisorApi({
@@ -154,34 +160,37 @@ describe('supervisor client wrapper', () => {
       name: 'test-city',
       version: '1.4.2',
     });
-    expect(requestedUrl(fetchSpy.mock.calls[0]?.[0])).toBe('http://gc-supervisor.test/v0/city/test-city/status');
+    expect(requestedUrl(fetchSpy.mock.calls[0]?.[0])).toBe(
+      'http://gc-supervisor.test/v0/city/test-city/status',
+    );
   });
 
   it('calls supervisor sessions through the generated SDK without dashboard DTO stripping', async () => {
-    const fetchSpy = vi.fn(async (_input: RequestInfo | URL) =>
-      new Response(
-        JSON.stringify({
-          items: [
-            {
-              id: 'gc-session-1',
-              template: 'mayor',
-              title: 'mayor',
-              provider: 'claude',
-              session_name: 'mayor',
-              state: 'active',
-              created_at: '2026-06-01T00:00:00Z',
-              attached: false,
-              running: true,
-              alias: 'mayor',
-            },
-          ],
-          total: 1,
-        }),
-        {
-          status: 200,
-          headers: { 'content-type': 'application/json' },
-        },
-      ),
+    const fetchSpy = vi.fn(
+      async (_input: RequestInfo | URL) =>
+        new Response(
+          JSON.stringify({
+            items: [
+              {
+                id: 'gc-session-1',
+                template: 'mayor',
+                title: 'mayor',
+                provider: 'claude',
+                session_name: 'mayor',
+                state: 'active',
+                created_at: '2026-06-01T00:00:00Z',
+                attached: false,
+                running: true,
+                alias: 'mayor',
+              },
+            ],
+            total: 1,
+          }),
+          {
+            status: 200,
+            headers: { 'content-type': 'application/json' },
+          },
+        ),
     );
 
     const api = createSupervisorApi({
@@ -193,25 +202,28 @@ describe('supervisor client wrapper', () => {
       items: [{ id: 'gc-session-1', session_name: 'mayor' }],
       total: 1,
     });
-    expect(requestedUrl(fetchSpy.mock.calls[0]?.[0])).toBe('http://gc-supervisor.test/v0/city/test-city/sessions');
+    expect(requestedUrl(fetchSpy.mock.calls[0]?.[0])).toBe(
+      'http://gc-supervisor.test/v0/city/test-city/sessions',
+    );
   });
 
   it('calls supervisor session pending interaction through the generated SDK', async () => {
-    const fetchSpy = vi.fn(async (_input: RequestInfo | URL) =>
-      new Response(
-        JSON.stringify({
-          supported: true,
-          pending: {
-            kind: 'tool_approval',
-            prompt: 'Approve deployment?',
-            request_id: 'req-1',
+    const fetchSpy = vi.fn(
+      async (_input: RequestInfo | URL) =>
+        new Response(
+          JSON.stringify({
+            supported: true,
+            pending: {
+              kind: 'tool_approval',
+              prompt: 'Approve deployment?',
+              request_id: 'req-1',
+            },
+          }),
+          {
+            status: 200,
+            headers: { 'content-type': 'application/json' },
           },
-        }),
-        {
-          status: 200,
-          headers: { 'content-type': 'application/json' },
-        },
-      ),
+        ),
     );
 
     const api = createSupervisorApi({
@@ -229,17 +241,18 @@ describe('supervisor client wrapper', () => {
   });
 
   it('responds to supervisor session pending interactions through the generated SDK with mutation headers', async () => {
-    const fetchSpy = vi.fn(async (_input: RequestInfo | URL) =>
-      new Response(
-        JSON.stringify({
-          id: 'gc-2568',
-          status: 'accepted',
-        }),
-        {
-          status: 202,
-          headers: { 'content-type': 'application/json' },
-        },
-      ),
+    const fetchSpy = vi.fn(
+      async (_input: RequestInfo | URL) =>
+        new Response(
+          JSON.stringify({
+            id: 'gc-2568',
+            status: 'accepted',
+          }),
+          {
+            status: 202,
+            headers: { 'content-type': 'application/json' },
+          },
+        ),
     );
 
     const api = createSupervisorApi({
@@ -253,10 +266,12 @@ describe('supervisor client wrapper', () => {
       ): Promise<unknown>;
     };
 
-    await expect(api.respondSession('test-city', 'gc-2568', {
-      action: 'deny',
-      request_id: 'req-1',
-    })).resolves.toMatchObject({ id: 'gc-2568', status: 'accepted' });
+    await expect(
+      api.respondSession('test-city', 'gc-2568', {
+        action: 'deny',
+        request_id: 'req-1',
+      }),
+    ).resolves.toMatchObject({ id: 'gc-2568', status: 'accepted' });
 
     const req = fetchSpy.mock.calls[0]?.[0];
     expect(requestedUrl(req)).toBe(
@@ -273,31 +288,32 @@ describe('supervisor client wrapper', () => {
   });
 
   it('calls supervisor agents through the generated SDK without dashboard DTO stripping', async () => {
-    const fetchSpy = vi.fn(async (_input: RequestInfo | URL) =>
-      new Response(
-        JSON.stringify({
-          items: [
-            {
-              name: 'mayor',
-              available: true,
-              running: true,
-              suspended: false,
-              state: 'idle',
-              provider: 'claude',
-              session: {
+    const fetchSpy = vi.fn(
+      async (_input: RequestInfo | URL) =>
+        new Response(
+          JSON.stringify({
+            items: [
+              {
                 name: 'mayor',
-                attached: true,
-                last_activity: '2026-06-01T00:00:00Z',
+                available: true,
+                running: true,
+                suspended: false,
+                state: 'idle',
+                provider: 'claude',
+                session: {
+                  name: 'mayor',
+                  attached: true,
+                  last_activity: '2026-06-01T00:00:00Z',
+                },
               },
-            },
-          ],
-          total: 1,
-        }),
-        {
-          status: 200,
-          headers: { 'content-type': 'application/json' },
-        },
-      ),
+            ],
+            total: 1,
+          }),
+          {
+            status: 200,
+            headers: { 'content-type': 'application/json' },
+          },
+        ),
     );
 
     const api = createSupervisorApi({
@@ -312,35 +328,38 @@ describe('supervisor client wrapper', () => {
       items: [{ name: 'mayor', session: { name: 'mayor' } }],
       total: 1,
     });
-    expect(requestedUrl(fetchSpy.mock.calls[0]?.[0])).toBe('http://gc-supervisor.test/v0/city/test-city/agents');
+    expect(requestedUrl(fetchSpy.mock.calls[0]?.[0])).toBe(
+      'http://gc-supervisor.test/v0/city/test-city/agents',
+    );
   });
 
   it('accepts RFC3339 offset datetimes from supervisor agent sessions', async () => {
-    const fetchSpy = vi.fn(async (_input: RequestInfo | URL) =>
-      new Response(
-        JSON.stringify({
-          items: [
-            {
-              name: 'control-dispatcher',
-              available: true,
-              running: true,
-              suspended: false,
-              state: 'idle',
-              provider: 'codex',
-              session: {
+    const fetchSpy = vi.fn(
+      async (_input: RequestInfo | URL) =>
+        new Response(
+          JSON.stringify({
+            items: [
+              {
                 name: 'control-dispatcher',
-                attached: false,
-                last_activity: '2026-05-24T16:41:12-07:00',
+                available: true,
+                running: true,
+                suspended: false,
+                state: 'idle',
+                provider: 'codex',
+                session: {
+                  name: 'control-dispatcher',
+                  attached: false,
+                  last_activity: '2026-05-24T16:41:12-07:00',
+                },
               },
-            },
-          ],
-          total: 1,
-        }),
-        {
-          status: 200,
-          headers: { 'content-type': 'application/json' },
-        },
-      ),
+            ],
+            total: 1,
+          }),
+          {
+            status: 200,
+            headers: { 'content-type': 'application/json' },
+          },
+        ),
     );
 
     const api = createSupervisorApi({
@@ -349,35 +368,38 @@ describe('supervisor client wrapper', () => {
     });
 
     await expect(api.listAgents('test-city')).resolves.toMatchObject({
-      items: [{
-        name: 'control-dispatcher',
-        session: { last_activity: '2026-05-24T16:41:12-07:00' },
-      }],
+      items: [
+        {
+          name: 'control-dispatcher',
+          session: { last_activity: '2026-05-24T16:41:12-07:00' },
+        },
+      ],
       total: 1,
     });
   });
 
   it('calls supervisor beads through the generated SDK without dashboard DTO stripping', async () => {
-    const fetchSpy = vi.fn(async (_input: RequestInfo | URL) =>
-      new Response(
-        JSON.stringify({
-          items: [
-            {
-              id: 'td-bead-abc123',
-              title: 'wire beads directly',
-              status: 'open',
-              issue_type: 'task',
-              created_at: '2026-06-01T00:00:00Z',
-              labels: ['needs-review'],
-            },
-          ],
-          total: 1,
-        }),
-        {
-          status: 200,
-          headers: { 'content-type': 'application/json' },
-        },
-      ),
+    const fetchSpy = vi.fn(
+      async (_input: RequestInfo | URL) =>
+        new Response(
+          JSON.stringify({
+            items: [
+              {
+                id: 'td-bead-abc123',
+                title: 'wire beads directly',
+                status: 'open',
+                issue_type: 'task',
+                created_at: '2026-06-01T00:00:00Z',
+                labels: ['needs-review'],
+              },
+            ],
+            total: 1,
+          }),
+          {
+            status: 200,
+            headers: { 'content-type': 'application/json' },
+          },
+        ),
     );
 
     const api = createSupervisorApi({
@@ -392,25 +414,28 @@ describe('supervisor client wrapper', () => {
       items: [{ id: 'td-bead-abc123', title: 'wire beads directly' }],
       total: 1,
     });
-    expect(requestedUrl(fetchSpy.mock.calls[0]?.[0])).toBe('http://gc-supervisor.test/v0/city/test-city/beads?limit=1000');
+    expect(requestedUrl(fetchSpy.mock.calls[0]?.[0])).toBe(
+      'http://gc-supervisor.test/v0/city/test-city/beads?limit=1000',
+    );
   });
 
   it('calls supervisor bead detail through the generated SDK without dashboard DTO stripping', async () => {
-    const fetchSpy = vi.fn(async (_input: RequestInfo | URL) =>
-      new Response(
-        JSON.stringify({
-          id: 'td-bead-abc123',
-          title: 'wire bead detail directly',
-          status: 'open',
-          issue_type: 'task',
-          created_at: '2026-06-01T00:00:00Z',
-          priority: 1,
-        }),
-        {
-          status: 200,
-          headers: { 'content-type': 'application/json' },
-        },
-      ),
+    const fetchSpy = vi.fn(
+      async (_input: RequestInfo | URL) =>
+        new Response(
+          JSON.stringify({
+            id: 'td-bead-abc123',
+            title: 'wire bead detail directly',
+            status: 'open',
+            issue_type: 'task',
+            created_at: '2026-06-01T00:00:00Z',
+            priority: 1,
+          }),
+          {
+            status: 200,
+            headers: { 'content-type': 'application/json' },
+          },
+        ),
     );
 
     const api = createSupervisorApi({
@@ -425,15 +450,18 @@ describe('supervisor client wrapper', () => {
       id: 'td-bead-abc123',
       title: 'wire bead detail directly',
     });
-    expect(requestedUrl(fetchSpy.mock.calls[0]?.[0])).toBe('http://gc-supervisor.test/v0/city/test-city/bead/td-bead-abc123');
+    expect(requestedUrl(fetchSpy.mock.calls[0]?.[0])).toBe(
+      'http://gc-supervisor.test/v0/city/test-city/bead/td-bead-abc123',
+    );
   });
 
   it('updates supervisor beads through the generated SDK with mutation headers', async () => {
-    const fetchSpy = vi.fn(async (_input: RequestInfo | URL) =>
-      new Response(JSON.stringify({ status: 'ok' }), {
-        status: 200,
-        headers: { 'content-type': 'application/json' },
-      }),
+    const fetchSpy = vi.fn(
+      async (_input: RequestInfo | URL) =>
+        new Response(JSON.stringify({ status: 'ok' }), {
+          status: 200,
+          headers: { 'content-type': 'application/json' },
+        }),
     );
 
     const api = createSupervisorApi({
@@ -448,13 +476,17 @@ describe('supervisor client wrapper', () => {
       ): Promise<unknown>;
     };
 
-    await expect(writeApi.updateBead('test-city', 'td-bead-abc123', {
-      status: 'in_progress',
-      assignee: 'stephanie',
-    })).resolves.toMatchObject({ status: 'ok' });
+    await expect(
+      writeApi.updateBead('test-city', 'td-bead-abc123', {
+        status: 'in_progress',
+        assignee: 'stephanie',
+      }),
+    ).resolves.toMatchObject({ status: 'ok' });
 
     const req = fetchSpy.mock.calls[0]?.[0];
-    expect(requestedUrl(req)).toBe('http://gc-supervisor.test/v0/city/test-city/bead/td-bead-abc123');
+    expect(requestedUrl(req)).toBe(
+      'http://gc-supervisor.test/v0/city/test-city/bead/td-bead-abc123',
+    );
     expect(req).toBeInstanceOf(Request);
     const request = req as Request;
     expect(request.method).toBe('PATCH');
@@ -466,11 +498,12 @@ describe('supervisor client wrapper', () => {
   });
 
   it('closes supervisor beads through the generated SDK with mutation headers and reason', async () => {
-    const fetchSpy = vi.fn(async (_input: RequestInfo | URL) =>
-      new Response(JSON.stringify({ status: 'closed' }), {
-        status: 200,
-        headers: { 'content-type': 'application/json' },
-      }),
+    const fetchSpy = vi.fn(
+      async (_input: RequestInfo | URL) =>
+        new Response(JSON.stringify({ status: 'closed' }), {
+          status: 200,
+          headers: { 'content-type': 'application/json' },
+        }),
     );
 
     const api = createSupervisorApi({
@@ -478,12 +511,16 @@ describe('supervisor client wrapper', () => {
       fetch: fetchSpy as typeof fetch,
     });
 
-    await expect(api.closeBead('test-city', 'td-bead-abc123', {
-      reason: 'operator verified duplicate',
-    })).resolves.toMatchObject({ status: 'closed' });
+    await expect(
+      api.closeBead('test-city', 'td-bead-abc123', {
+        reason: 'operator verified duplicate',
+      }),
+    ).resolves.toMatchObject({ status: 'closed' });
 
     const req = fetchSpy.mock.calls[0]?.[0];
-    expect(requestedUrl(req)).toBe('http://gc-supervisor.test/v0/city/test-city/bead/td-bead-abc123/close');
+    expect(requestedUrl(req)).toBe(
+      'http://gc-supervisor.test/v0/city/test-city/bead/td-bead-abc123/close',
+    );
     expect(req).toBeInstanceOf(Request);
     const request = req as Request;
     expect(request.method).toBe('POST');
@@ -494,20 +531,21 @@ describe('supervisor client wrapper', () => {
   });
 
   it('creates supervisor beads through the generated SDK with mutation headers', async () => {
-    const fetchSpy = vi.fn(async (_input: RequestInfo | URL) =>
-      new Response(
-        JSON.stringify({
-          id: 'td-new-1',
-          title: 'Route failing work',
-          status: 'open',
-          issue_type: 'task',
-          created_at: '2026-06-01T00:00:00Z',
-        }),
-        {
-          status: 201,
-          headers: { 'content-type': 'application/json' },
-        },
-      ),
+    const fetchSpy = vi.fn(
+      async (_input: RequestInfo | URL) =>
+        new Response(
+          JSON.stringify({
+            id: 'td-new-1',
+            title: 'Route failing work',
+            status: 'open',
+            issue_type: 'task',
+            created_at: '2026-06-01T00:00:00Z',
+          }),
+          {
+            status: 201,
+            headers: { 'content-type': 'application/json' },
+          },
+        ),
     );
 
     const api = createSupervisorApi({
@@ -515,10 +553,12 @@ describe('supervisor client wrapper', () => {
       fetch: fetchSpy as typeof fetch,
     });
 
-    await expect(api.createBead('test-city', {
-      title: 'Route failing work',
-      description: 'Please investigate the failed deployment.',
-    })).resolves.toMatchObject({ id: 'td-new-1' });
+    await expect(
+      api.createBead('test-city', {
+        title: 'Route failing work',
+        description: 'Please investigate the failed deployment.',
+      }),
+    ).resolves.toMatchObject({ id: 'td-new-1' });
 
     const req = fetchSpy.mock.calls[0]?.[0];
     expect(requestedUrl(req)).toBe('http://gc-supervisor.test/v0/city/test-city/beads');
@@ -533,18 +573,19 @@ describe('supervisor client wrapper', () => {
   });
 
   it('slings supervisor beads through the generated SDK with mutation headers', async () => {
-    const fetchSpy = vi.fn(async (_input: RequestInfo | URL) =>
-      new Response(
-        JSON.stringify({
-          status: 'ok',
-          bead: 'td-new-1',
-          target: 'mayor',
-        }),
-        {
-          status: 200,
-          headers: { 'content-type': 'application/json' },
-        },
-      ),
+    const fetchSpy = vi.fn(
+      async (_input: RequestInfo | URL) =>
+        new Response(
+          JSON.stringify({
+            status: 'ok',
+            bead: 'td-new-1',
+            target: 'mayor',
+          }),
+          {
+            status: 200,
+            headers: { 'content-type': 'application/json' },
+          },
+        ),
     );
 
     const api = createSupervisorApi({
@@ -552,11 +593,13 @@ describe('supervisor client wrapper', () => {
       fetch: fetchSpy as typeof fetch,
     });
 
-    await expect(api.sling('test-city', {
-      bead: 'td-new-1',
-      rig: 'east',
-      target: 'mayor',
-    })).resolves.toMatchObject({ status: 'ok', target: 'mayor' });
+    await expect(
+      api.sling('test-city', {
+        bead: 'td-new-1',
+        rig: 'east',
+        target: 'mayor',
+      }),
+    ).resolves.toMatchObject({ status: 'ok', target: 'mayor' });
 
     const req = fetchSpy.mock.calls[0]?.[0];
     expect(requestedUrl(req)).toBe('http://gc-supervisor.test/v0/city/test-city/sling');
@@ -572,11 +615,12 @@ describe('supervisor client wrapper', () => {
   });
 
   it('nudges unqualified supervisor agents through the generated SDK with mutation headers', async () => {
-    const fetchSpy = vi.fn(async (_input: RequestInfo | URL) =>
-      new Response(JSON.stringify({ status: 'ok' }), {
-        status: 200,
-        headers: { 'content-type': 'application/json' },
-      }),
+    const fetchSpy = vi.fn(
+      async (_input: RequestInfo | URL) =>
+        new Response(JSON.stringify({ status: 'ok' }), {
+          status: 200,
+          headers: { 'content-type': 'application/json' },
+        }),
     );
 
     const api = createSupervisorApi({
@@ -596,11 +640,12 @@ describe('supervisor client wrapper', () => {
   });
 
   it('nudges qualified supervisor agents through the generated SDK with mutation headers', async () => {
-    const fetchSpy = vi.fn(async (_input: RequestInfo | URL) =>
-      new Response(JSON.stringify({ status: 'ok' }), {
-        status: 200,
-        headers: { 'content-type': 'application/json' },
-      }),
+    const fetchSpy = vi.fn(
+      async (_input: RequestInfo | URL) =>
+        new Response(JSON.stringify({ status: 'ok' }), {
+          status: 200,
+          headers: { 'content-type': 'application/json' },
+        }),
     );
 
     const api = createSupervisorApi({
@@ -608,7 +653,9 @@ describe('supervisor client wrapper', () => {
       fetch: fetchSpy as typeof fetch,
     });
 
-    await expect(api.nudgeAgent('test-city', 'east/mayor')).resolves.toMatchObject({ status: 'ok' });
+    await expect(api.nudgeAgent('test-city', 'east/mayor')).resolves.toMatchObject({
+      status: 'ok',
+    });
 
     const req = fetchSpy.mock.calls[0]?.[0];
     expect(requestedUrl(req)).toBe(
@@ -622,11 +669,12 @@ describe('supervisor client wrapper', () => {
   });
 
   it('reads unqualified supervisor agent prime prompts through the generated SDK', async () => {
-    const fetchSpy = vi.fn(async (_input: RequestInfo | URL) =>
-      new Response(JSON.stringify({ agent: 'mayor', prompt: 'composed prompt', bytes: 15 }), {
-        status: 200,
-        headers: { 'content-type': 'application/json' },
-      }),
+    const fetchSpy = vi.fn(
+      async (_input: RequestInfo | URL) =>
+        new Response(JSON.stringify({ agent: 'mayor', prompt: 'composed prompt', bytes: 15 }), {
+          status: 200,
+          headers: { 'content-type': 'application/json' },
+        }),
     );
 
     const api = createSupervisorApi({
@@ -646,11 +694,15 @@ describe('supervisor client wrapper', () => {
   });
 
   it('reads qualified supervisor agent prime prompts through the generated SDK', async () => {
-    const fetchSpy = vi.fn(async (_input: RequestInfo | URL) =>
-      new Response(JSON.stringify({ agent: 'east/mayor', prompt: 'qualified prompt', bytes: 16 }), {
-        status: 200,
-        headers: { 'content-type': 'application/json' },
-      }),
+    const fetchSpy = vi.fn(
+      async (_input: RequestInfo | URL) =>
+        new Response(
+          JSON.stringify({ agent: 'east/mayor', prompt: 'qualified prompt', bytes: 16 }),
+          {
+            status: 200,
+            headers: { 'content-type': 'application/json' },
+          },
+        ),
     );
 
     const api = createSupervisorApi({
@@ -670,28 +722,29 @@ describe('supervisor client wrapper', () => {
   });
 
   it('calls supervisor mail through the generated SDK without dashboard DTO stripping', async () => {
-    const fetchSpy = vi.fn(async (_input: RequestInfo | URL) =>
-      new Response(
-        JSON.stringify({
-          items: [
-            {
-              id: 'mail-1',
-              from: 'mayor',
-              to: 'human',
-              subject: 'direct mail reads',
-              body: 'body',
-              created_at: '2026-06-01T00:00:00Z',
-              read: false,
-              thread_id: 'thread-1',
-            },
-          ],
-          total: 1,
-        }),
-        {
-          status: 200,
-          headers: { 'content-type': 'application/json' },
-        },
-      ),
+    const fetchSpy = vi.fn(
+      async (_input: RequestInfo | URL) =>
+        new Response(
+          JSON.stringify({
+            items: [
+              {
+                id: 'mail-1',
+                from: 'mayor',
+                to: 'human',
+                subject: 'direct mail reads',
+                body: 'body',
+                created_at: '2026-06-01T00:00:00Z',
+                read: false,
+                thread_id: 'thread-1',
+              },
+            ],
+            total: 1,
+          }),
+          {
+            status: 200,
+            headers: { 'content-type': 'application/json' },
+          },
+        ),
     );
 
     const api = createSupervisorApi({
@@ -706,27 +759,30 @@ describe('supervisor client wrapper', () => {
       items: [{ id: 'mail-1', subject: 'direct mail reads' }],
       total: 1,
     });
-    expect(requestedUrl(fetchSpy.mock.calls[0]?.[0])).toBe('http://gc-supervisor.test/v0/city/test-city/mail?limit=1000');
+    expect(requestedUrl(fetchSpy.mock.calls[0]?.[0])).toBe(
+      'http://gc-supervisor.test/v0/city/test-city/mail?limit=1000',
+    );
   });
 
   it('sends supervisor mail through the generated SDK with mutation headers', async () => {
-    const fetchSpy = vi.fn(async (_input: RequestInfo | URL) =>
-      new Response(
-        JSON.stringify({
-          id: 'mail-new',
-          from: 'human',
-          to: 'mayor',
-          subject: 'status',
-          body: 'all green',
-          created_at: '2026-06-01T00:00:00Z',
-          read: false,
-          thread_id: 'thread-new',
-        }),
-        {
-          status: 201,
-          headers: { 'content-type': 'application/json' },
-        },
-      ),
+    const fetchSpy = vi.fn(
+      async (_input: RequestInfo | URL) =>
+        new Response(
+          JSON.stringify({
+            id: 'mail-new',
+            from: 'human',
+            to: 'mayor',
+            subject: 'status',
+            body: 'all green',
+            created_at: '2026-06-01T00:00:00Z',
+            read: false,
+            thread_id: 'thread-new',
+          }),
+          {
+            status: 201,
+            headers: { 'content-type': 'application/json' },
+          },
+        ),
     );
 
     const api = createSupervisorApi({
@@ -740,12 +796,14 @@ describe('supervisor client wrapper', () => {
       ): Promise<unknown>;
     };
 
-    await expect(mailApi.sendMail('test-city', {
-      to: 'mayor',
-      subject: 'status',
-      body: 'all green',
-      from: 'human',
-    })).resolves.toMatchObject({ id: 'mail-new' });
+    await expect(
+      mailApi.sendMail('test-city', {
+        to: 'mayor',
+        subject: 'status',
+        body: 'all green',
+        from: 'human',
+      }),
+    ).resolves.toMatchObject({ id: 'mail-new' });
 
     const req = fetchSpy.mock.calls[0]?.[0];
     expect(requestedUrl(req)).toBe('http://gc-supervisor.test/v0/city/test-city/mail');
@@ -762,28 +820,29 @@ describe('supervisor client wrapper', () => {
   });
 
   it('calls supervisor mail thread through the generated SDK without dashboard DTO stripping', async () => {
-    const fetchSpy = vi.fn(async (_input: RequestInfo | URL) =>
-      new Response(
-        JSON.stringify({
-          items: [
-            {
-              id: 'mail-1',
-              from: 'mayor',
-              to: 'human',
-              subject: 'thread read',
-              body: 'body',
-              created_at: '2026-06-01T00:00:00Z',
-              read: false,
-              thread_id: 'thread-1',
-            },
-          ],
-          total: 1,
-        }),
-        {
-          status: 200,
-          headers: { 'content-type': 'application/json' },
-        },
-      ),
+    const fetchSpy = vi.fn(
+      async (_input: RequestInfo | URL) =>
+        new Response(
+          JSON.stringify({
+            items: [
+              {
+                id: 'mail-1',
+                from: 'mayor',
+                to: 'human',
+                subject: 'thread read',
+                body: 'body',
+                created_at: '2026-06-01T00:00:00Z',
+                read: false,
+                thread_id: 'thread-1',
+              },
+            ],
+            total: 1,
+          }),
+          {
+            status: 200,
+            headers: { 'content-type': 'application/json' },
+          },
+        ),
     );
 
     const api = createSupervisorApi({
@@ -798,7 +857,9 @@ describe('supervisor client wrapper', () => {
       items: [{ id: 'mail-1', subject: 'thread read' }],
       total: 1,
     });
-    expect(requestedUrl(fetchSpy.mock.calls[0]?.[0])).toBe('http://gc-supervisor.test/v0/city/test-city/mail/thread/thread-1');
+    expect(requestedUrl(fetchSpy.mock.calls[0]?.[0])).toBe(
+      'http://gc-supervisor.test/v0/city/test-city/mail/thread/thread-1',
+    );
   });
 
   it('builds direct supervisor city event stream URLs', () => {
@@ -816,29 +877,32 @@ describe('supervisor client wrapper', () => {
   });
 
   it('calls supervisor event history through the generated SDK', async () => {
-    const fetchSpy = vi.fn(async (_input: RequestInfo | URL) =>
-      new Response(
-        JSON.stringify({
-          items: [{
-            actor: 'supervisor',
-            message: 'session crashed',
-            payload: {
-              reason: 'panic',
-              session_id: 'gc-session-1',
-              template: 'mayor',
-            },
-            seq: 42,
-            subject: 'gc-session-1',
-            ts: '2026-06-01T00:00:00Z',
-            type: 'session.crashed',
-          }],
-          total: 1,
-        }),
-        {
-          status: 200,
-          headers: { 'content-type': 'application/json' },
-        },
-      ),
+    const fetchSpy = vi.fn(
+      async (_input: RequestInfo | URL) =>
+        new Response(
+          JSON.stringify({
+            items: [
+              {
+                actor: 'supervisor',
+                message: 'session crashed',
+                payload: {
+                  reason: 'panic',
+                  session_id: 'gc-session-1',
+                  template: 'mayor',
+                },
+                seq: 42,
+                subject: 'gc-session-1',
+                ts: '2026-06-01T00:00:00Z',
+                type: 'session.crashed',
+              },
+            ],
+            total: 1,
+          }),
+          {
+            status: 200,
+            headers: { 'content-type': 'application/json' },
+          },
+        ),
     );
     const api = createSupervisorApi({
       baseUrl: 'http://gc-supervisor.test',
@@ -848,11 +912,11 @@ describe('supervisor client wrapper', () => {
       listEvents(cityName: string, query?: { limit?: number; since?: string }): Promise<unknown>;
     };
 
-    await expect(eventsApi.listEvents('test-city', { limit: 100, since: '24h' }))
-      .resolves
-      .toMatchObject({
-        items: [{ type: 'session.crashed', seq: 42 }],
-      });
+    await expect(
+      eventsApi.listEvents('test-city', { limit: 100, since: '24h' }),
+    ).resolves.toMatchObject({
+      items: [{ type: 'session.crashed', seq: 42 }],
+    });
     expect(requestedUrl(fetchSpy.mock.calls[0]?.[0])).toBe(
       'http://gc-supervisor.test/v0/city/test-city/events?limit=100&since=24h',
     );
@@ -873,20 +937,21 @@ describe('supervisor client wrapper', () => {
   });
 
   it('calls supervisor session transcripts through the generated SDK', async () => {
-    const fetchSpy = vi.fn(async (_input: RequestInfo | URL) =>
-      new Response(
-        JSON.stringify({
-          id: 'gc-session-1',
-          template: 'mayor',
-          provider: 'claude',
-          format: 'conversation',
-          turns: [{ role: 'assistant', text: 'hello' }],
-        }),
-        {
-          status: 200,
-          headers: { 'content-type': 'application/json' },
-        },
-      ),
+    const fetchSpy = vi.fn(
+      async (_input: RequestInfo | URL) =>
+        new Response(
+          JSON.stringify({
+            id: 'gc-session-1',
+            template: 'mayor',
+            provider: 'claude',
+            format: 'conversation',
+            turns: [{ role: 'assistant', text: 'hello' }],
+          }),
+          {
+            status: 200,
+            headers: { 'content-type': 'application/json' },
+          },
+        ),
     );
 
     const api = createSupervisorApi({
@@ -898,47 +963,50 @@ describe('supervisor client wrapper', () => {
       id: 'gc-session-1',
       turns: [{ role: 'assistant', text: 'hello' }],
     });
-    expect(requestedUrl(fetchSpy.mock.calls[0]?.[0])).toBe('http://gc-supervisor.test/v0/city/test-city/session/gc-session-1/transcript?format=conversation');
+    expect(requestedUrl(fetchSpy.mock.calls[0]?.[0])).toBe(
+      'http://gc-supervisor.test/v0/city/test-city/session/gc-session-1/transcript?format=conversation',
+    );
   });
 
   it('calls supervisor workflow snapshots through the generated SDK with scope query params', async () => {
-    const fetchSpy = vi.fn(async (_input: RequestInfo | URL) =>
-      new Response(
-        JSON.stringify({
-          workflow_id: 'gc-run-1',
-          root_bead_id: 'gc-run-1',
-          root_store_ref: 'city:test-city',
-          resolved_root_store: 'city:test-city',
-          scope_kind: 'city',
-          scope_ref: 'test-city',
-          snapshot_version: 3,
-          snapshot_event_seq: 7,
-          partial: false,
-          stores_scanned: ['city:test-city'],
-          beads: [
-            {
-              id: 'gc-run-1',
-              title: 'direct workflow run',
-              status: 'in_progress',
-              kind: 'workflow',
-              metadata: {
-                'gc.kind': 'workflow',
-                'gc.formula_contract': 'graph.v2',
-                'gc.formula': 'mol-direct',
-                'gc.run_target': 'test-city/codex',
+    const fetchSpy = vi.fn(
+      async (_input: RequestInfo | URL) =>
+        new Response(
+          JSON.stringify({
+            workflow_id: 'gc-run-1',
+            root_bead_id: 'gc-run-1',
+            root_store_ref: 'city:test-city',
+            resolved_root_store: 'city:test-city',
+            scope_kind: 'city',
+            scope_ref: 'test-city',
+            snapshot_version: 3,
+            snapshot_event_seq: 7,
+            partial: false,
+            stores_scanned: ['city:test-city'],
+            beads: [
+              {
+                id: 'gc-run-1',
+                title: 'direct workflow run',
+                status: 'in_progress',
+                kind: 'workflow',
+                metadata: {
+                  'gc.kind': 'workflow',
+                  'gc.formula_contract': 'graph.v2',
+                  'gc.formula': 'mol-direct',
+                  'gc.run_target': 'test-city/codex',
+                },
               },
-            },
-          ],
-          deps: [],
-          logical_nodes: [],
-          logical_edges: [],
-          scope_groups: [],
-        }),
-        {
-          status: 200,
-          headers: { 'content-type': 'application/json' },
-        },
-      ),
+            ],
+            deps: [],
+            logical_nodes: [],
+            logical_edges: [],
+            scope_groups: [],
+          }),
+          {
+            status: 200,
+            headers: { 'content-type': 'application/json' },
+          },
+        ),
     );
 
     const api = createSupervisorApi({
@@ -946,10 +1014,12 @@ describe('supervisor client wrapper', () => {
       fetch: fetchSpy as typeof fetch,
     });
 
-    await expect(api.workflowRun('test-city', 'gc-run-1', {
-      scope_kind: 'city',
-      scope_ref: 'test-city',
-    })).resolves.toMatchObject({
+    await expect(
+      api.workflowRun('test-city', 'gc-run-1', {
+        scope_kind: 'city',
+        scope_ref: 'test-city',
+      }),
+    ).resolves.toMatchObject({
       workflow_id: 'gc-run-1',
       root_bead_id: 'gc-run-1',
       snapshot_version: 3,
@@ -981,25 +1051,26 @@ describe('supervisor client wrapper', () => {
   });
 
   it('calls supervisor formula detail through the generated SDK with target and scope query params', async () => {
-    const fetchSpy = vi.fn(async (_input: RequestInfo | URL) =>
-      new Response(
-        JSON.stringify({
-          name: 'mol-direct',
-          description: 'direct formula detail',
-          version: 'v1',
-          preview: {
-            nodes: [{ id: 'root', title: 'Root', kind: 'step' }],
-            edges: [],
+    const fetchSpy = vi.fn(
+      async (_input: RequestInfo | URL) =>
+        new Response(
+          JSON.stringify({
+            name: 'mol-direct',
+            description: 'direct formula detail',
+            version: 'v1',
+            preview: {
+              nodes: [{ id: 'root', title: 'Root', kind: 'step' }],
+              edges: [],
+            },
+            steps: [],
+            deps: [],
+            var_defs: [],
+          }),
+          {
+            status: 200,
+            headers: { 'content-type': 'application/json' },
           },
-          steps: [],
-          deps: [],
-          var_defs: [],
-        }),
-        {
-          status: 200,
-          headers: { 'content-type': 'application/json' },
-        },
-      ),
+        ),
     );
 
     const api = createSupervisorApi({
@@ -1007,11 +1078,13 @@ describe('supervisor client wrapper', () => {
       fetch: fetchSpy as typeof fetch,
     });
 
-    await expect(api.formulaDetail('test-city', 'mol-direct', {
-      target: 'test-city/codex',
-      scope_kind: 'city',
-      scope_ref: 'test-city',
-    })).resolves.toMatchObject({
+    await expect(
+      api.formulaDetail('test-city', 'mol-direct', {
+        target: 'test-city/codex',
+        scope_kind: 'city',
+        scope_ref: 'test-city',
+      }),
+    ).resolves.toMatchObject({
       name: 'mol-direct',
       preview: { nodes: [{ id: 'root' }] },
     });
@@ -1020,17 +1093,17 @@ describe('supervisor client wrapper', () => {
     );
   });
 
-
   it('normalizes supervisor error responses', async () => {
-    const fetchSpy = vi.fn(async () =>
-      new Response(JSON.stringify({ error: 'supervisor unavailable', kind: 'upstream' }), {
-        status: 503,
-        statusText: 'Service Unavailable',
-        headers: {
-          'content-type': 'application/json',
-          'x-gc-request-id': 'req-42',
-        },
-      }),
+    const fetchSpy = vi.fn(
+      async () =>
+        new Response(JSON.stringify({ error: 'supervisor unavailable', kind: 'upstream' }), {
+          status: 503,
+          statusText: 'Service Unavailable',
+          headers: {
+            'content-type': 'application/json',
+            'x-gc-request-id': 'req-42',
+          },
+        }),
     );
 
     const api = createSupervisorApi({
@@ -1047,31 +1120,32 @@ describe('supervisor client wrapper', () => {
   });
 
   it('does not leak generated schema validation internals into supervisor error messages', async () => {
-    const fetchSpy = vi.fn(async () =>
-      new Response(
-        JSON.stringify({
-          items: [
-            {
-              name: 'mayor',
-              available: true,
-              running: true,
-              suspended: false,
-              state: 'idle',
-              provider: 'claude',
-              session: {
+    const fetchSpy = vi.fn(
+      async () =>
+        new Response(
+          JSON.stringify({
+            items: [
+              {
                 name: 'mayor',
-                attached: true,
-                last_activity: 'not-a-date',
+                available: true,
+                running: true,
+                suspended: false,
+                state: 'idle',
+                provider: 'claude',
+                session: {
+                  name: 'mayor',
+                  attached: true,
+                  last_activity: 'not-a-date',
+                },
               },
-            },
-          ],
-          total: 1,
-        }),
-        {
-          status: 200,
-          headers: { 'content-type': 'application/json' },
-        },
-      ),
+            ],
+            total: 1,
+          }),
+          {
+            status: 200,
+            headers: { 'content-type': 'application/json' },
+          },
+        ),
     );
 
     const api = createSupervisorApi({

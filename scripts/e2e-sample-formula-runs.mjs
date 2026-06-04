@@ -16,7 +16,7 @@ import { chromium } from 'playwright';
 import { exit } from 'node:process';
 
 const BASE = stripTrailingSlash(process.env.DASHBOARD_BASE_URL ?? 'http://127.0.0.1:5174');
-const CITY = process.env.DASHBOARD_CITY ?? await discoverFirstCity(BASE);
+const CITY = process.env.DASHBOARD_CITY ?? (await discoverFirstCity(BASE));
 const CITY_BASE = `${BASE}/city/${encodeURIComponent(CITY)}`;
 const EXPECTED_RUNS = [
   {
@@ -106,9 +106,10 @@ try {
   await page.getByRole('heading', { name: 'Formula Runs' }).waitFor({ timeout: 10_000 });
 
   const runLinks = await collectRunLinks(page);
-  foundRuns = EXPECTED_RUNS
-    .map((expected) => ({ expected, lane: runLinks.find((lane) => laneMatches(lane, expected)) }))
-    .filter((entry) => entry.lane !== undefined);
+  foundRuns = EXPECTED_RUNS.map((expected) => ({
+    expected,
+    lane: runLinks.find((lane) => laneMatches(lane, expected)),
+  })).filter((entry) => entry.lane !== undefined);
   missingRuns = EXPECTED_RUNS.filter(
     (expected) => !foundRuns.some((entry) => entry.expected === expected),
   );
@@ -124,13 +125,13 @@ try {
 recordApiFailures(errors, apiCalls, apiFailures);
 
 for (const missing of missingRuns) {
-  errors.push(
-    `missing ${missing.key} run for ${missing.scopeKind}:${missing.scopeRef} on /runs`,
-  );
+  errors.push(`missing ${missing.key} run for ${missing.scopeKind}:${missing.scopeRef} on /runs`);
 }
 
 console.log(`sample formula run e2e: city ${CITY}`);
-console.log(`sample formula run e2e: found ${foundRuns.length}/${EXPECTED_RUNS.length} expected runs`);
+console.log(
+  `sample formula run e2e: found ${foundRuns.length}/${EXPECTED_RUNS.length} expected runs`,
+);
 for (const { expected, lane } of foundRuns) {
   console.log(`  found ${expected.key}: ${lane.id} (${lane.title})`);
 }
@@ -156,7 +157,9 @@ async function verifyRun(page, expected, lane, errors) {
   const laneLink = page.getByRole('link', { name: lane.title });
   const laneLinkCount = await waitForLocatorCount(laneLink, 1, 10_000);
   if (laneLinkCount !== 1) {
-    errors.push(`${expected.key}: expected one /runs link named "${lane.title}", got ${laneLinkCount}`);
+    errors.push(
+      `${expected.key}: expected one /runs link named "${lane.title}", got ${laneLinkCount}`,
+    );
     return;
   }
 
@@ -186,10 +189,11 @@ async function verifyRun(page, expected, lane, errors) {
     await page.locator('[role="tabpanel"]').waitFor({ timeout: 5_000 });
     await page.waitForTimeout(300);
   } else {
-    const sessionDisabled = await sessionTab.evaluate((node) =>
-      node instanceof HTMLButtonElement &&
-      node.disabled &&
-      node.getAttribute('aria-disabled') === 'true',
+    const sessionDisabled = await sessionTab.evaluate(
+      (node) =>
+        node instanceof HTMLButtonElement &&
+        node.disabled &&
+        node.getAttribute('aria-disabled') === 'true',
     );
     if (!sessionDisabled) {
       errors.push(`${expected.key}: Session tab was neither enabled nor explicitly disabled`);
@@ -215,13 +219,15 @@ async function collectRunLinks(page) {
     const url = new URL(link.href);
     const runId = url.pathname.match(/\/runs\/([^/]+)$/)?.[1];
     if (runId === undefined) return [];
-    return [{
-      id: decodeURIComponent(runId),
-      title: link.title,
-      href: url.toString(),
-      scopeKind: url.searchParams.get('scope_kind'),
-      scopeRef: url.searchParams.get('scope_ref'),
-    }];
+    return [
+      {
+        id: decodeURIComponent(runId),
+        title: link.title,
+        href: url.toString(),
+        scopeKind: url.searchParams.get('scope_kind'),
+        scopeRef: url.searchParams.get('scope_ref'),
+      },
+    ];
   });
 }
 

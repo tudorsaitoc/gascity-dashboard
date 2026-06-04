@@ -6,7 +6,5 @@ export const activityView: FrontendViewDescriptor = {
   kind: 'core',
   path: '/activity',
   nav: { label: 'Activity', order: 55 },
-  element: lazy(() =>
-    import('../../routes/Activity').then((m) => ({ default: m.ActivityPage })),
-  ),
+  element: lazy(() => import('../../routes/Activity').then((m) => ({ default: m.ActivityPage }))),
 };

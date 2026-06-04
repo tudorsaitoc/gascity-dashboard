@@ -94,10 +94,10 @@ export function Header() {
     <header className="border-b border-rule">
       <div className="max-w-dashboard mx-auto px-4 sm:px-6 lg:px-8 py-5 flex items-baseline gap-x-6 lg:gap-x-8 gap-y-2 flex-wrap">
         <div className="flex items-baseline gap-3 min-w-0">
-          <span className="text-title font-semibold tracking-tight text-fg">
-            gas city
+          <span className="text-title font-semibold tracking-tight text-fg">gas city</span>
+          <span className="text-fg-muted" aria-hidden="true">
+            ·
           </span>
-          <span className="text-fg-muted" aria-hidden="true">·</span>
           {cityItems.length > 1 ? (
             <label className="sr-only" htmlFor="city-switcher">
               Switch city
@@ -149,10 +149,7 @@ export function Header() {
                   >
                     {r.label}
                     {domain !== undefined && (
-                      <NavAttentionIndicator
-                        label={r.label}
-                        summary={attention.byDomain[domain]}
-                      />
+                      <NavAttentionIndicator label={r.label} summary={attention.byDomain[domain]} />
                     )}
                   </NavLink>
                 </li>

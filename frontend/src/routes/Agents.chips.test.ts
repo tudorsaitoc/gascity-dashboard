@@ -1,11 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { AgentResponse } from '../generated/gc-supervisor-client/types.gen';
-import {
-  agentRowLabel,
-  buildAgentSynopsis,
-  isRunningAgent,
-  stateTone,
-} from './Agents';
+import { agentRowLabel, buildAgentSynopsis, isRunningAgent, stateTone } from './Agents';
 
 // gascity-dashboard-fgzf: the Agents view was reverted from the flat
 // sortable/filterable table (chips + sort + rig dropdown) to the older,
@@ -109,10 +104,7 @@ describe('buildAgentSynopsis', () => {
   });
 
   it('breaks suspended out as its own count', () => {
-    const rows: AgentResponse[] = [
-      mkAgent('active'),
-      mkAgent('asleep', { suspended: true }),
-    ];
+    const rows: AgentResponse[] = [mkAgent('active'), mkAgent('asleep', { suspended: true })];
     expect(buildAgentSynopsis(rows)).toContain('1 suspended');
   });
 

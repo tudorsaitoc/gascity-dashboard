@@ -1,14 +1,10 @@
-import { cleanup, render, screen } from "@testing-library/react";
-import type { TriageItem } from "gas-city-dashboard-shared";
-import { MemoryRouter } from "react-router-dom";
-import { afterEach, describe, expect, it } from "vitest";
-import { NowProvider } from "../../../contexts/NowContext";
-import { MaintainerFooter, SelectionActionBar } from "./MaintainerChrome";
-import {
-    SlungLink,
-    SlungSection,
-    TriageScore,
-} from "./Maintainer";
+import { cleanup, render, screen } from '@testing-library/react';
+import type { TriageItem } from 'gas-city-dashboard-shared';
+import { MemoryRouter } from 'react-router-dom';
+import { afterEach, describe, expect, it } from 'vitest';
+import { NowProvider } from '../../../contexts/NowContext';
+import { MaintainerFooter, SelectionActionBar } from './MaintainerChrome';
+import { SlungLink, SlungSection, TriageScore } from './Maintainer';
 
 // gascity-dashboard-5ly: render-level assertions for the bulk action bar.
 // The success-state lifecycle (timer cleanup, back-to-back slings) is
@@ -31,14 +27,12 @@ import {
 function hasNormalisedText(needle: RegExp) {
   return (_content: string, element: Element | null) => {
     if (element === null) return false;
-    const normalised = element.textContent?.replace(/\s+/g, " ").trim() ?? "";
+    const normalised = element.textContent?.replace(/\s+/g, ' ').trim() ?? '';
     return needle.test(normalised);
   };
 }
 
-function renderBar(
-  props: Partial<React.ComponentProps<typeof SelectionActionBar>> = {},
-) {
+function renderBar(props: Partial<React.ComponentProps<typeof SelectionActionBar>> = {}) {
   const actionBarProps: React.ComponentProps<typeof SelectionActionBar> = {
     count: props.count ?? 2,
     skippedCount: props.skippedCount ?? 0,
@@ -50,9 +44,7 @@ function renderBar(
     success: props.success ?? null,
   };
   return render(
-    <MemoryRouter
-      future={{ v7_relativeSplatPath: true, v7_startTransition: true }}
-    >
+    <MemoryRouter future={{ v7_relativeSplatPath: true, v7_startTransition: true }}>
       <SelectionActionBar {...actionBarProps} />
     </MemoryRouter>,
   );
@@ -71,105 +63,101 @@ const booleanSendingProps: React.ComponentProps<typeof SelectionActionBar> = {
 };
 void booleanSendingProps;
 
-describe("SelectionActionBar — success state", () => {
+describe('SelectionActionBar — success state', () => {
   afterEach(() => {
     cleanup();
   });
 
-  it("renders the success line with count + target when success is set", () => {
-    renderBar({ success: { count: 3, target: "triage agent" } });
+  it('renders the success line with count + target when success is set', () => {
+    renderBar({ success: { count: 3, target: 'triage agent' } });
     // Copy from the bead: 'Slung N to <target>. View in Agents →'.
     // The count is split into its own <span> for tabular figures, so
     // we match on the normalised text of the success container.
-    const status = screen.getByRole("status");
-    expect(status.textContent?.replace(/\s+/g, " ").trim()).toMatch(
-      /^Slung 3 to triage agent\./,
-    );
+    const status = screen.getByRole('status');
+    expect(status.textContent?.replace(/\s+/g, ' ').trim()).toMatch(/^Slung 3 to triage agent\./);
   });
 
-  it("uses the same copy for count=1 (no plural special-case)", () => {
-    renderBar({ success: { count: 1, target: "triage agent" } });
-    const status = screen.getByRole("status");
-    expect(status.textContent?.replace(/\s+/g, " ").trim()).toMatch(
-      /^Slung 1 to triage agent\./,
-    );
+  it('uses the same copy for count=1 (no plural special-case)', () => {
+    renderBar({ success: { count: 1, target: 'triage agent' } });
+    const status = screen.getByRole('status');
+    expect(status.textContent?.replace(/\s+/g, ' ').trim()).toMatch(/^Slung 1 to triage agent\./);
   });
 
-  it("renders a link to /agents on the success line", () => {
-    renderBar({ success: { count: 2, target: "triage agent" } });
-    const link = screen.getByRole("link", { name: /view in agents/i });
-    expect(link.getAttribute("href")).toBe("/agents");
+  it('renders a link to /agents on the success line', () => {
+    renderBar({ success: { count: 2, target: 'triage agent' } });
+    const link = screen.getByRole('link', { name: /view in agents/i });
+    expect(link.getAttribute('href')).toBe('/agents');
   });
 
-  it("does NOT render the success line when success is null", () => {
+  it('does NOT render the success line when success is null', () => {
     renderBar({ success: null });
-    expect(screen.queryByRole("status")).toBeNull();
+    expect(screen.queryByRole('status')).toBeNull();
     expect(screen.queryByText(hasNormalisedText(/Slung/))).toBeNull();
   });
 });
 
-describe("SelectionActionBar — error path regression", () => {
+describe('SelectionActionBar — error path regression', () => {
   afterEach(() => {
     cleanup();
   });
 
-  it("still renders the error message in the same region", () => {
-    renderBar({ error: "2 of 3 failed: gc sling failed (1)" });
-    const alert = screen.getByRole("alert");
+  it('still renders the error message in the same region', () => {
+    renderBar({ error: '2 of 3 failed: gc sling failed (1)' });
+    const alert = screen.getByRole('alert');
     expect(alert.textContent).toMatch(/2 of 3 failed/);
   });
 
-  it("does not render the success line while an error is present", () => {
+  it('does not render the success line while an error is present', () => {
     renderBar({
-      error: "something went wrong",
+      error: 'something went wrong',
       success: null,
     });
-    expect(screen.queryByRole("status")).toBeNull();
+    expect(screen.queryByRole('status')).toBeNull();
   });
 
-  it("renders both error and success simultaneously when a partial-failure batch lands", () => {
+  it('renders both error and success simultaneously when a partial-failure batch lands', () => {
     renderBar({
-      error: "1 of 3 failed: gc sling failed (1)",
-      success: { count: 2, target: "triage agent" },
+      error: '1 of 3 failed: gc sling failed (1)',
+      success: { count: 2, target: 'triage agent' },
     });
-    expect(screen.getByRole("alert")).toBeTruthy();
-    expect(screen.getByRole("status")).toBeTruthy();
+    expect(screen.getByRole('alert')).toBeTruthy();
+    expect(screen.getByRole('status')).toBeTruthy();
   });
 });
 
-describe("TriageScore — vetted vs heuristic visual distinction", () => {
+describe('TriageScore — vetted vs heuristic visual distinction', () => {
   afterEach(() => {
     cleanup();
   });
 
-  it("renders nothing when triage_score is null and no assessment", () => {
+  it('renders nothing when triage_score is null and no assessment', () => {
     const { container } = render(
       <TriageScore item={{ triage_score: null, triage_assessment: null }} />,
     );
-    expect(container.textContent).toBe("");
+    expect(container.textContent).toBe('');
   });
 
-  it("renders heuristic score with t-prefix in faint italic when no assessment", () => {
+  it('renders heuristic score with t-prefix in faint italic when no assessment', () => {
     const { container } = render(
       <TriageScore item={{ triage_score: 215, triage_assessment: null }} />,
     );
     // 't215' — note the "t" prefix marks heuristic.
     expect(container.textContent).toMatch(/t215/);
-    const span = container.querySelector("span.text-fg-faint.italic");
+    const span = container.querySelector('span.text-fg-faint.italic');
     expect(span).not.toBeNull();
-    expect(span?.textContent).toBe("t215");
+    expect(span?.textContent).toBe('t215');
   });
 
-  it("renders vetted score with check glyph in normal text-fg weight (no italic, no t-prefix)", () => {
+  it('renders vetted score with check glyph in normal text-fg weight (no italic, no t-prefix)', () => {
     const { container } = render(
       <TriageScore
         item={{
           triage_score: 215,
           triage_assessment: {
             vetted_score: 280,
-            source: "agent",
-            notes: "",
-            vetted_at: "2026-05-23T00:00:00.000Z",
+            source: 'agent',
+            notes: '',
+            vetted_at: '2026-05-23T00:00:00.000Z',
           },
         }}
       />,
@@ -181,98 +169,90 @@ describe("TriageScore — vetted vs heuristic visual distinction", () => {
     // Check glyph present.
     expect(container.textContent).toMatch(/✓/);
     // Container span is text-fg (normal weight), NOT text-fg-faint, NOT italic.
-    const fgSpan = container.querySelector("span.text-fg");
+    const fgSpan = container.querySelector('span.text-fg');
     expect(fgSpan).not.toBeNull();
-    expect(container.querySelector("span.italic")).toBeNull();
-    expect(container.querySelector("span.text-fg-faint")).toBeNull();
+    expect(container.querySelector('span.italic')).toBeNull();
+    expect(container.querySelector('span.text-fg-faint')).toBeNull();
   });
 
-  it("vetted title attribute surfaces source + score for accessibility", () => {
+  it('vetted title attribute surfaces source + score for accessibility', () => {
     const { container } = render(
       <TriageScore
         item={{
           triage_score: 100,
           triage_assessment: {
             vetted_score: 340,
-            source: "agent",
-            notes: "",
-            vetted_at: "2026-05-23T00:00:00.000Z",
+            source: 'agent',
+            notes: '',
+            vetted_at: '2026-05-23T00:00:00.000Z',
           },
         }}
       />,
     );
-    const titled = container.querySelector("span[title]");
-    expect(titled?.getAttribute("title")).toMatch(/vetted by agent.*340/);
+    const titled = container.querySelector('span[title]');
+    expect(titled?.getAttribute('title')).toMatch(/vetted by agent.*340/);
   });
 });
 
-describe("SlungLink — inline run link for slung items", () => {
+describe('SlungLink — inline run link for slung items', () => {
   afterEach(() => {
     cleanup();
   });
 
-  it("renders nothing when item.slung is null", () => {
+  it('renders nothing when item.slung is null', () => {
     const { container } = render(
-      <MemoryRouter
-        future={{ v7_relativeSplatPath: true, v7_startTransition: true }}
-      >
+      <MemoryRouter future={{ v7_relativeSplatPath: true, v7_startTransition: true }}>
         <SlungLink item={{ slung: null }} />
       </MemoryRouter>,
     );
-    expect(container.textContent).toBe("");
+    expect(container.textContent).toBe('');
   });
 
-  it("renders a link to /agents/<resolved_session_name> when slung is set with a resolved session", () => {
+  it('renders a link to /agents/<resolved_session_name> when slung is set with a resolved session', () => {
     // gascity-dashboard-55b: link target is the RESOLVED session_name,
     // not the configured target role label. The bug was the link going
     // to /agents/chief-of-staff (role label) and 404ing because
     // AgentDetail strict-matches against session_name / alias / id.
     const { container } = render(
-      <MemoryRouter
-        future={{ v7_relativeSplatPath: true, v7_startTransition: true }}
-      >
+      <MemoryRouter future={{ v7_relativeSplatPath: true, v7_startTransition: true }}>
         <SlungLink
           item={{
             slung: {
-              slung_at: "2026-05-24T12:00:00.000Z",
-              target: "chief-of-staff",
-              bead_id: "gc-abc",
-              resolved_session_name: "oversight-rig__chief-of-staff",
+              slung_at: '2026-05-24T12:00:00.000Z',
+              target: 'chief-of-staff',
+              bead_id: 'gc-abc',
+              resolved_session_name: 'oversight-rig__chief-of-staff',
             },
           }}
         />
       </MemoryRouter>,
     );
-    const link = container.querySelector("a");
+    const link = container.querySelector('a');
     expect(link).not.toBeNull();
-    expect(link?.getAttribute("href")).toBe(
-      "/agents/oversight-rig__chief-of-staff",
-    );
+    expect(link?.getAttribute('href')).toBe('/agents/oversight-rig__chief-of-staff');
     expect(link?.textContent).toMatch(/slung/);
     // Faint weight so it reads as a secondary affordance, not a CTA.
     expect(link?.className).toMatch(/text-fg-faint/);
   });
 
-  it("title attribute carries the target role label so the operator knows where it routed", () => {
+  it('title attribute carries the target role label so the operator knows where it routed', () => {
     const { container } = render(
-      <MemoryRouter
-        future={{ v7_relativeSplatPath: true, v7_startTransition: true }}
-      >
+      <MemoryRouter future={{ v7_relativeSplatPath: true, v7_startTransition: true }}>
         <SlungLink
           item={{
             slung: {
-              slung_at: "2026-05-24T12:00:00.000Z",
-              target: "project-lead",
+              slung_at: '2026-05-24T12:00:00.000Z',
+              target: 'project-lead',
               bead_id: null,
-              resolved_session_name: "agent-diagnostics--project-lead",
+              resolved_session_name: 'agent-diagnostics--project-lead',
             },
           }}
         />
       </MemoryRouter>,
     );
-    const link = container.querySelector("a");
-    expect(link?.getAttribute("title")).toMatch(/slung to project-lead/);
-    expect(link?.getAttribute("aria-label")).toMatch(/slung to project-lead/);
+    const link = container.querySelector('a');
+    expect(link?.getAttribute('title')).toMatch(/slung to project-lead/);
+    expect(link?.getAttribute('aria-label')).toMatch(/slung to project-lead/);
   });
 
   // gascity-dashboard-tgk: a resolved_session_name containing '/' is
@@ -285,29 +265,27 @@ describe("SlungLink — inline run link for slung items", () => {
   // the null case.
   it('renders inline "no session" error (no link) when resolved_session_name contains "/"', () => {
     const { container } = render(
-      <MemoryRouter
-        future={{ v7_relativeSplatPath: true, v7_startTransition: true }}
-      >
+      <MemoryRouter future={{ v7_relativeSplatPath: true, v7_startTransition: true }}>
         <SlungLink
           item={{
             slung: {
-              slung_at: "2026-05-24T12:00:00.000Z",
-              target: "chief-of-staff",
+              slung_at: '2026-05-24T12:00:00.000Z',
+              target: 'chief-of-staff',
               bead_id: null,
-              resolved_session_name: "hello-world/chief-of-staff",
+              resolved_session_name: 'hello-world/chief-of-staff',
             },
           }}
         />
       </MemoryRouter>,
     );
     // No link — a '/' in the slug is rejected at the rendering boundary.
-    expect(container.querySelector("a")).toBeNull();
+    expect(container.querySelector('a')).toBeNull();
     expect(container.textContent).toMatch(/no session for chief-of-staff/i);
     // The accessible label (which differs from the visible text) must still
     // name the role and reassure that the sling itself succeeded.
-    expect(
-      container.querySelector("[aria-label]")?.getAttribute("aria-label"),
-    ).toBe("no session for role chief-of-staff; sling itself succeeded");
+    expect(container.querySelector('[aria-label]')?.getAttribute('aria-label')).toBe(
+      'no session for role chief-of-staff; sling itself succeeded',
+    );
   });
 
   // ── gascity-dashboard-55b: no-session error path ──────────────────
@@ -320,14 +298,12 @@ describe("SlungLink — inline run link for slung items", () => {
 
   it('renders inline "no session" error when resolved_session_name is null', () => {
     const { container } = render(
-      <MemoryRouter
-        future={{ v7_relativeSplatPath: true, v7_startTransition: true }}
-      >
+      <MemoryRouter future={{ v7_relativeSplatPath: true, v7_startTransition: true }}>
         <SlungLink
           item={{
             slung: {
-              slung_at: "2026-05-24T12:00:00.000Z",
-              target: "chief-of-staff",
+              slung_at: '2026-05-24T12:00:00.000Z',
+              target: 'chief-of-staff',
               bead_id: null,
               resolved_session_name: null,
             },
@@ -336,102 +312,94 @@ describe("SlungLink — inline run link for slung items", () => {
       </MemoryRouter>,
     );
     // No link element — this is the error path; nothing to drill in to.
-    expect(container.querySelector("a")).toBeNull();
+    expect(container.querySelector('a')).toBeNull();
     // The error message names the role so the operator can either spawn
     // the agent or reconfigure MAINTAINER_SLING_TARGET.
     expect(container.textContent).toMatch(/no session for chief-of-staff/i);
   });
 });
 
-describe("SelectionActionBar — selection counter", () => {
+describe('SelectionActionBar — selection counter', () => {
   afterEach(() => {
     cleanup();
   });
 
-  it("shows the count of selected items", () => {
+  it('shows the count of selected items', () => {
     renderBar({ count: 7 });
-    expect(screen.getByText("7")).toBeTruthy();
+    expect(screen.getByText('7')).toBeTruthy();
     expect(screen.getByText(/selected/i)).toBeTruthy();
   });
 
-  it("renders Send and Clear controls", () => {
+  it('renders Send and Clear controls', () => {
     renderBar();
-    expect(
-      screen.getByRole("button", { name: /send to triage agent/i }),
-    ).toBeTruthy();
-    expect(
-      screen.getByRole("button", { name: /send to draft agent/i }),
-    ).toBeTruthy();
-    expect(screen.getByRole("button", { name: /^clear$/i })).toBeTruthy();
+    expect(screen.getByRole('button', { name: /send to triage agent/i })).toBeTruthy();
+    expect(screen.getByRole('button', { name: /send to draft agent/i })).toBeTruthy();
+    expect(screen.getByRole('button', { name: /^clear$/i })).toBeTruthy();
   });
 
   it('suppresses "0 selected" when count=0 and a success line is showing', () => {
     // After a fully successful dispatch the selection is cleared but the
     // success banner stays up until TTL. Don't surface a confusing
     // "0 selected · Slung 3 to triage agent" — the success line stands alone.
-    renderBar({ count: 0, success: { count: 3, target: "triage agent" } });
+    renderBar({ count: 0, success: { count: 3, target: 'triage agent' } });
     expect(screen.queryByText(/selected/i)).toBeNull();
-    expect(screen.getByRole("status")).toBeTruthy();
+    expect(screen.getByRole('status')).toBeTruthy();
   });
 
-  it("surfaces selected items skipped because they vanished before send", () => {
+  it('surfaces selected items skipped because they vanished before send', () => {
     renderBar({ skippedCount: 2 });
-    const region = screen.getByRole("region", { name: /bulk triage actions/i });
-    expect(region.textContent?.replace(/\s+/g, " ").trim()).toMatch(
+    const region = screen.getByRole('region', { name: /bulk triage actions/i });
+    expect(region.textContent?.replace(/\s+/g, ' ').trim()).toMatch(
       /2 skipped; no longer in list/i,
     );
   });
 });
 
 // gascity-dashboard-5xw: the bar exposes the current two-intent contract.
-describe("SelectionActionBar — dual-intent buttons", () => {
+describe('SelectionActionBar — dual-intent buttons', () => {
   afterEach(() => {
     cleanup();
   });
 
-  it("renders the draft button alongside triage", () => {
+  it('renders the draft button alongside triage', () => {
     renderBar();
-    expect(
-      screen.getByRole("button", { name: /send to triage agent/i }),
-    ).toBeTruthy();
-    expect(
-      screen.getByRole("button", { name: /send to draft agent/i }),
-    ).toBeTruthy();
+    expect(screen.getByRole('button', { name: /send to triage agent/i })).toBeTruthy();
+    expect(screen.getByRole('button', { name: /send to draft agent/i })).toBeTruthy();
   });
 
-  it("invokes onSendDraft on click", () => {
+  it('invokes onSendDraft on click', () => {
     let called = 0;
     renderBar({
       onSendDraft: () => {
         called += 1;
       },
     });
-    screen.getByRole("button", { name: /send to draft agent/i }).click();
+    screen.getByRole('button', { name: /send to draft agent/i }).click();
     expect(called).toBe(1);
   });
 
-  it("disables both intent buttons while sending", () => {
-    renderBar({ onSendDraft: () => {}, sending: "triage" });
-    const triage = screen.getByRole("button", {
+  it('disables both intent buttons while sending', () => {
+    renderBar({ onSendDraft: () => {}, sending: 'triage' });
+    const triage = screen.getByRole('button', {
       name: /sending/i,
     }) as HTMLButtonElement;
-    const draft = screen.getByRole("button", {
+    const draft = screen.getByRole('button', {
       name: /send to draft agent/i,
     }) as HTMLButtonElement;
     expect(triage.disabled).toBe(true);
     expect(draft.disabled).toBe(true);
   });
 
-  it("disables both intent buttons when count=0 (selection cleared post-success)", () => {
+  it('disables both intent buttons when count=0 (selection cleared post-success)', () => {
     renderBar({
       count: 0,
       onSendDraft: () => {},
-      success: { count: 3, target: "triage agent" },
+      success: { count: 3, target: 'triage agent' },
     });
-    const triage = screen.getByRole("button", {
+    const triage = screen.getByRole('button', {
       name: /send to triage agent/i,
     }) as HTMLButtonElement;
-    const draft = screen.getByRole("button", {
+    const draft = screen.getByRole('button', {
       name: /send to draft agent/i,
     }) as HTMLButtonElement;
     expect(triage.disabled).toBe(true);
@@ -439,29 +407,21 @@ describe("SelectionActionBar — dual-intent buttons", () => {
   });
 
   it("shows 'Sending' on the triage button only when sending='triage'", () => {
-    renderBar({ onSendDraft: () => {}, sending: "triage" });
+    renderBar({ onSendDraft: () => {}, sending: 'triage' });
     // The triage button is the one whose name became 'Sending'.
-    expect(
-      screen.queryByRole("button", { name: /send to triage agent/i }),
-    ).toBeNull();
-    expect(screen.getByRole("button", { name: /sending/i })).toBeTruthy();
+    expect(screen.queryByRole('button', { name: /send to triage agent/i })).toBeNull();
+    expect(screen.getByRole('button', { name: /sending/i })).toBeTruthy();
     // The draft button keeps its static label.
-    expect(
-      screen.getByRole("button", { name: /send to draft agent/i }),
-    ).toBeTruthy();
+    expect(screen.getByRole('button', { name: /send to draft agent/i })).toBeTruthy();
   });
 
   it("shows 'Sending' on the draft button only when sending='draft'", () => {
-    renderBar({ onSendDraft: () => {}, sending: "draft" });
+    renderBar({ onSendDraft: () => {}, sending: 'draft' });
     // The draft button is the one whose name became 'Sending'.
-    expect(
-      screen.queryByRole("button", { name: /send to draft agent/i }),
-    ).toBeNull();
-    expect(screen.getByRole("button", { name: /sending/i })).toBeTruthy();
+    expect(screen.queryByRole('button', { name: /send to draft agent/i })).toBeNull();
+    expect(screen.getByRole('button', { name: /sending/i })).toBeTruthy();
     // The triage button keeps its static label.
-    expect(
-      screen.getByRole("button", { name: /send to triage agent/i }),
-    ).toBeTruthy();
+    expect(screen.getByRole('button', { name: /send to triage agent/i })).toBeTruthy();
   });
 
   // gascity-dashboard-4co: visual hierarchy in the dual-intent bar.
@@ -482,22 +442,22 @@ describe("SelectionActionBar — dual-intent buttons", () => {
   });
 });
 
-describe("MaintainerFooter", () => {
+describe('MaintainerFooter', () => {
   afterEach(() => {
     cleanup();
   });
 
-  it("renders the empty enrichment state", () => {
-    render(<MaintainerFooter computedAt={null} now={Date.parse("2026-05-31T10:00:00.000Z")} />);
+  it('renders the empty enrichment state', () => {
+    render(<MaintainerFooter computedAt={null} now={Date.parse('2026-05-31T10:00:00.000Z')} />);
 
     expect(screen.getByText(/enrichment not yet computed/i)).toBeTruthy();
   });
 
-  it("renders the computed timestamp with a relative age", () => {
+  it('renders the computed timestamp with a relative age', () => {
     render(
       <MaintainerFooter
         computedAt="2026-05-31T09:00:00.000Z"
-        now={Date.parse("2026-05-31T10:00:00.000Z")}
+        now={Date.parse('2026-05-31T10:00:00.000Z')}
       />,
     );
 
@@ -510,7 +470,7 @@ describe("MaintainerFooter", () => {
 // here as a read-only group with drill-in links and no selection
 // checkboxes.
 function mkSlungItem(
-  overrides: Partial<TriageItem> & { kind: "pr" | "issue"; number: number },
+  overrides: Partial<TriageItem> & { kind: 'pr' | 'issue'; number: number },
 ): TriageItem {
   return {
     kind: overrides.kind,
@@ -518,26 +478,26 @@ function mkSlungItem(
     title: overrides.title ?? `Item ${overrides.number}`,
     html_url:
       overrides.html_url ??
-      `https://github.com/gastownhall/gascity/${overrides.kind === "pr" ? "pull" : "issues"}/${overrides.number}`,
+      `https://github.com/gastownhall/gascity/${overrides.kind === 'pr' ? 'pull' : 'issues'}/${overrides.number}`,
     labels: overrides.labels ?? [],
-    status: overrides.status ?? "open",
+    status: overrides.status ?? 'open',
     author: overrides.author ?? {
-      login: "someone",
-      tier: "regular",
+      login: 'someone',
+      tier: 'regular',
       issues_opened: null,
       issues_accepted: null,
       prs_opened: null,
       prs_merged: null,
       computed_at: null,
     },
-    tier: overrides.tier ?? "regression_breaking",
+    tier: overrides.tier ?? 'regression_breaking',
     triage_score: overrides.triage_score ?? null,
     triage_assessment: overrides.triage_assessment ?? null,
     slung: overrides.slung ?? {
-      slung_at: "2026-05-24T00:00:00Z",
-      target: "chief-of-staff",
-      bead_id: "gc-1",
-      resolved_session_name: "oversight-rig__chief-of-staff",
+      slung_at: '2026-05-24T00:00:00Z',
+      target: 'chief-of-staff',
+      bead_id: 'gc-1',
+      resolved_session_name: 'oversight-rig__chief-of-staff',
     },
     cluster_id: overrides.cluster_id ?? null,
     blast_files: overrides.blast_files ?? [],
@@ -546,21 +506,17 @@ function mkSlungItem(
     has_in_flight_pr: overrides.has_in_flight_pr ?? false,
     linked_numbers: overrides.linked_numbers ?? [],
     weak_ties: overrides.weak_ties ?? [],
-    created_at: overrides.created_at ?? "2026-05-20T00:00:00Z",
-    updated_at: overrides.updated_at ?? "2026-05-22T00:00:00Z",
+    created_at: overrides.created_at ?? '2026-05-20T00:00:00Z',
+    updated_at: overrides.updated_at ?? '2026-05-22T00:00:00Z',
   };
 }
 
-function renderSlungSection(
-  props: Partial<React.ComponentProps<typeof SlungSection>> = {},
-) {
+function renderSlungSection(props: Partial<React.ComponentProps<typeof SlungSection>> = {}) {
   return render(
-    <MemoryRouter
-      future={{ v7_relativeSplatPath: true, v7_startTransition: true }}
-    >
+    <MemoryRouter future={{ v7_relativeSplatPath: true, v7_startTransition: true }}>
       <NowProvider intervalMs={1_000_000}>
         <SlungSection
-          items={props.items ?? [mkSlungItem({ kind: "pr", number: 47 })]}
+          items={props.items ?? [mkSlungItem({ kind: 'pr', number: 47 })]}
           collapsed={props.collapsed ?? false}
           onToggle={props.onToggle ?? (() => {})}
         />
@@ -569,52 +525,44 @@ function renderSlungSection(
   );
 }
 
-describe("SlungSection — in-flight slung items", () => {
+describe('SlungSection — in-flight slung items', () => {
   afterEach(cleanup);
 
-  it("renders the header with a pluralised item count", () => {
+  it('renders the header with a pluralised item count', () => {
     renderSlungSection({
-      items: [
-        mkSlungItem({ kind: "pr", number: 47 }),
-        mkSlungItem({ kind: "pr", number: 48 }),
-      ],
+      items: [mkSlungItem({ kind: 'pr', number: 47 }), mkSlungItem({ kind: 'pr', number: 48 })],
     });
-    const header = screen.getByRole("button", { name: /slung/i });
-    const text = header.textContent?.replace(/\s+/g, " ") ?? "";
+    const header = screen.getByRole('button', { name: /slung/i });
+    const text = header.textContent?.replace(/\s+/g, ' ') ?? '';
     expect(text).toMatch(/Slung · awaiting agent/);
     expect(text).toMatch(/2 items/);
   });
 
   it("uses singular 'item' for a single slung row", () => {
-    renderSlungSection({ items: [mkSlungItem({ kind: "pr", number: 47 })] });
-    const header = screen.getByRole("button", { name: /slung/i });
-    expect(header.textContent?.replace(/\s+/g, " ")).toMatch(/1 item(?!s)/);
+    renderSlungSection({ items: [mkSlungItem({ kind: 'pr', number: 47 })] });
+    const header = screen.getByRole('button', { name: /slung/i });
+    expect(header.textContent?.replace(/\s+/g, ' ')).toMatch(/1 item(?!s)/);
   });
 
-  it("renders a drill-in link for an item with a resolved session", () => {
-    renderSlungSection({ items: [mkSlungItem({ kind: "pr", number: 47 })] });
-    const link = screen.getByRole("link", { name: /slung to chief-of-staff/i });
-    expect(link.getAttribute("href")).toBe(
-      "/agents/oversight-rig__chief-of-staff",
-    );
+  it('renders a drill-in link for an item with a resolved session', () => {
+    renderSlungSection({ items: [mkSlungItem({ kind: 'pr', number: 47 })] });
+    const link = screen.getByRole('link', { name: /slung to chief-of-staff/i });
+    expect(link.getAttribute('href')).toBe('/agents/oversight-rig__chief-of-staff');
   });
 
-  it("is read-only: no selection checkboxes in the section", () => {
+  it('is read-only: no selection checkboxes in the section', () => {
     renderSlungSection({
-      items: [
-        mkSlungItem({ kind: "pr", number: 47 }),
-        mkSlungItem({ kind: "issue", number: 48 }),
-      ],
+      items: [mkSlungItem({ kind: 'pr', number: 47 }), mkSlungItem({ kind: 'issue', number: 48 })],
     });
-    expect(screen.queryByRole("checkbox")).toBeNull();
+    expect(screen.queryByRole('checkbox')).toBeNull();
   });
 
-  it("hides the rows when collapsed but keeps the header", () => {
+  it('hides the rows when collapsed but keeps the header', () => {
     renderSlungSection({
       collapsed: true,
-      items: [mkSlungItem({ kind: "pr", number: 47 })],
+      items: [mkSlungItem({ kind: 'pr', number: 47 })],
     });
-    expect(screen.getByRole("button", { name: /slung/i })).toBeTruthy();
-    expect(screen.queryByRole("link", { name: /slung to/i })).toBeNull();
+    expect(screen.getByRole('button', { name: /slung/i })).toBeTruthy();
+    expect(screen.queryByRole('link', { name: /slung to/i })).toBeNull();
   });
 });

@@ -7,15 +7,11 @@ export function meta(bead: RunSnapshotBead | undefined, key: string): string | u
 }
 
 export function nonEmpty(value: unknown): string | undefined {
-  return typeof value === 'string' && value.trim().length > 0
-    ? value.trim()
-    : undefined;
+  return typeof value === 'string' && value.trim().length > 0 ? value.trim() : undefined;
 }
 
 export function normalizedStepRef(bead: RunSnapshotBead): string | null {
-  const ref =
-    meta(bead, 'gc.step_ref') ??
-    nonEmpty(bead.step_ref);
+  const ref = meta(bead, 'gc.step_ref') ?? nonEmpty(bead.step_ref);
   return ref ?? null;
 }
 
@@ -35,24 +31,15 @@ export function attemptFor(bead: RunSnapshotBead): number | undefined {
   );
 }
 
-export function positiveIntegerMeta(
-  bead: RunSnapshotBead,
-  key: string,
-): number | undefined {
+export function positiveIntegerMeta(bead: RunSnapshotBead, key: string): number | undefined {
   return numericMeta(bead, key);
 }
 
 export function externalizeId(id: string): string {
-  return id.replace(
-    /(^|[^A-Za-z0-9])ralph(?=$|[^A-Za-z0-9])/gi,
-    '$1check-loop',
-  );
+  return id.replace(/(^|[^A-Za-z0-9])ralph(?=$|[^A-Za-z0-9])/gi, '$1check-loop');
 }
 
-function numericRefSegment(
-  bead: RunSnapshotBead,
-  marker: string,
-): number | undefined {
+function numericRefSegment(bead: RunSnapshotBead, marker: string): number | undefined {
   const ref = normalizedStepRef(bead);
   if (!ref) return undefined;
   const parts = ref.split('.');

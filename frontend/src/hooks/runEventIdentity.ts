@@ -14,8 +14,7 @@ export function formulaRunDetailEventMatches(
   identity: RunEventIdentity,
   detail: FormulaRunIdentity,
 ): boolean {
-  const runMatches =
-    identity.runIds.size === 0 || identity.runIds.has(detail.runId);
+  const runMatches = identity.runIds.size === 0 || identity.runIds.has(detail.runId);
   const rootMatches =
     identity.rootBeadIds.size === 0 || identity.rootBeadIds.has(detail.rootBeadId);
   return runMatches && rootMatches;
@@ -71,6 +70,6 @@ function addString(target: Set<string>, value: unknown): void {
 
 function recordValue(value: unknown): Record<string, unknown> | undefined {
   return typeof value === 'object' && value !== null && !Array.isArray(value)
-    ? value as Record<string, unknown>
+    ? (value as Record<string, unknown>)
     : undefined;
 }

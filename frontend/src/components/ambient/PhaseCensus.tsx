@@ -40,12 +40,14 @@ export function PhaseCensus({ census, waitingCount, failingCount }: PhaseCensusP
 
   return (
     <p className="text-title tnum text-fg" data-testid="phase-census">
-      <span>
-        {census.totalInFlight} in flight
+      <span>{census.totalInFlight} in flight</span>
+      <span aria-hidden="true" className="mx-2 text-fg-faint">
+        ·
       </span>
-      <span aria-hidden="true" className="mx-2 text-fg-faint">·</span>
       <span>{waitingCount} waiting</span>
-      <span aria-hidden="true" className="mx-2 text-fg-faint">·</span>
+      <span aria-hidden="true" className="mx-2 text-fg-faint">
+        ·
+      </span>
       <span
         className={failingCount > 0 ? 'font-semibold text-fg' : ''}
         aria-live="polite"

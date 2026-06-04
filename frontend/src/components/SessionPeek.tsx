@@ -1,13 +1,9 @@
-import { AnsiUp } from "ansi_up";
-import { useMemo, type ReactNode } from "react";
-import type { OutputTurn } from "../generated/gc-supervisor-client/types.gen";
-import {
-    formatClockTime,
-    formatRelative,
-    formatShortDate,
-} from "../hooks/time";
-import { PROMPT_INJECTION_NOTICE } from "../lib/constants";
-import type { SessionTranscriptView } from "../supervisor/sessionReads";
+import { AnsiUp } from 'ansi_up';
+import { useMemo, type ReactNode } from 'react';
+import type { OutputTurn } from '../generated/gc-supervisor-client/types.gen';
+import { formatClockTime, formatRelative, formatShortDate } from '../hooks/time';
+import { PROMPT_INJECTION_NOTICE } from '../lib/constants';
+import type { SessionTranscriptView } from '../supervisor/sessionReads';
 
 // Render layer for a session's transcript snapshot. Used by:
 //   - Agents page peek modal (one-shot fetch)
@@ -47,9 +43,7 @@ const ISO_TIMESTAMP_RE =
 export function extractTurnTimestamp(text: string): string | null {
   if (text.length === 0) return null;
   const head =
-    text.length > TIMESTAMP_SEARCH_WINDOW
-      ? text.slice(0, TIMESTAMP_SEARCH_WINDOW)
-      : text;
+    text.length > TIMESTAMP_SEARCH_WINDOW ? text.slice(0, TIMESTAMP_SEARCH_WINDOW) : text;
   const match = head.match(ISO_TIMESTAMP_RE);
   return match ? match[0] : null;
 }
@@ -60,11 +54,7 @@ interface SessionPeekContentProps {
   result: SessionTranscriptView | null;
 }
 
-export function SessionPeekContent({
-  loading,
-  error,
-  result,
-}: SessionPeekContentProps) {
+export function SessionPeekContent({ loading, error, result }: SessionPeekContentProps) {
   if (loading && result === null) {
     return <p className="text-fg-muted italic">Fetching transcript.</p>;
   }
@@ -77,9 +67,7 @@ export function SessionPeekContent({
   }
   if (!result) return null;
   if (result.turns.length === 0) {
-    return (
-      <p className="text-fg-muted italic">No turns in this session yet.</p>
-    );
+    return <p className="text-fg-muted italic">No turns in this session yet.</p>;
   }
 
   // One `now` per render keeps every turn's relative timestamp consistent
@@ -95,9 +83,7 @@ export function SessionPeekContent({
       >
         {formatShortDate(result.captured_at)}
       </p>
-      <p className="text-label uppercase tracking-wider text-warn">
-        ▲ {PROMPT_INJECTION_NOTICE}
-      </p>
+      <p className="text-label uppercase tracking-wider text-warn">▲ {PROMPT_INJECTION_NOTICE}</p>
       <ol className="space-y-5">
         {result.turns.map((turn, idx) => (
           <TurnBlock key={idx} turn={turn} index={idx} now={now} />
@@ -105,24 +91,16 @@ export function SessionPeekContent({
       </ol>
       {result.truncated && (
         <p className="text-label uppercase tracking-wider text-fg-faint italic">
-          Some turns truncated at the per-turn or total cap. Run{" "}
-          <code className="text-fg-muted">gc session peek</code> in a terminal
-          for the full transcript.
+          Some turns truncated at the per-turn or total cap. Run{' '}
+          <code className="text-fg-muted">gc session peek</code> in a terminal for the full
+          transcript.
         </p>
       )}
     </div>
   );
 }
 
-function TurnBlock({
-  turn,
-  index,
-  now,
-}: {
-  turn: OutputTurn;
-  index: number;
-  now: number;
-}) {
+function TurnBlock({ turn, index, now }: { turn: OutputTurn; index: number; now: number }) {
   const renderedText = useMemo(() => ansiToReactNodes(turn.text), [turn.text]);
 
   const timestamp = useMemo(() => extractTurnTimestamp(turn.text), [turn.text]);
@@ -131,15 +109,10 @@ function TurnBlock({
     <li>
       <header className="flex items-start justify-between gap-3 pb-2 border-b border-rule mb-2">
         <span className="text-label uppercase tracking-wider text-fg-faint tnum">
-          #{(index + 1).toString().padStart(2, "0")}
+          #{(index + 1).toString().padStart(2, '0')}
         </span>
-        <div
-          className="flex flex-col items-end leading-tight"
-          title={timestamp ?? undefined}
-        >
-          <span className="text-body text-fg tnum">
-            {formatClockTime(timestamp)}
-          </span>
+        <div className="flex flex-col items-end leading-tight" title={timestamp ?? undefined}>
+          <span className="text-body text-fg tnum">{formatClockTime(timestamp)}</span>
           <span className="text-label uppercase tracking-wider text-fg-faint tnum">
             {formatRelative(timestamp, now)}
           </span>
@@ -157,19 +130,14 @@ function ansiToReactNodes(text: string): ReactNode[] {
   const renderer = new AnsiUp();
   renderer.use_classes = true;
   const html = renderer.ansi_to_html(text);
-  if (typeof DOMParser === "undefined") return [text];
+  if (typeof DOMParser === 'undefined') return [text];
 
-  const doc = new DOMParser().parseFromString(
-    `<body>${html}</body>`,
-    "text/html",
-  );
-  return Array.from(doc.body.childNodes).map((node, index) =>
-    htmlNodeToReact(node, String(index)),
-  );
+  const doc = new DOMParser().parseFromString(`<body>${html}</body>`, 'text/html');
+  return Array.from(doc.body.childNodes).map((node, index) => htmlNodeToReact(node, String(index)));
 }
 
 function htmlNodeToReact(node: ChildNode, key: string): ReactNode {
-  if (node.nodeType === 3) return node.textContent ?? "";
+  if (node.nodeType === 3) return node.textContent ?? '';
   if (node.nodeType !== 1) return null;
 
   const element = node as Element;
@@ -177,15 +145,15 @@ function htmlNodeToReact(node: ChildNode, key: string): ReactNode {
     htmlNodeToReact(child, `${key}-${index}`),
   );
 
-  if (element.tagName.toLowerCase() === "br") {
+  if (element.tagName.toLowerCase() === 'br') {
     return <br key={key} />;
   }
-  if (element.tagName.toLowerCase() !== "span") {
+  if (element.tagName.toLowerCase() !== 'span') {
     return <span key={key}>{children}</span>;
   }
 
   return (
-    <span key={key} className={element.getAttribute("class") ?? undefined}>
+    <span key={key} className={element.getAttribute('class') ?? undefined}>
       {children}
     </span>
   );
@@ -195,23 +163,23 @@ function RoleLabel({ role }: { role: string }) {
   const tone = roleTone(role);
   return (
     <span className={`text-label uppercase tracking-wider font-medium ${tone}`}>
-      {role.replace(/_/g, " ")}
+      {role.replace(/_/g, ' ')}
     </span>
   );
 }
 
 function roleTone(role: string): string {
   switch (role) {
-    case "assistant":
-      return "text-accent";
-    case "user":
-      return "text-fg";
-    case "system":
-      return "text-warn";
-    case "tool_use":
-    case "tool_result":
-      return "text-fg-muted";
+    case 'assistant':
+      return 'text-accent';
+    case 'user':
+      return 'text-fg';
+    case 'system':
+      return 'text-warn';
+    case 'tool_use':
+    case 'tool_result':
+      return 'text-fg-muted';
     default:
-      return "text-fg-faint";
+      return 'text-fg-faint';
   }
 }

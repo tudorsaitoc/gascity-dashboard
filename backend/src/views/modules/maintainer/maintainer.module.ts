@@ -53,7 +53,10 @@ export interface MaintainerDeps {
  * resolve to DISTINCT paths and cannot clobber each other. The cityName is
  * re-validated against CITY_NAME_RE here before it enters path.join.
  */
-export function maintainerPaths(ctx: CityContext, deps: MaintainerDeps): {
+export function maintainerPaths(
+  ctx: CityContext,
+  deps: MaintainerDeps,
+): {
   cachePath: string;
   slungStatePath: string;
 } {
@@ -96,10 +99,7 @@ function pinnedBaseDir(pin: string): string {
  * and only when the operator has NOT pinned a cache path. Any other city
  * mounting first must NOT claim the legacy data (mis-attribution).
  */
-export function shouldMigrateLegacyPaths(
-  ctx: CityContext,
-  deps: MaintainerDeps,
-): boolean {
+export function shouldMigrateLegacyPaths(ctx: CityContext, deps: MaintainerDeps): boolean {
   return deps.cachePath === undefined && ctx.cityName === ctx.config.cityName;
 }
 
@@ -116,9 +116,7 @@ export const maintainerBackend: BackendModule<MaintainerDeps> = {
       { name: 'cache', scope: 'perCity' },
       { name: 'slung-state', scope: 'perCity' },
     ],
-    memory: [
-      { name: 'sse-clients', scope: 'perCity' },
-    ],
+    memory: [{ name: 'sse-clients', scope: 'perCity' }],
   },
   needs: (config) => {
     const slice = config.modules.maintainer;

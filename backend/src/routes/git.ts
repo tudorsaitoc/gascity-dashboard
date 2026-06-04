@@ -52,11 +52,14 @@ export function gitRouter(opts: GitRouterOptions = {}): Router {
         writeExecError(res, err, LOG_COMPONENT.git, '/api/git/commits');
         return;
       }
-      writeRouteError(res, routeInternalError(err, {
-        component: LOG_COMPONENT.git,
-        operation: '/api/git/commits failed',
-        responseError: 'internal error',
-      }));
+      writeRouteError(
+        res,
+        routeInternalError(err, {
+          component: LOG_COMPONENT.git,
+          operation: '/api/git/commits failed',
+          responseError: 'internal error',
+        }),
+      );
     }
   });
 

@@ -10,11 +10,7 @@ import { BeadDependencies } from './BeadDependencies';
 
 afterEach(() => cleanup());
 
-function bead(
-  id: string,
-  status: BeadStatus,
-  extra: Partial<DashboardBead> = {},
-): DashboardBead {
+function bead(id: string, status: BeadStatus, extra: Partial<DashboardBead> = {}): DashboardBead {
   return {
     id,
     title: `bead ${id}`,

@@ -8,10 +8,7 @@ describe('parseVersion', () => {
   });
 
   test('extracts the semver from `bd version` output', () => {
-    assert.equal(
-      parseVersion('bd version 1.0.4 (ce242a879: HEAD@ce242a879678)\n'),
-      '1.0.4',
-    );
+    assert.equal(parseVersion('bd version 1.0.4 (ce242a879: HEAD@ce242a879678)\n'), '1.0.4');
   });
 
   test('returns null when no version token is present', () => {

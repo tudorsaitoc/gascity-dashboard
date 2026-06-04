@@ -48,12 +48,8 @@ export function ProjectGroupHeader({
       {({ glyph }) => (
         <>
           {glyph}
-          <span className="text-title font-medium text-fg group-hover:text-fg">
-            {project}
-          </span>
-          <span className="text-label uppercase tracking-wider text-fg-faint tnum">
-            {count}
-          </span>
+          <span className="text-title font-medium text-fg group-hover:text-fg">{project}</span>
+          <span className="text-label uppercase tracking-wider text-fg-faint tnum">{count}</span>
         </>
       )}
     </CollapsibleHeader>

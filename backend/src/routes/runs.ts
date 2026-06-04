@@ -1,18 +1,10 @@
 import type { Response } from 'express';
 import { Router } from 'express';
-import type {
-  RunDiffRequest,
-  RunExecutionPath,
-  RunScopeKind,
-} from 'gas-city-dashboard-shared';
+import type { RunDiffRequest, RunExecutionPath, RunScopeKind } from 'gas-city-dashboard-shared';
 import { BEAD_ID_RE } from '../lib/beadId.js';
 import { fromRequestScope } from '../lib/run-scope.js';
 import { LOG_COMPONENT } from '../logging.js';
-import {
-  routeInternalError,
-  routeValidationError,
-  writeRouteError,
-} from '../route-errors.js';
+import { routeInternalError, routeValidationError, writeRouteError } from '../route-errors.js';
 import { readRunGitDiff } from '../runs/diff.js';
 
 export interface RunsRouterOptions {
@@ -25,9 +17,7 @@ export interface RunsRouterOptions {
   runCwdAllowedRoots?: readonly string[];
 }
 
-export function runsRouter(
-  opts: RunsRouterOptions = {},
-): Router {
+export function runsRouter(opts: RunsRouterOptions = {}): Router {
   const router = Router();
 
   router.post('/:runId/diff', async (req, res) => {
@@ -54,16 +44,13 @@ export function runsRouter(
 
 type ParseResult =
   | {
-    ok: true;
-    runId: string;
-    scope?: { scopeKind: RunScopeKind; scopeRef: string };
-  }
+      ok: true;
+      runId: string;
+      scope?: { scopeKind: RunScopeKind; scopeRef: string };
+    }
   | { ok: false; error: string };
 
-function parseRunRequest(
-  runId: string,
-  query: Record<string, unknown>,
-): ParseResult {
+function parseRunRequest(runId: string, query: Record<string, unknown>): ParseResult {
   if (!BEAD_ID_RE.test(runId)) {
     return { ok: false, error: 'invalid run id' };
   }
@@ -75,9 +62,7 @@ function parseRunRequest(
   }
   const scope = fromRequestScope(query);
   if (!scope.ok) return scope;
-  return scope.scope !== undefined
-    ? { ok: true, runId, scope: scope.scope }
-    : { ok: true, runId };
+  return scope.scope !== undefined ? { ok: true, runId, scope: scope.scope } : { ok: true, runId };
 }
 
 type RunDiffBodyResult =
@@ -105,14 +90,13 @@ function parseRunDiffBody(body: unknown): RunDiffBodyResult {
   return { ok: false, error: 'executionPath.kind is invalid' };
 }
 
-function writeRunError(
-  res: Response,
-  err: unknown,
-  fallbackMessage: string,
-): void {
-  writeRouteError(res, routeInternalError(err, {
-    component: LOG_COMPONENT.runs,
-    operation: fallbackMessage,
-    responseError: fallbackMessage,
-  }));
+function writeRunError(res: Response, err: unknown, fallbackMessage: string): void {
+  writeRouteError(
+    res,
+    routeInternalError(err, {
+      component: LOG_COMPONENT.runs,
+      operation: fallbackMessage,
+      responseError: fallbackMessage,
+    }),
+  );
 }

@@ -100,10 +100,12 @@ async function loadRunFormulaDetail(
     };
   }
   try {
-    const detail = toFormulaDetail(await api.formulaDetail(cityName, name, {
-      target,
-      ...(scopeQuery ?? {}),
-    }));
+    const detail = toFormulaDetail(
+      await api.formulaDetail(cityName, name, {
+        target,
+        ...(scopeQuery ?? {}),
+      }),
+    );
     return {
       kind: 'available',
       detail,

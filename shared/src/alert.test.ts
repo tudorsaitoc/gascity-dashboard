@@ -22,10 +22,12 @@ import {
 } from './index.js';
 
 test('ALERT_KINDS is the closed union the PRD defines (R1)', () => {
-  assert.deepEqual(
-    [...ALERT_KINDS].sort(),
-    ['operator-mail', 'pending-decision', 'run-needs-operator', 'run-thrashing'],
-  );
+  assert.deepEqual([...ALERT_KINDS].sort(), [
+    'operator-mail',
+    'pending-decision',
+    'run-needs-operator',
+    'run-thrashing',
+  ]);
 });
 
 test('ALERT_SOURCES groups by data plane', () => {

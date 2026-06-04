@@ -1,8 +1,4 @@
-import type {
-  RunConstructKind,
-  RunDisplayNode,
-  RunNodeStatus,
-} from 'gas-city-dashboard-shared';
+import type { RunConstructKind, RunDisplayNode, RunNodeStatus } from 'gas-city-dashboard-shared';
 
 interface FormulaRunNodeProps {
   node: RunDisplayNode;
@@ -79,8 +75,7 @@ export function FormulaRunNode({ node, selected, onToggle }: FormulaRunNodeProps
 }
 
 function activeAttemptLabel(node: RunDisplayNode): string {
-  return node.attemptSummary.kind === 'tracked' &&
-    node.attemptSummary.active.kind === 'running'
+  return node.attemptSummary.kind === 'tracked' && node.attemptSummary.active.kind === 'running'
     ? ` · running attempt ${node.attemptSummary.active.value}`
     : '';
 }

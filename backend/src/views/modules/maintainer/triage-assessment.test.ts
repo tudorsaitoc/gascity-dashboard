@@ -1,9 +1,6 @@
 import { test, describe } from 'node:test';
 import assert from 'node:assert/strict';
-import {
-  parseTriageAssessment,
-  sortScore,
-} from './triage-assessment.js';
+import { parseTriageAssessment, sortScore } from './triage-assessment.js';
 import type { TriageItem } from 'gas-city-dashboard-shared';
 
 // Label-driven vetted triage assessment parser (gascity-dashboard-are).
@@ -27,10 +24,7 @@ describe('parseTriageAssessment — null cases (heuristic remains)', () => {
   });
 
   test('returns null when triage/vetted marker is absent', () => {
-    assert.equal(
-      parse(['triage/severity-1', 'triage/simplicity-high']),
-      null,
-    );
+    assert.equal(parse(['triage/severity-1', 'triage/simplicity-high']), null);
   });
 
   test('returns null when only the vetted marker is present', () => {
@@ -38,10 +32,7 @@ describe('parseTriageAssessment — null cases (heuristic remains)', () => {
   });
 
   test('returns null when severity is missing', () => {
-    assert.equal(
-      parse(['triage/vetted', 'triage/simplicity-medium']),
-      null,
-    );
+    assert.equal(parse(['triage/vetted', 'triage/simplicity-medium']), null);
   });
 
   test('returns null when simplicity is missing', () => {
@@ -49,21 +40,12 @@ describe('parseTriageAssessment — null cases (heuristic remains)', () => {
   });
 
   test('returns null when severity number is out of 0..4 range', () => {
-    assert.equal(
-      parse(['triage/vetted', 'triage/severity-5', 'triage/simplicity-low']),
-      null,
-    );
-    assert.equal(
-      parse(['triage/vetted', 'triage/severity-99', 'triage/simplicity-low']),
-      null,
-    );
+    assert.equal(parse(['triage/vetted', 'triage/severity-5', 'triage/simplicity-low']), null);
+    assert.equal(parse(['triage/vetted', 'triage/severity-99', 'triage/simplicity-low']), null);
   });
 
   test('returns null when simplicity band is unrecognised', () => {
-    assert.equal(
-      parse(['triage/vetted', 'triage/severity-1', 'triage/simplicity-extreme']),
-      null,
-    );
+    assert.equal(parse(['triage/vetted', 'triage/severity-1', 'triage/simplicity-extreme']), null);
   });
 
   test('returns null when severity value is non-numeric', () => {
@@ -74,35 +56,19 @@ describe('parseTriageAssessment — null cases (heuristic remains)', () => {
   });
 
   test('label match is case-sensitive (gh label names are stored case-sensitively)', () => {
-    assert.equal(
-      parse(['TRIAGE/vetted', 'triage/severity-1', 'triage/simplicity-low']),
-      null,
-    );
-    assert.equal(
-      parse(['triage/vetted', 'Triage/Severity-1', 'triage/simplicity-low']),
-      null,
-    );
+    assert.equal(parse(['TRIAGE/vetted', 'triage/severity-1', 'triage/simplicity-low']), null);
+    assert.equal(parse(['triage/vetted', 'Triage/Severity-1', 'triage/simplicity-low']), null);
   });
 
   test('label match rejects trailing whitespace (anchored regex)', () => {
-    assert.equal(
-      parse(['triage/vetted', 'triage/severity-1 ', 'triage/simplicity-low']),
-      null,
-    );
-    assert.equal(
-      parse(['triage/vetted', 'triage/severity-1', 'triage/simplicity-low ']),
-      null,
-    );
+    assert.equal(parse(['triage/vetted', 'triage/severity-1 ', 'triage/simplicity-low']), null);
+    assert.equal(parse(['triage/vetted', 'triage/severity-1', 'triage/simplicity-low ']), null);
   });
 });
 
 describe('parseTriageAssessment — vetted cases', () => {
   test('returns vetted assessment when all three labels present', () => {
-    const result = parse([
-      'triage/vetted',
-      'triage/severity-1',
-      'triage/simplicity-high',
-    ]);
+    const result = parse(['triage/vetted', 'triage/severity-1', 'triage/simplicity-high']);
     assert.ok(result !== null);
     assert.equal(result.source, 'agent');
     assert.equal(result.notes, '');
@@ -111,42 +77,18 @@ describe('parseTriageAssessment — vetted cases', () => {
   });
 
   test('vetted_score scales by severity (lower n = higher score)', () => {
-    const sev0 = parse([
-      'triage/vetted',
-      'triage/severity-0',
-      'triage/simplicity-medium',
-    ]);
-    const sev2 = parse([
-      'triage/vetted',
-      'triage/severity-2',
-      'triage/simplicity-medium',
-    ]);
-    const sev4 = parse([
-      'triage/vetted',
-      'triage/severity-4',
-      'triage/simplicity-medium',
-    ]);
+    const sev0 = parse(['triage/vetted', 'triage/severity-0', 'triage/simplicity-medium']);
+    const sev2 = parse(['triage/vetted', 'triage/severity-2', 'triage/simplicity-medium']);
+    const sev4 = parse(['triage/vetted', 'triage/severity-4', 'triage/simplicity-medium']);
     assert.ok(sev0 && sev2 && sev4);
     assert.ok(sev0.vetted_score > sev2.vetted_score);
     assert.ok(sev2.vetted_score > sev4.vetted_score);
   });
 
   test('vetted_score scales by simplicity within a severity', () => {
-    const low = parse([
-      'triage/vetted',
-      'triage/severity-2',
-      'triage/simplicity-low',
-    ]);
-    const med = parse([
-      'triage/vetted',
-      'triage/severity-2',
-      'triage/simplicity-medium',
-    ]);
-    const high = parse([
-      'triage/vetted',
-      'triage/severity-2',
-      'triage/simplicity-high',
-    ]);
+    const low = parse(['triage/vetted', 'triage/severity-2', 'triage/simplicity-low']);
+    const med = parse(['triage/vetted', 'triage/severity-2', 'triage/simplicity-medium']);
+    const high = parse(['triage/vetted', 'triage/severity-2', 'triage/simplicity-high']);
     assert.ok(low && med && high);
     assert.ok(high.vetted_score > med.vetted_score);
     assert.ok(med.vetted_score > low.vetted_score);
@@ -155,21 +97,13 @@ describe('parseTriageAssessment — vetted cases', () => {
   test('vetted_score lives on the heuristic 100..300+ scale', () => {
     // severity 0 (max) + simplicity high (max bonus) should sit at or above
     // the heuristic regression_breaking severity_base of 300.
-    const top = parse([
-      'triage/vetted',
-      'triage/severity-0',
-      'triage/simplicity-high',
-    ]);
+    const top = parse(['triage/vetted', 'triage/severity-0', 'triage/simplicity-high']);
     assert.ok(top !== null);
     assert.ok(top.vetted_score >= 300);
 
     // severity 4 (min) + simplicity low (min bonus) should sit at or above
     // the heuristic stability severity_base of 100 (still a real signal).
-    const bottom = parse([
-      'triage/vetted',
-      'triage/severity-4',
-      'triage/simplicity-low',
-    ]);
+    const bottom = parse(['triage/vetted', 'triage/severity-4', 'triage/simplicity-low']);
     assert.ok(bottom !== null);
     assert.ok(bottom.vetted_score >= 100);
   });
@@ -267,9 +201,7 @@ describe('sortScore — vetted overrides heuristic, falls back when null', () =>
       },
     });
     const heuristicMid = makeItem({ number: 2, triage_score: 215 });
-    const sorted = [heuristicMid, vettedHigh].sort(
-      (a, b) => sortScore(b) - sortScore(a),
-    );
+    const sorted = [heuristicMid, vettedHigh].sort((a, b) => sortScore(b) - sortScore(a));
     assert.equal(sorted[0]?.number, 1);
   });
 });

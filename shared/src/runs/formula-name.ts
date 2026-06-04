@@ -1,10 +1,5 @@
-import type {
-  FormulaDetail,
-  RunSnapshotBead,
-} from '../run-snapshot.js';
-import type {
-  RunFormulaSource,
-} from '../run-detail.js';
+import type { FormulaDetail, RunSnapshotBead } from '../run-snapshot.js';
+import type { RunFormulaSource } from '../run-detail.js';
 import { meta, nonEmpty } from './bead-fields.js';
 
 export type RunFormulaIdentityMode = 'detail' | 'lane' | 'route' | 'state';
@@ -180,10 +175,7 @@ function rootMeta(root: RunFormulaRootLike | undefined, key: string): string | u
   return nonEmpty(root?.metadata?.[key]);
 }
 
-function metadataString(
-  issues: readonly RunFormulaRootLike[],
-  key: string,
-): string | undefined {
+function metadataString(issues: readonly RunFormulaRootLike[], key: string): string | undefined {
   for (const issue of issues) {
     const value = rootMeta(issue, key);
     if (value !== undefined) return value;

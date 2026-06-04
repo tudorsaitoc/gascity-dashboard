@@ -136,10 +136,9 @@ describe('useFaviconSignal', () => {
     // hook should degrade silently rather than throw.
     document.head.querySelectorAll(`#${FAVICON_ID}`).forEach((n) => n.remove());
     expect(() => {
-      const r = renderHook(
-        ({ failing, cycleKey }) => useFaviconSignal({ failing, cycleKey }),
-        { initialProps: { failing: 1, cycleKey: 0 } },
-      );
+      const r = renderHook(({ failing, cycleKey }) => useFaviconSignal({ failing, cycleKey }), {
+        initialProps: { failing: 1, cycleKey: 0 },
+      });
       r.rerender({ failing: 1, cycleKey: 1 });
       r.rerender({ failing: 1, cycleKey: 2 });
     }).not.toThrow();

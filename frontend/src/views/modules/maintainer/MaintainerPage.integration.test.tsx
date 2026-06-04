@@ -199,8 +199,7 @@ beforeEach(() => {
   mockListSupervisorMail.mockResolvedValue({ items: [] });
   // Stub EventSource for MaintainerPage's /api/maintainer/events subscribe.
   // jsdom doesn't provide it; without this the mount throws.
-  (globalThis as unknown as { EventSource: typeof NoopEventSource }).EventSource =
-    NoopEventSource;
+  (globalThis as unknown as { EventSource: typeof NoopEventSource }).EventSource = NoopEventSource;
 });
 
 afterEach(() => {

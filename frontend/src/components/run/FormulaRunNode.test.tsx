@@ -1,9 +1,6 @@
 import { cleanup, render, screen } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import type {
-  RunConstructKind,
-  RunDisplayNode,
-} from 'gas-city-dashboard-shared';
+import type { RunConstructKind, RunDisplayNode } from 'gas-city-dashboard-shared';
 import { FormulaRunNode } from './FormulaRunNode';
 
 afterEach(() => cleanup());
@@ -24,11 +21,7 @@ describe('FormulaRunNode', () => {
 
     for (const constructKind of constructs) {
       const { unmount } = render(
-        <FormulaRunNode
-          node={nodeFor(constructKind)}
-          selected={false}
-          onToggle={vi.fn()}
-        />,
+        <FormulaRunNode node={nodeFor(constructKind)} selected={false} onToggle={vi.fn()} />,
       );
       const button = screen.getByRole('button', {
         name: new RegExp(`sample ${constructKind.replace(/-/g, ' ')}`, 'i'),
@@ -68,34 +61,18 @@ describe('FormulaRunNode', () => {
 
   it('uses product language for run-level construct labels', () => {
     const { rerender } = render(
-      <FormulaRunNode
-        node={nodeFor('run-root')}
-        selected={false}
-        onToggle={vi.fn()}
-      />,
+      <FormulaRunNode node={nodeFor('run-root')} selected={false} onToggle={vi.fn()} />,
     );
 
     expect(screen.getByText(/^run root$/i)).toBeTruthy();
 
-    rerender(
-      <FormulaRunNode
-        node={nodeFor('run-finalize')}
-        selected={false}
-        onToggle={vi.fn()}
-      />,
-    );
+    rerender(<FormulaRunNode node={nodeFor('run-finalize')} selected={false} onToggle={vi.fn()} />);
 
     expect(screen.getByText(/^finalize$/i)).toBeTruthy();
   });
 
   it('marks selected state visually without rendering selected as node copy', () => {
-    render(
-      <FormulaRunNode
-        node={nodeFor('step')}
-        selected
-        onToggle={vi.fn()}
-      />,
-    );
+    render(<FormulaRunNode node={nodeFor('step')} selected onToggle={vi.fn()} />);
 
     const button = screen.getByRole('button', { name: /sample step/i });
     expect(button.getAttribute('aria-pressed')).toBe('true');

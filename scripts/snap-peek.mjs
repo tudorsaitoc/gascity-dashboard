@@ -21,7 +21,7 @@ import { mkdir } from 'node:fs/promises';
 import { argv, exit } from 'node:process';
 
 const BASE = 'http://127.0.0.1:5174';
-const OUT  = '/tmp/cp-snaps';
+const OUT = '/tmp/cp-snaps';
 const TEST_MODE = argv.includes('--test');
 
 await mkdir(OUT, { recursive: true });
@@ -99,7 +99,11 @@ async function runTheme(browser, theme) {
     try {
       await page.goto(`${BASE}/agents`, { waitUntil: 'domcontentloaded', timeout: 5_000 });
     } catch (err) {
-      if (String(err).includes('ERR_CONNECTION_REFUSED') || String(err).includes('net::ERR') || String(err).includes('NS_ERROR')) {
+      if (
+        String(err).includes('ERR_CONNECTION_REFUSED') ||
+        String(err).includes('net::ERR') ||
+        String(err).includes('NS_ERROR')
+      ) {
         result.skipped = 'no-frontend';
         return result;
       }
@@ -154,11 +158,12 @@ async function runTheme(browser, theme) {
 
       // Assertion: at least one direct supervisor transcript GET returned 200.
       const transcriptCalls = apiCalls.filter(
-        (c) => c.method === 'GET' &&
+        (c) =>
+          c.method === 'GET' &&
           /\/gc-supervisor\/v0\/city\/[^/]+\/session\/[^/]+\/transcript(?:\?|$)/.test(c.url),
       );
-      const deletedPeekCalls = apiCalls.filter(
-        (c) => /\/api\/city\/[^/]+\/sessions\/[^/]+\/peek$/.test(c.url),
+      const deletedPeekCalls = apiCalls.filter((c) =>
+        /\/api\/city\/[^/]+\/sessions\/[^/]+\/peek$/.test(c.url),
       );
       result.info.transcriptCalls = transcriptCalls;
       result.info.deletedPeekCalls = deletedPeekCalls;
@@ -166,7 +171,9 @@ async function runTheme(browser, theme) {
         const summary = deletedPeekCalls.map((c) => `${c.method} ${c.status} ${c.url}`).join('; ');
         result.errors.push(`deleted dashboard peek mirror was called: ${summary}`);
       } else if (transcriptCalls.length === 0) {
-        result.errors.push('no GET /gc-supervisor/v0/city/<city>/session/<id>/transcript was observed');
+        result.errors.push(
+          'no GET /gc-supervisor/v0/city/<city>/session/<id>/transcript was observed',
+        );
       } else if (!transcriptCalls.some((c) => c.status === 200)) {
         const summary = transcriptCalls.map((c) => `${c.status} ${c.url}`).join('; ');
         result.errors.push(`no successful (200) supervisor transcript response. Saw: ${summary}`);
@@ -211,10 +218,12 @@ for (const r of results) {
     console.log(`[${r.theme}] panel bg=${r.info.panelBg} alpha=${r.info.panelAlpha}`);
   }
   if (r.info.transcriptCalls?.length) {
-    for (const c of r.info.transcriptCalls) console.log(`[${r.theme}] transcript: ${c.status} ${c.url}`);
+    for (const c of r.info.transcriptCalls)
+      console.log(`[${r.theme}] transcript: ${c.status} ${c.url}`);
   }
   if (r.info.deletedPeekCalls?.length) {
-    for (const c of r.info.deletedPeekCalls) console.log(`[${r.theme}] deleted peek mirror: ${c.status} ${c.url}`);
+    for (const c of r.info.deletedPeekCalls)
+      console.log(`[${r.theme}] deleted peek mirror: ${c.status} ${c.url}`);
   }
   if (r.info.apiCalls4xx?.length) {
     console.log(`[${r.theme}] 4xx/5xx API calls:`, r.info.apiCalls4xx);

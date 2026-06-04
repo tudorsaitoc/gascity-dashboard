@@ -36,20 +36,18 @@ export interface DoltNomsSample {
   bytes: number;
 }
 
-export type DoltNomsUnavailableReason =
-  | 'store_health_absent'
-  | 'sample_failed';
+export type DoltNomsUnavailableReason = 'store_health_absent' | 'sample_failed';
 
 export type DoltNomsTrend =
   | {
-    available: true;
-    /** Up to 144 samples (24 h at 10-min cadence). */
-    samples: DoltNomsSample[];
-    source: string;
-  }
+      available: true;
+      /** Up to 144 samples (24 h at 10-min cadence). */
+      samples: DoltNomsSample[];
+      source: string;
+    }
   | {
-    available: false;
-    /** Historical samples, if the source became unavailable after sampling. */
-    samples: DoltNomsSample[];
-    reason: DoltNomsUnavailableReason;
-  };
+      available: false;
+      /** Historical samples, if the source became unavailable after sampling. */
+      samples: DoltNomsSample[];
+      reason: DoltNomsUnavailableReason;
+    };

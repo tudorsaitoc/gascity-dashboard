@@ -47,9 +47,7 @@ export function SortToggle<M extends string>({
                 aria-checked={active}
                 onClick={() => onChange(opt.id)}
                 className={`focus-mark rounded-sm px-0.5 ${
-                  active
-                    ? 'text-fg font-medium'
-                    : 'text-fg-faint hover:text-fg-muted'
+                  active ? 'text-fg font-medium' : 'text-fg-faint hover:text-fg-muted'
                 }`}
               >
                 {opt.label}

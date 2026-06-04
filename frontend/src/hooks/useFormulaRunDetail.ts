@@ -1,7 +1,4 @@
-import type {
-  FormulaRunDetail,
-  RunScopeKind,
-} from 'gas-city-dashboard-shared';
+import type { FormulaRunDetail, RunScopeKind } from 'gas-city-dashboard-shared';
 import { errorMessage } from 'gas-city-dashboard-shared';
 import { reportClientError } from '../lib/clientErrorReporting';
 import { loadSupervisorFormulaRunDetail } from '../supervisor/runDetail';
@@ -78,19 +75,12 @@ async function loadFormulaRunDetail(
 
 async function noopRefresh(): Promise<void> {}
 
-function refreshState(
-  loading: boolean,
-  error: string | null,
-): FormulaRunRefreshState {
+function refreshState(loading: boolean, error: string | null): FormulaRunRefreshState {
   if (error !== null) return { kind: 'failed', error };
   return loading ? { kind: 'refreshing' } : { kind: 'idle' };
 }
 
-function reportRunDetailError(
-  operation: string,
-  runId: string,
-  err: unknown,
-): void {
+function reportRunDetailError(operation: string, runId: string, err: unknown): void {
   void reportClientError({
     component: 'formula-run-detail',
     operation,
@@ -103,11 +93,6 @@ function formulaRunDetailCacheKey(
   scopeKind?: RunScopeKind,
   scopeRef?: string,
 ): string {
-  const parts = [
-    'formula-run',
-    runId ?? 'missing',
-    scopeKind ?? 'default',
-    scopeRef ?? 'default',
-  ];
+  const parts = ['formula-run', runId ?? 'missing', scopeKind ?? 'default', scopeRef ?? 'default'];
   return parts.join(':');
 }

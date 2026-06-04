@@ -27,9 +27,7 @@ export function filterTierByNeedsPr(section: TriageTierSection): TriageTierSecti
  * (gascity-dashboard-x8q). Returns a new TriageTierSection containing
  * only items whose `triage_assessment` is null.
  */
-export function filterTierByAwaitingTriage(
-  section: TriageTierSection,
-): TriageTierSection {
+export function filterTierByAwaitingTriage(section: TriageTierSection): TriageTierSection {
   const awaiting = (item: TriageItem): boolean => item.triage_assessment === null;
   const filteredClusters = section.clusters
     .map((cluster) => ({
@@ -48,9 +46,10 @@ export function filterTierByAwaitingTriage(
  * Per-tier vetted / awaiting tally. Counts are computed from the
  * unfiltered tier so toggles do not rewrite the tier's underlying size.
  */
-export function countTierByVetted(
-  section: TriageTierSection,
-): { vetted: number; awaiting: number } {
+export function countTierByVetted(section: TriageTierSection): {
+  vetted: number;
+  awaiting: number;
+} {
   let vetted = 0;
   let awaiting = 0;
   const tally = (item: TriageItem): void => {

@@ -22,9 +22,7 @@ describe('useNow / NowProvider', () => {
   it('returns the initial wall clock and ticks at the provider interval', () => {
     vi.setSystemTime(new Date('2026-05-29T20:00:00.000Z'));
     const { result } = renderHook(() => useNow(), {
-      wrapper: ({ children }) => (
-        <NowProvider intervalMs={1000}>{children}</NowProvider>
-      ),
+      wrapper: ({ children }) => <NowProvider intervalMs={1000}>{children}</NowProvider>,
     });
 
     const t0 = result.current;

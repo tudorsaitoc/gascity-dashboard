@@ -44,11 +44,7 @@ export function useBeadDetail(
 
   useEffect(() => {
     if (!active || !beadId) return;
-    if (
-      initialBead &&
-      initialBead.id === beadId &&
-      initialBead.description !== undefined
-    ) {
+    if (initialBead && initialBead.id === beadId && initialBead.description !== undefined) {
       setBead(initialBead);
       setError(null);
       setNotFound(false);

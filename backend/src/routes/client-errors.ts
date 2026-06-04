@@ -4,11 +4,7 @@ import { HTTP_STATUS } from '../lib/http-status.js';
 import { stripNonPrintable } from '../lib/strip-non-printable.js';
 import type { LogComponent } from '../logging.js';
 import { LOG_COMPONENT, logWarn } from '../logging.js';
-import {
-  routeInternalError,
-  routeValidationError,
-  writeRouteError,
-} from '../route-errors.js';
+import { routeInternalError, routeValidationError, writeRouteError } from '../route-errors.js';
 
 interface ClientErrorsRouterOptions {
   log?: (component: LogComponent, message: string) => void;
@@ -32,11 +28,14 @@ export function clientErrorsRouter(opts: ClientErrorsRouterOptions = {}): Router
       log(LOG_COMPONENT.client, `${component} ${operation}: ${message}`);
       res.status(HTTP_STATUS.accepted).json({ ok: true });
     } catch (err) {
-      writeRouteError(res, routeInternalError(err, {
-        component: LOG_COMPONENT.client,
-        operation: 'failed to record client error',
-        responseError: 'failed to record client error',
-      }));
+      writeRouteError(
+        res,
+        routeInternalError(err, {
+          component: LOG_COMPONENT.client,
+          operation: 'failed to record client error',
+          responseError: 'failed to record client error',
+        }),
+      );
     }
   });
 
@@ -68,9 +67,7 @@ function parseClientErrorEvent(body: unknown): ParseClientErrorEventResult {
   };
 }
 
-type ParseFieldResult =
-  | { status: 'valid'; value: string }
-  | { status: 'invalid'; error: string };
+type ParseFieldResult = { status: 'valid'; value: string } | { status: 'invalid'; error: string };
 
 function parseField(value: unknown, name: string): ParseFieldResult {
   if (typeof value !== 'string') {

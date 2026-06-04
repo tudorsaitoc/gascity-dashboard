@@ -353,7 +353,7 @@ Gas City supervisor/city events.
 - Add Activity modes/tabs for:
   - commits/deploy log
   - supervisor/city event timeline
-  **Implemented.**
+    **Implemented.**
 - Add event filters for time window, type, actor/source, and severity if useful.
   **Implemented: time-window controls, a dedicated generated-query type filter,
   actor filtering, signal/severity filtering, and text filtering across type,

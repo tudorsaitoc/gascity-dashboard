@@ -32,10 +32,7 @@ describe('toWireExecError — spawn redaction', () => {
     // where node's child_process message for an abs-path binary is
     // `spawn <abs-path> ENOENT`. The wire must show neither the wrapper
     // nor the leaked binary path.
-    const err = new ExecError(
-      'spawn failed: spawn /usr/local/opt/gc/bin/gc ENOENT',
-      'spawn',
-    );
+    const err = new ExecError('spawn failed: spawn /usr/local/opt/gc/bin/gc ENOENT', 'spawn');
     const { status, body } = toWireExecError(err, 500);
     assert.equal(status, 500);
     assert.equal(body.error, 'subprocess could not be started');
@@ -174,10 +171,11 @@ describe('toWireInternal500 — details.name redaction', () => {
   test('falls back to "Error" when the thrown value has no usable name', () => {
     // Preserve the verbatim `(err as Error).name ?? 'Error'` behaviour:
     // a plain object thrown with no name property degrades to 'Error'.
-    const { body } = toWireInternal500(
-      {} as unknown,
-      { status: 500, error: 'internal error', kind: 'internal' },
-    );
+    const { body } = toWireInternal500({} as unknown, {
+      status: 500,
+      error: 'internal error',
+      kind: 'internal',
+    });
     assert.deepEqual(body.details, { name: 'Error' });
   });
 

@@ -43,10 +43,7 @@ const PER_CITY_DIR_MODE = 0o700;
  *
  * Synchronous: see header comment.
  */
-export function migrateLegacyMaintainerPaths(
-  oldDir: string,
-  newDir: string,
-): void {
+export function migrateLegacyMaintainerPaths(oldDir: string, newDir: string): void {
   if (path.resolve(oldDir) === path.resolve(newDir)) return;
 
   for (const file of LEGACY_FILES) {
@@ -75,10 +72,7 @@ export function migrateLegacyMaintainerPaths(
     try {
       fs.mkdirSync(newDir, { recursive: true, mode: PER_CITY_DIR_MODE });
       fs.renameSync(oldPath, newPath);
-      logInfo(
-        LOG_COMPONENT.maintainer,
-        `migrated ${file} from ${oldPath} to ${newPath}`,
-      );
+      logInfo(LOG_COMPONENT.maintainer, `migrated ${file} from ${oldPath} to ${newPath}`);
     } catch (err) {
       logWarn(
         LOG_COMPONENT.maintainer,

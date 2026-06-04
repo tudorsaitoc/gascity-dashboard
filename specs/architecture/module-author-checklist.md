@@ -24,14 +24,14 @@ Read those — this section is the map.
 
 ### `BackendModule<Deps>` — `shared/src/views.ts:123`
 
-| Field | Role |
-|---|---|
-| `id` | URL slug AND log namespace AND MODULES_ENABLED entry. Must match the frontend `ViewDescriptor.id`. Lowercase, hyphens allowed. |
-| `kind` | `'core'` mounts unconditionally (operators cannot disable it). `'firstParty'` is opt-in via MODULES_ENABLED. |
-| `resources` | Declares which filesystem/network/memory resources the module owns and at what lifetime (perProcess / perCity). Phase 2 (multi-city) verifies these statically — see `ModuleResources` at `shared/src/views.ts:88` and `ModuleResourceEntry` at `shared/src/views.ts:82`. |
-| `needs(config)` | Projects the host's `AdminConfig` into your module-private `Deps`. REQUIRED — modules with `Deps = void` return `undefined` explicitly. Never `Deps?:` + `as never`. |
-| `mount(ctx, deps)` | Returns an Express `Router`. Bound under `/api/<id>`. The `ctx` is the `CityContext` — see `shared/src/views.ts:98`. |
-| `workers(ctx, deps)` | Optional `BackgroundWorker` (`shared/src/views.ts:75`). The host calls `start()` once and `stop()` on shutdown. Return `undefined` to opt out. |
+| Field                | Role                                                                                                                                                                                                                                                                      |
+| -------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `id`                 | URL slug AND log namespace AND MODULES_ENABLED entry. Must match the frontend `ViewDescriptor.id`. Lowercase, hyphens allowed.                                                                                                                                            |
+| `kind`               | `'core'` mounts unconditionally (operators cannot disable it). `'firstParty'` is opt-in via MODULES_ENABLED.                                                                                                                                                              |
+| `resources`          | Declares which filesystem/network/memory resources the module owns and at what lifetime (perProcess / perCity). Phase 2 (multi-city) verifies these statically — see `ModuleResources` at `shared/src/views.ts:88` and `ModuleResourceEntry` at `shared/src/views.ts:82`. |
+| `needs(config)`      | Projects the host's `AdminConfig` into your module-private `Deps`. REQUIRED — modules with `Deps = void` return `undefined` explicitly. Never `Deps?:` + `as never`.                                                                                                      |
+| `mount(ctx, deps)`   | Returns an Express `Router`. Bound under `/api/<id>`. The `ctx` is the `CityContext` — see `shared/src/views.ts:98`.                                                                                                                                                      |
+| `workers(ctx, deps)` | Optional `BackgroundWorker` (`shared/src/views.ts:75`). The host calls `start()` once and `stop()` on shutdown. Return `undefined` to opt out.                                                                                                                            |
 
 `Deps` is generic on each module so the registry's `BackendModule<unknown>`
 array can hold heterogeneous modules; the existential `bind<D>()` wrapper
@@ -40,13 +40,13 @@ iterator in `app.ts` never sees `Deps`.
 
 ### `ViewDescriptor<TElement>` — `shared/src/views.ts:50`
 
-| Field | Role |
-|---|---|
-| `id` | Same id as the backend module. |
-| `kind` | Must agree with the backend's kind. |
-| `path` | React Router route. Unique across `ALL_VIEWS`. |
-| `nav` | `{ label, order }` or `null`. `null` = routable but hidden from the header. See `ViewNavEntry` at `shared/src/views.ts:42`. |
-| `element` | Lazy-loaded component. The frontend re-types `TElement` as `LazyExoticComponent<ComponentType>` — keep your descriptor on `React.lazy(...)` so your chunk stays out of the first-paint bundle. |
+| Field           | Role                                                                                                                                                                                                                  |
+| --------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `id`            | Same id as the backend module.                                                                                                                                                                                        |
+| `kind`          | Must agree with the backend's kind.                                                                                                                                                                                   |
+| `path`          | React Router route. Unique across `ALL_VIEWS`.                                                                                                                                                                        |
+| `nav`           | `{ label, order }` or `null`. `null` = routable but hidden from the header. See `ViewNavEntry` at `shared/src/views.ts:42`.                                                                                           |
+| `element`       | Lazy-loaded component. The frontend re-types `TElement` as `LazyExoticComponent<ComponentType>` — keep your descriptor on `React.lazy(...)` so your chunk stays out of the first-paint bundle.                        |
 | `defaultRoute?` | Module's candidacy for `/`. Operators override via `DEFAULT_VIEW`. Validation: at most one ENABLED view should set this — the frontend resolver picks the lowest `nav.order` and warns when more than one is flagged. |
 
 Legacy route aliases are intentionally unsupported. Delete old routes instead of preserving redirects.
@@ -80,7 +80,7 @@ rejection cause.
 - **Per-city files under `ctx.cityDataDir`.** The host constructs
   `ctx.cityDataDir = ~/.gascity-dashboard/cities/<cityName>/`. Your
   module creates the directory itself (`fs.mkdir(path.dirname(myFile),
-  { recursive: true })`) before writing. The host's `cityName` is
+{ recursive: true })`) before writing. The host's `cityName` is
   validated at config-load time so the path segment cannot escape
   `cities/` — do NOT do your own re-validation, do NOT compose
   `..` into the path.

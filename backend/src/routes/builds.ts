@@ -2,10 +2,14 @@ import { Router } from 'express';
 import fs from 'node:fs/promises';
 import type { DeployRecord, DeployStatus } from 'gas-city-dashboard-shared';
 import { recordAudit } from '../audit.js';
-import { LOG_COMPONENT, errorMessage, logWarn } from '../logging.js';
+import { LOG_COMPONENT, errorMessage, logWarn, recordCounter, recordTimer } from '../logging.js';
 
-const DEFAULT_LOG_PATH = process.env.HOME ? `${process.env.HOME}/.dev-deploy-log` : '.dev-deploy-log';
-const DEFAULT_MARKER_PATH = process.env.HOME ? `${process.env.HOME}/.dev-deploy-FAILED` : '.dev-deploy-FAILED';
+const DEFAULT_LOG_PATH = process.env.HOME
+  ? `${process.env.HOME}/.dev-deploy-log`
+  : '.dev-deploy-log';
+const DEFAULT_MARKER_PATH = process.env.HOME
+  ? `${process.env.HOME}/.dev-deploy-FAILED`
+  : '.dev-deploy-FAILED';
 // Recent activity only. At typical dev-deploy cadence, 200 records covers
 // roughly a month without turning this ambient route into a log browser.
 const MAX_RECORDS = 200;
@@ -30,6 +34,7 @@ export function buildsRouter(cfg: BuildsConfig = {}): Router {
   const markerPath = cfg.markerPath ?? DEFAULT_MARKER_PATH;
 
   router.get('/', async (_req, res) => {
+    const startedAt = Date.now();
     const items: DeployRecord[] = [];
     let source: string | null = null;
     try {
@@ -71,6 +76,15 @@ export function buildsRouter(cfg: BuildsConfig = {}): Router {
       parsed_args: { records: String(items.length), failed_marker: String(failedMarker) },
       duration_ms: 0,
     });
+    const latestStatus = items[0]?.status ?? 'none';
+    recordCounter('builds.read', {
+      records: items.length,
+      failed_marker: failedMarker,
+      latest_status: latestStatus,
+    });
+    recordTimer('builds.read.latency', Date.now() - startedAt, {
+      latest_status: latestStatus,
+    });
     res.json({ items, source, failed_marker: failedMarker });
   });
 
@@ -79,9 +93,7 @@ export function buildsRouter(cfg: BuildsConfig = {}): Router {
 
 function isMissingFile(error: unknown): boolean {
   return (
-    error instanceof Error &&
-    'code' in error &&
-    (error as NodeJS.ErrnoException).code === 'ENOENT'
+    error instanceof Error && 'code' in error && (error as NodeJS.ErrnoException).code === 'ENOENT'
   );
 }
 

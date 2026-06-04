@@ -2,11 +2,7 @@ import { act, renderHook } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { RunLane, RunLaneHealth } from 'gas-city-dashboard-shared';
 import { NowProvider } from '../contexts/NowContext';
-import {
-  STALENESS_TIER_MS,
-  STALENESS_THRESHOLD_MS,
-  useStaleness,
-} from './useStaleness';
+import { STALENESS_TIER_MS, STALENESS_THRESHOLD_MS, useStaleness } from './useStaleness';
 
 // gascity-dashboard-kb3: useStaleness owns the R9-strict client-side
 // staleness derivation. The server emits NO stalenessTier enum; it ships

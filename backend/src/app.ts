@@ -4,31 +4,19 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 import type { AdminConfig } from './config.js';
-import {
-  hostHeaderAllowlistFactory,
-  originCheck,
-  securityHeaders,
-} from './middleware/security.js';
+import { hostHeaderAllowlistFactory, originCheck, securityHeaders } from './middleware/security.js';
 import { csrfIssueCookie, csrfValidate, getCsrfToken } from './middleware/csrf.js';
 import { apiErrorHandler } from './middleware/api-error-handler.js';
+import { requestLog } from './middleware/request-log.js';
 import { GcClient } from './gc-client.js';
 import { gitRouter } from './routes/git.js';
 import { buildsRouter } from './routes/builds.js';
 import { clientErrorsRouter } from './routes/client-errors.js';
 import { healthRouter } from './routes/health.js';
 import { supervisorTransportProxy } from './routes/supervisor-transport-proxy.js';
-import {
-  createCityRegistry,
-  supervisorCityLister,
-  type CityRegistry,
-} from './city/registry.js';
+import { createCityRegistry, supervisorCityLister, type CityRegistry } from './city/registry.js';
 import { cityDispatch } from './middleware/city-dispatch.js';
-import {
-  LOG_COMPONENT,
-  errorMessage,
-  logInfo,
-  logWarn,
-} from './logging.js';
+import { LOG_COMPONENT, errorMessage, logInfo, logWarn } from './logging.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -52,6 +40,7 @@ export function createDashboardApp(config: AdminConfig): DashboardApp {
   app.use(originCheck(config.port, config.extraAllowedHosts));
   app.use(securityHeaders());
   app.use(csrfIssueCookie);
+  app.use(requestLog());
 
   // A single GcClient pointed at the supervisor's NON-city endpoints (the
   // cities registry). Per-city GcClients live inside each CityRuntime; this
@@ -128,10 +117,7 @@ export function createDashboardApp(config: AdminConfig): DashboardApp {
         try {
           await registry.stopAll();
         } catch (err) {
-          logWarn(
-            LOG_COMPONENT.admin,
-            `city registry stopAll: ${errorMessage(err)}`,
-          );
+          logWarn(LOG_COMPONENT.admin, `city registry stopAll: ${errorMessage(err)}`);
         }
       },
     },

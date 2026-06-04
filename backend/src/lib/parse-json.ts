@@ -10,9 +10,6 @@ export function parseJsonArray<T>(stdout: string, source: string): T[] {
     }
     return parsed as T[];
   } catch (err) {
-    throw new ExecError(
-      `${source} returned unparseable JSON: ${errorMessage(err)}`,
-      'spawn',
-    );
+    throw new ExecError(`${source} returned unparseable JSON: ${errorMessage(err)}`, 'spawn');
   }
 }

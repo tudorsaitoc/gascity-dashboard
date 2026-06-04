@@ -54,7 +54,10 @@ describe('maintainerPaths — pinned per-city derivation (blocker 1)', () => {
   test('a directory pin (no .json) is treated as the base dir verbatim', () => {
     const deps: MaintainerDeps = { ...BASE_DEPS, cachePath: '/var/cache/triage' };
     const p = maintainerPaths(fakeCtx('alpha-city', 'alpha-city'), deps);
-    assert.equal(p.cachePath, path.join('/var/cache/triage', 'alpha-city', 'maintainer-cache.json'));
+    assert.equal(
+      p.cachePath,
+      path.join('/var/cache/triage', 'alpha-city', 'maintainer-cache.json'),
+    );
   });
 
   test('cache + slung-state always share the same per-city directory', () => {

@@ -5,9 +5,7 @@ export function AgentLivePeek({ session }: { session: DashboardSession }) {
   return (
     <section>
       <header className="flex items-baseline justify-between mb-4">
-        <h2 className="text-label uppercase tracking-wider text-fg-faint">
-          Live peek
-        </h2>
+        <h2 className="text-label uppercase tracking-wider text-fg-faint">Live peek</h2>
       </header>
       <LiveSessionPeek
         sessionId={session.id}

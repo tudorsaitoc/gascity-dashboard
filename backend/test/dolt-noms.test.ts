@@ -45,10 +45,7 @@ describe('sampleDoltNomsSize', () => {
 
   test('propagates a status-fetch error instead of swallowing it', async () => {
     await assert.rejects(
-      () =>
-        sampleDoltNomsSize(() =>
-          Promise.reject(new Error('gc supervisor returned 503')),
-        ),
+      () => sampleDoltNomsSize(() => Promise.reject(new Error('gc supervisor returned 503'))),
       /gc supervisor returned 503/,
     );
   });

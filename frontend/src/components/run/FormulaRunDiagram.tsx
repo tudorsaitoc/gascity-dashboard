@@ -16,7 +16,11 @@ export function FormulaRunDiagram({
   const laneLabels = nodeLaneLabels(detail);
 
   if (nodes.length === 0) {
-    return <p className="text-body text-fg-muted italic">No graph nodes have materialized for this formula run.</p>;
+    return (
+      <p className="text-body text-fg-muted italic">
+        No graph nodes have materialized for this formula run.
+      </p>
+    );
   }
 
   return (
@@ -27,7 +31,8 @@ export function FormulaRunDiagram({
       <ol className="mt-5 space-y-3 relative">
         {nodes.map((node, index) => {
           const laneLabel = laneLabels.get(node.id);
-          const previousLaneLabel = index > 0 ? laneLabels.get(nodes[index - 1]?.id ?? '') : undefined;
+          const previousLaneLabel =
+            index > 0 ? laneLabels.get(nodes[index - 1]?.id ?? '') : undefined;
           const showLaneLabel = laneLabel !== undefined && laneLabel !== previousLaneLabel;
           return (
             <li key={node.id} className="relative pl-6">

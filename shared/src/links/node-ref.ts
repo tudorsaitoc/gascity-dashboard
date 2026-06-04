@@ -8,12 +8,7 @@ export type ParsedRef =
   | { ok: true; type: ParsedRefType; value: string }
   | { ok: false; error: string };
 
-export type ParsedRefType =
-  | 'bead'
-  | 'github_pr'
-  | 'github_issue'
-  | 'session'
-  | 'formula_run';
+export type ParsedRefType = 'bead' | 'github_pr' | 'github_issue' | 'session' | 'formula_run';
 
 const PR_RE = /^pr\/(\d{1,9})$/;
 const ISSUE_RE = /^issue\/(\d{1,9})$/;
@@ -41,10 +36,6 @@ export function sanitiseUrl(raw: unknown): string | null {
   return /^https?:\/\//i.test(trimmed) ? trimmed : null;
 }
 
-export function nodeKey(
-  type: LinkNodeType,
-  ref: string,
-  scope: string,
-): string {
+export function nodeKey(type: LinkNodeType, ref: string, scope: string): string {
   return makeNodeKey(type, ref, scope);
 }

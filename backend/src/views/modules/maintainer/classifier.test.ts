@@ -119,7 +119,8 @@ describe('classifyItem — PR status delta', () => {
   test('needs_review → +10 (350+10=360)', () => assert.equal(scoreForStatus('needs_review'), 360));
   test('open → +0 (350)', () => assert.equal(scoreForStatus('open'), 350));
   test('draft → -15 (350-15=335)', () => assert.equal(scoreForStatus('draft'), 335));
-  test('changes_requested → -10 (350-10=340)', () => assert.equal(scoreForStatus('changes_requested'), 340));
+  test('changes_requested → -10 (350-10=340)', () =>
+    assert.equal(scoreForStatus('changes_requested'), 340));
 });
 
 describe('classifyItem — issue simplicity bonus', () => {

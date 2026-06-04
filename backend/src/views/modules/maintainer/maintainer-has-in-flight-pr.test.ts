@@ -33,7 +33,10 @@ describe('computeHasInFlightPr — backend-shipped per-item signal', () => {
       makePr({ number: 24, status: 'draft', linked_numbers: [14] }),
     ]);
 
-    assert.deepEqual(Array.from(issueNumbers).sort((a, b) => a - b), [10, 11, 14]);
+    assert.deepEqual(
+      Array.from(issueNumbers).sort((a, b) => a - b),
+      [10, 11, 14],
+    );
   });
 
   test('issue with NO linked PRs in envelope: has_in_flight_pr=false', () => {

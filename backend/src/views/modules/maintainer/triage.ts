@@ -230,8 +230,7 @@ function mapIssue(it: GhIssue): TriageItem {
 // "Fix(es)? #N" alone is treated as closing per GitHub's own parser; we
 // match the same lexicon. See GitHub Docs > "Linking a pull request to an
 // issue".
-const CLOSING_REF_RE =
-  /\b(?:close[sd]?|fix(?:e[sd])?|resolve[sd]?)\s+#(\d+)\b/gi;
+const CLOSING_REF_RE = /\b(?:close[sd]?|fix(?:e[sd])?|resolve[sd]?)\s+#(\d+)\b/gi;
 
 function extractLinkedIssueNumbers(body: string | undefined): number[] {
   if (!body) return [];
@@ -283,9 +282,7 @@ function extractLabels(labels: GhLabel[] | undefined): string[] {
 
 function extractFiles(files: GhPrFile[] | undefined): string[] {
   if (!files) return [];
-  return files
-    .map((f) => f.path)
-    .filter((p): p is string => typeof p === 'string' && p.length > 0);
+  return files.map((f) => f.path).filter((p): p is string => typeof p === 'string' && p.length > 0);
 }
 
 function derivePrStatus(pr: GhPr): TriageItemStatus {
@@ -457,9 +454,7 @@ export function selectOneMark(items: TriageItem[]): void {
   // closed topMark) and which is not itself the top scorer.
   if (topMark !== null && topMark.kind === 'pr' && topMark.linked_numbers.length > 0) {
     for (const linkedNum of topMark.linked_numbers) {
-      const parent = items.find(
-        (i) => i.kind === 'issue' && i.number === linkedNum,
-      );
+      const parent = items.find((i) => i.kind === 'issue' && i.number === linkedNum);
       if (
         parent !== undefined &&
         parent !== topMark &&

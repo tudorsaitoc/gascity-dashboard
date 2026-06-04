@@ -5,11 +5,7 @@ import { useEffect, useRef } from 'react';
  * Async refresh work should use `useVisibleRefresh()` or
  * `useAbortableVisibleRefresh()` instead.
  */
-export function useVisibleInterval(
-  callback: () => void,
-  intervalMs: number,
-  enabled = true,
-): void {
+export function useVisibleInterval(callback: () => void, intervalMs: number, enabled = true): void {
   const callbackRef = useRef(callback);
   callbackRef.current = callback;
 

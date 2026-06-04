@@ -292,7 +292,10 @@ test('snapshot availability states use the shared Avail<T> generic', () => {
   const source = readFileSync(new URL('./snapshot/types.ts', import.meta.url), 'utf8');
   const aliases: Array<[string, RegExp]> = [
     ['RunCensusState', /export type RunCensusState = Avail<\{\s*data: RunCensus;\s*\}>;/],
-    ['RunLaneHealthState', /export type RunLaneHealthState = Avail<\{\s*data: RunLaneHealth;\s*\}>;/],
+    [
+      'RunLaneHealthState',
+      /export type RunLaneHealthState = Avail<\{\s*data: RunLaneHealth;\s*\}>;/,
+    ],
     ['RunLaneUpdatedAt', /export type RunLaneUpdatedAt = Avail<\{\s*at: string;\s*\}>;/],
     [
       'RunLaneStagePosition',
@@ -300,9 +303,18 @@ test('snapshot availability states use the shared Avail<T> generic', () => {
     ],
     ['RunLaneStepAttempt', /export type RunLaneStepAttempt = Avail<\{\s*value: number;\s*\}>;/],
     ['RunLaneStuckNode', /export type RunLaneStuckNode = Avail<\{\s*id: string;\s*\}>;/],
-    ['RunLaneSessionLastActive', /export type RunLaneSessionLastActive = Avail<\{\s*at: string;\s*\}>;/],
-    ['RunLaneSessionRunning', /export type RunLaneSessionRunning = Avail<\{\s*value: boolean;\s*\}>;/],
-    ['RunLaneSessionActivity', /export type RunLaneSessionActivity = Avail<\{\s*value: string;\s*\}>;/],
+    [
+      'RunLaneSessionLastActive',
+      /export type RunLaneSessionLastActive = Avail<\{\s*at: string;\s*\}>;/,
+    ],
+    [
+      'RunLaneSessionRunning',
+      /export type RunLaneSessionRunning = Avail<\{\s*value: boolean;\s*\}>;/,
+    ],
+    [
+      'RunLaneSessionActivity',
+      /export type RunLaneSessionActivity = Avail<\{\s*value: string;\s*\}>;/,
+    ],
     [
       'RunLaneScope',
       /export type RunLaneScope = Avail<\{\s*kind: 'city' \| 'rig';\s*ref: string;\s*rootStoreRef: string;\s*\}>;/,

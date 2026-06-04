@@ -70,9 +70,7 @@ describe('AgentPanel — degraded-state footnote', () => {
     const buckets: AliasBucket[] = [{ tier: 'you', aliases: ['stephanie'] }];
     renderPanel({ buckets, sessionsUnavailable: true });
     fireEvent.click(screen.getByRole('button', { name: /agents/i }));
-    expect(
-      screen.getByText(/agent list and mail history both unavailable/i),
-    ).toBeTruthy();
+    expect(screen.getByText(/agent list and mail history both unavailable/i)).toBeTruthy();
     // The narrower copy must NOT appear simultaneously — that's the
     // misleading-copy regression the bead flagged.
     expect(screen.queryByText(/showing mail-derived aliases only/i)).toBeNull();

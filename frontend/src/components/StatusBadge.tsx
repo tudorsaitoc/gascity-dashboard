@@ -26,9 +26,9 @@ const TONE_COLOR: Record<StatusTone, string> = {
 };
 
 const TONE_GLYPH: Record<StatusTone, string> = {
-  ok: '●',     // ●
-  warn: '▲',   // ▲
-  stuck: '■',  // ■
+  ok: '●', // ●
+  warn: '▲', // ▲
+  stuck: '■', // ■
   neutral: '·', // ·
 };
 
@@ -50,9 +50,7 @@ export function StatusBadge({
       </span>
       <span>{label}</span>
       {trailing && (
-        <span className="text-fg-faint text-label uppercase tracking-wider">
-          {trailing}
-        </span>
+        <span className="text-fg-faint text-label uppercase tracking-wider">{trailing}</span>
       )}
     </span>
   );

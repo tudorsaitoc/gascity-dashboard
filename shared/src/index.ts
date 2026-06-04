@@ -3,11 +3,7 @@
 // `export type *` so importing the package root does not pull in dead JS.
 
 export type * from './snapshot/types.js';
-export {
-  resolveSessionForTarget,
-  matchesSessionTarget,
-  lastSegment,
-} from './session-resolve.js';
+export { resolveSessionForTarget, matchesSessionTarget, lastSegment } from './session-resolve.js';
 export * from './run-detail.js';
 export type * from './run-snapshot.js';
 export * from './run-scope.js';

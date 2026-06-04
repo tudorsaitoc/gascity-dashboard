@@ -41,10 +41,9 @@ describe('useVisibleInterval', () => {
   it('does not schedule an interval while disabled', () => {
     vi.useFakeTimers();
     const callback = vi.fn();
-    const { rerender } = renderHook(
-      ({ enabled }) => useVisibleInterval(callback, 1_000, enabled),
-      { initialProps: { enabled: false } },
-    );
+    const { rerender } = renderHook(({ enabled }) => useVisibleInterval(callback, 1_000, enabled), {
+      initialProps: { enabled: false },
+    });
 
     vi.advanceTimersByTime(1_000);
     expect(callback).not.toHaveBeenCalled();

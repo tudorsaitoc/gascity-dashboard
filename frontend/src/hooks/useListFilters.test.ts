@@ -40,9 +40,11 @@ describe('useListFilters', () => {
     );
 
     expect(result.current.totalMatches).toBe(5);
-    expect(result.current.groups.map((g) => g.project)).toEqual(
-      ['agent-diagnostics', 'codeprobe', 'gc'],
-    );
+    expect(result.current.groups.map((g) => g.project)).toEqual([
+      'agent-diagnostics',
+      'codeprobe',
+      'gc',
+    ]);
     const gcGroup = result.current.groups.find((g) => g.project === 'gc');
     expect(gcGroup?.rows).toHaveLength(2);
     expect(gcGroup?.totalInProject).toBe(2);
@@ -79,9 +81,7 @@ describe('useListFilters', () => {
 
     act(() => result.current.toggleChip('open'));
     expect(result.current.totalMatches).toBe(3);
-    const statuses = result.current.groups.flatMap((g) =>
-      g.rows.map((r) => r.status),
-    );
+    const statuses = result.current.groups.flatMap((g) => g.rows.map((r) => r.status));
     expect(statuses.every((s) => s === 'open')).toBe(true);
   });
 

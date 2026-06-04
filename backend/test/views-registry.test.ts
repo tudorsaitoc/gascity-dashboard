@@ -62,7 +62,10 @@ const noDepsModule: BackendModule<void> = {
 describe('views/registry', () => {
   test('ALL_MODULES keeps dashboard-local health out of the per-city module plane', () => {
     const ids = ALL_MODULES.map((m) => m.id);
-    assert.ok(!ids.includes('health'), `expected no per-city health module in ${JSON.stringify(ids)}`);
+    assert.ok(
+      !ids.includes('health'),
+      `expected no per-city health module in ${JSON.stringify(ids)}`,
+    );
   });
 
   test('ALL_MODULES includes the maintainer module', () => {
@@ -81,11 +84,7 @@ describe('views/registry', () => {
   test('every module declares a working needs(config) function', () => {
     const config = makeConfig();
     for (const mod of ALL_MODULES) {
-      assert.equal(
-        typeof mod.needs,
-        'function',
-        `module ${mod.id} is missing needs()`,
-      );
+      assert.equal(typeof mod.needs, 'function', `module ${mod.id} is missing needs()`);
       // Smoke-call needs() so the registry test catches a throw at boot
       // instead of waiting for the first request to a /api/<id> route.
       assert.doesNotThrow(() => mod.needs(config), `${mod.id}.needs threw`);
@@ -114,10 +113,7 @@ describe('views/types#bind', () => {
       // Simulate JS-interop drift: the field exists but is not a function.
       needs: undefined as unknown as (config: AdminConfig) => void,
     } as BackendModule<void>;
-    assert.throws(
-      () => bind(broken, makeConfig()),
-      /missing required needs/,
-    );
+    assert.throws(() => bind(broken, makeConfig()), /missing required needs/);
   });
 
   test('@ts-expect-error: BackendModule without `needs` field is a compile error (Phase-4 TS M3)', () => {
@@ -201,9 +197,7 @@ async function readModuleIsolationNames(): Promise<string[]> {
   const here = path.dirname(url.fileURLToPath(import.meta.url));
   const configPath = path.resolve(here, '..', '..', 'eslint.config.mjs');
   const source = await fs.readFile(configPath, 'utf8');
-  const match = source.match(
-    /export const MODULE_ISOLATION_NAMES\s*=\s*\[([^\]]*)\]/,
-  );
+  const match = source.match(/export const MODULE_ISOLATION_NAMES\s*=\s*\[([^\]]*)\]/);
   if (!match) {
     throw new Error(
       `could not find 'export const MODULE_ISOLATION_NAMES = [...]' in ${configPath}`,

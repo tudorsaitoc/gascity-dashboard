@@ -18,7 +18,9 @@ import { filterTierByNeedsPr } from './triageFilters';
 // where `has_in_flight_pr === false`, with PRs dropped entirely (the
 // filter is issue-focused per the bead).
 
-function mkItem(overrides: Partial<TriageItem> & { kind: 'pr' | 'issue'; number: number }): TriageItem {
+function mkItem(
+  overrides: Partial<TriageItem> & { kind: 'pr' | 'issue'; number: number },
+): TriageItem {
   return {
     kind: overrides.kind,
     number: overrides.number,
@@ -116,7 +118,6 @@ describe('IssueRow — needs-PR indicator', () => {
     );
     expect(screen.getByText(/needs PR/i)).toBeTruthy();
   });
-
 });
 
 describe('filterTierByNeedsPr — pure filter helper', () => {

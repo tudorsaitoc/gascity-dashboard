@@ -181,17 +181,21 @@ describe('isStalledUnvetted', () => {
   };
 
   it('true when updated_at is older than the threshold AND not vetted AND not slung', () => {
-    const oldIso = new Date(NOW_MS - (NEEDS_YOU_STALL_THRESHOLD_DAYS + 1) * ONE_DAY_MS).toISOString();
-    expect(
-      isStalledUnvetted(mkItem({ kind: 'pr', number: 1, updated_at: oldIso }), NOW_MS),
-    ).toBe(true);
+    const oldIso = new Date(
+      NOW_MS - (NEEDS_YOU_STALL_THRESHOLD_DAYS + 1) * ONE_DAY_MS,
+    ).toISOString();
+    expect(isStalledUnvetted(mkItem({ kind: 'pr', number: 1, updated_at: oldIso }), NOW_MS)).toBe(
+      true,
+    );
   });
 
   it('false when fresher than the threshold', () => {
-    const freshIso = new Date(NOW_MS - (NEEDS_YOU_STALL_THRESHOLD_DAYS - 1) * ONE_DAY_MS).toISOString();
-    expect(
-      isStalledUnvetted(mkItem({ kind: 'pr', number: 1, updated_at: freshIso }), NOW_MS),
-    ).toBe(false);
+    const freshIso = new Date(
+      NOW_MS - (NEEDS_YOU_STALL_THRESHOLD_DAYS - 1) * ONE_DAY_MS,
+    ).toISOString();
+    expect(isStalledUnvetted(mkItem({ kind: 'pr', number: 1, updated_at: freshIso }), NOW_MS)).toBe(
+      false,
+    );
   });
 
   it('false at exactly the threshold (strict >, not >=)', () => {
@@ -206,7 +210,9 @@ describe('isStalledUnvetted', () => {
   });
 
   it('false when vetted (an agent vetted it; staleness is no longer the operator signal)', () => {
-    const oldIso = new Date(NOW_MS - (NEEDS_YOU_STALL_THRESHOLD_DAYS + 1) * ONE_DAY_MS).toISOString();
+    const oldIso = new Date(
+      NOW_MS - (NEEDS_YOU_STALL_THRESHOLD_DAYS + 1) * ONE_DAY_MS,
+    ).toISOString();
     expect(
       isStalledUnvetted(
         mkItem({ kind: 'pr', number: 1, updated_at: oldIso, triage_assessment: vetted }),
@@ -216,7 +222,9 @@ describe('isStalledUnvetted', () => {
   });
 
   it('false when in-flight (slung; the operator is already waiting on an agent)', () => {
-    const oldIso = new Date(NOW_MS - (NEEDS_YOU_STALL_THRESHOLD_DAYS + 1) * ONE_DAY_MS).toISOString();
+    const oldIso = new Date(
+      NOW_MS - (NEEDS_YOU_STALL_THRESHOLD_DAYS + 1) * ONE_DAY_MS,
+    ).toISOString();
     expect(
       isStalledUnvetted(
         mkItem({
@@ -236,7 +244,9 @@ describe('isStalledUnvetted', () => {
   });
 
   it('accepts a Date for `now` as well as a number', () => {
-    const oldIso = new Date(NOW_MS - (NEEDS_YOU_STALL_THRESHOLD_DAYS + 1) * ONE_DAY_MS).toISOString();
+    const oldIso = new Date(
+      NOW_MS - (NEEDS_YOU_STALL_THRESHOLD_DAYS + 1) * ONE_DAY_MS,
+    ).toISOString();
     expect(
       isStalledUnvetted(mkItem({ kind: 'pr', number: 1, updated_at: oldIso }), new Date(NOW_MS)),
     ).toBe(true);
@@ -251,9 +261,9 @@ describe('isStalledUnvetted', () => {
 
 describe('isNeedsYou (composite OR over the six documented clauses)', () => {
   it('true when ANY clause is true: changes_requested', () => {
-    expect(
-      isNeedsYou(mkItem({ kind: 'pr', number: 1, status: 'changes_requested' }), NOW_MS),
-    ).toBe(true);
+    expect(isNeedsYou(mkItem({ kind: 'pr', number: 1, status: 'changes_requested' }), NOW_MS)).toBe(
+      true,
+    );
   });
   it('true when ANY clause is true: needs_review', () => {
     expect(isNeedsYou(mkItem({ kind: 'pr', number: 1, status: 'needs_review' }), NOW_MS)).toBe(
@@ -274,10 +284,7 @@ describe('isNeedsYou (composite OR over the six documented clauses)', () => {
       vetted_at: '2026-05-29T12:00:00.000Z' as const,
     };
     expect(
-      isNeedsYou(
-        mkItem({ kind: 'pr', number: 1, triage_assessment: vetted, slung: null }),
-        NOW_MS,
-      ),
+      isNeedsYou(mkItem({ kind: 'pr', number: 1, triage_assessment: vetted, slung: null }), NOW_MS),
     ).toBe(true);
   });
   it('true when ANY clause is true: stalled and unvetted', () => {
@@ -337,9 +344,7 @@ describe('filterTierByNeedsYou', () => {
         cluster_id,
         files: [`src/${cluster_id}.ts`],
         items: clusterItems,
-        lines_pending: clusterItems
-          .map((it) => it.lines_changed ?? 0)
-          .reduce((a, b) => a + b, 0),
+        lines_pending: clusterItems.map((it) => it.lines_changed ?? 0).reduce((a, b) => a + b, 0),
       })),
       unclustered,
     };
@@ -363,10 +368,7 @@ describe('filterTierByNeedsYou', () => {
 
   it('drops clusters that become empty after filtering', () => {
     const dropOnly = mkItem({ kind: 'pr', number: 1, status: 'open', updated_at: NOW_ISO });
-    const result = filterTierByNeedsYou(
-      tier([{ where: 'cluster', item: dropOnly }]),
-      NOW_MS,
-    );
+    const result = filterTierByNeedsYou(tier([{ where: 'cluster', item: dropOnly }]), NOW_MS);
     expect(result.clusters).toEqual([]);
   });
 

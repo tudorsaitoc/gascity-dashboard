@@ -29,11 +29,13 @@ export async function listAgentPendingInteractions(
     return [{ agentName: agent.name, sessionId, sessionName }];
   });
 
-  const pending = await Promise.all(candidates.map(async (candidate) => {
-    const response = await supervisorApi().sessionPending(cityName, candidate.sessionId);
-    if (response.pending === undefined) return null;
-    return { ...candidate, pending: response.pending };
-  }));
+  const pending = await Promise.all(
+    candidates.map(async (candidate) => {
+      const response = await supervisorApi().sessionPending(cityName, candidate.sessionId);
+      if (response.pending === undefined) return null;
+      return { ...candidate, pending: response.pending };
+    }),
+  );
   return pending.filter((item): item is AgentPendingInteraction => item !== null);
 }
 

@@ -25,12 +25,5 @@ export function SseIndicator({ state }: { state: GcEventConnState }) {
         : state === 'degraded'
           ? 'degraded'
           : 'offline';
-  return (
-    <StatusBadge
-      tone={tone}
-      label={label}
-      title={`SSE stream: ${state}`}
-      className="w-28"
-    />
-  );
+  return <StatusBadge tone={tone} label={label} title={`SSE stream: ${state}`} className="w-28" />;
 }

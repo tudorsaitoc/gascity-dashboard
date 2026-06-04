@@ -25,9 +25,7 @@ describe('useBeadDetail', () => {
   });
 
   it('flags notFound (not error) when the deep-linked bead 404s', async () => {
-    mockFetch.mockRejectedValue(
-      new SupervisorApiError(404, 'bead missing', undefined),
-    );
+    mockFetch.mockRejectedValue(new SupervisorApiError(404, 'bead missing', undefined));
 
     const { result } = renderHook(() => useBeadDetail(true, 'gc-316879'));
 
@@ -42,9 +40,7 @@ describe('useBeadDetail', () => {
   });
 
   it('surfaces non-404 failures as a hard error, never as notFound', async () => {
-    mockFetch.mockRejectedValue(
-      new SupervisorApiError(500, 'supervisor down', undefined),
-    );
+    mockFetch.mockRejectedValue(new SupervisorApiError(500, 'supervisor down', undefined));
 
     const { result } = renderHook(() => useBeadDetail(true, 'gc-1'));
 

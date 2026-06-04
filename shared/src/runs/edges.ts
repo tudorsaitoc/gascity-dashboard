@@ -1,11 +1,5 @@
-import type {
-  RunSnapshotDep,
-  RunSnapshot,
-} from '../run-snapshot.js';
-import type {
-  RunDisplayEdge,
-  RunDisplayNode,
-} from '../run-detail.js';
+import type { RunSnapshotDep, RunSnapshot } from '../run-snapshot.js';
+import type { RunDisplayEdge, RunDisplayNode } from '../run-detail.js';
 import { externalizeId, nonEmpty } from './bead-fields.js';
 
 export function buildRunDisplayEdges(
@@ -15,12 +9,7 @@ export function buildRunDisplayEdges(
 ): RunDisplayEdge[] {
   const logicalEdges = projectEdges(raw.logical_edges ?? [], physicalToSemantic, nodes);
   if (logicalEdges.length > 0) return logicalEdges;
-  return projectEdges(
-    raw.deps ?? [],
-    physicalToSemantic,
-    nodes,
-    bridgeableScopeCheckIds(raw),
-  );
+  return projectEdges(raw.deps ?? [], physicalToSemantic, nodes, bridgeableScopeCheckIds(raw));
 }
 
 function projectEdges(
@@ -30,9 +19,7 @@ function projectEdges(
   bridgeableHiddenIds = new Set<string>(),
 ): RunDisplayEdge[] {
   const visible = new Set(
-    nodes
-      .filter((node) => node.visibleInGraph !== false)
-      .map((node) => node.id),
+    nodes.filter((node) => node.visibleInGraph !== false).map((node) => node.id),
   );
   const outgoing = outgoingDeps(deps);
   const seen = new Set<string>();

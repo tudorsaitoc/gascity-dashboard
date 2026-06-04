@@ -48,8 +48,14 @@ describe('applySlungOverlay', () => {
 
     await applySlungOverlay(envelope, pathToState);
 
-    assert.deepEqual(envelope.tiers[0]!.unclustered.map((item) => item.number), [48]);
-    assert.deepEqual(envelope.slung_section?.map((item) => item.number), [47]);
+    assert.deepEqual(
+      envelope.tiers[0]!.unclustered.map((item) => item.number),
+      [48],
+    );
+    assert.deepEqual(
+      envelope.slung_section?.map((item) => item.number),
+      [47],
+    );
     assert.equal(envelope.slung_section?.[0]?.slung?.target, 'chief-of-staff');
     assert.equal(envelope.slung_section?.[0]?.run_id, 'gc-47');
     assert.equal(envelope.slung_section?.[0]?.is_marked, false);
@@ -113,6 +119,9 @@ describe('applySlungOverlay', () => {
     await applySlungOverlay(envelope, pathToState);
 
     assert.deepEqual(envelope.tiers[0]!.clusters, []);
-    assert.deepEqual(envelope.slung_section?.map((item) => item.number), [80]);
+    assert.deepEqual(
+      envelope.slung_section?.map((item) => item.number),
+      [80],
+    );
   });
 });

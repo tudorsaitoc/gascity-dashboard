@@ -43,9 +43,7 @@ interface FormulaRunDetailFixture {
   streamTurns: Record<string, TranscriptTurn[]>;
 }
 
-const formulaRunDetailFixture = parseFormulaRunDetailFixture(
-  rawFormulaRunDetailFixture,
-);
+const formulaRunDetailFixture = parseFormulaRunDetailFixture(rawFormulaRunDetailFixture);
 const detail = formulaRunDetailFixture.detail;
 const diff = formulaRunDetailFixture.diff;
 const transcripts = formulaRunDetailFixture.transcripts;
@@ -69,31 +67,34 @@ beforeEach(() => {
   currentDetail = detail;
   currentDiff = diff;
   vi.stubGlobal('EventSource', FakeEventSource);
-  vi.stubGlobal('fetch', vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
-    const url = requestUrl(input);
-    fetchUrls.push(url);
-    if (url.startsWith('/api/city/test-city/runs/gc-adopt-pr-active/diff')) {
-      return jsonResponse(currentDiff);
-    }
-    if (url.startsWith('/api/city/test-city/runs/gc-adopt-pr-active')) {
-      throw new Error(`old dashboard formula-run mirror should not be called: ${url}`);
-    }
-    const transcriptPrefix = '/gc-supervisor/v0/city/test-city/session/';
-    if (url.startsWith(transcriptPrefix) && url.endsWith('/transcript?format=conversation')) {
-      expect(init?.method ?? (input instanceof Request ? input.method : 'GET')).toBe('GET');
-      const id = decodeURIComponent(
-        url.slice(transcriptPrefix.length, -'/transcript?format=conversation'.length),
-      );
-      const transcript = transcripts[id] ?? transcripts[sessionTranscriptFixtureId(id)];
-      if (transcript !== undefined) {
-        return jsonResponse(toSupervisorTranscript(transcript));
+  vi.stubGlobal(
+    'fetch',
+    vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+      const url = requestUrl(input);
+      fetchUrls.push(url);
+      if (url.startsWith('/api/city/test-city/runs/gc-adopt-pr-active/diff')) {
+        return jsonResponse(currentDiff);
       }
-    }
-    if (url.includes('/sessions/') && url.endsWith('/peek')) {
-      throw new Error('old dashboard session peek route should not be called');
-    }
-    throw new Error(`unexpected fetch: ${url}`);
-  }));
+      if (url.startsWith('/api/city/test-city/runs/gc-adopt-pr-active')) {
+        throw new Error(`old dashboard formula-run mirror should not be called: ${url}`);
+      }
+      const transcriptPrefix = '/gc-supervisor/v0/city/test-city/session/';
+      if (url.startsWith(transcriptPrefix) && url.endsWith('/transcript?format=conversation')) {
+        expect(init?.method ?? (input instanceof Request ? input.method : 'GET')).toBe('GET');
+        const id = decodeURIComponent(
+          url.slice(transcriptPrefix.length, -'/transcript?format=conversation'.length),
+        );
+        const transcript = transcripts[id] ?? transcripts[sessionTranscriptFixtureId(id)];
+        if (transcript !== undefined) {
+          return jsonResponse(toSupervisorTranscript(transcript));
+        }
+      }
+      if (url.includes('/sessions/') && url.endsWith('/peek')) {
+        throw new Error('old dashboard session peek route should not be called');
+      }
+      throw new Error(`unexpected fetch: ${url}`);
+    }),
+  );
 });
 
 afterEach(() => {
@@ -104,7 +105,10 @@ afterEach(() => {
 
 describe('FormulaRunDetailPage', () => {
   it('shows a single initial-loading message without calling it a refresh', () => {
-    vi.stubGlobal('fetch', vi.fn(() => new Promise<Response>(() => {})));
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(() => new Promise<Response>(() => {})),
+    );
 
     renderPage();
 
@@ -122,7 +126,10 @@ describe('FormulaRunDetailPage', () => {
     // detail (and diff) fetch hangs while the summary resolves with a lane.
     invalidate('runs:summary:test-city');
     loadSupervisorRunSummarySource.mockResolvedValue(runSummarySourceWithActiveLane());
-    vi.stubGlobal('fetch', vi.fn(() => new Promise<Response>(() => {})));
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(() => new Promise<Response>(() => {})),
+    );
     loadSupervisorFormulaRunDetail.mockImplementationOnce(
       () => new Promise<FormulaRunDetail>(() => {}),
     );
@@ -578,7 +585,9 @@ describe('FormulaRunDetailPage', () => {
   it('keeps the Session tab available so a selected node can explain unresolved sessions', async () => {
     renderPage();
     await screen.findByRole('heading', { name: /adopt pr #42/i });
-    expect((screen.getByRole('tab', { name: /session/i }) as HTMLButtonElement).disabled).toBe(false);
+    expect((screen.getByRole('tab', { name: /session/i }) as HTMLButtonElement).disabled).toBe(
+      false,
+    );
 
     fireEvent.click(screen.getByRole('button', { name: /pre-approval ci repair loop/i }));
 
@@ -617,11 +626,13 @@ describe('FormulaRunDetailPage', () => {
   it('shows no-graph and selected-node-without-session empty states', async () => {
     currentDetail = {
       ...detail,
-      nodes: detail.nodes.filter((node) => node.id === 'old-only-review').map((node) => ({
-        ...node,
-        visibleInGraph: false,
-        historicalOnly: true,
-      })),
+      nodes: detail.nodes
+        .filter((node) => node.id === 'old-only-review')
+        .map((node) => ({
+          ...node,
+          visibleInGraph: false,
+          historicalOnly: true,
+        })),
       lanes: [],
       edges: [],
     };
@@ -654,10 +665,7 @@ describe('FormulaRunDetailPage', () => {
   });
 });
 
-function renderPage(
-  initialEntry = '/runs/gc-adopt-pr-active',
-  includeRouteControls = false,
-) {
+function renderPage(initialEntry = '/runs/gc-adopt-pr-active', includeRouteControls = false) {
   return render(
     <MemoryRouter
       initialEntries={[initialEntry]}
@@ -681,10 +689,7 @@ function renderPage(
 function RouteControls() {
   const navigate = useNavigate();
   return (
-    <button
-      type="button"
-      onClick={() => navigate('/runs/gc-adopt-pr-active')}
-    >
+    <button type="button" onClick={() => navigate('/runs/gc-adopt-pr-active')}>
       Clear node query
     </button>
   );
@@ -725,7 +730,12 @@ function runSummarySourceWithActiveLane(): SourceState<RunSummary> {
     id: 'gc-adopt-pr-active',
     title: 'Pending adoption run',
     formula: { status: 'known', name: 'mol-adopt-pr-v2' },
-    scope: { status: 'available', kind: 'city', ref: 'racoon-city', rootStoreRef: 'city:racoon-city' },
+    scope: {
+      status: 'available',
+      kind: 'city',
+      ref: 'racoon-city',
+      rootStoreRef: 'city:racoon-city',
+    },
     external: { status: 'unavailable', error: 'external unavailable in test' },
     phase: 'implementation',
     phaseLabel: 'Implementation',
@@ -772,11 +782,8 @@ function deferred<T>(): {
 }
 
 function requestUrl(input: RequestInfo | URL): string {
-  const url = input instanceof Request
-    ? input.url
-    : input instanceof URL
-      ? input.toString()
-      : String(input);
+  const url =
+    input instanceof Request ? input.url : input instanceof URL ? input.toString() : String(input);
   return stripSameOrigin(url);
 }
 
@@ -786,9 +793,7 @@ function stripSameOrigin(url: string): string {
 }
 
 function sessionTranscriptFixtureId(id: string): string {
-  return id === 'gc-session-rebase-a1' || id === 'gc-session-rebase-a2'
-    ? 'gc-session-rebase'
-    : id;
+  return id === 'gc-session-rebase-a1' || id === 'gc-session-rebase-a2' ? 'gc-session-rebase' : id;
 }
 
 function toSupervisorTranscript(transcript: TranscriptResult) {
@@ -824,9 +829,9 @@ function runUrls(): string[] {
 }
 
 function diffUrls(): string[] {
-  return fetchUrls.filter((url) => (
-    url.startsWith('/api/city/test-city/runs/') && url.includes('/diff')
-  ));
+  return fetchUrls.filter(
+    (url) => url.startsWith('/api/city/test-city/runs/') && url.includes('/diff'),
+  );
 }
 
 function terminalDetail(): FormulaRunDetail {
@@ -987,10 +992,7 @@ class FakeEventSource {
     this.onerror?.(new Event('error'));
   }
 
-  addEventListener(
-    type: string,
-    listener: ((event: MessageEvent<string>) => void) | null,
-  ): void {
+  addEventListener(type: string, listener: ((event: MessageEvent<string>) => void) | null): void {
     if (!listener) return;
     this.listeners.set(type, [...(this.listeners.get(type) ?? []), listener]);
   }

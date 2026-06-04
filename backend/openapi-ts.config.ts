@@ -1,8 +1,7 @@
 import { defineConfig } from '@hey-api/openapi-ts';
 
 const outputPath =
-  process.env.GC_SUPERVISOR_HEY_API_OUTPUT ??
-  './backend/src/generated/gc-supervisor-client';
+  process.env.GC_SUPERVISOR_HEY_API_OUTPUT ?? './backend/src/generated/gc-supervisor-client';
 
 export default defineConfig({
   input: './backend/openapi/gc-supervisor.openapi.json',

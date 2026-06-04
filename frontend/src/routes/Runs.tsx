@@ -14,10 +14,7 @@ import { Button } from '../components/Button';
 import { PageHeader } from '../components/PageHeader';
 import { PartialDataNotice } from '../components/PartialDataNotice';
 import { SseIndicator } from '../components/SseIndicator';
-import {
-  RunMap,
-  RUNS_HISTORICAL_SECTION_ID,
-} from '../components/run/RunMap';
+import { RunMap, RUNS_HISTORICAL_SECTION_ID } from '../components/run/RunMap';
 import { useNow } from '../contexts/NowContext';
 import { formatRelative } from '../hooks/time';
 import { useCachedData } from '../hooks/useCachedData';
@@ -50,8 +47,7 @@ import {
 // SSE is the path for actual data updates.
 
 const REFRESH_DEBOUNCE_MS = 10_000;
-const RUN_PHASE_GRAMMAR =
-  'Phase grammar: intake, implementation, review, approval, finalization.';
+const RUN_PHASE_GRAMMAR = 'Phase grammar: intake, implementation, review, approval, finalization.';
 const HISTORY_QUERY_PARAM = 'history';
 const HISTORY_QUERY_VALUE = '1';
 
@@ -116,7 +112,7 @@ export function RunsPage() {
   const onSseMatch = useCallback(() => {
     // Skip when supervisor is unreachable — every forced refresh under
     // fixture-fallback re-runs loadFixture(), which is wasted file IO.
-    if (runsStatusRef.current !== "fresh") return;
+    if (runsStatusRef.current !== 'fresh') return;
     // Skip when an explicit refresh is already in flight. Without this
     // guard, a fast SSE event firing while a slow upstream call is
     // still resolving lets two requests race; older-completion can
@@ -141,15 +137,15 @@ export function RunsPage() {
   const synopsis = runSynopsis(data);
 
   const freshnessLabel = runs
-    ? runs.status === "fresh"
+    ? runs.status === 'fresh'
       ? null
-      : runs.status === "fixture"
-        ? "fixture data"
-        : runs.status === "error"
-          ? "live data unavailable"
+      : runs.status === 'fixture'
+        ? 'fixture data'
+        : runs.status === 'error'
+          ? 'live data unavailable'
           : runs.fetchedAt
             ? `stale ${formatRelative(runs.fetchedAt, now)} ago`
-            : "stale"
+            : 'stale'
     : null;
 
   return (
@@ -168,7 +164,7 @@ export function RunsPage() {
             {freshnessLabel !== null && (
               <span
                 className={`text-label uppercase tracking-wider tnum ${
-                  runs?.status === "error" ? "text-accent" : "text-fg-faint"
+                  runs?.status === 'error' ? 'text-accent' : 'text-fg-faint'
                 }`}
               >
                 {freshnessLabel}
@@ -223,7 +219,7 @@ export function RunsPage() {
                 onClick={() => void refresh()}
                 disabled={loading}
               >
-                {loading ? "Refreshing" : "Refresh"}
+                {loading ? 'Refreshing' : 'Refresh'}
               </Button>
             </div>
           </>
@@ -245,7 +241,7 @@ export function RunsPage() {
 }
 
 function runSynopsis(data: SourceState<RunSummary> | undefined): string {
-  if (data === undefined) return "Loading formula run lanes.";
+  if (data === undefined) return 'Loading formula run lanes.';
 
   if (data.status !== 'error') {
     return `${data.data.totalActive} active runs across the supervisor's bead store. ${RUN_PHASE_GRAMMAR}`;

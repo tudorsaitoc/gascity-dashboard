@@ -17,10 +17,7 @@ import { FormulaRunTabs } from '../components/run/FormulaRunTabs';
 import { StageLadder } from '../components/run/StageLadder';
 import { useNow } from '../contexts/NowContext';
 import { useGcEventRefresh } from '../hooks/useGcEvents';
-import {
-  runEventIdentity,
-  formulaRunDetailEventMatches,
-} from '../hooks/runEventIdentity';
+import { runEventIdentity, formulaRunDetailEventMatches } from '../hooks/runEventIdentity';
 import { useRunNodeSelection } from '../hooks/useRunNodeSelection';
 import { useFormulaRunDetail } from '../hooks/useFormulaRunDetail';
 import { useRunDiff } from '../hooks/useRunDiff';
@@ -30,17 +27,9 @@ import { getActiveCity } from '../api/cityBase';
 import { loadSupervisorRunSummarySource } from '../supervisor/runSummary';
 import { NEEDS_YOU_VIEW_PARAM } from '../views/modules/maintainer/needsYou';
 
-const RUN_DETAIL_EVENT_PREFIXES = [
-  GC_EVENT_PREFIX.bead,
-  GC_EVENT_PREFIX.session,
-] as const;
+const RUN_DETAIL_EVENT_PREFIXES = [GC_EVENT_PREFIX.bead, GC_EVENT_PREFIX.session] as const;
 const NO_EVENT_PREFIXES: readonly string[] = [];
-const TERMINAL_STATUSES: readonly RunNodeStatus[] = [
-  'completed',
-  'done',
-  'failed',
-  'skipped',
-];
+const TERMINAL_STATUSES: readonly RunNodeStatus[] = ['completed', 'done', 'failed', 'skipped'];
 const NON_TERMINAL_STATUSES: readonly RunNodeStatus[] = [
   'pending',
   'ready',
@@ -166,10 +155,7 @@ export function FormulaRunDetailPage() {
               Runs
             </Link>
             {pageError && detail && (
-              <span
-                className="normal-case text-body text-accent"
-                role="alert"
-              >
+              <span className="normal-case text-body text-accent" role="alert">
                 {pageError}
               </span>
             )}
@@ -199,14 +185,13 @@ export function FormulaRunDetailPage() {
           <p className="text-body text-fg-muted italic">Loading formula run.</p>
         )
       ) : pageError && !detail ? (
-        <p className="text-body text-accent" role="alert">{pageError}</p>
+        <p className="text-body text-accent" role="alert">
+          {pageError}
+        </p>
       ) : readyRun ? (
         <>
           <RunMetadata detail={readyRun.detail} />
-          <StageLadder
-            stages={readyRun.detail.stages}
-            label={readyRun.detail.title}
-          />
+          <StageLadder stages={readyRun.detail.stages} label={readyRun.detail.title} />
           <FormulaRunPartialNotice detail={readyRun.detail} />
           <div className="mt-8 grid gap-10 lg:grid-cols-[minmax(0,0.95fr)_minmax(22rem,1.05fr)]">
             <FormulaRunDiagram
@@ -260,11 +245,7 @@ function isTerminalProgress(progress: FormulaRunProgress): boolean {
   return terminal >= progress.visibleNodeCount;
 }
 
-function RunMetadata({
-  detail,
-}: {
-  detail: FormulaRunDetailData;
-}) {
+function RunMetadata({ detail }: { detail: FormulaRunDetailData }) {
   const formulaDetail = formulaDetailLabel(detail.formulaDetail);
   return (
     <dl className="grid gap-x-8 gap-y-3 sm:grid-cols-2 lg:grid-cols-4">
@@ -333,9 +314,7 @@ function FormulaMeta({ formula }: { formula: FormulaRunDetailData['formula'] }) 
   }
 }
 
-function snapshotLabel(
-  detail: FormulaRunDetailData,
-): string {
+function snapshotLabel(detail: FormulaRunDetailData): string {
   return detail.snapshotEventSeq.kind === 'known'
     ? `v${detail.snapshotVersion} · seq ${detail.snapshotEventSeq.seq}`
     : `v${detail.snapshotVersion}`;
@@ -344,7 +323,8 @@ function snapshotLabel(
 function formulaDetailLabel(formulaDetail: FormulaRunDetailData['formulaDetail']): string | null {
   if (formulaDetail.kind === 'available') return `available for ${formulaDetail.target}`;
   if (formulaDetail.reason === 'missing_formula_metadata') return null;
-  if (formulaDetail.reason === 'missing_run_target') return `missing run target for ${formulaDetail.name}`;
+  if (formulaDetail.reason === 'missing_run_target')
+    return `missing run target for ${formulaDetail.name}`;
   return `${formulaDetail.failure} for ${formulaDetail.target}`;
 }
 
@@ -441,8 +421,7 @@ function summarizeNodeStatuses(progress: FormulaRunProgress): string {
     statusSummaryPart(progress, 'failed', 'failed'),
     statusSummaryPart(progress, 'skipped', 'skipped'),
     statusSummaryPart(progress, 'pending', 'pending'),
-  ]
-    .filter((part): part is string => part !== null);
+  ].filter((part): part is string => part !== null);
   return parts.length > 0 ? parts.join(', ') : 'No node status yet';
 }
 
@@ -451,8 +430,7 @@ function statusSummaryPart(
   statuses: RunNodeStatus | readonly RunNodeStatus[],
   label: string,
 ): string | null {
-  const keys: readonly RunNodeStatus[] =
-    typeof statuses === 'string' ? [statuses] : statuses;
+  const keys: readonly RunNodeStatus[] = typeof statuses === 'string' ? [statuses] : statuses;
   const count = keys.reduce((sum, status) => sum + (progress.statusCounts[status] ?? 0), 0);
   return count > 0 ? `${count} ${label}` : null;
 }

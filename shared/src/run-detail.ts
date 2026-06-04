@@ -42,13 +42,9 @@ export interface RunSessionLink {
   assignee: string;
 }
 
-export type RunIteration =
-  | { kind: 'base' }
-  | { kind: 'loop'; value: number };
+export type RunIteration = { kind: 'base' } | { kind: 'loop'; value: number };
 
-export type RunAttempt =
-  | { kind: 'untracked' }
-  | { kind: 'attempt'; value: number };
+export type RunAttempt = { kind: 'untracked' } | { kind: 'attempt'; value: number };
 
 export type RunSessionAttachment =
   | { kind: 'attached'; link: RunSessionLink; streamable: boolean }
@@ -93,9 +89,7 @@ export interface RunDisplayNode {
   controlBadges: RunControlBadge[];
 }
 
-export type RunNodeScope =
-  | { kind: 'run' }
-  | { kind: 'scoped'; ref: string };
+export type RunNodeScope = { kind: 'run' } | { kind: 'scoped'; ref: string };
 
 export type RunIterationSummary =
   | { kind: 'single' }
@@ -237,12 +231,7 @@ export type RunSnapshotSequence =
 
 export type RunDiffKind = 'ok' | 'not_git' | 'path_unknown' | 'error';
 
-export type RunChangedFileKind =
-  | 'code'
-  | 'test'
-  | 'docs'
-  | 'config'
-  | 'other';
+export type RunChangedFileKind = 'code' | 'test' | 'docs' | 'config' | 'other';
 
 export interface RunChangedFile {
   path: string;

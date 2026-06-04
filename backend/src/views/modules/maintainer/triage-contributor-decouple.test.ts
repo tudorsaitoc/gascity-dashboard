@@ -63,9 +63,7 @@ describe('fetchTriage — contributor-stats failure is decoupled from ingest', (
       const envelope: MaintainerTriage = await fetchTriage('owner/repo', {
         ...okStubs(),
         computeStats: async (): Promise<Map<string, ContributorStat>> => {
-          throw new Error(
-            'contributor history exceeded 2MB cap — repo grew beyond ingest budget',
-          );
+          throw new Error('contributor history exceeded 2MB cap — repo grew beyond ingest budget');
         },
       });
 

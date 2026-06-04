@@ -1,15 +1,9 @@
 import { Router } from 'express';
-import type {
-  ContributorStat,
-  MaintainerTriage,
-} from 'gas-city-dashboard-shared';
+import type { ContributorStat, MaintainerTriage } from 'gas-city-dashboard-shared';
 import { decodeMaintainerSlingRecord } from 'gas-city-dashboard-shared';
 import { recordAudit } from '../../../audit.js';
 import { ExecError } from '../../../exec.js';
-import {
-  collectItems,
-  fetchTriage as defaultFetchTriage,
-} from './triage.js';
+import { collectItems, fetchTriage as defaultFetchTriage } from './triage.js';
 import { readCache, writeCache, type CacheReadResult } from './storage.js';
 import { addSseClient, notifyRefresh, removeSseClient } from './sse.js';
 import { writeExecError } from '../../../lib/sanitise-error.js';
@@ -61,11 +55,14 @@ export function maintainerRouter({
     try {
       cache = await readCache(cachePath);
     } catch (err) {
-      writeRouteError(res, routeInternalError(err, {
-        component: LOG_COMPONENT.maintainer,
-        operation: 'GET /api/maintainer/triage cache read failed',
-        responseError: 'maintainer triage cache unavailable',
-      }));
+      writeRouteError(
+        res,
+        routeInternalError(err, {
+          component: LOG_COMPONENT.maintainer,
+          operation: 'GET /api/maintainer/triage cache read failed',
+          responseError: 'maintainer triage cache unavailable',
+        }),
+      );
       return;
     }
 
@@ -136,12 +133,15 @@ export function maintainerRouter({
         });
         return;
       }
-      writeRouteError(res, routeUpstreamError(err, {
-        component: LOG_COMPONENT.maintainer,
-        operation: '/api/maintainer/refresh failed',
-        responseError: 'failed to refresh maintainer triage',
-        isTimeout: () => false,
-      }));
+      writeRouteError(
+        res,
+        routeUpstreamError(err, {
+          component: LOG_COMPONENT.maintainer,
+          operation: '/api/maintainer/refresh failed',
+          responseError: 'failed to refresh maintainer triage',
+          isTimeout: () => false,
+        }),
+      );
     }
   });
 
@@ -171,12 +171,15 @@ export function maintainerRouter({
       // presence machine-checkable.
       res.json({ ok: true, bead_id: beadId ?? undefined });
     } catch (err) {
-      writeRouteError(res, routeUpstreamError(err, {
-        component: LOG_COMPONENT.maintainer,
-        operation: '/api/maintainer/sling-record failed',
-        responseError: 'failed to record maintainer sling',
-        isTimeout: () => false,
-      }));
+      writeRouteError(
+        res,
+        routeUpstreamError(err, {
+          component: LOG_COMPONENT.maintainer,
+          operation: '/api/maintainer/sling-record failed',
+          responseError: 'failed to record maintainer sling',
+          isTimeout: () => false,
+        }),
+      );
     }
   });
 
@@ -196,11 +199,14 @@ export function maintainerRouter({
     try {
       cached = await readCache(cachePath);
     } catch (err) {
-      writeRouteError(res, routeInternalError(err, {
-        component: LOG_COMPONENT.maintainer,
-        operation: 'GET /api/maintainer/contributor/:login cache read failed',
-        responseError: 'maintainer contributor cache unavailable',
-      }));
+      writeRouteError(
+        res,
+        routeInternalError(err, {
+          component: LOG_COMPONENT.maintainer,
+          operation: 'GET /api/maintainer/contributor/:login cache read failed',
+          responseError: 'maintainer contributor cache unavailable',
+        }),
+      );
       return;
     }
     if (cached.status === 'missing') {

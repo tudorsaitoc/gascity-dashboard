@@ -7,14 +7,19 @@ import { healthRouter } from '../src/routes/health.js';
 function buildApp(): { app: express.Express } {
   const app = express();
   app.use(express.json());
-  app.use('/api/system', healthRouter({
-    doltProbe: async () => ({ kind: 'ok', version: '2.0.7' }),
-    beadsProbe: async () => ({ kind: 'error', reason: 'bd missing' }),
-  }));
+  app.use(
+    '/api/system',
+    healthRouter({
+      doltProbe: async () => ({ kind: 'ok', version: '2.0.7' }),
+      beadsProbe: async () => ({ kind: 'error', reason: 'bd missing' }),
+    }),
+  );
   return { app };
 }
 
-async function startApp(app: express.Express): Promise<{ url: string; close: () => Promise<void> }> {
+async function startApp(
+  app: express.Express,
+): Promise<{ url: string; close: () => Promise<void> }> {
   return new Promise((resolve) => {
     const srv = app.listen(0, '127.0.0.1', () => {
       const port = (srv.address() as AddressInfo).port;

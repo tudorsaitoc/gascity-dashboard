@@ -17,12 +17,7 @@ interface BeadLiveRunModalProps {
   beadTitle: string;
 }
 
-export function BeadLiveRunModal({
-  open,
-  onClose,
-  session,
-  beadTitle,
-}: BeadLiveRunModalProps) {
+export function BeadLiveRunModal({ open, onClose, session, beadTitle }: BeadLiveRunModalProps) {
   const streamable = isSessionStreamable(session);
   return (
     <Modal
@@ -38,12 +33,7 @@ export function BeadLiveRunModal({
       }
       widthClass="max-w-5xl"
     >
-      <LiveSessionPeek
-        sessionId={session?.id ?? null}
-        stream={streamable}
-        showBadge
-        showCaption
-      />
+      <LiveSessionPeek sessionId={session?.id ?? null} stream={streamable} showBadge showCaption />
     </Modal>
   );
 }

@@ -75,7 +75,8 @@ export function rigLabel(rig: string | null | undefined): string {
 export function agentKind(s: DashboardSession): AgentKind {
   const template = s.template ?? '';
   const isDispatcher =
-    template === CONTROL_DISPATCHER || template.endsWith(`/${CONTROL_DISPATCHER}`) ||
+    template === CONTROL_DISPATCHER ||
+    template.endsWith(`/${CONTROL_DISPATCHER}`) ||
     template.endsWith(`.${CONTROL_DISPATCHER}`);
   if (isDispatcher || rigLabel(s.rig) === ORCHESTRATION) return 'orch';
   if ((s.pool && s.pool.length > 0) || template === 'polecat' || template.endsWith('/polecat')) {

@@ -1,7 +1,4 @@
-import type {
-  MaintainerSlingRecordRequest,
-  MaintainerTriage,
-} from 'gas-city-dashboard-shared';
+import type { MaintainerSlingRecordRequest, MaintainerTriage } from 'gas-city-dashboard-shared';
 import { recordAudit } from '../../../audit.js';
 import { LOG_COMPONENT, errorMessage, logWarn } from '../../../logging.js';
 import { slungKey, writeSlungEntry } from './slung-state.js';

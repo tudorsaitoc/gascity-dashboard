@@ -1,11 +1,6 @@
 import { describe, test } from 'node:test';
 import assert from 'node:assert/strict';
-import {
-  AGENT_ALIAS_RE,
-  ExecError,
-  createExecRunner,
-  type ExecResult,
-} from '../src/exec-core.js';
+import { AGENT_ALIAS_RE, ExecError, createExecRunner, type ExecResult } from '../src/exec-core.js';
 
 describe('exec core primitives', () => {
   test('keeps subprocess errors and agent alias validation outside command wrappers', () => {

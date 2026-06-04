@@ -20,9 +20,7 @@ export function BeadDependencies({ node, onOpenBead }: BeadDependenciesProps) {
 
   return (
     <section>
-      <h3 className="text-label uppercase tracking-wider text-fg-faint mb-3">
-        Dependencies
-      </h3>
+      <h3 className="text-label uppercase tracking-wider text-fg-faint mb-3">Dependencies</h3>
       {!hasAny ? (
         <p className="text-body text-fg-muted italic">No dependencies.</p>
       ) : (
@@ -82,9 +80,7 @@ function DepLine({ relation, targetId, targetTitle, onOpenBead }: DepLineProps) 
   const label = (
     <>
       {relation && (
-        <span className="text-label uppercase tracking-wider text-fg-faint">
-          {relation}{' '}
-        </span>
+        <span className="text-label uppercase tracking-wider text-fg-faint">{relation} </span>
       )}
       <span className="tnum text-fg-muted">{targetId}</span>
       {targetTitle && <span className="text-fg"> · {targetTitle}</span>}
@@ -104,10 +100,7 @@ function DepLine({ relation, targetId, targetTitle, onOpenBead }: DepLineProps) 
         </button>
       ) : (
         <span title="Outside the fetched window">
-          {label}{' '}
-          <span className="text-warn text-label uppercase tracking-wider">
-            unresolved
-          </span>
+          {label} <span className="text-warn text-label uppercase tracking-wider">unresolved</span>
         </span>
       )}
     </li>

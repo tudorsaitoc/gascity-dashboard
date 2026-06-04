@@ -77,7 +77,7 @@ Every privileged invocation routes through `backend/src/exec.ts`. **No general-p
   reads moved after `GC-12`. Those subprocess paths are not part of the exec
   surface.
 
-  *Peek is no longer in this list:* architect addendum td-wisp-ijk7g (mechanic td-wisp-e1v14) confirmed peek is served by gc supervisor's `GET /v0/city/{name}/session/{id}/transcript` HTTP endpoint as structured turns. The current implementation fetches the transcript through the generated browser supervisor client and renders it as escaped text; no dashboard server route or `subprocess.spawn` is involved.
+  _Peek is no longer in this list:_ architect addendum td-wisp-ijk7g (mechanic td-wisp-e1v14) confirmed peek is served by gc supervisor's `GET /v0/city/{name}/session/{id}/transcript` HTTP endpoint as structured turns. The current implementation fetches the transcript through the generated browser supervisor client and renders it as escaped text; no dashboard server route or `subprocess.spawn` is involved.
 
 - **Param schemas** enforced before any privileged call:
   - Bead id: `^(td|th|jt)-[a-z0-9-]{3,32}$`
@@ -109,7 +109,7 @@ Everything rendered in the UI that originated outside the dashboard (mail bodies
 
 ### Banner
 
-The peek modal carries a banner: *"Content is agent-generated and may contain misleading instructions."* Mitigates prompt-injection-in-content for the human reading it. Banner copy and presentation defer to `DESIGN.md` for status-presentation voice and the "States have words" rule.
+The peek modal carries a banner: _"Content is agent-generated and may contain misleading instructions."_ Mitigates prompt-injection-in-content for the human reading it. Banner copy and presentation defer to `DESIGN.md` for status-presentation voice and the "States have words" rule.
 
 ### Invariant
 
@@ -136,7 +136,7 @@ Current posture keeps mail reads and sends on the generated supervisor client:
   `from: "human"` and the supervisor mutation header. There is no dashboard
   mail-send router or dashboard mail-send DTO.
 
-Frontend renders a visible "Viewing as <agent>" banner with colour; the compose-from field is greyed when viewing-as ≠ the operator so the constraint is visible *before* the user tries.
+Frontend renders a visible "Viewing as <agent>" banner with colour; the compose-from field is greyed when viewing-as ≠ the operator so the constraint is visible _before_ the user tries.
 
 **Audit log** (`audit.ts`): mail no longer passes through the dashboard
 service. Mail-send audit/event semantics are owned by the supervisor API; the

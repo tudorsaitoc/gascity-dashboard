@@ -1,9 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {
-  decodeMaintainerSlingRecord,
-  prepareMaintainerSlingRequest,
-} from './maintainer-sling.js';
+import { decodeMaintainerSlingRecord, prepareMaintainerSlingRequest } from './maintainer-sling.js';
 
 const defaults = {
   slingTarget: 'mayor',

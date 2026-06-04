@@ -64,7 +64,5 @@ export async function replySupervisorMail(
 }
 
 function mailActionQuery(message: MailActionTarget): { rig: string } | undefined {
-  return message.rig === undefined || message.rig.length === 0
-    ? undefined
-    : { rig: message.rig };
+  return message.rig === undefined || message.rig.length === 0 ? undefined : { rig: message.rig };
 }

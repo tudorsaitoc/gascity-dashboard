@@ -1,9 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import {
-  readBrowserStorage,
-  removeBrowserStorage,
-  writeBrowserStorage,
-} from './browserStorage';
+import { readBrowserStorage, removeBrowserStorage, writeBrowserStorage } from './browserStorage';
 
 class ThrowingStorage implements Storage {
   get length(): number {
@@ -101,7 +97,12 @@ describe('browser storage wrapper', () => {
     vi.stubGlobal('fetch', fetchSpy);
 
     expect(
-      writeBrowserStorage('sessionStorage', 'gascity.dashboard.viewingAs', 'mayor', 'ViewingAsContext'),
+      writeBrowserStorage(
+        'sessionStorage',
+        'gascity.dashboard.viewingAs',
+        'mayor',
+        'ViewingAsContext',
+      ),
     ).toEqual({ status: 'unavailable', error: 'storage blocked' });
     expect(
       removeBrowserStorage('sessionStorage', 'gascity.dashboard.viewingAs', 'ViewingAsContext'),

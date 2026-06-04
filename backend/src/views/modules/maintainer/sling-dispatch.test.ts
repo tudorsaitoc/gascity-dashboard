@@ -41,7 +41,9 @@ async function readAudit(pathToAudit: string): Promise<Record<string, unknown>[]
     .map((line) => JSON.parse(line) as Record<string, unknown>);
 }
 
-function record(overrides: Partial<MaintainerSlingRecordRequest> = {}): MaintainerSlingRecordRequest {
+function record(
+  overrides: Partial<MaintainerSlingRecordRequest> = {},
+): MaintainerSlingRecordRequest {
   return {
     kind: 'pr',
     number: 47,

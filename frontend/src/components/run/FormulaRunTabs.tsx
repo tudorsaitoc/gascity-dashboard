@@ -15,7 +15,11 @@ export function FormulaRunTabs({ diff, selectedNode }: FormulaRunTabsProps) {
 
   return (
     <section aria-label="Run evidence">
-      <div className="flex items-baseline gap-2 text-label" role="tablist" aria-label="Run evidence views">
+      <div
+        className="flex items-baseline gap-2 text-label"
+        role="tablist"
+        aria-label="Run evidence views"
+      >
         <TabButton
           id="run-evidence-tab-diff"
           controls="run-evidence-panel"
@@ -36,12 +40,7 @@ export function FormulaRunTabs({ diff, selectedNode }: FormulaRunTabsProps) {
           Session
         </TabButton>
       </div>
-      <div
-        id="run-evidence-panel"
-        role="tabpanel"
-        aria-labelledby={activeTabId}
-        className="pt-5"
-      >
+      <div id="run-evidence-panel" role="tabpanel" aria-labelledby={activeTabId} className="pt-5">
         <RunNodeEvidencePanel tab={tab} diff={diff} selectedNode={selectedNode} />
       </div>
     </section>

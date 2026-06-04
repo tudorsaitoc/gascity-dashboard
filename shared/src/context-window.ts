@@ -27,8 +27,7 @@ export function effectiveContextPct(
   if (typeof pct !== 'number' || !Number.isFinite(pct)) return undefined;
 
   const gcWindow = session.context_window;
-  const trueWindow =
-    session.model !== undefined ? TRUE_CONTEXT_WINDOWS[session.model] : undefined;
+  const trueWindow = session.model !== undefined ? TRUE_CONTEXT_WINDOWS[session.model] : undefined;
 
   if (
     typeof gcWindow !== 'number' ||

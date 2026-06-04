@@ -1,7 +1,4 @@
-import type {
-  FormulaDetail,
-  RunSnapshotBead,
-} from '../run-snapshot.js';
+import type { FormulaDetail, RunSnapshotBead } from '../run-snapshot.js';
 import { externalizeId, meta, nonEmpty, normalizedStepRef } from './bead-fields.js';
 import type { RunNodeGroup } from './execution-instances.js';
 
@@ -17,15 +14,16 @@ export function orderRunNodeGroups(
     .map((group, index) => ({
       group,
       index,
-      rank: group.semanticNodeId === rootBeadId ? -1 : rankForGroup(group, rankByAlias, formulaDetail?.name),
+      rank:
+        group.semanticNodeId === rootBeadId
+          ? -1
+          : rankForGroup(group, rankByAlias, formulaDetail?.name),
     }))
     .sort((left, right) => left.rank - right.rank || left.index - right.index)
     .map((entry) => entry.group);
 }
 
-function formulaRankByAlias(
-  formulaDetail: FormulaDetail | undefined,
-): Map<string, number> {
+function formulaRankByAlias(formulaDetail: FormulaDetail | undefined): Map<string, number> {
   const steps = formulaDetail?.preview?.nodes ?? formulaDetail?.steps ?? [];
   const ranks = new Map<string, number>();
   steps.forEach((step, index) => {
@@ -49,20 +47,14 @@ function rankForGroup(
   return rank;
 }
 
-function groupAliases(
-  group: RunNodeGroup,
-  formulaName: string | undefined,
-): string[] {
+function groupAliases(group: RunNodeGroup, formulaName: string | undefined): string[] {
   return [
     group.semanticNodeId,
     ...group.beads.flatMap((bead) => beadAliases(bead, formulaName)),
   ].flatMap((alias) => aliasVariants(alias));
 }
 
-function beadAliases(
-  bead: RunSnapshotBead,
-  formulaName: string | undefined,
-): string[] {
+function beadAliases(bead: RunSnapshotBead, formulaName: string | undefined): string[] {
   return [
     nonEmpty(bead.id),
     meta(bead, 'gc.logical_bead_id') ?? nonEmpty(bead.logical_bead_id),
@@ -73,32 +65,22 @@ function beadAliases(
     .flatMap((value) => aliasVariants(value, formulaName));
 }
 
-function formulaStepAliases(
-  id: string,
-  formulaName: string | undefined,
-): string[] {
+function formulaStepAliases(id: string, formulaName: string | undefined): string[] {
   return aliasVariants(id, formulaName);
 }
 
-function aliasVariants(
-  value: string,
-  formulaName?: string,
-): string[] {
+function aliasVariants(value: string, formulaName?: string): string[] {
   const clean = nonEmpty(value);
   if (!clean) return [];
   const stripped = stripFormulaPrefix(clean, formulaName);
-  return unique([
-    clean,
-    stripped,
-    stripControlSuffix(clean),
-    stripControlSuffix(stripped),
-  ].map((candidate) => externalizeId(candidate)));
+  return unique(
+    [clean, stripped, stripControlSuffix(clean), stripControlSuffix(stripped)].map((candidate) =>
+      externalizeId(candidate),
+    ),
+  );
 }
 
-function stripFormulaPrefix(
-  value: string,
-  formulaName: string | undefined,
-): string {
+function stripFormulaPrefix(value: string, formulaName: string | undefined): string {
   if (!formulaName) return value;
   const prefix = `${formulaName}.`;
   return value.startsWith(prefix) ? value.slice(prefix.length) : value;

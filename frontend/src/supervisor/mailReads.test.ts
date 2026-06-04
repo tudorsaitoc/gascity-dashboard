@@ -72,9 +72,7 @@ describe('supervisor mail reads', () => {
 
   it('passes an explicit supervisor mail history depth through the generated query', async () => {
     const listMail = vi.fn(async () => ({
-      items: [
-        mail({ id: 'a', from: 'mayor', to: 'human', subject: 'operator inbox' }),
-      ],
+      items: [mail({ id: 'a', from: 'mayor', to: 'human', subject: 'operator inbox' })],
       total: 1,
     }));
     setSupervisorApiForTests({ ...baseApi, listMail });

@@ -7,11 +7,7 @@ import type {
   ListBodySessionResponse,
   MonitorFeedItemResponse,
 } from '../generated/gc-supervisor-client/types.gen';
-import {
-  resetSupervisorApiForTests,
-  setSupervisorApiForTests,
-  type SupervisorApi,
-} from './client';
+import { resetSupervisorApiForTests, setSupervisorApiForTests, type SupervisorApi } from './client';
 import {
   loadSupervisorRunSummaryPreviewSource,
   loadSupervisorRunSummarySource,

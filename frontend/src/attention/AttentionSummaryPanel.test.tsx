@@ -36,9 +36,13 @@ describe('AttentionSummaryPanel', () => {
     );
 
     expect(screen.getByRole('heading', { name: 'Attention' })).toBeTruthy();
-    expect(screen.getByRole('link', { name: 'Run blocked' }).getAttribute('href')).toBe('/city/test-city/runs');
+    expect(screen.getByRole('link', { name: 'Run blocked' }).getAttribute('href')).toBe(
+      '/city/test-city/runs',
+    );
     expect(screen.getByText('Run stale')).toBeTruthy();
-    expect(screen.getByRole('link', { name: '2 more in Mail' }).getAttribute('href')).toBe('/city/test-city/mail');
+    expect(screen.getByRole('link', { name: '2 more in Mail' }).getAttribute('href')).toBe(
+      '/city/test-city/mail',
+    );
     expect(screen.queryByText('Mayor unread')).toBeNull();
   });
 

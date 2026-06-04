@@ -110,12 +110,7 @@ export interface CityContext<TGc = unknown, TConfig = unknown> {
  *  iterator never sees them) and over TRouter (kept opaque so `shared/`
  *  need not depend on `express`). Backend re-types as
  *  `BackendModule<Deps, express.Router>`. */
-export interface BackendModule<
-  Deps = void,
-  TRouter = unknown,
-  TGc = unknown,
-  TConfig = unknown,
-> {
+export interface BackendModule<Deps = void, TRouter = unknown, TGc = unknown, TConfig = unknown> {
   /** Matches ViewDescriptor.id. */
   id: string;
   /** `core` modules cannot be omitted via MODULES_ENABLED. `firstParty`

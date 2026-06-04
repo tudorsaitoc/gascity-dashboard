@@ -16,6 +16,7 @@
 This PRD has been through 3 refinement passes. Resolutions:
 
 **Convergence (/converge — 6 design tensions):**
+
 - Phase 2 trigger is outcome-based (a documented contract limitation), not module-count.
 - `MODULES_ENABLED=csv` for enable/disable; `MAINTAINER_*` stays for module-internal config.
 - Frontend registry + `/api/config.enabledModules` hierarchically (fail-soft on mismatch).
@@ -26,6 +27,7 @@ This PRD has been through 3 refinement passes. Resolutions:
   resources, not a target module dependency.
 
 **Premortem (/premortem — 6 failure lenses → 6 PRD changes):**
+
 - **`needs` is REQUIRED (not optional)** + iterator uses existential `bind<D>()` wrapper, **no `as never`** anywhere. Boot-time validation enforces.
 - **Pre-PR-B Maintainer coupling audit** (new doc `specs/architecture/maintainer-coupling-audit.md`) required before PR-B opens; PR-B splits into PR-B1 (relocate + adapt) + PR-B2 (registry wire).
 - **`specs/architecture/module-author-checklist.md`** + ESLint overrides on `**/views/modules/**` + new CI grep gates promote module conventions from culture-carried to machine-enforced.
@@ -70,64 +72,64 @@ The dashboard ships three contradictions:
 ### `ViewDescriptor` — `shared/src/views.ts`
 
 ```ts
-import type { ComponentType, LazyExoticComponent } from 'react'
+import type { ComponentType, LazyExoticComponent } from 'react';
 
 export interface ViewDescriptor {
   /** Stable id; matches MODULES_ENABLED entries; lowercase, hyphen-allowed. */
-  id: string
+  id: string;
   /** core = always mounted, cannot appear in MODULES_ENABLED filter.
    *  firstParty = optional, in-tree, ships with core. */
-  kind: 'core' | 'firstParty'
+  kind: 'core' | 'firstParty';
   /** React Router path. Unique. '/' allowed iff defaultRoute resolves here. */
-  path: string
+  path: string;
   /** Nav entry. null = routable but hidden from Header. */
-  nav: { label: string; order: number } | null
+  nav: { label: string; order: number } | null;
   /** Lazy-loaded route element. React.lazy keeps each module's chunk out
    *  of the default-install bundle. */
-  element: LazyExoticComponent<ComponentType>
+  element: LazyExoticComponent<ComponentType>;
   /** Module's declared candidacy for `/`. Operator may override via
    *  DEFAULT_VIEW env. Registry validates exactly-one resolution. When
    *  the composer-shape lands (future bead, deferred from dw8),
    *  `defaultRoute: true` becomes sugar for
    *  `homeContribution: { weight: Infinity, concernsFn: () => [...] }`
    *  — the shapes are compatible by construction. */
-  defaultRoute?: boolean
+  defaultRoute?: boolean;
 }
 ```
 
 ### `BackendModule` + `CityContext` — `shared/src/views.ts`
 
 ```ts
-import type { Router } from 'express'
-import type { GcClient } from '<backend type-export>' // type-only re-export per shared/ rules
-import type { AdminConfig } from '<backend type-export>'
-import type { DashboardRuntimeConfig } from './index.js'
+import type { Router } from 'express';
+import type { GcClient } from '<backend type-export>'; // type-only re-export per shared/ rules
+import type { AdminConfig } from '<backend type-export>';
+import type { DashboardRuntimeConfig } from './index.js';
 
 /** Background worker contract — bound by the host runtime. Cleaned up to
  *  match the actual MaintainerRefresher shape rather than the old
  *  DashboardRuntime mismatch (premortem #2). */
 export interface BackgroundWorker {
-  start(): void
-  stop(): Promise<void>
+  start(): void;
+  stop(): Promise<void>;
 }
 
 /** The city-scoping seam. Phase 1: one. Phase 2 (ucc): Map<cityName,
  *  CityContext>, with the same per-module mount signature. */
 export interface CityContext {
-  cityName: string
-  cityPath: string
+  cityName: string;
+  cityPath: string;
   /** Per-city data directory. Modules MUST derive paths from this, not
    *  from config-dirname operations. Closes the leak surface premortem
    *  #5 found (per-city MaintainerRefresher writing the same global path). */
-  cityDataDir: string
+  cityDataDir: string;
   /**
    * Transitional raw GcClient for backend modules that have not yet moved to
    * the direct browser supervisor client. Do not add new GC-owned module data
    * dependencies here; add supervisor OpenAPI and frontend generated-client
    * calls instead.
    */
-  gc: GcClient
-  config: DashboardRuntimeConfig
+  gc: GcClient;
+  config: DashboardRuntimeConfig;
 }
 
 /** Resource lifetime posture declared at descriptor time so Phase 2
@@ -137,27 +139,27 @@ export interface ModuleResources {
   /** Filesystem paths the module writes to. 'perCity' = one path per
    *  CityContext (derived from ctx.cityDataDir); 'perProcess' = one
    *  path shared across all cities (rare; e.g. a global audit log). */
-  filesystem?: ReadonlyArray<{ name: string; scope: 'perProcess' | 'perCity' }>
+  filesystem?: ReadonlyArray<{ name: string; scope: 'perProcess' | 'perCity' }>;
   /** Network sockets / connection pools the module holds. */
-  network?: ReadonlyArray<{ name: string; scope: 'perProcess' | 'perCity' }>
+  network?: ReadonlyArray<{ name: string; scope: 'perProcess' | 'perCity' }>;
   /** In-memory caches / SSE client registries. */
-  memory?: ReadonlyArray<{ name: string; scope: 'perProcess' | 'perCity' }>
+  memory?: ReadonlyArray<{ name: string; scope: 'perProcess' | 'perCity' }>;
 }
 
 export interface BackendModule<Deps = void> {
   /** Matches ViewDescriptor.id. */
-  id: string
+  id: string;
   /** Resource lifetime posture. Required (premortem #5). */
-  resources: ModuleResources
+  resources: ModuleResources;
   /** Owns its config slice. REQUIRED (not optional) per premortem #3 —
    *  the optional `?` + `as never` cast erased the Deps contract. Modules
    *  with Deps = void return undefined explicitly: `needs: () => undefined`. */
-  needs: (config: AdminConfig) => Deps
+  needs: (config: AdminConfig) => Deps;
   /** Mounts under /api/<id>. Auto-wrapped by csrfValidate at writeRouter
    *  level. Read-only modules just don't register POST/PUT/DELETE handlers. */
-  mount: (ctx: CityContext, deps: Deps) => Router
+  mount: (ctx: CityContext, deps: Deps) => Router;
   /** Optional background worker. start()/stop() called by host runtime. */
-  workers?: (ctx: CityContext, deps: Deps) => BackgroundWorker | undefined
+  workers?: (ctx: CityContext, deps: Deps) => BackgroundWorker | undefined;
 }
 ```
 
@@ -165,19 +167,19 @@ export interface BackendModule<Deps = void> {
 
 ```ts
 // backend/src/views/modules/maintainer.module.ts
-import path from 'node:path'
-import { maintainerRouter } from '../../routes/maintainer.js'
-import { createMaintainerRefresher } from '../../maintainer/worker.js'
-import { raceWithTimeout } from '../../lib/race-with-timeout.js'
-import type { BackendModule } from 'gas-city-dashboard-shared'
+import path from 'node:path';
+import { maintainerRouter } from '../../routes/maintainer.js';
+import { createMaintainerRefresher } from '../../maintainer/worker.js';
+import { raceWithTimeout } from '../../lib/race-with-timeout.js';
+import type { BackendModule } from 'gas-city-dashboard-shared';
 
 interface MaintainerDeps {
-  repo: string
-  cachePath: string
-  slungStatePath: string
-  slingTarget: string
-  triageTarget: string
-  refreshIntervalMs: number
+  repo: string;
+  cachePath: string;
+  slungStatePath: string;
+  slingTarget: string;
+  triageTarget: string;
+  refreshIntervalMs: number;
 }
 
 export const maintainerBackend: BackendModule<MaintainerDeps> = {
@@ -187,9 +189,7 @@ export const maintainerBackend: BackendModule<MaintainerDeps> = {
       { name: 'cache', scope: 'perCity' },
       { name: 'slung-state', scope: 'perCity' },
     ],
-    memory: [
-      { name: 'sse-clients', scope: 'perCity' },
-    ],
+    memory: [{ name: 'sse-clients', scope: 'perCity' }],
   },
   needs: (config) => ({
     repo: config.maintainerRepo,
@@ -217,14 +217,14 @@ export const maintainerBackend: BackendModule<MaintainerDeps> = {
           intervalMs: deps.refreshIntervalMs,
         })
       : undefined,
-}
+};
 ```
 
 ### Frontend module — `frontend/src/views/modules/maintainer.module.tsx`
 
 ```tsx
-import { lazy } from 'react'
-import type { ViewDescriptor } from 'gas-city-dashboard-shared'
+import { lazy } from 'react';
+import type { ViewDescriptor } from 'gas-city-dashboard-shared';
 
 export const maintainerView: ViewDescriptor = {
   id: 'maintainer',
@@ -234,7 +234,7 @@ export const maintainerView: ViewDescriptor = {
   element: lazy(() =>
     import('../../routes/Maintainer').then((m) => ({ default: m.MaintainerPage })),
   ),
-}
+};
 ```
 
 ### CI invariants
@@ -250,39 +250,39 @@ export const maintainerView: ViewDescriptor = {
 Iterator uses an existential `bind<D>()` wrapper that closes over `D` per-module and returns a uniform `MountedModule` for app.ts to iterate:
 
 ```ts
-import { ALL_MODULES } from './views/registry.js'
+import { ALL_MODULES } from './views/registry.js';
 
 interface MountedModule {
-  id: string
-  mount: (ctx: CityContext) => Router
-  worker?: (ctx: CityContext) => BackgroundWorker | undefined
+  id: string;
+  mount: (ctx: CityContext) => Router;
+  worker?: (ctx: CityContext) => BackgroundWorker | undefined;
 }
 
 function bind<D>(mod: BackendModule<D>, config: AdminConfig): MountedModule {
-  const deps = mod.needs(config) // REQUIRED — not optional. Modules with Deps=void return undefined.
+  const deps = mod.needs(config); // REQUIRED — not optional. Modules with Deps=void return undefined.
   return {
     id: mod.id,
     mount: (ctx) => mod.mount(ctx, deps),
     worker: mod.workers ? (ctx) => mod.workers!(ctx, deps) : undefined,
-  }
+  };
 }
 
-const enabled = new Set(config.enabledModules)
+const enabled = new Set(config.enabledModules);
 const ctx: CityContext = {
   cityName: config.cityName,
   cityPath: config.cityPath,
   cityDataDir: path.join(config.dashboardDataDir, 'cities', config.cityName),
   gc,
   config: dashboardConfig,
-}
-const workers: BackgroundWorker[] = []
+};
+const workers: BackgroundWorker[] = [];
 
 for (const mod of ALL_MODULES) {
-  if (mod.kind !== 'core' && !enabled.has(mod.id)) continue
-  const bound = bind(mod, config)
-  writeRouter.use(`/${bound.id}`, bound.mount(ctx))
-  const w = bound.worker?.(ctx)
-  if (w) workers.push(w)
+  if (mod.kind !== 'core' && !enabled.has(mod.id)) continue;
+  const bound = bind(mod, config);
+  writeRouter.use(`/${bound.id}`, bound.mount(ctx));
+  const w = bound.worker?.(ctx);
+  if (w) workers.push(w);
 }
 ```
 
@@ -313,12 +313,11 @@ Two-layer SSOT: frontend registry = "what views exist in bundle"; `/api/config.e
 
 ```tsx
 export function App() {
-  const { data: config } = useCachedData('config', () => api.config())
-  const enabledIds = new Set(config?.enabledModules ?? [])
-  const views = ALL_VIEWS.filter((v) => v.kind === 'core' || enabledIds.has(v.id))
-  const defaultId = config?.defaultViewResolution?.winner
-  const defaultView = views.find((v) => v.id === defaultId)
-    ?? views.find((v) => v.defaultRoute)
+  const { data: config } = useCachedData('config', () => api.config());
+  const enabledIds = new Set(config?.enabledModules ?? []);
+  const views = ALL_VIEWS.filter((v) => v.kind === 'core' || enabledIds.has(v.id));
+  const defaultId = config?.defaultViewResolution?.winner;
+  const defaultView = views.find((v) => v.id === defaultId) ?? views.find((v) => v.defaultRoute);
 
   return (
     <ViewingAsProvider>
@@ -336,17 +335,16 @@ export function App() {
         </Layout>
       </NowProvider>
     </ViewingAsProvider>
-  )
+  );
 }
 ```
 
 `Header.tsx`:
 
 ```ts
-const ROUTES = ALL_VIEWS
-  .filter((v) => (v.kind === 'core' || enabledIds.has(v.id)) && v.nav)
+const ROUTES = ALL_VIEWS.filter((v) => (v.kind === 'core' || enabledIds.has(v.id)) && v.nav)
   .sort((a, b) => a.nav!.order - b.nav!.order)
-  .map((v) => ({ to: v.path, label: v.nav!.label, end: v.path === '/' }))
+  .map((v) => ({ to: v.path, label: v.nav!.label, end: v.path === '/' }));
 ```
 
 ### Bundle-size gate
@@ -357,14 +355,14 @@ Default-install bundle (Maintainer omitted) is smaller than pre-migration by at 
 
 **Phase 1: all `kind: 'firstParty'` or `kind: 'core'`.** Cleavage justified on capability:
 
-| Capability | core + firstParty | thirdParty (Phase 3 sketch) |
-|---|---|---|
-| Raw `GcClient` | ✓ | scoped wrapper |
-| Raw `cityPath` filesystem | ✓ | denied |
-| `exec.ts` privileged helpers | ✓ | denied |
-| `cityDataDir` writes | ✓ | ✓ |
-| Audit log emit | ✓ | ✓ |
-| SSE channel registration | ✓ (namespaced) | ✓ (namespaced) |
+| Capability                   | core + firstParty | thirdParty (Phase 3 sketch) |
+| ---------------------------- | ----------------- | --------------------------- |
+| Raw `GcClient`               | ✓                 | scoped wrapper              |
+| Raw `cityPath` filesystem    | ✓                 | denied                      |
+| `exec.ts` privileged helpers | ✓                 | denied                      |
+| `cityDataDir` writes         | ✓                 | ✓                           |
+| Audit log emit               | ✓                 | ✓                           |
+| SSE channel registration     | ✓ (namespaced)    | ✓ (namespaced)              |
 
 ### Stays core
 
@@ -418,6 +416,7 @@ Each module declares `resources` posture so Phase 2 verifies lifetime statically
 ### Pre-PR-A: Maintainer coupling audit (`specs/architecture/maintainer-coupling-audit.md`)
 
 **Required before PR-A merges.** Written inventory of every cross-boundary touch Maintainer makes today:
+
 - SSE client registry held as module-singleton state in `maintainer/sse.ts`.
 - `slungStatePath` duplicated in `app.ts:109` and `routes/maintainer.ts:480`.
 - Maintainer's session-list injection uses the shared `raceWithTimeout` helper from `backend/src/lib/race-with-timeout.ts`.
@@ -433,13 +432,13 @@ Each entry gets a disposition: kept inside module / promoted to `CityContext` / 
 
 ### PR sequence
 
-| PR | Diff shape | Risk |
-|---|---|---|
-| **PR-A** — Audit doc + scheduled bead + types in `shared/` + registry skeleton + `/health` port. | Adds `shared/src/views.ts`, `views/registry.ts`, `views/modules/health.module.ts`, audit doc, scheduled bead. Modifies App.tsx/Header.tsx/app.ts to read `healthView` from registry. **Adapts `MaintainerRefresher` to `BackgroundWorker` shape** so PR-B has a typed target. | LOW. |
-| **PR-B1** — Relocate Maintainer files + adapt to contract (NO registry wire yet). | Moves files; updates imports to satisfy contract; snap harness + Maintainer integration tests pass against the new file layout while app.ts still explicitly mounts maintainer. **Snap harness extended with SSE-roundtrip for `/maintainer/events`** to catch singleton-split. | MEDIUM. The risky half. |
-| **PR-B2** — Wire Maintainer through registry; delete explicit app.ts mounts. | Mechanical iterator wiring. | LOW once B1 lands. |
-| **PR-C** — `MODULES_ENABLED` env + `/api/config.enabledModules` + `DEFAULT_VIEW` env + ESLint module overrides + `specs/architecture/module-author-checklist.md`. | Additive. Default = all modules mount. | LOW. |
-| **PR-D** — Flip default to exclude maintainer. CHANGELOG migration note. Bundle-size gate verifies. | 1-line config + docs. | LOW. The user-visible default-install change. |
+| PR                                                                                                                                                                | Diff shape                                                                                                                                                                                                                                                                      | Risk                                          |
+| ----------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------- |
+| **PR-A** — Audit doc + scheduled bead + types in `shared/` + registry skeleton + `/health` port.                                                                  | Adds `shared/src/views.ts`, `views/registry.ts`, `views/modules/health.module.ts`, audit doc, scheduled bead. Modifies App.tsx/Header.tsx/app.ts to read `healthView` from registry. **Adapts `MaintainerRefresher` to `BackgroundWorker` shape** so PR-B has a typed target.   | LOW.                                          |
+| **PR-B1** — Relocate Maintainer files + adapt to contract (NO registry wire yet).                                                                                 | Moves files; updates imports to satisfy contract; snap harness + Maintainer integration tests pass against the new file layout while app.ts still explicitly mounts maintainer. **Snap harness extended with SSE-roundtrip for `/maintainer/events`** to catch singleton-split. | MEDIUM. The risky half.                       |
+| **PR-B2** — Wire Maintainer through registry; delete explicit app.ts mounts.                                                                                      | Mechanical iterator wiring.                                                                                                                                                                                                                                                     | LOW once B1 lands.                            |
+| **PR-C** — `MODULES_ENABLED` env + `/api/config.enabledModules` + `DEFAULT_VIEW` env + ESLint module overrides + `specs/architecture/module-author-checklist.md`. | Additive. Default = all modules mount.                                                                                                                                                                                                                                          | LOW.                                          |
+| **PR-D** — Flip default to exclude maintainer. CHANGELOG migration note. Bundle-size gate verifies.                                                               | 1-line config + docs.                                                                                                                                                                                                                                                           | LOW. The user-visible default-install change. |
 
 ### CI gates added
 
@@ -468,14 +467,14 @@ Each entry gets a disposition: kept inside module / promoted to `CityContext` / 
 
 ## Risk registry (from /premortem — full narratives in `premortem_modular-dashboard.md`)
 
-| # | Lens | Severity | Likelihood | Score | Mitigation in this PRD |
-|---|---|---|---|---|---|
-| 1 | PR-B Maintainer decoupling explodes | High | High | 9 | §7: pre-PR-A coupling audit; PR-B split; SSE-roundtrip in snap harness |
-| 2 | Module convention drift | High | High | 9 | §1: ESLint overrides + grep gates; §2: DEFAULT_VIEW warn+echo; §7: MODULE-AUTHOR-CHECKLIST |
-| 3 | Type-erasure `as never` crash | High | High | 9 | §1: `needs` required; §2: existential `bind<D>()` wrapper; §7: grep gate banning `as never` |
-| 4 | Audience hypothesis expires | Medium | High | 6 | §7: scheduled `bd ready` bead + CI break on date pass |
-| 5 | CityContext multi-city memory leak | High | Medium | 6 | §1: `resources` discriminator + `cityDataDir`; §5: two-CityContext smoke test |
-| 6 | Extensibility foreclosure | High | Medium | 6 | §1: descriptor types in `shared/` from Phase 1; §6: composer sugar compatibility; G6: softened Phase 3 trigger |
+| #   | Lens                                | Severity | Likelihood | Score | Mitigation in this PRD                                                                                         |
+| --- | ----------------------------------- | -------- | ---------- | ----- | -------------------------------------------------------------------------------------------------------------- |
+| 1   | PR-B Maintainer decoupling explodes | High     | High       | 9     | §7: pre-PR-A coupling audit; PR-B split; SSE-roundtrip in snap harness                                         |
+| 2   | Module convention drift             | High     | High       | 9     | §1: ESLint overrides + grep gates; §2: DEFAULT_VIEW warn+echo; §7: MODULE-AUTHOR-CHECKLIST                     |
+| 3   | Type-erasure `as never` crash       | High     | High       | 9     | §1: `needs` required; §2: existential `bind<D>()` wrapper; §7: grep gate banning `as never`                    |
+| 4   | Audience hypothesis expires         | Medium   | High       | 6     | §7: scheduled `bd ready` bead + CI break on date pass                                                          |
+| 5   | CityContext multi-city memory leak  | High     | Medium     | 6     | §1: `resources` discriminator + `cityDataDir`; §5: two-CityContext smoke test                                  |
+| 6   | Extensibility foreclosure           | High     | Medium     | 6     | §1: descriptor types in `shared/` from Phase 1; §6: composer sugar compatibility; G6: softened Phase 3 trigger |
 
 ## Open questions
 

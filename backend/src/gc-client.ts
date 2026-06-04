@@ -8,6 +8,7 @@ import {
   getV0Cities,
   getV0CityByCityNameStatus,
 } from './generated/gc-supervisor-client/sdk.gen.js';
+import { REQUEST_ID_HEADER, currentRequestId, recordCounter, recordTimer } from './logging.js';
 
 const DEFAULT_TIMEOUT_MS = (() => {
   const raw = process.env.GC_CLIENT_TIMEOUT_MS;
@@ -72,25 +73,27 @@ export class GcClient {
     return this.getOperation(
       this.operationKey('getV0CityByCityNameStatus'),
       'getStatus',
-      (upstreamSignal) => getV0CityByCityNameStatus({
-        client: this.supervisor,
-        path: this.cityPathParams(),
-        signal: upstreamSignal,
-      }),
+      (upstreamSignal) =>
+        getV0CityByCityNameStatus({
+          client: this.supervisor,
+          path: this.cityPathParams(),
+          signal: upstreamSignal,
+          ...supervisorRequestHeaders(),
+        }),
       signal,
     );
   }
 
-  async listSupervisorCities(
-    signal?: AbortSignal,
-  ): Promise<readonly SupervisorCity[]> {
+  async listSupervisorCities(signal?: AbortSignal): Promise<readonly SupervisorCity[]> {
     const body = await this.getOperation(
       this.operationKey('getV0Cities'),
       'listSupervisorCities',
-      (upstreamSignal) => getV0Cities({
-        client: this.supervisor,
-        signal: upstreamSignal,
-      }),
+      (upstreamSignal) =>
+        getV0Cities({
+          client: this.supervisor,
+          signal: upstreamSignal,
+          ...supervisorRequestHeaders(),
+        }),
       signal,
     );
     return (body.items ?? []).map((city) => ({
@@ -103,9 +106,7 @@ export class GcClient {
   private async getOperation<RawValue>(
     key: string,
     payloadName: string,
-    fetcher: (
-      signal: AbortSignal,
-    ) => Promise<SupervisorFetchResult<RawValue>>,
+    fetcher: (signal: AbortSignal) => Promise<SupervisorFetchResult<RawValue>>,
     signal?: AbortSignal,
   ): Promise<RawValue> {
     if (signal?.aborted) {
@@ -130,8 +131,10 @@ export class GcClient {
     payloadName: string,
     fetcher: (signal: AbortSignal) => Promise<SupervisorFetchResult<RawValue>>,
   ): Promise<RawValue> {
+    const startedAt = Date.now();
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(timeoutError()), this.defaultTimeoutMs);
+    recordCounter('supervisor.request', { operation: payloadName });
     try {
       const result = await fetcher(controller.signal).catch((err: unknown) => {
         throw errorFromGeneratedClient(err, payloadName);
@@ -142,23 +145,36 @@ export class GcClient {
       if (result.error !== undefined) {
         throw errorFromGeneratedClient(result.error, payloadName);
       }
-      if (result.response !== undefined && result.data !== undefined &&
-        isGeneratedEmptyJsonBody(result.response, result.data)) {
+      if (
+        result.response !== undefined &&
+        result.data !== undefined &&
+        isGeneratedEmptyJsonBody(result.response, result.data)
+      ) {
         throw new Error('gc supervisor returned an empty response body');
       }
       if (result.data === undefined) {
         throw new Error('gc supervisor returned an empty response body');
       }
+      recordCounter('supervisor.request.ok', {
+        operation: payloadName,
+        http_status: result.response?.status,
+      });
       return result.data;
+    } catch (err) {
+      recordCounter('supervisor.request.error', {
+        operation: payloadName,
+        error: errorMetricName(err),
+      });
+      throw err;
     } finally {
       clearTimeout(timeout);
+      recordTimer('supervisor.request.latency', Date.now() - startedAt, {
+        operation: payloadName,
+      });
     }
   }
 
-  private async withCallerAbort<T>(
-    promise: Promise<T>,
-    signal?: AbortSignal,
-  ): Promise<T> {
+  private async withCallerAbort<T>(promise: Promise<T>, signal?: AbortSignal): Promise<T> {
     if (signal === undefined) {
       return await promise;
     }
@@ -195,6 +211,16 @@ export class GcClient {
 
 function sanitizedSupervisorStatusError(status: number): Error {
   return new Error(`gc supervisor returned ${status}`);
+}
+
+function supervisorRequestHeaders(): { headers: Record<string, string> } | object {
+  const requestId = currentRequestId();
+  return requestId === undefined ? {} : { headers: { [REQUEST_ID_HEADER]: requestId } };
+}
+
+function errorMetricName(error: unknown): string {
+  if (error instanceof Error && error.name.length > 0) return error.name;
+  return 'unknown';
 }
 
 function errorFromGeneratedClient(error: unknown, payloadName: string): Error {
@@ -249,17 +275,17 @@ function invalidSupervisorPayload(payload: string, error: ZodErrorLike): Error {
   const issue = error.issues[0];
   const path = issue ? zodPath(issue.path) : 'payload';
   const expected = issue ? zodExpected(issue) : 'valid';
-  return new Error(
-    `invalid gc supervisor ${payload} payload: ${path} must be ${expected}`,
-  );
+  return new Error(`invalid gc supervisor ${payload} payload: ${path} must be ${expected}`);
 }
 
 function zodPath(path: ReadonlyArray<PropertyKey>): string {
   if (path.length === 0) return 'payload';
-  return `payload${path.map((part) => {
-    if (typeof part === 'number') return `[${part}]`;
-    return `.${String(part).replace(/[\r\n]/g, '_')}`;
-  }).join('')}`;
+  return `payload${path
+    .map((part) => {
+      if (typeof part === 'number') return `[${part}]`;
+      return `.${String(part).replace(/[\r\n]/g, '_')}`;
+    })
+    .join('')}`;
 }
 
 function zodExpected(issue: ZodIssueLike): string {

@@ -40,9 +40,7 @@ interface LoadedRunBeads {
   partial: boolean;
 }
 
-type RecentFetchOutcome =
-  | { ok: true; items: DashboardBead[]; partial: boolean }
-  | { ok: false };
+type RecentFetchOutcome = { ok: true; items: DashboardBead[]; partial: boolean } | { ok: false };
 
 type RunSessionsLookup =
   | { kind: 'available'; sessions: DashboardSession[] }
@@ -128,10 +126,7 @@ function optionalRunSummaryApi() {
   return supervisorApiForRequestBudget(OPTIONAL_ENRICHMENT_TIMEOUT_MS);
 }
 
-async function loadRunBeads(
-  cityName: string,
-  limit: number,
-): Promise<LoadedRunBeads> {
+async function loadRunBeads(cityName: string, limit: number): Promise<LoadedRunBeads> {
   const moleculeFetch = settledRecentFetch(cityName, {
     limit: RECENT_RUN_FETCH_LIMIT,
     type: 'molecule',

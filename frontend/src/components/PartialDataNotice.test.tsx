@@ -15,13 +15,7 @@ describe('PartialDataNotice', () => {
   });
 
   it('renders nothing when show is false', () => {
-    render(
-      <PartialDataNotice
-        show={false}
-        label="runs partial"
-        title="one rig unavailable"
-      />,
-    );
+    render(<PartialDataNotice show={false} label="runs partial" title="one rig unavailable" />);
 
     expect(screen.queryByRole('status')).toBeNull();
   });

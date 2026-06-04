@@ -28,10 +28,10 @@ const ASSIGNED_BEADS_FETCH_LIMIT = 200;
 const DETAIL_FALLBACK_FETCH_LIMIT = 2000;
 // The "real work" bead types the board fans out (one typed query each),
 // then keeps via defaultBeadFilter — the bookkeeping types
-  // (message/session/molecule/…) are dropped. Every entry MUST be a type the
-  // live gc/bd backend accepts as a `type=` filter: a rig-scoped include-closed
-  // (`all=true`) query for a type the backend rejects fails closed (HTTP 503
-  // "invalid issue type") and that one rejected leg blanks the whole board.
+// (message/session/molecule/…) are dropped. Every entry MUST be a type the
+// live gc/bd backend accepts as a `type=` filter: a rig-scoped include-closed
+// (`all=true`) query for a type the backend rejects fails closed (HTTP 503
+// "invalid issue type") and that one rejected leg blanks the whole board.
 const ENGINEERING_BEAD_TYPES: ReadonlySet<string> = new Set([
   'feature',
   'bug',
@@ -56,12 +56,8 @@ export async function listSupervisorBeads(
   };
   const list = await supervisorApi().listBeads(cityName, baseQuery);
   const items = uniqueById(list.items ?? []);
-  const statusFiltered = includeClosed
-    ? items
-    : items.filter((bead) => bead.status !== 'closed');
-  const filtered = includeBookkeeping
-    ? statusFiltered
-    : statusFiltered.filter(defaultBeadFilter);
+  const statusFiltered = includeClosed ? items : items.filter((bead) => bead.status !== 'closed');
+  const filtered = includeBookkeeping ? statusFiltered : statusFiltered.filter(defaultBeadFilter);
   const upstreamTotal = countAsNumber(list.total);
   return {
     items: filtered,

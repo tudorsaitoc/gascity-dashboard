@@ -19,8 +19,6 @@ export function formatMailSender(from: string): string {
   // Drop a redundant "<rig>-" prefix the worktree dir often carries
   // ("gascity-packs-polecat-1" under ".../gascity-packs" → "polecat-1"),
   // then canonicalize the rig ("gascity-main" → "gascity").
-  const agent = agentSeg.startsWith(`${rawRig}-`)
-    ? agentSeg.slice(rawRig.length + 1)
-    : agentSeg;
+  const agent = agentSeg.startsWith(`${rawRig}-`) ? agentSeg.slice(rawRig.length + 1) : agentSeg;
   return `${canonicalRigLabel(rawRig)} · ${agent}`;
 }

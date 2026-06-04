@@ -4,14 +4,7 @@ import { SESSION_ID_RE } from '../src/lib/sessionId.js';
 
 describe('SESSION_ID_RE', () => {
   test('accepts supervisor session handles used by peek and stream routes', () => {
-    for (const id of [
-      'gc-1',
-      'gc-session-b',
-      'td-7t24i6',
-      'th-abc-123',
-      'fddc-g3v',
-      'fddc-pe6',
-    ]) {
+    for (const id of ['gc-1', 'gc-session-b', 'td-7t24i6', 'th-abc-123', 'fddc-g3v', 'fddc-pe6']) {
       assert.equal(SESSION_ID_RE.test(id), true, id);
     }
   });

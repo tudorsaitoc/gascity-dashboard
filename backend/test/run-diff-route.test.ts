@@ -173,9 +173,7 @@ describe('run diff route', () => {
     // `not_git` can only arise from the cwd refusal (the validation throws
     // before git runs) — were enforcement absent, the paired allow-test below
     // shows this exact setup yields kind 'ok'.
-    const { url, close } = await startApp(
-      buildApp(['/var/empty/sanctioned-root']),
-    );
+    const { url, close } = await startApp(buildApp(['/var/empty/sanctioned-root']));
     try {
       const res = await postDiff(url, knownPath(repo));
       assert.equal(res.status, 200);
@@ -271,11 +269,7 @@ function knownPath(path: string): RunExecutionPath {
   return { kind: 'known', path };
 }
 
-function postDiff(
-  baseUrl: string,
-  executionPath: RunExecutionPath,
-  query = '',
-): Promise<Response> {
+function postDiff(baseUrl: string, executionPath: RunExecutionPath, query = ''): Promise<Response> {
   return fetch(`${baseUrl}/api/city/test-city/runs/gc-root/diff${query}`, {
     method: 'POST',
     headers: { 'content-type': 'application/json' },

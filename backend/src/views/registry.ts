@@ -20,6 +20,4 @@ function register<D>(mod: BackendModule<D>): BackendModule<unknown> {
   return mod as BackendModule<unknown>;
 }
 
-export const ALL_MODULES: ReadonlyArray<BackendModule<unknown>> = [
-  register(maintainerBackend),
-];
+export const ALL_MODULES: ReadonlyArray<BackendModule<unknown>> = [register(maintainerBackend)];

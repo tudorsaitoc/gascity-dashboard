@@ -21,77 +21,82 @@ beforeEach(() => {
   fetchCalls.length = 0;
   eventFetchMode = 'ok';
   invalidate('activity:bundle:test-city');
-  vi.stubGlobal('fetch', vi.fn(async (input: RequestInfo | URL) => {
-    const url = new URL(input instanceof Request ? input.url : String(input), 'http://dashboard.local');
-    fetchCalls.push({ path: url.pathname, query: url.searchParams });
+  vi.stubGlobal(
+    'fetch',
+    vi.fn(async (input: RequestInfo | URL) => {
+      const url = new URL(
+        input instanceof Request ? input.url : String(input),
+        'http://dashboard.local',
+      );
+      fetchCalls.push({ path: url.pathname, query: url.searchParams });
 
-    if (url.pathname === '/gc-supervisor/v0/city/test-city/events') {
-      if (eventFetchMode === 'fail') {
-        return new Response(JSON.stringify({ error: 'event store offline' }), {
-          status: 503,
-          headers: { 'content-type': 'application/json' },
+      if (url.pathname === '/gc-supervisor/v0/city/test-city/events') {
+        if (eventFetchMode === 'fail') {
+          return new Response(JSON.stringify({ error: 'event store offline' }), {
+            status: 503,
+            headers: { 'content-type': 'application/json' },
+          });
+        }
+        return jsonResponse({
+          items: [
+            supervisorEvent({
+              actor: 'maintainer',
+              message: 'session crashed while applying patch',
+              seq: 42,
+              subject: 'gc-session-1',
+              type: 'session.crashed',
+            }),
+            supervisorEvent({
+              actor: 'supervisor',
+              message: 'event archive rotated',
+              seq: 41,
+              subject: 'events',
+              type: 'events.rotated',
+            }),
+            supervisorEvent({
+              actor: 'rig-runner',
+              message: 'session suspended for operator review',
+              seq: 40,
+              subject: 'gc-session-2',
+              type: 'session.suspended',
+            }),
+          ],
+          partial: eventFetchMode === 'partial',
+          partial_errors:
+            eventFetchMode === 'partial' ? ['events truncated at archive boundary'] : undefined,
+          total: 2,
         });
       }
-      return jsonResponse({
-        items: [
-          supervisorEvent({
-            actor: 'maintainer',
-            message: 'session crashed while applying patch',
-            seq: 42,
-            subject: 'gc-session-1',
-            type: 'session.crashed',
-          }),
-          supervisorEvent({
-            actor: 'supervisor',
-            message: 'event archive rotated',
-            seq: 41,
-            subject: 'events',
-            type: 'events.rotated',
-          }),
-          supervisorEvent({
-            actor: 'rig-runner',
-            message: 'session suspended for operator review',
-            seq: 40,
-            subject: 'gc-session-2',
-            type: 'session.suspended',
-          }),
-        ],
-        partial: eventFetchMode === 'partial',
-        partial_errors: eventFetchMode === 'partial'
-          ? ['events truncated at archive boundary']
-          : undefined,
-        total: 2,
-      });
-    }
-    if (url.pathname === '/api/builds') {
-      return jsonResponse({
-        failed_marker: true,
-        source: '/tmp/.dev-deploy.log',
-        items: [
-          {
-            at: '2026-06-01T10:00:00.000Z',
-            detail: 'stage: frontend',
-            status: 'failed',
-          },
-        ],
-      });
-    }
-    if (url.pathname === '/api/git/commits') {
-      return jsonResponse({
-        view: url.searchParams.get('view') ?? 'recent-main',
-        items: [
-          {
-            author: 'Chris',
-            date: '2026-06-01T09:30:00.000Z',
-            sha: 'abcdef123456',
-            short_sha: 'abcdef1',
-            subject: 'wire activity route',
-          },
-        ],
-      });
-    }
-    throw new Error(`unexpected fetch: ${url.pathname}${url.search}`);
-  }));
+      if (url.pathname === '/api/builds') {
+        return jsonResponse({
+          failed_marker: true,
+          source: '/tmp/.dev-deploy.log',
+          items: [
+            {
+              at: '2026-06-01T10:00:00.000Z',
+              detail: 'stage: frontend',
+              status: 'failed',
+            },
+          ],
+        });
+      }
+      if (url.pathname === '/api/git/commits') {
+        return jsonResponse({
+          view: url.searchParams.get('view') ?? 'recent-main',
+          items: [
+            {
+              author: 'Chris',
+              date: '2026-06-01T09:30:00.000Z',
+              sha: 'abcdef123456',
+              short_sha: 'abcdef1',
+              subject: 'wire activity route',
+            },
+          ],
+        });
+      }
+      throw new Error(`unexpected fetch: ${url.pathname}${url.search}`);
+    }),
+  );
 });
 
 afterEach(() => {
@@ -109,8 +114,8 @@ describe('ActivityPage', () => {
     expect(await within(table).findByText('session crashed while applying patch')).toBeTruthy();
     expect(within(table).queryByText('events.rotated')).toBeNull();
 
-    const eventFetch = fetchCalls.find((call) =>
-      call.path === '/gc-supervisor/v0/city/test-city/events'
+    const eventFetch = fetchCalls.find(
+      (call) => call.path === '/gc-supervisor/v0/city/test-city/events',
     );
     expect(eventFetch).toBeDefined();
     expect(eventFetch?.query.get('type')).toBe('session.crashed');
@@ -149,8 +154,8 @@ describe('ActivityPage', () => {
     expect(await within(table).findByText('session.crashed')).toBeTruthy();
     expect(within(table).queryByText('events.rotated')).toBeNull();
 
-    const eventFetch = fetchCalls.find((call) =>
-      call.path === '/gc-supervisor/v0/city/test-city/events'
+    const eventFetch = fetchCalls.find(
+      (call) => call.path === '/gc-supervisor/v0/city/test-city/events',
     );
     expect(eventFetch?.query.get('type')).toBe('session.crashed');
     expect(eventFetch?.query.get('since')).toBe('7d');
@@ -158,7 +163,9 @@ describe('ActivityPage', () => {
     fireEvent.change(screen.getByLabelText('Search activity'), {
       target: { value: 'archive' },
     });
-    expect(await within(table).findByText('No supervisor events match these filters.')).toBeTruthy();
+    expect(
+      await within(table).findByText('No supervisor events match these filters.'),
+    ).toBeTruthy();
   });
 
   it('offers actor and severity filters while routing only supervisor-supported filters through the generated client', async () => {
@@ -172,8 +179,8 @@ describe('ActivityPage', () => {
     expect(within(table).queryByText('session.crashed')).toBeNull();
     expect(within(table).queryByText('events.rotated')).toBeNull();
 
-    const eventFetch = fetchCalls.find((call) =>
-      call.path === '/gc-supervisor/v0/city/test-city/events'
+    const eventFetch = fetchCalls.find(
+      (call) => call.path === '/gc-supervisor/v0/city/test-city/events',
     );
     expect(eventFetch?.query.get('actor')).toBe('rig-runner');
     expect(eventFetch?.query.has('signal')).toBe(false);
@@ -209,10 +216,7 @@ describe('ActivityPage', () => {
   });
 });
 
-function renderPage(
-  path: string,
-  attention: { eventId?: string; deploys?: boolean } = {},
-) {
+function renderPage(path: string, attention: { eventId?: string; deploys?: boolean } = {}) {
   const facts = {
     ...(attention.eventId === undefined
       ? {}
@@ -267,19 +271,20 @@ function supervisorEvent(overrides: {
   return {
     actor: overrides.actor ?? 'supervisor',
     message: overrides.message ?? 'event message',
-    payload: type === 'events.rotated'
-      ? {
-          prior_archive: '/tmp/events-1.jsonl',
-          prior_first_seq: 1,
-          prior_last_seq: 40,
-        }
-      : type === 'session.suspended'
-        ? {}
-      : {
-          reason: 'panic',
-          session_id: 'gc-session-1',
-          template: 'mayor',
-        },
+    payload:
+      type === 'events.rotated'
+        ? {
+            prior_archive: '/tmp/events-1.jsonl',
+            prior_first_seq: 1,
+            prior_last_seq: 40,
+          }
+        : type === 'session.suspended'
+          ? {}
+          : {
+              reason: 'panic',
+              session_id: 'gc-session-1',
+              template: 'mayor',
+            },
     seq: overrides.seq ?? 1,
     subject: overrides.subject ?? 'subject',
     ts: '2026-06-01T10:10:00.000Z',

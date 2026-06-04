@@ -89,9 +89,7 @@ export function prepareMaintainerSlingRequest(
   };
 }
 
-export function decodeMaintainerSlingRecord(
-  value: unknown,
-): DecodeMaintainerSlingRecordResult {
+export function decodeMaintainerSlingRecord(value: unknown): DecodeMaintainerSlingRecordResult {
   if (!isRecord(value)) return invalidRecord('request body must be an object');
   if (!isSlingKind(value.kind)) return invalidRecord('invalid kind (pr|issue)');
   if (!isSlingIntent(value.intent)) return invalidRecord('invalid intent (review|draft|triage)');
@@ -140,10 +138,7 @@ function isSlingKind(value: unknown): value is SlingKind {
 
 function isValidIssueNumber(value: unknown): value is number {
   return (
-    typeof value === 'number' &&
-    Number.isInteger(value) &&
-    value >= 1 &&
-    value <= 2_147_483_647
+    typeof value === 'number' && Number.isInteger(value) && value >= 1 && value <= 2_147_483_647
   );
 }
 

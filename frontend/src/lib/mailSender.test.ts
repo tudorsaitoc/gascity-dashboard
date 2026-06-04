@@ -7,14 +7,17 @@ describe('formatMailSender', () => {
     expect(formatMailSender('gascity-packs.project-lead')).toBe('gascity-packs.project-lead');
   });
   it('formats a worktree path as rig · agent, stripping the redundant rig prefix', () => {
-    expect(formatMailSender('/home/ds/gascity-packs/gascity-packs-polecat-1'))
-      .toBe('gascity-packs · polecat-1');
+    expect(formatMailSender('/home/ds/gascity-packs/gascity-packs-polecat-1')).toBe(
+      'gascity-packs · polecat-1',
+    );
   });
   it('canonicalizes a -main worktree rig to its base rig', () => {
-    expect(formatMailSender('/home/ds/gascity-main/gascity-maintenance-pl'))
-      .toBe('gascity · gascity-maintenance-pl');
-    expect(formatMailSender('/home/ds/gascity-packs-main/gascity-packs-pl'))
-      .toBe('gascity-packs · gascity-packs-pl');
+    expect(formatMailSender('/home/ds/gascity-main/gascity-maintenance-pl')).toBe(
+      'gascity · gascity-maintenance-pl',
+    );
+    expect(formatMailSender('/home/ds/gascity-packs-main/gascity-packs-pl')).toBe(
+      'gascity-packs · gascity-packs-pl',
+    );
   });
   it('handles a plain rig/agent path', () => {
     expect(formatMailSender('gascity/polecat-2')).toBe('gascity · polecat-2');

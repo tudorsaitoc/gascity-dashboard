@@ -38,12 +38,7 @@ export type CityContext = SharedCityContext<GcClient, AdminConfig>;
 
 /** Backend-narrowed `BackendModule`: pins router to `express.Router` and
  *  config to the host-side `AdminConfig` (audit-C8). */
-export type BackendModule<Deps = void> = SharedBackendModule<
-  Deps,
-  Router,
-  GcClient,
-  AdminConfig
->;
+export type BackendModule<Deps = void> = SharedBackendModule<Deps, Router, GcClient, AdminConfig>;
 
 /** Frontend re-export shape (backend doesn't render views but exports the
  *  type so server-side smoke tests can import it consistently). */
@@ -67,14 +62,9 @@ export interface MountedModule {
  *  registry typecheck enforces this at compile time, but the runtime
  *  guard catches a hand-rolled module that ships with `needs: undefined`
  *  via JS interop. */
-export function bind<D>(
-  mod: BackendModule<D>,
-  config: AdminConfig,
-): MountedModule {
+export function bind<D>(mod: BackendModule<D>, config: AdminConfig): MountedModule {
   if (typeof mod.needs !== 'function') {
-    throw new Error(
-      `BackendModule "${mod.id}" is missing required needs(config) function`,
-    );
+    throw new Error(`BackendModule "${mod.id}" is missing required needs(config) function`);
   }
   const deps = mod.needs(config);
   const workersFn = mod.workers;

@@ -40,8 +40,7 @@ describe('stripNonPrintable — CVE-2021-42574 bidi codepoints', () => {
   // CVE (Boucher/Anderson 2021): U+061C (ALM), U+200E (LRM), U+200F (RLM),
   // U+202A-202E (LRE/RLE/PDF/LRO/RLO), U+2066-2069 (LRI/RLI/FSI/PDI).
   const BIDI_CODEPOINTS = [
-    0x061c, 0x200e, 0x200f, 0x202a, 0x202b, 0x202c, 0x202d, 0x202e, 0x2066,
-    0x2067, 0x2068, 0x2069,
+    0x061c, 0x200e, 0x200f, 0x202a, 0x202b, 0x202c, 0x202d, 0x202e, 0x2066, 0x2067, 0x2068, 0x2069,
   ];
 
   for (const cp of BIDI_CODEPOINTS) {

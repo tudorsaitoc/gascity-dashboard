@@ -1,11 +1,7 @@
 import { test, describe } from 'node:test';
 import assert from 'node:assert/strict';
 
-import {
-  loadConfig,
-  parseModulesEnabled,
-  __resetMaintainerAliasWarnState,
-} from '../src/config.js';
+import { loadConfig, parseModulesEnabled, __resetMaintainerAliasWarnState } from '../src/config.js';
 
 // loadConfig env-flag coverage. Seeded for gascity-dashboard-hzy's
 // useFixtures gate; new env-driven knobs land here to keep config
@@ -67,10 +63,7 @@ describe('loadConfig', () => {
     const cfg = loadConfig({
       RUN_CWD_ALLOWED_ROOTS: '/home/ds/gascity:/home/ds/gascity-dashboard',
     });
-    assert.deepEqual(cfg.runCwdAllowedRoots, [
-      '/home/ds/gascity',
-      '/home/ds/gascity-dashboard',
-    ]);
+    assert.deepEqual(cfg.runCwdAllowedRoots, ['/home/ds/gascity', '/home/ds/gascity-dashboard']);
   });
 
   test('runCwdAllowedRoots trims whitespace and drops empty/invalid entries', () => {

@@ -1,10 +1,5 @@
-import type {
-  DashboardBead,
-} from '../dashboard-beads.js';
-import type {
-  RunSnapshotBead,
-  RunSnapshot,
-} from '../run-snapshot.js';
+import type { DashboardBead } from '../dashboard-beads.js';
+import type { RunSnapshotBead, RunSnapshot } from '../run-snapshot.js';
 import { nonEmpty } from './bead-fields.js';
 
 const PRESENTATION_METADATA_KEYS = [
@@ -47,10 +42,7 @@ export function mergeRunRuntimeState(
   };
 }
 
-function mergeRunBead(
-  bead: RunSnapshotBead,
-  runtime: DashboardBead | undefined,
-): RunSnapshotBead {
+function mergeRunBead(bead: RunSnapshotBead, runtime: DashboardBead | undefined): RunSnapshotBead {
   if (!runtime) return bead;
   const status = nonEmpty(runtime.status) ?? bead.status;
   const assignee = nonEmpty(runtime.assignee) ?? bead.assignee;

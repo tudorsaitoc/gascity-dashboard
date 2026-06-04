@@ -50,9 +50,7 @@ function readStoredPref(): ThemePref {
 }
 
 function readSystemResolved(): ThemeResolved {
-  return window.matchMedia('(prefers-color-scheme: dark)').matches
-    ? 'dark'
-    : 'light';
+  return window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
 }
 
 function applyDocumentAttr(pref: ThemePref) {

@@ -39,10 +39,7 @@ export async function closeSupervisorBead(id: string, reason?: string): Promise<
 export async function nudgeSupervisorAgent(agentAlias: string): Promise<void> {
   const trimmedAlias = agentAlias.trim();
   if (trimmedAlias.length === 0) throw new Error('agent alias is required');
-  await supervisorApi().nudgeAgent(
-    activeCityOrThrow('nudge supervisor agent'),
-    trimmedAlias,
-  );
+  await supervisorApi().nudgeAgent(activeCityOrThrow('nudge supervisor agent'), trimmedAlias);
 }
 
 export async function createAndSlingSupervisorBead(

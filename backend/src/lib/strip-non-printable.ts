@@ -28,9 +28,5 @@ const CTRL_RE = /[\x00-\x1f\x7f-\x9f]/g;
 const BIDI_RE = /[؜‎‏‪-‮⁦-⁩]/g;
 
 export function stripNonPrintable(value: string): string {
-  return value
-    .replace(OSC_RE, '')
-    .replace(CSI_RE, '')
-    .replace(CTRL_RE, '')
-    .replace(BIDI_RE, '');
+  return value.replace(OSC_RE, '').replace(CSI_RE, '').replace(CTRL_RE, '').replace(BIDI_RE, '');
 }

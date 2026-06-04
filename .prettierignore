@@ -1,0 +1,4 @@
+backend/openapi/gc-supervisor.openapi.json
+backend/src/generated/
+frontend/src/generated/
+tmp/

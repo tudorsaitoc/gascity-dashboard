@@ -32,9 +32,7 @@ export function AgentDirectives({
   return (
     <section className="mt-12">
       <header className="flex items-baseline justify-between mb-4">
-        <h2 className="text-label uppercase tracking-wider text-fg-faint">
-          Directives
-        </h2>
+        <h2 className="text-label uppercase tracking-wider text-fg-faint">Directives</h2>
         <div className="flex items-baseline gap-3">
           <span className="text-label uppercase tracking-wider text-fg-faint tnum">
             {charsLabel}
@@ -48,8 +46,7 @@ export function AgentDirectives({
         <p className="text-body text-fg-muted italic">Loading directives.</p>
       ) : isNotFound ? (
         <p className="text-body text-warn">
-          Agent <code className="text-fg">{alias}</code> has no entry in city
-          config.
+          Agent <code className="text-fg">{alias}</code> has no entry in city config.
         </p>
       ) : error !== null ? (
         <p className="text-body text-accent" role="alert">
@@ -57,9 +54,7 @@ export function AgentDirectives({
           {error.message}
         </p>
       ) : prompt !== null ? (
-        <pre
-          className="text-body whitespace-pre-wrap leading-relaxed text-fg overflow-x-auto max-h-[60vh] overflow-y-auto"
-        >
+        <pre className="text-body whitespace-pre-wrap leading-relaxed text-fg overflow-x-auto max-h-[60vh] overflow-y-auto">
           {prompt}
         </pre>
       ) : null}

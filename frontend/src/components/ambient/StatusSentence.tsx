@@ -87,10 +87,7 @@ export function StatusSentence({ topConcern }: StatusSentenceProps) {
   const ageLabel = formatAge(ageMs);
 
   return (
-    <p
-      className="text-body text-fg max-w-[70ch] leading-relaxed"
-      data-testid="status-sentence"
-    >
+    <p className="text-body text-fg max-w-[70ch] leading-relaxed" data-testid="status-sentence">
       {href === null ? (
         // Engine could not resolve which node stalled. Render the token
         // as plain text — no maroon class (R2 floor), no deep link.

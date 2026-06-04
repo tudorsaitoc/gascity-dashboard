@@ -1,8 +1,4 @@
-import type {
-  FormulaDetail,
-  RunSnapshotBead,
-  RunSnapshot,
-} from '../run-snapshot.js';
+import type { FormulaDetail, RunSnapshotBead, RunSnapshot } from '../run-snapshot.js';
 import type { DashboardSession } from '../dashboard-sessions.js';
 import type {
   RunControlBadge,
@@ -18,11 +14,7 @@ import type {
   RunSnapshotSequence,
 } from '../run-detail.js';
 import type { RunPhase, RunStage } from '../snapshot/types.js';
-import {
-  mapRunPhase,
-  stageProgress,
-  type RunIssue,
-} from './phaseMapping.js';
+import { mapRunPhase, stageProgress, type RunIssue } from './phaseMapping.js';
 import { meta } from './bead-fields.js';
 import { resolveRunFormulaIdentity } from './formula-name.js';
 import { applyDisplayNodeStates } from './display-state.js';
@@ -94,18 +86,13 @@ export interface RunningFormulaRun {
   stages: RunStage[];
 }
 
-export function buildRunningFormulaRun(
-  input: RunningFormulaRunInput,
-): RunningFormulaRun {
-  const { groups: unorderedGroups, physicalToSemantic, badgesByTarget } = groupRunBeads(
-    input.beads,
-    input.rootBeadId,
-  );
-  const groups = orderRunNodeGroups(
-    unorderedGroups,
-    input.formulaDetail,
-    input.rootBeadId,
-  );
+export function buildRunningFormulaRun(input: RunningFormulaRunInput): RunningFormulaRun {
+  const {
+    groups: unorderedGroups,
+    physicalToSemantic,
+    badgesByTarget,
+  } = groupRunBeads(input.beads, input.rootBeadId);
+  const groups = orderRunNodeGroups(unorderedGroups, input.formulaDetail, input.rootBeadId);
   // Prefer supervisor-owned compiled formula order when available. If a run
   // does not expose a formula name yet, preserve snapshot order rather than
   // reading formula files locally.
@@ -126,19 +113,10 @@ export function buildRunningFormulaRun(
   const edges = buildRunDisplayEdges(input.raw, physicalToSemantic, rawNodes);
   const nodes = applyDisplayNodeStates(rawNodes, edges);
   const progress = buildFormulaRunProgress(input.raw, nodes, edges);
-  const formula = runFormulaState(
-    input.root,
-    input.formulaDetail,
-  );
-  const formulaDetail = input.formulaDetailState ?? runFormulaDetailState(
-    input.root,
-    input.formulaDetail,
-  );
-  const executionPath = resolveRunExecutionPath(
-    input.root,
-    input.beads,
-    input.rigRoot,
-  );
+  const formula = runFormulaState(input.root, input.formulaDetail);
+  const formulaDetail =
+    input.formulaDetailState ?? runFormulaDetailState(input.root, input.formulaDetail);
+  const executionPath = resolveRunExecutionPath(input.root, input.beads, input.rigRoot);
 
   // gascity-dashboard-ud6j: compute the dashboard phase ladder from this
   // run's OWN beads through the SAME fromDashboardBead → mapRunPhase → stageProgress
@@ -222,8 +200,7 @@ function runFormulaState(
   // graph.v2 roots get a title-derived name. See gascity-dashboard-sadp.
   const resolved = resolveRunFormulaIdentity('state', { root, formulaDetail });
   if (resolved.name !== null) {
-    const source =
-      resolved.source === 'title_fallback' ? 'title_fallback' : 'metadata';
+    const source = resolved.source === 'title_fallback' ? 'title_fallback' : 'metadata';
     return {
       kind: 'known',
       name: resolved.name,

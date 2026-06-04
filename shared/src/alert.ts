@@ -101,12 +101,9 @@ export interface AlertItem {
  * unidentifiable alert is a producer bug, not a silent empty key.
  */
 export function makeAlertDedupKey(kind: AlertKind, ref: AlertRef): string {
-  const id =
-    ref.requestId ?? ref.runId ?? ref.beadId ?? ref.mailId ?? ref.sessionId;
+  const id = ref.requestId ?? ref.runId ?? ref.beadId ?? ref.mailId ?? ref.sessionId;
   if (id === undefined || id.length === 0) {
-    throw new Error(
-      `makeAlertDedupKey: AlertRef for kind "${kind}" has no identifying id`,
-    );
+    throw new Error(`makeAlertDedupKey: AlertRef for kind "${kind}" has no identifying id`);
   }
   return `${kind}:${id}`;
 }

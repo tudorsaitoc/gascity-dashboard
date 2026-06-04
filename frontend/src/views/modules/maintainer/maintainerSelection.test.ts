@@ -17,7 +17,9 @@ import {
 // Logic lives outside Maintainer.tsx so vitest doesn't need to render
 // the React tree to assert these invariants.
 
-function mkItem(overrides: Partial<TriageItem> & { kind: 'pr' | 'issue'; number: number }): TriageItem {
+function mkItem(
+  overrides: Partial<TriageItem> & { kind: 'pr' | 'issue'; number: number },
+): TriageItem {
   return {
     kind: overrides.kind,
     number: overrides.number,
@@ -462,9 +464,7 @@ describe('useSlingSuccess', () => {
 
       // Pull the handle setSuccess scheduled so we can prove clearTimeout
       // was called against THIS specific timer, not some unrelated one.
-      const scheduledHandle = setSpy.mock.results.at(-1)?.value as ReturnType<
-        typeof setTimeout
-      >;
+      const scheduledHandle = setSpy.mock.results.at(-1)?.value as ReturnType<typeof setTimeout>;
       expect(scheduledHandle).toBeDefined();
       expect(vi.getTimerCount()).toBeGreaterThan(0);
 

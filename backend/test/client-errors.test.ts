@@ -6,10 +6,7 @@ import type { Server } from 'node:http';
 import { clientErrorsRouter } from '../src/routes/client-errors.js';
 import { LOG_COMPONENT } from '../src/logging.js';
 
-async function withRouter<T>(
-  logs: string[],
-  fn: (url: string) => Promise<T>,
-): Promise<T> {
+async function withRouter<T>(logs: string[], fn: (url: string) => Promise<T>): Promise<T> {
   const app = express();
   app.use(express.json({ limit: '64kb' }));
   app.use(

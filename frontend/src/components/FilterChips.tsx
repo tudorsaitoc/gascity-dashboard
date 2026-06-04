@@ -16,19 +16,12 @@ interface FilterChipsProps {
   legend?: string;
 }
 
-export function FilterChips({
-  chips,
-  activeIds,
-  onToggle,
-  legend,
-}: FilterChipsProps) {
+export function FilterChips({ chips, activeIds, onToggle, legend }: FilterChipsProps) {
   if (chips.length === 0) return null;
   return (
     <div className="flex items-baseline gap-4 flex-wrap">
       {legend && (
-        <span className="text-label uppercase tracking-wider text-fg-muted">
-          {legend}
-        </span>
+        <span className="text-label uppercase tracking-wider text-fg-muted">{legend}</span>
       )}
       {chips.map((chip) => {
         const active = activeIds.has(chip.id);

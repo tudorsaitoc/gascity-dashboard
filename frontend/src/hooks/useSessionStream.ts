@@ -26,10 +26,7 @@ export type SessionStreamState =
   | { status: 'failed'; error: string; stream: { status: 'idle' } }
   | { status: 'ready'; result: SessionTranscriptView; stream: SessionStreamProgress };
 
-export function useSessionStream(
-  sessionId: string | null,
-  stream: boolean,
-): SessionStreamState {
+export function useSessionStream(sessionId: string | null, stream: boolean): SessionStreamState {
   const [state, setState] = useState<SessionStreamState>({
     status: 'idle',
     stream: { status: 'idle' },
@@ -59,18 +56,19 @@ export function useSessionStream(
           stream: { status: canStream ? 'connecting' : 'idle' },
         });
         if (canStream) {
-          source = new EventSource(supervisorApi().sessionStreamUrl(
-            activeCityOrThrow('open supervisor session stream'),
-            sessionId,
-          ), {
-            withCredentials: true,
-          });
+          source = new EventSource(
+            supervisorApi().sessionStreamUrl(
+              activeCityOrThrow('open supervisor session stream'),
+              sessionId,
+            ),
+            {
+              withCredentials: true,
+            },
+          );
           source.onopen = () => {
             if (cancelled) return;
             setState((current) =>
-              current.status === 'ready'
-                ? { ...current, stream: { status: 'open' } }
-                : current,
+              current.status === 'ready' ? { ...current, stream: { status: 'open' } } : current,
             );
           };
           const onTurn = (event: MessageEvent<string>) => {
@@ -111,8 +109,7 @@ export function useSessionStream(
           source.addEventListener('turn', onTurn);
           source.onerror = () => {
             if (cancelled) return;
-            const streamState =
-              source?.readyState === EventSource.CLOSED ? 'closed' : 'connecting';
+            const streamState = source?.readyState === EventSource.CLOSED ? 'closed' : 'connecting';
             setState((current) =>
               current.status === 'ready'
                 ? { ...current, stream: { status: streamState } }
@@ -151,11 +148,7 @@ function reportMalformedSessionEvent(
   reportSessionStreamError('parse stream event', sessionId, MALFORMED_SESSION_STREAM_EVENT);
 }
 
-function reportSessionStreamError(
-  operation: string,
-  sessionId: string,
-  err: unknown,
-): void {
+function reportSessionStreamError(operation: string, sessionId: string, err: unknown): void {
   void reportClientError({
     component: 'session-stream',
     operation,
@@ -204,28 +197,35 @@ function parseTranscriptSnapshot(value: Record<string, unknown>): SessionTranscr
   if (!Array.isArray(value.turns)) return null;
   const turns = value.turns.flatMap((turn): OutputTurn[] => {
     if (!isRecord(turn) || typeof turn.text !== 'string') return [];
-    return [{
-      role: typeof turn.role === 'string' ? turn.role : 'assistant',
-      text: turn.text,
-    }];
+    return [
+      {
+        role: typeof turn.role === 'string' ? turn.role : 'assistant',
+        text: turn.text,
+      },
+    ];
   });
   if (turns.length !== value.turns.length) return null;
-  const sessionId = typeof value.session_id === 'string'
-    ? value.session_id
-    : typeof value.id === 'string'
-      ? value.id
-      : '';
+  const sessionId =
+    typeof value.session_id === 'string'
+      ? value.session_id
+      : typeof value.id === 'string'
+        ? value.id
+        : '';
   if (!sessionId) return null;
-  const totalChars = typeof value.total_chars === 'number'
-    ? value.total_chars
-    : turns.reduce((sum, turn) => sum + turn.text.length, 0);
-  const result = sessionTranscriptView({
-    id: sessionId,
-    template: typeof value.template === 'string' ? value.template : '',
-    provider: typeof value.provider === 'string' ? value.provider : '',
-    format: typeof value.format === 'string' ? value.format : 'conversation',
-    turns,
-  }, typeof value.captured_at === 'string' ? value.captured_at : new Date().toISOString());
+  const totalChars =
+    typeof value.total_chars === 'number'
+      ? value.total_chars
+      : turns.reduce((sum, turn) => sum + turn.text.length, 0);
+  const result = sessionTranscriptView(
+    {
+      id: sessionId,
+      template: typeof value.template === 'string' ? value.template : '',
+      provider: typeof value.provider === 'string' ? value.provider : '',
+      format: typeof value.format === 'string' ? value.format : 'conversation',
+      turns,
+    },
+    typeof value.captured_at === 'string' ? value.captured_at : new Date().toISOString(),
+  );
   return {
     ...result,
     total_chars: totalChars,

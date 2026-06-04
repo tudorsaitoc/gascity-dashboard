@@ -1,10 +1,6 @@
 import { useMemo, useState } from 'react';
 import { OPERATOR_ALIAS, OPERATOR_WIRE_ALIAS } from '../contexts/ViewingAsContext';
-import {
-  displayLabel,
-  tierLabel,
-  type AliasBucket,
-} from '../hooks/aliasPriority';
+import { displayLabel, tierLabel, type AliasBucket } from '../hooks/aliasPriority';
 
 export function AgentPanel({
   buckets,
@@ -150,9 +146,7 @@ export function AgentPanel({
                         onClick={() => select(alias)}
                         aria-current={active}
                         className={`block w-full text-left truncate text-body transition-colors duration-150 ease-out-quart focus-mark rounded-sm py-0.5 ${
-                          active
-                            ? 'text-fg font-semibold'
-                            : 'text-fg-muted hover:text-fg'
+                          active ? 'text-fg font-semibold' : 'text-fg-muted hover:text-fg'
                         }`}
                         title={displayLabel(alias, OPERATOR_ALIAS)}
                       >
@@ -184,8 +178,10 @@ export function AgentPanel({
             misleading because no mail-derived aliases are actually
             present. Use the broader "agent list and mail history both
             unavailable" copy in that case. */}
-        {!loading && sessionsUnavailable && filtered.length > 0 && (
-          isOperatorOnly(filtered) ? (
+        {!loading &&
+          sessionsUnavailable &&
+          filtered.length > 0 &&
+          (isOperatorOnly(filtered) ? (
             <p className="text-label uppercase tracking-wider text-fg-faint italic">
               Agent list and mail history both unavailable.
             </p>
@@ -193,8 +189,7 @@ export function AgentPanel({
             <p className="text-label uppercase tracking-wider text-fg-faint italic">
               Agent list unavailable; showing mail-derived aliases only.
             </p>
-          )
-        )}
+          ))}
       </div>
 
       {!isOperator && (

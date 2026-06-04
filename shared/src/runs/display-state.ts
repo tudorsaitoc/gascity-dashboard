@@ -1,15 +1,6 @@
-import type {
-  RunDisplayEdge,
-  RunDisplayNode,
-  RunNodeStatus,
-} from '../run-detail.js';
+import type { RunDisplayEdge, RunDisplayNode, RunNodeStatus } from '../run-detail.js';
 
-const TERMINAL_STATUSES = new Set<RunNodeStatus>([
-  'completed',
-  'done',
-  'failed',
-  'skipped',
-]);
+const TERMINAL_STATUSES = new Set<RunNodeStatus>(['completed', 'done', 'failed', 'skipped']);
 
 /**
  * Convert raw bead state into graph presentation state. The supervisor exposes

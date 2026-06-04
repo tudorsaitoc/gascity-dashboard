@@ -1,21 +1,12 @@
 import { useMemo } from 'react';
-import {
-  OPERATOR_DISPLAY_ALIAS,
-  OPERATOR_WIRE_ALIAS,
-} from 'gas-city-dashboard-shared';
+import { OPERATOR_DISPLAY_ALIAS, OPERATOR_WIRE_ALIAS } from 'gas-city-dashboard-shared';
 import { api, formatApiError } from '../api/client';
 import { getActiveCity } from '../api/cityBase';
 import { useCachedData } from '../hooks/useCachedData';
 import { listAgentPendingInteractions } from '../supervisor/agentPending';
 import { listSupervisorBeads } from '../supervisor/beadReads';
-import {
-  supervisorApi,
-  supervisorApiForRequestBudget,
-} from '../supervisor/client';
-import {
-  DEFAULT_MAIL_HISTORY_LIMIT,
-  listSupervisorMail,
-} from '../supervisor/mailReads';
+import { supervisorApi, supervisorApiForRequestBudget } from '../supervisor/client';
+import { DEFAULT_MAIL_HISTORY_LIMIT, listSupervisorMail } from '../supervisor/mailReads';
 import type { AttentionContributor } from './compose';
 import {
   createAttentionContributors,
@@ -42,29 +33,23 @@ export function useLiveAttentionContributors(
   const cityName = getActiveCity();
   const cacheSuffix = cityName ?? 'no-city';
   const maintainerEnabled = enabledModules?.includes('maintainer') ?? false;
-  const runs = useCachedData<RunsAttentionFacts>(
-    `attention:runs:${cacheSuffix}`,
-    () => fetchRunsAttention(cityName),
+  const runs = useCachedData<RunsAttentionFacts>(`attention:runs:${cacheSuffix}`, () =>
+    fetchRunsAttention(cityName),
   );
-  const agents = useCachedData<AgentsAttentionFacts>(
-    `attention:agents:${cacheSuffix}`,
-    () => fetchAgentsAttention(cityName),
+  const agents = useCachedData<AgentsAttentionFacts>(`attention:agents:${cacheSuffix}`, () =>
+    fetchAgentsAttention(cityName),
   );
-  const beads = useCachedData<BeadsAttentionFacts>(
-    `attention:beads:${cacheSuffix}`,
-    () => fetchBeadsAttention(cityName),
+  const beads = useCachedData<BeadsAttentionFacts>(`attention:beads:${cacheSuffix}`, () =>
+    fetchBeadsAttention(cityName),
   );
-  const mail = useCachedData<MailAttentionFacts>(
-    `attention:mail:${cacheSuffix}`,
-    () => fetchMailAttention(cityName),
+  const mail = useCachedData<MailAttentionFacts>(`attention:mail:${cacheSuffix}`, () =>
+    fetchMailAttention(cityName),
   );
-  const activity = useCachedData<ActivityAttentionFacts>(
-    `attention:activity:${cacheSuffix}`,
-    () => fetchActivityAttention(cityName),
+  const activity = useCachedData<ActivityAttentionFacts>(`attention:activity:${cacheSuffix}`, () =>
+    fetchActivityAttention(cityName),
   );
-  const health = useCachedData<HealthAttentionFacts>(
-    `attention:health:${cacheSuffix}`,
-    () => fetchHealthAttention(cityName),
+  const health = useCachedData<HealthAttentionFacts>(`attention:health:${cacheSuffix}`, () =>
+    fetchHealthAttention(cityName),
   );
   const maintainer = useCachedData<MaintainerAttentionFacts>(
     `attention:maintainer:${cacheSuffix}:${maintainerEnabled ? 'enabled' : 'disabled'}`,
@@ -72,30 +57,23 @@ export function useLiveAttentionContributors(
   );
 
   return useMemo(
-    () => createAttentionContributors(compactFacts({
-      activity: activity.data,
-      agents: agents.data,
-      beads: beads.data,
-      health: health.data,
-      mail: mail.data,
-      maintainer: maintainer.data,
-      runs: runs.data,
-    })),
-    [
-      activity.data,
-      agents.data,
-      beads.data,
-      health.data,
-      mail.data,
-      maintainer.data,
-      runs.data,
-    ],
+    () =>
+      createAttentionContributors(
+        compactFacts({
+          activity: activity.data,
+          agents: agents.data,
+          beads: beads.data,
+          health: health.data,
+          mail: mail.data,
+          maintainer: maintainer.data,
+          runs: runs.data,
+        }),
+      ),
+    [activity.data, agents.data, beads.data, health.data, mail.data, maintainer.data, runs.data],
   );
 }
 
-async function fetchRunsAttention(
-  cityName: string | null,
-): Promise<RunsAttentionFacts> {
+async function fetchRunsAttention(cityName: string | null): Promise<RunsAttentionFacts> {
   if (cityName === null) return {};
   try {
     return {
@@ -110,9 +88,7 @@ async function fetchRunsAttention(
   }
 }
 
-async function fetchAgentsAttention(
-  cityName: string | null,
-): Promise<AgentsAttentionFacts> {
+async function fetchAgentsAttention(cityName: string | null): Promise<AgentsAttentionFacts> {
   if (cityName === null) return {};
   try {
     const list = await supervisorApi().listAgents(cityName);
@@ -136,9 +112,7 @@ async function fetchAgentsAttention(
   }
 }
 
-async function fetchBeadsAttention(
-  cityName: string | null,
-): Promise<BeadsAttentionFacts> {
+async function fetchBeadsAttention(cityName: string | null): Promise<BeadsAttentionFacts> {
   if (cityName === null) return {};
   // Two independent reads: the general bead list (capped) and the dedicated
   // mayor-decision queue (label+status filtered, always complete). Settled
@@ -158,10 +132,7 @@ async function fetchBeadsAttention(
   if (decisions.status === 'fulfilled') {
     facts.decisions = decisions.value.items ?? [];
   } else {
-    facts.decisionsError = formatApiError(
-      decisions.reason,
-      'decision queue unavailable',
-    );
+    facts.decisionsError = formatApiError(decisions.reason, 'decision queue unavailable');
   }
   return facts;
 }
@@ -173,9 +144,7 @@ async function listDecisionBeads(cityName: string) {
   });
 }
 
-async function fetchMailAttention(
-  cityName: string | null,
-): Promise<MailAttentionFacts> {
+async function fetchMailAttention(cityName: string | null): Promise<MailAttentionFacts> {
   if (cityName === null) return { operatorAlias: OPERATOR_WIRE_ALIAS };
   try {
     const list = await listSupervisorMail(
@@ -197,17 +166,15 @@ async function fetchMailAttention(
   }
 }
 
-async function fetchActivityAttention(
-  cityName: string | null,
-): Promise<ActivityAttentionFacts> {
+async function fetchActivityAttention(cityName: string | null): Promise<ActivityAttentionFacts> {
   const [deploys, events] = await Promise.allSettled([
     api.listBuilds(),
     cityName === null
       ? Promise.resolve(null)
       : supervisorApi().listEvents(cityName, {
-        limit: ACTIVITY_EVENT_FETCH_LIMIT,
-        since: ACTIVITY_EVENT_WINDOW,
-      }),
+          limit: ACTIVITY_EVENT_FETCH_LIMIT,
+          since: ACTIVITY_EVENT_WINDOW,
+        }),
   ]);
   const facts: ActivityAttentionFacts = {};
 
@@ -232,9 +199,7 @@ async function fetchActivityAttention(
   return facts;
 }
 
-async function fetchHealthAttention(
-  cityName: string | null,
-): Promise<HealthAttentionFacts> {
+async function fetchHealthAttention(cityName: string | null): Promise<HealthAttentionFacts> {
   if (cityName === null) return {};
   const [system, supervisor, trend] = await Promise.allSettled([
     api.systemHealth(),

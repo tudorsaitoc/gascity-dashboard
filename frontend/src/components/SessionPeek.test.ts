@@ -3,14 +3,11 @@ import { extractTurnTimestamp } from './SessionPeek';
 
 describe('extractTurnTimestamp', () => {
   it('extracts a bare ISO datetime at the start of the text', () => {
-    expect(extractTurnTimestamp('2026-05-20T10:53:10\nrest of turn')).toBe(
-      '2026-05-20T10:53:10',
-    );
+    expect(extractTurnTimestamp('2026-05-20T10:53:10\nrest of turn')).toBe('2026-05-20T10:53:10');
   });
 
   it('extracts an ISO datetime after a prompt prefix separator', () => {
-    const text =
-      '[ds-research] /home/ds/gascity/polecat-4 • 2026-05-20T10:53:10\n\nRun `gc prime`';
+    const text = '[ds-research] /home/ds/gascity/polecat-4 • 2026-05-20T10:53:10\n\nRun `gc prime`';
     expect(extractTurnTimestamp(text)).toBe('2026-05-20T10:53:10');
   });
 

@@ -18,15 +18,20 @@ declare module '@hey-api/client-fetch' {
 
   export type ResponseStyle = 'data' | 'fields';
 
-  export interface Config<T extends ClientOptions = ClientOptions>
-    extends Omit<RequestInit, 'body' | 'headers' | 'method'> {
+  export interface Config<T extends ClientOptions = ClientOptions> extends Omit<
+    RequestInit,
+    'body' | 'headers' | 'method'
+  > {
     auth?: unknown;
     baseUrl?: T['baseUrl'];
     bodySerializer?: ((body: unknown) => unknown) | null;
     fetch?: typeof fetch;
     headers?:
       | RequestInit['headers']
-      | Record<string, string | number | boolean | (string | number | boolean)[] | null | undefined | unknown>;
+      | Record<
+          string,
+          string | number | boolean | (string | number | boolean)[] | null | undefined | unknown
+        >;
     parseAs?: 'arrayBuffer' | 'auto' | 'blob' | 'formData' | 'json' | 'stream' | 'text';
     querySerializer?: ((query: Record<string, unknown>) => string) | QuerySerializerOptions;
     requestValidator?: (data: unknown) => Promise<unknown>;
@@ -42,9 +47,9 @@ declare module '@hey-api/client-fetch' {
     ThrowOnError extends boolean = boolean,
     Url extends string = string,
   > extends Config<{
-      responseStyle: TResponseStyle;
-      throwOnError: ThrowOnError;
-    }> {
+    responseStyle: TResponseStyle;
+    throwOnError: ThrowOnError;
+  }> {
     body?: unknown;
     onRequest?: (url: string, init: RequestInit) => Request | Promise<Request>;
     onSseError?: (error: unknown) => void;
@@ -124,7 +129,10 @@ declare module '@hey-api/client-fetch' {
     ThrowOnError extends boolean = boolean,
     TResponse = unknown,
     TResponseStyle extends ResponseStyle = 'fields',
-  > = Omit<RequestOptions<TResponse, TResponseStyle, ThrowOnError>, 'body' | 'path' | 'query' | 'url'> &
+  > = Omit<
+    RequestOptions<TResponse, TResponseStyle, ThrowOnError>,
+    'body' | 'path' | 'query' | 'url'
+  > &
     ([TData] extends [never] ? unknown : Omit<TData, 'url'>);
 
   export type OptionsLegacyParser<
@@ -133,7 +141,8 @@ declare module '@hey-api/client-fetch' {
     TResponseStyle extends ResponseStyle = 'fields',
   > = TData extends { body?: unknown }
     ? TData extends { headers?: unknown }
-      ? Omit<RequestOptions<unknown, TResponseStyle, ThrowOnError>, 'body' | 'headers' | 'url'> & TData
+      ? Omit<RequestOptions<unknown, TResponseStyle, ThrowOnError>, 'body' | 'headers' | 'url'> &
+          TData
       : Omit<RequestOptions<unknown, TResponseStyle, ThrowOnError>, 'body' | 'url'> &
           TData &
           Pick<RequestOptions<unknown, TResponseStyle, ThrowOnError>, 'headers'>
@@ -162,7 +171,14 @@ declare module '@hey-api/client-fetch' {
   ) => Promise<ServerSentEventsResult<TData>>;
 
   export type Client = {
-    buildUrl: <TData extends { body?: unknown; path?: Record<string, unknown>; query?: Record<string, unknown>; url: string }>(
+    buildUrl: <
+      TData extends {
+        body?: unknown;
+        path?: Record<string, unknown>;
+        query?: Record<string, unknown>;
+        url: string;
+      },
+    >(
       options: TData & Options<TData>,
     ) => string;
     connect: MethodFn;

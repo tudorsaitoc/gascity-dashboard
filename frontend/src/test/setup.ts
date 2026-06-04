@@ -42,9 +42,7 @@ afterAll(() => {
 });
 
 function formatConsoleArgs(args: unknown[]): string {
-  return args
-    .map((arg) => (typeof arg === 'string' ? arg : JSON.stringify(arg)))
-    .join(' ');
+  return args.map((arg) => (typeof arg === 'string' ? arg : JSON.stringify(arg))).join(' ');
 }
 
 function trackProcessWarning(warning: Error): void {

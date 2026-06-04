@@ -18,11 +18,7 @@ import {
   runRefresh,
 } from './worker.js';
 import { readCache } from './storage.js';
-import {
-  readSlungState,
-  slungKey,
-  writeSlungEntry,
-} from './slung-state.js';
+import { readSlungState, slungKey, writeSlungEntry } from './slung-state.js';
 
 // Worker slung-state purge (gascity-dashboard-4jy).
 //
@@ -134,8 +130,7 @@ describe('runRefresh — slung-state purge for vetted items', () => {
 
     const vetted = makeItem('pr', 1, { triage_assessment: vettedAssessment });
     const pending = makeItem('issue', 2, { triage_assessment: null });
-    const fetchTriage = async (): Promise<MaintainerTriage> =>
-      makeEnvelope([vetted, pending]);
+    const fetchTriage = async (): Promise<MaintainerTriage> => makeEnvelope([vetted, pending]);
 
     await runRefresh({
       repo: 'test/test',
@@ -228,8 +223,7 @@ describe('runRefresh — slung-state purge for vetted items', () => {
     });
 
     const stillPending = makeItem('pr', 1, { triage_assessment: null });
-    const fetchTriage = async (): Promise<MaintainerTriage> =>
-      makeEnvelope([stillPending]);
+    const fetchTriage = async (): Promise<MaintainerTriage> => makeEnvelope([stillPending]);
 
     await runRefresh({
       repo: 'test/test',
@@ -390,7 +384,6 @@ class FakeRefresherRuntime implements RefresherRuntime {
     assert.equal(timer.cleared, false, `interval ${index} was cleared`);
     timer.callback();
   }
-
 }
 
 class FakeTimer implements RefresherTimer {

@@ -23,9 +23,7 @@ export function ListSearchBar({
   ariaLabel = 'Search list',
 }: ListSearchBarProps) {
   const showCount =
-    value.length > 0 &&
-    typeof matchCount === 'number' &&
-    typeof totalCount === 'number';
+    value.length > 0 && typeof matchCount === 'number' && typeof totalCount === 'number';
 
   return (
     <div className="flex items-baseline gap-3 border-b border-rule pb-1">

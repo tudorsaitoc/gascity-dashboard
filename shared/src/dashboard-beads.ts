@@ -3,13 +3,7 @@ import type { CountedList } from './lists.js';
 
 export type BeadId = string;
 
-export type BeadStatus =
-  | 'open'
-  | 'in_progress'
-  | 'blocked'
-  | 'closed'
-  | 'deferred'
-  | string;
+export type BeadStatus = 'open' | 'in_progress' | 'blocked' | 'closed' | 'deferred' | string;
 
 export type BeadIssueType =
   | 'feature'

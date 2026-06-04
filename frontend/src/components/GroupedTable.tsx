@@ -34,9 +34,7 @@ export function GroupedTable<T>({
   initialSort,
 }: GroupedTableProps<T>) {
   if (groups.length === 0) {
-    return (
-      <p className="py-10 text-center text-fg-muted italic">{emptyMessage}</p>
-    );
+    return <p className="py-10 text-center text-fg-muted italic">{emptyMessage}</p>;
   }
 
   return (

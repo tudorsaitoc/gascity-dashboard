@@ -1,13 +1,5 @@
-import type {
-  EntityLinkView,
-  DashboardBead,
-  DashboardSession,
-} from 'gas-city-dashboard-shared';
-import {
-  buildLinkView,
-  buildRelationIndex,
-  parseRef,
-} from 'gas-city-dashboard-shared';
+import type { EntityLinkView, DashboardBead, DashboardSession } from 'gas-city-dashboard-shared';
+import { buildLinkView, buildRelationIndex, parseRef } from 'gas-city-dashboard-shared';
 import { activeCityOrThrow } from '../api/cityBase';
 import type {
   Bead,

@@ -35,9 +35,9 @@ export function ThreadMessage({
   );
 }
 
-function attentionAttrs(
-  severity: AttentionSeverity | null,
-): { 'data-attention-severity'?: AttentionSeverity } {
+function attentionAttrs(severity: AttentionSeverity | null): {
+  'data-attention-severity'?: AttentionSeverity;
+} {
   return severity === null ? {} : { 'data-attention-severity': severity };
 }
 

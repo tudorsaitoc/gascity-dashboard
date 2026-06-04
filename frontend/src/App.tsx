@@ -1,21 +1,28 @@
-import { Suspense, useMemo } from 'react';
+import { Suspense, lazy, useMemo } from 'react';
 import { Routes, Route, Navigate } from 'react-router-dom';
 import { api } from './api/client';
 import { AttentionProvider } from './attention/context';
 import { useLiveAttentionContributors } from './attention/liveContributors';
 import { Layout } from './components/Layout';
-import { AgentsPage } from './routes/Agents';
-import { AgentDetailPage } from './routes/AgentDetail';
-import { AmbientHomePage } from './routes/AmbientHome';
-import { BeadsPage } from './routes/Beads';
-import { MailPage } from './routes/Mail';
-import { FormulaRunDetailPage } from './routes/FormulaRunDetail';
-import { RunsPage } from './routes/Runs';
 import { NowProvider } from './contexts/NowContext';
 import { ViewingAsProvider } from './contexts/ViewingAsContext';
 import { useCachedData } from './hooks/useCachedData';
 import { ALL_VIEWS } from './views/registry';
 import { filterEnabledViews, resolveDefaultViewWithLogging } from './views/resolve';
+
+const AgentsPage = lazy(() => import('./routes/Agents').then((m) => ({ default: m.AgentsPage })));
+const AgentDetailPage = lazy(() =>
+  import('./routes/AgentDetail').then((m) => ({ default: m.AgentDetailPage })),
+);
+const AmbientHomePage = lazy(() =>
+  import('./routes/AmbientHome').then((m) => ({ default: m.AmbientHomePage })),
+);
+const BeadsPage = lazy(() => import('./routes/Beads').then((m) => ({ default: m.BeadsPage })));
+const MailPage = lazy(() => import('./routes/Mail').then((m) => ({ default: m.MailPage })));
+const FormulaRunDetailPage = lazy(() =>
+  import('./routes/FormulaRunDetail').then((m) => ({ default: m.FormulaRunDetailPage })),
+);
+const RunsPage = lazy(() => import('./routes/Runs').then((m) => ({ default: m.RunsPage })));
 
 export function App() {
   // NowProvider lives at the App root because useFaviconSignal (R8) is
@@ -57,38 +64,38 @@ export function App() {
           <Layout>
             <Suspense fallback={null}>
               <Routes>
-              {/* `/` resolution (PRD §6 / bead 9yj.5):
+                {/* `/` resolution (PRD §6 / bead 9yj.5):
                   DEFAULT_VIEW env → descriptor `defaultRoute: true` →
                   kb3 ambient home fallback. The resolver runs once per
                   enabled-set / env change; warnings surface in the
                   browser console for premortem #5 visibility. */}
-              <Route
-                path="/"
-                element={
-                  defaultRedirectTo !== null ? (
-                    <Navigate to={defaultRedirectTo} replace />
-                  ) : DefaultViewElement !== null ? (
-                    <DefaultViewElement />
-                  ) : (
-                    <AmbientHomePage />
-                  )
-                }
-              />
-              <Route path="/agents" element={<AgentsPage />} />
-              <Route path="/agents/:slug" element={<AgentDetailPage />} />
-              <Route path="/beads" element={<BeadsPage />} />
-              <Route path="/runs" element={<RunsPage />} />
-              <Route path="/runs/:runId" element={<FormulaRunDetailPage />} />
-              <Route path="/mail" element={<MailPage />} />
-              {/* Modular-dashboard registry routes, filtered by the
+                <Route
+                  path="/"
+                  element={
+                    defaultRedirectTo !== null ? (
+                      <Navigate to={defaultRedirectTo} replace />
+                    ) : DefaultViewElement !== null ? (
+                      <DefaultViewElement />
+                    ) : (
+                      <AmbientHomePage />
+                    )
+                  }
+                />
+                <Route path="/agents" element={<AgentsPage />} />
+                <Route path="/agents/:slug" element={<AgentDetailPage />} />
+                <Route path="/beads" element={<BeadsPage />} />
+                <Route path="/runs" element={<RunsPage />} />
+                <Route path="/runs/:runId" element={<FormulaRunDetailPage />} />
+                <Route path="/mail" element={<MailPage />} />
+                {/* Modular-dashboard registry routes, filtered by the
                   backend's enabledModules set. A disabled module's path
                   is absent so deep-link bookmarks surface the operator's
                   MODULES_ENABLED change as the explicit catch-all route. */}
-              {enabledViews.map((v) => {
-                const Element = v.element;
-                return <Route key={v.id} path={v.path} element={<Element />} />;
-              })}
-              <Route path="*" element={<NotFoundPage />} />
+                {enabledViews.map((v) => {
+                  const Element = v.element;
+                  return <Route key={v.id} path={v.path} element={<Element />} />;
+                })}
+                <Route path="*" element={<NotFoundPage />} />
               </Routes>
             </Suspense>
           </Layout>

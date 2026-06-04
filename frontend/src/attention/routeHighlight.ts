@@ -1,9 +1,5 @@
 import type { HTMLAttributes } from 'react';
-import type {
-  AttentionDomain,
-  AttentionModel,
-  AttentionSeverity,
-} from './compose';
+import type { AttentionDomain, AttentionModel, AttentionSeverity } from './compose';
 
 type AttentionAttributes<T extends HTMLElement> = HTMLAttributes<T> & {
   'data-attention-severity'?: AttentionSeverity;
@@ -84,9 +80,8 @@ export function attentionSectionProps(
   severity: AttentionSeverity | null,
 ): AttentionAttributes<HTMLElement> {
   if (severity === null) return {};
-  const toneClass = severity === 'attention'
-    ? 'border-accent bg-accent/5'
-    : 'border-warn bg-warn/5';
+  const toneClass =
+    severity === 'attention' ? 'border-accent bg-accent/5' : 'border-warn bg-warn/5';
   return {
     'data-attention-severity': severity,
     className: `border-l-2 pl-4 -ml-4 py-1 ${toneClass}`,

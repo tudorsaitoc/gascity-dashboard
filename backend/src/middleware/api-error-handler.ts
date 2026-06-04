@@ -9,10 +9,13 @@ export function apiErrorHandler(): ErrorRequestHandler {
       return;
     }
 
-    writeRouteError(res, routeInternalError(err, {
-      component: LOG_COMPONENT.admin,
-      operation: 'unhandled async route failure',
-      responseError: 'dashboard route failed',
-    }));
+    writeRouteError(
+      res,
+      routeInternalError(err, {
+        component: LOG_COMPONENT.admin,
+        operation: 'unhandled async route failure',
+        responseError: 'dashboard route failed',
+      }),
+    );
   };
 }

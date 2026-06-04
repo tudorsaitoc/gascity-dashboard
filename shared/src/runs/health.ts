@@ -1,13 +1,6 @@
-import {
-  resolveSessionForTarget,
-} from '../session-resolve.js';
+import { resolveSessionForTarget } from '../session-resolve.js';
 import type { DashboardSession } from '../dashboard-sessions.js';
-import type {
-  RunCensus,
-  RunLane,
-  RunLaneHealth,
-  RunPhase,
-} from '../snapshot/types.js';
+import type { RunCensus, RunLane, RunLaneHealth, RunPhase } from '../snapshot/types.js';
 
 const DEFAULT_ATTEMPT_CLIMB_MIN = 1;
 const DEFAULT_THRASH_DETECTED_STREAK = 2;
@@ -29,15 +22,15 @@ export interface LaneProgressMark {
 
 export type LaneProgressComparison =
   | {
-    status: 'comparable';
-    stepId: string;
-    stageIndex: number;
-    attempt: number;
-  }
+      status: 'comparable';
+      stepId: string;
+      stageIndex: number;
+      attempt: number;
+    }
   | {
-    status: 'not_comparable';
-    error: string;
-  };
+      status: 'not_comparable';
+      error: string;
+    };
 
 export interface DeriveRunHealthInput {
   lanes: readonly RunLane[];
@@ -87,9 +80,7 @@ export function advanceProgressMarks(
   return next;
 }
 
-export function deriveRunHealth(
-  input: DeriveRunHealthInput,
-): DeriveRunHealthResult {
+export function deriveRunHealth(input: DeriveRunHealthInput): DeriveRunHealthResult {
   const { thrashDetectedStreak } = { ...DEFAULT_THRESHOLDS, ...input.thresholds };
 
   const lanes = input.lanes.map((lane) => {
@@ -108,9 +99,10 @@ export function deriveRunHealth(
       needsOperator: lane.phase === 'approval' || lane.phase === 'blocked',
       stuckNode: stuckNode(lane),
       thrashingDetected: thrashStreak >= thrashDetectedStreak,
-      session: session.status === 'resolved'
-        ? sessionFacts(session.session)
-        : { status: 'unresolved', error: session.error },
+      session:
+        session.status === 'resolved'
+          ? sessionFacts(session.session)
+          : { status: 'unresolved', error: session.error },
     };
 
     return { ...lane, health: { status: 'available' as const, data: health } };
@@ -195,10 +187,7 @@ function buildCensus(lanes: readonly RunLane[]): RunCensus {
     if (lane.phase === 'complete') continue;
 
     totalInFlight += 1;
-    if (
-      lane.health.status === 'available' &&
-      lane.health.data.phaseConfidence === 'known'
-    ) {
+    if (lane.health.status === 'available' && lane.health.data.phaseConfidence === 'known') {
       knownDenominator += 1;
       if (lane.health.data.thrashingDetected === true) thrashing += 1;
     } else {

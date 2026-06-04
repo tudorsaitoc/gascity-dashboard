@@ -1,8 +1,5 @@
 import { Router } from 'express';
-import type {
-  DoltNomsTrend,
-  DoltNomsUnavailableReason,
-} from 'gas-city-dashboard-shared';
+import type { DoltNomsTrend, DoltNomsUnavailableReason } from 'gas-city-dashboard-shared';
 import type { StatusBody } from '../generated/gc-supervisor-client/types.gen.js';
 import { recordAudit } from '../audit.js';
 import { LOG_COMPONENT, errorMessage, logWarn } from '../logging.js';
@@ -49,9 +46,7 @@ export interface DoltNomsSampler {
   trend(): DoltNomsTrend;
 }
 
-type SamplerTimerState =
-  | { status: 'idle' }
-  | { status: 'scheduled'; timer: DoltNomsTimer };
+type SamplerTimerState = { status: 'idle' } | { status: 'scheduled'; timer: DoltNomsTimer };
 
 const nodeRuntime: DoltNomsRuntime = {
   setInterval: (callback, delayMs) => setInterval(callback, delayMs),
@@ -154,9 +149,7 @@ export function createDoltNomsSampler(opts: DoltNomsSamplerOptions): DoltNomsSam
  * here — it propagates to the sampler's non-fatal handler, which records the
  * `sample_failed` reason.
  */
-export async function sampleDoltNomsSize(
-  fetchStatus: FetchStatus,
-): Promise<DoltNomsSampleResult> {
+export async function sampleDoltNomsSize(fetchStatus: FetchStatus): Promise<DoltNomsSampleResult> {
   const status = await fetchStatus();
   const sizeBytes = status.store_health?.size_bytes;
   if (typeof sizeBytes !== 'number' || !Number.isFinite(sizeBytes) || sizeBytes < 0) {

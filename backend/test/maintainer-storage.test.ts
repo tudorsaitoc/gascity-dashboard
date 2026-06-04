@@ -70,7 +70,11 @@ describe('maintainer storage writeCache', () => {
 
     assert.equal(tmpPaths.length, 2, 'both writers should have written a tmp file');
     assert.notEqual(tmpPaths[0], tmpPaths[1], 'concurrent writers must not share a tmp path');
-    assert.equal(maxInFlight, 1, 'writes must be serialised — only one writeFile in flight at a time');
+    assert.equal(
+      maxInFlight,
+      1,
+      'writes must be serialised — only one writeFile in flight at a time',
+    );
 
     // No leftover tmp files: every tmp was renamed away, nothing torn behind.
     const leftovers = (await fs.readdir(dir)).filter((name) => name.includes('.tmp-'));

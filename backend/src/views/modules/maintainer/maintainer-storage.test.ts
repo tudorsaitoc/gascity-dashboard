@@ -4,10 +4,7 @@ import fs from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import { readCache, writeCache } from './storage.js';
-import type {
-  MaintainerTriage,
-  TriageItem,
-} from 'gas-city-dashboard-shared';
+import type { MaintainerTriage, TriageItem } from 'gas-city-dashboard-shared';
 
 // readCache contract: a missing file returns an explicit `missing` result,
 // because no cache has been created yet. Corrupt JSON and stale wire shapes
@@ -138,10 +135,7 @@ describe('readCache — corrupt cache errors', () => {
       const cachePath = path.join(dir, 'cache.json');
       await fs.writeFile(cachePath, '{not-json', 'utf-8');
 
-      await assert.rejects(
-        () => readCache(cachePath),
-        /maintainer cache parse failed/,
-      );
+      await assert.rejects(() => readCache(cachePath), /maintainer cache parse failed/);
     });
   });
 });

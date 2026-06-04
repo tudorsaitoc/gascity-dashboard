@@ -1,7 +1,7 @@
-import type { SupervisorBead } from "../supervisor/beadReads";
-import { formatDateTime } from "../lib/format";
-import { Field } from "./Field";
-import { beadStatusTone, StatusBadge } from "./StatusBadge";
+import type { SupervisorBead } from '../supervisor/beadReads';
+import { formatDateTime } from '../lib/format';
+import { Field } from './Field';
+import { beadStatusTone, StatusBadge } from './StatusBadge';
 
 // The read-only body of a single bead: kind banner, status grid, template
 // origin, labels, description. Extracted from BeadDetailModal so the Beads
@@ -45,12 +45,12 @@ function readRunMeta(bead: SupervisorBead): RunMeta {
   return runMeta;
 }
 
-type BeadKind = "template" | "wisp" | "work";
+type BeadKind = 'template' | 'wisp' | 'work';
 
 function classifyBead(bead: SupervisorBead, wf: RunMeta): BeadKind {
-  if (wf.kind === "run") return "template";
-  if (bead.issue_type === "molecule") return "wisp";
-  return "work";
+  if (wf.kind === 'run') return 'template';
+  if (bead.issue_type === 'molecule') return 'wisp';
+  return 'work';
 }
 
 export function BeadBody({ bead }: { bead: SupervisorBead }) {
@@ -59,39 +59,29 @@ export function BeadBody({ bead }: { bead: SupervisorBead }) {
 
   return (
     <div className="space-y-8">
-      {kind === "template" && (
+      {kind === 'template' && (
         <section>
           <h3 className="text-label uppercase tracking-wider text-fg-faint mb-3">
             Formula template
           </h3>
           <p className="text-body text-fg-muted max-w-prose">
-            This bead is a recipe, not actionable work. Every{" "}
-            {bead.ref ? (
-              <code className="text-fg-muted">{bead.ref}</code>
-            ) : (
-              "wisp"
-            )}{" "}
-            instance is instantiated from this template. The{" "}
-            <span className="text-fg-muted">in_progress</span> status is the
-            gc-system convention for {'"'}available for instantiation{'"'} — do
-            not act on it, nudge it, or close it.
+            This bead is a recipe, not actionable work. Every{' '}
+            {bead.ref ? <code className="text-fg-muted">{bead.ref}</code> : 'wisp'} instance is
+            instantiated from this template. The <span className="text-fg-muted">in_progress</span>{' '}
+            status is the gc-system convention for {'"'}available for instantiation{'"'} — do not
+            act on it, nudge it, or close it.
           </p>
         </section>
       )}
 
-      {kind === "wisp" && (
+      {kind === 'wisp' && (
         <section>
           <h3 className="text-label uppercase tracking-wider text-fg-faint mb-3">
             Formula instance
           </h3>
           <p className="text-body text-fg-muted max-w-prose">
-            One run of the{" "}
-            {bead.title ? (
-              <code className="text-fg-muted">{bead.title}</code>
-            ) : (
-              "formula"
-            )}{" "}
-            recipe.
+            One run of the{' '}
+            {bead.title ? <code className="text-fg-muted">{bead.title}</code> : 'formula'} recipe.
           </p>
         </section>
       )}
@@ -107,55 +97,48 @@ export function BeadBody({ bead }: { bead: SupervisorBead }) {
         </Field>
       </dl>
 
-      {kind === "template" &&
-        (wf.formulaContract || wf.originBeadId || wf.runTarget) && (
-          <section>
-            <h3 className="text-label uppercase tracking-wider text-fg-faint mb-3">
-              Template origin
-            </h3>
-            <p className="text-body text-fg-muted max-w-prose mb-4">
-              Where this formula came from, kept for traceability. The origin
-              bead and target may be stale; the formula itself is now used
-              wherever the pool dispatches it.
-            </p>
-            <dl className="grid grid-cols-2 sm:grid-cols-3 gap-x-8 gap-y-3">
-              {wf.formulaContract && (
-                <Field label="Contract">
-                  <code className="text-fg-muted">{wf.formulaContract}</code>
-                </Field>
-              )}
-              {bead.ref && (
-                <Field label="Ref">
-                  <code className="text-fg-muted">{bead.ref}</code>
-                </Field>
-              )}
-              {wf.originBeadId && (
-                <Field label="Origin bead">
-                  <code className="text-fg-muted">{wf.originBeadId}</code>
-                </Field>
-              )}
-              {wf.runTarget && (
-                <Field label="Origin target">
-                  <span className="text-fg-muted truncate" title={wf.runTarget}>
-                    {wf.runTarget}
-                  </span>
-                </Field>
-              )}
-            </dl>
-          </section>
-        )}
+      {kind === 'template' && (wf.formulaContract || wf.originBeadId || wf.runTarget) && (
+        <section>
+          <h3 className="text-label uppercase tracking-wider text-fg-faint mb-3">
+            Template origin
+          </h3>
+          <p className="text-body text-fg-muted max-w-prose mb-4">
+            Where this formula came from, kept for traceability. The origin bead and target may be
+            stale; the formula itself is now used wherever the pool dispatches it.
+          </p>
+          <dl className="grid grid-cols-2 sm:grid-cols-3 gap-x-8 gap-y-3">
+            {wf.formulaContract && (
+              <Field label="Contract">
+                <code className="text-fg-muted">{wf.formulaContract}</code>
+              </Field>
+            )}
+            {bead.ref && (
+              <Field label="Ref">
+                <code className="text-fg-muted">{bead.ref}</code>
+              </Field>
+            )}
+            {wf.originBeadId && (
+              <Field label="Origin bead">
+                <code className="text-fg-muted">{wf.originBeadId}</code>
+              </Field>
+            )}
+            {wf.runTarget && (
+              <Field label="Origin target">
+                <span className="text-fg-muted truncate" title={wf.runTarget}>
+                  {wf.runTarget}
+                </span>
+              </Field>
+            )}
+          </dl>
+        </section>
+      )}
 
       {Array.isArray(bead.labels) && bead.labels.length > 0 && (
         <section>
-          <h3 className="text-label uppercase tracking-wider text-fg-faint mb-3">
-            Labels
-          </h3>
+          <h3 className="text-label uppercase tracking-wider text-fg-faint mb-3">Labels</h3>
           <div className="flex flex-wrap gap-x-3 gap-y-1">
             {bead.labels.map((l) => (
-              <span
-                key={l}
-                className="text-label uppercase tracking-wider text-fg-muted"
-              >
+              <span key={l} className="text-label uppercase tracking-wider text-fg-muted">
                 {l}
               </span>
             ))}
@@ -165,7 +148,7 @@ export function BeadBody({ bead }: { bead: SupervisorBead }) {
 
       <section>
         <h3 className="text-label uppercase tracking-wider text-fg-faint mb-3">
-          {kind === "template" ? "Recipe" : "Description"}
+          {kind === 'template' ? 'Recipe' : 'Description'}
         </h3>
         {bead.description && bead.description.length > 0 ? (
           <pre className="text-body whitespace-pre-wrap leading-relaxed text-fg font-sans">

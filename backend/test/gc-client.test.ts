@@ -7,11 +7,9 @@ import type {
   StatusBody,
   SupervisorCitiesOutputBody,
 } from '../src/generated/gc-supervisor-client/types.gen.js';
+import { REQUEST_ID_HEADER, runWithLogContext } from '../src/logging.js';
 
-type Handler = (
-  req: http.IncomingMessage,
-  res: http.ServerResponse,
-) => void;
+type Handler = (req: http.IncomingMessage, res: http.ServerResponse) => void;
 
 interface Fake {
   readonly baseUrl: string;
@@ -80,6 +78,22 @@ describe('GcClient host-local supervisor reads', () => {
 
     assert.equal(out.name, 'test');
     assert.equal(out.work.ready, 1);
+  });
+
+  test('forwards the active request id to supervisor reads', async () => {
+    fake.setHandler((req, res) => {
+      assert.equal(req.headers[REQUEST_ID_HEADER.toLowerCase()], 'req-supervisor-1');
+      json(res, validStatusBody('test'));
+    });
+    const gc = new GcClient({
+      baseUrl: fake.baseUrl,
+      cityName: 'test',
+      defaultTimeoutMs: 5_000,
+    });
+
+    const out = await runWithLogContext({ requestId: 'req-supervisor-1' }, () => gc.getStatus());
+
+    assert.equal(out.name, 'test');
   });
 
   test('maps generated city registry results to the host-local descriptor', async () => {
@@ -185,10 +199,7 @@ describe('GcClient host-local supervisor reads', () => {
       defaultTimeoutMs: 5_000,
     });
 
-    await assert.rejects(
-      () => gc.getStatus(),
-      /gc supervisor returned an empty response body/,
-    );
+    await assert.rejects(() => gc.getStatus(), /gc supervisor returned an empty response body/);
   });
 });
 
@@ -263,11 +274,7 @@ describe('GcClient timeout and single-flight behavior', () => {
       defaultTimeoutMs: 5_000,
     });
 
-    const [one, two, three] = await Promise.all([
-      gc.getStatus(),
-      gc.getStatus(),
-      gc.getStatus(),
-    ]);
+    const [one, two, three] = await Promise.all([gc.getStatus(), gc.getStatus(), gc.getStatus()]);
 
     assert.equal(one.name, 'test-city');
     assert.equal(two.name, 'test-city');

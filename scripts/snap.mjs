@@ -19,7 +19,7 @@ import { argv, env, exit } from 'node:process';
 const BASE = process.env.SNAP_BASE || 'http://127.0.0.1:5174';
 const CITY = process.env.SNAP_CITY || 'racoon-city';
 const CITY_BASE = `${BASE}/city/${encodeURIComponent(CITY)}`;
-const OUT  = '/tmp/cp-snaps';
+const OUT = '/tmp/cp-snaps';
 
 const ROUTES = ['home', 'agents', 'beads', 'runs', 'mail', 'activity', 'health', 'maintainer'];
 const FIRST_PARTY_ROUTE_MODULES = {
@@ -69,8 +69,7 @@ if (overrideWaitMs !== null && !Number.isFinite(overrideWaitMs)) {
   exit(1);
 }
 
-const waitFor = (r) =>
-  overrideWaitMs ?? (SSE_ROUTES.has(r) ? SSE_WAIT_MS : DEFAULT_WAIT_MS);
+const waitFor = (r) => overrideWaitMs ?? (SSE_ROUTES.has(r) ? SSE_WAIT_MS : DEFAULT_WAIT_MS);
 
 const args = argv.slice(2);
 const TEST_MODE = args.includes('--test');

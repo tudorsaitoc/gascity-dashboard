@@ -8,10 +8,7 @@ import type {
 import { api, formatApiError } from '../api/client';
 import { getActiveCity } from '../api/cityBase';
 import { useAttentionModel } from '../attention/context';
-import {
-  attentionSectionProps,
-  prefixedAttentionSeverity,
-} from '../attention/routeHighlight';
+import { attentionSectionProps, prefixedAttentionSeverity } from '../attention/routeHighlight';
 import { Button } from '../components/Button';
 import { PageHeader } from '../components/PageHeader';
 import { StatusBadge, type StatusTone } from '../components/StatusBadge';
@@ -41,10 +38,7 @@ export function HealthPage() {
     `health:status:${cityName ?? 'no-city'}`,
     fetchSupervisorStatus,
   );
-  const localToolVersions = useCachedData(
-    'health:local-tools',
-    fetchLocalToolVersions,
-  );
+  const localToolVersions = useCachedData('health:local-tools', fetchLocalToolVersions);
   const doltNomsTrend = useCachedData(
     `health:dolt-noms-trend:${cityName ?? 'no-city'}`,
     fetchDoltNomsTrend,
@@ -60,13 +54,16 @@ export function HealthPage() {
     supervisorStatusCache.loading ||
     localToolVersions.loading ||
     doltNomsTrend.loading;
-  const error = [
-    systemHealth.error,
-    supervisorHealth.error,
-    supervisorStatusCache.error,
-    localToolVersions.error,
-    doltNomsTrend.error,
-  ].filter((value): value is string => value !== null).join('; ') || null;
+  const error =
+    [
+      systemHealth.error,
+      supervisorHealth.error,
+      supervisorStatusCache.error,
+      localToolVersions.error,
+      doltNomsTrend.error,
+    ]
+      .filter((value): value is string => value !== null)
+      .join('; ') || null;
   const refresh = useCallback(async () => {
     await Promise.all([
       refreshSystemHealth(),
@@ -96,7 +93,9 @@ export function HealthPage() {
     localTools !== null ||
     trend !== null;
   const hostHealthStatus = health ? hostStatus(health) : undefined;
-  const supervisorAttention = prefixedAttentionSeverity(attention, 'health', ['health:supervisor-']);
+  const supervisorAttention = prefixedAttentionSeverity(attention, 'health', [
+    'health:supervisor-',
+  ]);
   const hostAttention = prefixedAttentionSeverity(attention, 'health', [
     'health:load-',
     'health:memory-',
@@ -110,7 +109,9 @@ export function HealthPage() {
     <section>
       <PageHeader
         title="Health"
-        synopsis={hasAnyData ? buildSynopsis(health, supervisor) : 'Reading state from the supervisor.'}
+        synopsis={
+          hasAnyData ? buildSynopsis(health, supervisor) : 'Reading state from the supervisor.'
+        }
         meta={
           <>
             {error && (
@@ -302,23 +303,12 @@ function KvList({ children }: { children: ReactNode }) {
   // Two-column typeset list. Label left, value right, hairlines
   // between rows. Tabular numerals for value alignment.
   return (
-    <dl className="grid grid-cols-[max-content_1fr] gap-x-8 gap-y-3 max-w-prose">
-      {children}
-    </dl>
+    <dl className="grid grid-cols-[max-content_1fr] gap-x-8 gap-y-3 max-w-prose">{children}</dl>
   );
 }
 
-function Kv({
-  label,
-  value,
-  tone,
-}: {
-  label: string;
-  value: string;
-  tone?: 'warn' | 'stuck';
-}) {
-  const valueColor =
-    tone === 'warn' ? 'text-warn' : tone === 'stuck' ? 'text-accent' : 'text-fg';
+function Kv({ label, value, tone }: { label: string; value: string; tone?: 'warn' | 'stuck' }) {
+  const valueColor = tone === 'warn' ? 'text-warn' : tone === 'stuck' ? 'text-accent' : 'text-fg';
   return (
     <>
       <dt className="text-body text-fg-muted">{label}</dt>
@@ -357,11 +347,7 @@ function LocalToolKv({
   );
 }
 
-function DoltUsageBlock({
-  usage,
-}: {
-  usage: DiagnosticDatum<StatusStoreHealth>;
-}) {
+function DoltUsageBlock({ usage }: { usage: DiagnosticDatum<StatusStoreHealth> }) {
   if (usage.status === 'unavailable') {
     return <UnavailableNote heading="Dolt usage" reason={usage.reason} />;
   }
@@ -389,11 +375,7 @@ function DoltUsageBlock({
   );
 }
 
-function BeadsUsageBlock({
-  usage,
-}: {
-  usage: DiagnosticDatum<StatusWorkCounts>;
-}) {
+function BeadsUsageBlock({ usage }: { usage: DiagnosticDatum<StatusWorkCounts> }) {
   if (usage.status === 'unavailable') {
     return <UnavailableNote heading="Beads usage" reason={usage.reason} />;
   }
@@ -410,22 +392,18 @@ function BeadsUsageBlock({
   );
 }
 
-function ConfigComparison({
-  comparison,
-}: {
-  comparison: DiagnosticDatum<ConfigComparisonRow[]>;
-}) {
+function ConfigComparison({ comparison }: { comparison: DiagnosticDatum<ConfigComparisonRow[]> }) {
   if (comparison.status === 'unavailable') {
     return (
-      <p className="text-body text-fg-muted italic">
-        Comparison unavailable: {comparison.reason}.
-      </p>
+      <p className="text-body text-fg-muted italic">Comparison unavailable: {comparison.reason}.</p>
     );
   }
   return (
     <div className="grid grid-cols-[1fr_max-content_max-content] gap-x-8 gap-y-3 max-w-prose">
       <div className="text-label uppercase tracking-wider text-fg-muted">Setting</div>
-      <div className="text-label uppercase tracking-wider text-fg-muted text-right">Recommended</div>
+      <div className="text-label uppercase tracking-wider text-fg-muted text-right">
+        Recommended
+      </div>
       <div className="text-label uppercase tracking-wider text-fg-muted text-right">Loaded</div>
       {comparison.value.map((row) => (
         <ComparisonRow key={row.label} row={row} />
@@ -547,9 +525,9 @@ async function fetchSupervisorHealth(): Promise<SupervisorHealthState> {
   try {
     return {
       status: 'available',
-      data: await supervisorApiForRequestBudget(
-        HEALTH_SUPERVISOR_REQUEST_TIMEOUT_MS,
-      ).cityHealth(cityName),
+      data: await supervisorApiForRequestBudget(HEALTH_SUPERVISOR_REQUEST_TIMEOUT_MS).cityHealth(
+        cityName,
+      ),
     };
   } catch {
     return {
@@ -567,9 +545,9 @@ async function fetchSupervisorStatus(): Promise<SupervisorStatusState> {
   try {
     return {
       status: 'available',
-      data: await supervisorApiForRequestBudget(
-        HEALTH_SUPERVISOR_REQUEST_TIMEOUT_MS,
-      ).cityStatus(cityName),
+      data: await supervisorApiForRequestBudget(HEALTH_SUPERVISOR_REQUEST_TIMEOUT_MS).cityStatus(
+        cityName,
+      ),
     };
   } catch {
     return {
@@ -619,7 +597,9 @@ function buildSynopsis(
     // absent rather than rendering "Supervisor healthy on undefined" — the
     // adjacent Kv block surfaces the absence with a warn tone.
     if (supervisor.city !== undefined) {
-      parts.push(`Supervisor ${verb} on ${supervisor.city}, uptime ${formatDuration(supervisor.uptime_sec)}.`);
+      parts.push(
+        `Supervisor ${verb} on ${supervisor.city}, uptime ${formatDuration(supervisor.uptime_sec)}.`,
+      );
     } else {
       parts.push(`Supervisor ${verb}, uptime ${formatDuration(supervisor.uptime_sec)}.`);
     }
@@ -630,16 +610,17 @@ function buildSynopsis(
     parts.push('Host health unavailable.');
     return parts.join(' ');
   }
-  const usedPct = Math.round(
-    100 * (1 - h.host.free_mem_bytes / h.host.total_mem_bytes),
-  );
+  const usedPct = Math.round(100 * (1 - h.host.free_mem_bytes / h.host.total_mem_bytes));
   parts.push(
     `Memory at ${usedPct}%; ${h.host.cpu_count} CPUs averaging ${h.host.load_avg_1.toFixed(2)} load.`,
   );
   return parts.join(' ');
 }
 
-function supervisorStatus(supervisorState: SupervisorHealthState): { tone: StatusTone; label: string } {
+function supervisorStatus(supervisorState: SupervisorHealthState): {
+  tone: StatusTone;
+  label: string;
+} {
   if (supervisorState.status === 'unavailable') return { tone: 'stuck', label: 'offline' };
   if (supervisorState.data.status === 'ok') return { tone: 'ok', label: 'healthy' };
   return { tone: 'warn', label: supervisorState.data.status };
@@ -648,7 +629,7 @@ function supervisorStatus(supervisorState: SupervisorHealthState): { tone: Statu
 function hostStatus(h: SystemHealth): { tone: StatusTone; label: string } | undefined {
   const memPct = h.host.free_mem_bytes / h.host.total_mem_bytes;
   if (memPct < 0.05) return { tone: 'stuck', label: 'memory critical' };
-  if (memPct < 0.10) return { tone: 'warn', label: 'memory low' };
+  if (memPct < 0.1) return { tone: 'warn', label: 'memory low' };
   if (h.host.load_avg_1 > h.host.cpu_count * 1.5) return { tone: 'warn', label: 'load high' };
   return undefined;
 }
@@ -703,12 +684,14 @@ function configComparisonOf(
   return {
     status: 'available',
     source: 'supervisor status.store_health (threshold vs actual)',
-    value: [{
-      label: 'Dolt MB-per-row ratio',
-      recommended: `<= ${storeHealth.threshold_mb_per_row}`,
-      loaded: String(storeHealth.ratio_mb_per_row),
-      withinRecommendation: !storeHealth.warning,
-    }],
+    value: [
+      {
+        label: 'Dolt MB-per-row ratio',
+        recommended: `<= ${storeHealth.threshold_mb_per_row}`,
+        loaded: String(storeHealth.ratio_mb_per_row),
+        withinRecommendation: !storeHealth.warning,
+      },
+    ],
   };
 }
 

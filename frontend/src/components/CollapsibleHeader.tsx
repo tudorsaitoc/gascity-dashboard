@@ -20,13 +20,10 @@ export function CollapsibleHeader({
   glyphClassName,
 }: CollapsibleHeaderProps) {
   return (
-    <button
-      type="button"
-      onClick={onToggle}
-      className={className}
-      aria-expanded={!collapsed}
-    >
-      {children({ glyph: <CollapseGlyph collapsed={collapsed} className={glyphClassName ?? ''} /> })}
+    <button type="button" onClick={onToggle} className={className} aria-expanded={!collapsed}>
+      {children({
+        glyph: <CollapseGlyph collapsed={collapsed} className={glyphClassName ?? ''} />,
+      })}
     </button>
   );
 }

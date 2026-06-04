@@ -39,101 +39,106 @@ interface StubFetchOptions {
 // Minimal fetch stub that mimics the surface the AgentsPage hits: dashboard
 // local agents plus direct supervisor sessions/transcript reads.
 function stubFetch(options: StubFetchOptions = {}) {
-  vi.stubGlobal('fetch', vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
-    const url = requestUrl(input);
-    const method = requestMethod(input, init);
-    const gcRequest = requestHeader(input, init, 'X-GC-Request');
-    const body = await requestBody(input, init);
-    fetchCalls.push({ url, method, gcRequest, body });
-    if (url === '/api/city/test-city/agents') {
-      throw new Error('old dashboard agents roster route should not be called');
-    }
-    if (url === '/gc-supervisor/v0/city/test-city/agents' && method === 'GET') {
-      return jsonResponse(options.agentsPayload ?? {
-        items: [
-          {
-            name: 'mayor',
-            available: true,
-            running: true,
-            suspended: false,
-            state: 'idle',
-            display_name: 'Claude (Account 5)',
-            provider: 'claude-5',
-            session: {
-              name: 'mayor',
+  vi.stubGlobal(
+    'fetch',
+    vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+      const url = requestUrl(input);
+      const method = requestMethod(input, init);
+      const gcRequest = requestHeader(input, init, 'X-GC-Request');
+      const body = await requestBody(input, init);
+      fetchCalls.push({ url, method, gcRequest, body });
+      if (url === '/api/city/test-city/agents') {
+        throw new Error('old dashboard agents roster route should not be called');
+      }
+      if (url === '/gc-supervisor/v0/city/test-city/agents' && method === 'GET') {
+        return jsonResponse(
+          options.agentsPayload ?? {
+            items: [
+              {
+                name: 'mayor',
+                available: true,
+                running: true,
+                suspended: false,
+                state: 'idle',
+                display_name: 'Claude (Account 5)',
+                provider: 'claude-5',
+                session: {
+                  name: 'mayor',
+                  attached: true,
+                  last_activity: '2026-05-30T00:56:31Z',
+                },
+              },
+              // ay6.2: orphan agent — configured roster entry with no
+              // bound live session. AgentDetail will show "no session
+              // matches" for these; the name-link in this view must
+              // pre-empt the confusion with a distinct title tooltip.
+              {
+                name: 'control-dispatcher',
+                available: true,
+                running: false,
+                suspended: false,
+                state: 'asleep',
+                display_name: 'Claude (Account 7)',
+                provider: 'claude-5',
+              },
+            ],
+            total: 2,
+          },
+        );
+      }
+      if (url === '/gc-supervisor/v0/city/test-city/sessions' && method === 'GET') {
+        return jsonResponse({
+          items: [
+            {
+              id: 'gc-2568',
+              session_name: 'mayor',
+              state: 'active',
+              template: 'mayor',
+              alias: 'mayor',
+              provider: 'claude-5',
+              running: true,
               attached: true,
-              last_activity: '2026-05-30T00:56:31Z',
+              created_at: '2026-05-30T00:00:00Z',
+              title: 'mayor',
             },
+          ],
+          total: 1,
+        });
+      }
+      if (url === '/gc-supervisor/v0/city/test-city/session/gc-2568/pending' && method === 'GET') {
+        return jsonResponse({
+          supported: true,
+          pending: {
+            kind: 'tool_approval',
+            prompt: 'Approve deployment?',
+            request_id: 'req-1',
           },
-          // ay6.2: orphan agent — configured roster entry with no
-          // bound live session. AgentDetail will show "no session
-          // matches" for these; the name-link in this view must
-          // pre-empt the confusion with a distinct title tooltip.
-          {
-            name: 'control-dispatcher',
-            available: true,
-            running: false,
-            suspended: false,
-            state: 'asleep',
-            display_name: 'Claude (Account 7)',
-            provider: 'claude-5',
-          },
-        ],
-        total: 2,
-      });
-    }
-    if (url === '/gc-supervisor/v0/city/test-city/sessions' && method === 'GET') {
-      return jsonResponse({
-        items: [
-          {
-            id: 'gc-2568',
-            session_name: 'mayor',
-            state: 'active',
-            template: 'mayor',
-            alias: 'mayor',
-            provider: 'claude-5',
-            running: true,
-            attached: true,
-            created_at: '2026-05-30T00:00:00Z',
-            title: 'mayor',
-          },
-        ],
-        total: 1,
-      });
-    }
-    if (url === '/gc-supervisor/v0/city/test-city/session/gc-2568/pending' && method === 'GET') {
-      return jsonResponse({
-        supported: true,
-        pending: {
-          kind: 'tool_approval',
-          prompt: 'Approve deployment?',
-          request_id: 'req-1',
-        },
-      });
-    }
-    if (url === '/gc-supervisor/v0/city/test-city/session/gc-2568/respond' && method === 'POST') {
-      return jsonResponse({ id: 'gc-2568', status: 'accepted' }, { status: 202 });
-    }
-    if (url === '/gc-supervisor/v0/city/test-city/session/gc-2568/transcript?format=conversation' && method === 'GET') {
-      return jsonResponse({
-        id: 'gc-2568',
-        template: 'mayor',
-        provider: 'claude-5',
-        format: 'conversation',
-        turns: [{ role: 'assistant', text: 'mayor transcript snapshot' }],
-      });
-    }
-    throw new Error(`unexpected fetch: ${url}`);
-  }));
+        });
+      }
+      if (url === '/gc-supervisor/v0/city/test-city/session/gc-2568/respond' && method === 'POST') {
+        return jsonResponse({ id: 'gc-2568', status: 'accepted' }, { status: 202 });
+      }
+      if (
+        url === '/gc-supervisor/v0/city/test-city/session/gc-2568/transcript?format=conversation' &&
+        method === 'GET'
+      ) {
+        return jsonResponse({
+          id: 'gc-2568',
+          template: 'mayor',
+          provider: 'claude-5',
+          format: 'conversation',
+          turns: [{ role: 'assistant', text: 'mayor transcript snapshot' }],
+        });
+      }
+      throw new Error(`unexpected fetch: ${url}`);
+    }),
+  );
   resetSupervisorApiForTests();
 }
 
 function requestUrl(input: RequestInfo | URL): string {
-  const url = input instanceof Request
-    ? input.url
-    : input instanceof URL
-      ? input.toString()
-      : String(input);
+  const url =
+    input instanceof Request ? input.url : input instanceof URL ? input.toString() : String(input);
   return stripSameOrigin(url);
 }
 
@@ -340,7 +345,9 @@ describe('AgentsPage (post-ay6 regressions)', () => {
     // dashboard mirror peek for mayor (the pre-fix bug). We wait for it
     // because the resolution is async (sessions cache).
     await waitFor(() => {
-      expect(fetchUrls()).toContain('/gc-supervisor/v0/city/test-city/session/gc-2568/transcript?format=conversation');
+      expect(fetchUrls()).toContain(
+        '/gc-supervisor/v0/city/test-city/session/gc-2568/transcript?format=conversation',
+      );
     });
     // Belt-and-suspenders: assert the buggy URL was NEVER attempted.
     expect(fetchUrls()).toContain('/gc-supervisor/v0/city/test-city/sessions');
@@ -435,14 +442,18 @@ describe('AgentsPage (post-ay6 regressions)', () => {
     render(
       <MemoryRouter future={{ v7_relativeSplatPath: true, v7_startTransition: true }}>
         <NowProvider intervalMs={1_000_000}>
-          <AttentionProvider contributors={[
-            contributor('agents', [{
-              id: 'agents:control-dispatcher:idle',
-              domain: 'agents',
-              severity: 'watch',
-              title: 'control-dispatcher idle',
-            }]),
-          ]}>
+          <AttentionProvider
+            contributors={[
+              contributor('agents', [
+                {
+                  id: 'agents:control-dispatcher:idle',
+                  domain: 'agents',
+                  severity: 'watch',
+                  title: 'control-dispatcher idle',
+                },
+              ]),
+            ]}
+          >
             <AgentsPage />
           </AttentionProvider>
         </NowProvider>

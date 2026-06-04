@@ -188,10 +188,7 @@ afterEach(() => {
   vi.useRealTimers();
 });
 
-function mount(
-  initialPath = '/runs',
-  contributors: readonly AttentionContributor[] = [],
-) {
+function mount(initialPath = '/runs', contributors: readonly AttentionContributor[] = []) {
   return render(
     <MemoryRouter
       initialEntries={[initialPath]}
@@ -291,12 +288,14 @@ describe('RunsPage — SSE wiring (gascity-dashboard-bqn)', () => {
     mockLoadRunSummary.mockResolvedValue(source);
 
     mount('/runs', [
-      contributor([{
-        id: 'runs:blocked-root:needs-operator',
-        domain: 'runs',
-        severity: 'attention',
-        title: 'Blocked formula run needs operator',
-      }]),
+      contributor([
+        {
+          id: 'runs:blocked-root:needs-operator',
+          domain: 'runs',
+          severity: 'attention',
+          title: 'Blocked formula run needs operator',
+        },
+      ]),
     ]);
 
     const blockedLink = await screen.findByRole('link', { name: /Blocked formula run/i });
@@ -359,9 +358,7 @@ describe('RunsPage — SSE wiring (gascity-dashboard-bqn)', () => {
     mount();
     await waitForMount();
     expect(screen.queryByText('Completed formula run')).toBeNull();
-    expect(
-      await screen.findByText(/No active formula runs\. \(1 completed\.\)/i),
-    ).toBeTruthy();
+    expect(await screen.findByText(/No active formula runs\. \(1 completed\.\)/i)).toBeTruthy();
     // The toggle button is enabled (totalHistorical > 0) and labeled
     // with the count.
     const toggleDefault = (await screen.findByRole('button', {
@@ -375,7 +372,9 @@ describe('RunsPage — SSE wiring (gascity-dashboard-bqn)', () => {
     mount('/runs?history=1');
     await waitForMount();
     expect(screen.getByText('Completed formula run')).toBeTruthy();
-    const toggleHistory = screen.getByRole('button', { name: /hide historical/i }) as HTMLButtonElement;
+    const toggleHistory = screen.getByRole('button', {
+      name: /hide historical/i,
+    }) as HTMLButtonElement;
     expect(toggleHistory.getAttribute('aria-expanded')).toBe('true');
     expect(toggleHistory.getAttribute('aria-controls')).toBeTruthy();
   });
@@ -544,9 +543,7 @@ describe('RunsPage — partial lane set (gascity-dashboard-n6f1)', () => {
     const live = screen.getByText(/^live$/i);
     expect(marker).toBeTruthy();
     expect(marker.getAttribute('role')).toBe('status');
-    expect(
-      live.compareDocumentPosition(marker) & Node.DOCUMENT_POSITION_FOLLOWING,
-    ).toBeTruthy();
+    expect(live.compareDocumentPosition(marker) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
   });
 
   it('omits the partial signal on a clean direct run source', async () => {

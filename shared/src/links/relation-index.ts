@@ -88,11 +88,7 @@ function resolvePrRef(bead: DashboardBead): { prNumber?: string; prUrl?: string 
   const urlNumberMatch = evidenceUrl?.match(GITHUB_PR_URL_NUMBER);
 
   const prNumber =
-    evidenceNumber ??
-    artifactMatch?.[1] ??
-    urlNumberMatch?.[1] ??
-    reviewNumber ??
-    undefined;
+    evidenceNumber ?? artifactMatch?.[1] ?? urlNumberMatch?.[1] ?? reviewNumber ?? undefined;
   const prUrl = evidenceUrl ?? reviewUrl ?? undefined;
 
   const ref: { prNumber?: string; prUrl?: string } = {};
@@ -145,11 +141,7 @@ function retryKey(bead: IndexBead): string {
 function markSuperseded(beads: IndexBead[]): void {
   const maxAttempt = new Map<string, number>();
   for (const bead of beads) {
-    if (
-      bead.moleculeId === undefined ||
-      bead.stepId === undefined ||
-      bead.attempt === undefined
-    ) {
+    if (bead.moleculeId === undefined || bead.stepId === undefined || bead.attempt === undefined) {
       continue;
     }
     const key = retryKey(bead);
@@ -159,11 +151,7 @@ function markSuperseded(beads: IndexBead[]): void {
     }
   }
   for (const bead of beads) {
-    if (
-      bead.moleculeId === undefined ||
-      bead.stepId === undefined ||
-      bead.attempt === undefined
-    ) {
+    if (bead.moleculeId === undefined || bead.stepId === undefined || bead.attempt === undefined) {
       continue;
     }
     const top = maxAttempt.get(retryKey(bead));

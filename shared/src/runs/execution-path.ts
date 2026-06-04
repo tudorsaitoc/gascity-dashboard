@@ -1,9 +1,5 @@
-import type {
-  RunSnapshotBead,
-} from '../run-snapshot.js';
-import type {
-  RunExecutionPath,
-} from '../run-detail.js';
+import type { RunSnapshotBead } from '../run-snapshot.js';
+import type { RunExecutionPath } from '../run-detail.js';
 import { meta, nonEmpty } from './bead-fields.js';
 
 export function resolveRunExecutionPath(
@@ -34,8 +30,5 @@ function executionWorkDirs(bead: RunSnapshotBead | undefined): Array<string | un
 }
 
 function rigRoots(bead: RunSnapshotBead | undefined): Array<string | undefined> {
-  return [
-    meta(bead, 'gc.rig_root'),
-    meta(bead, 'rig_root'),
-  ];
+  return [meta(bead, 'gc.rig_root'), meta(bead, 'rig_root')];
 }

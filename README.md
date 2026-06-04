@@ -80,7 +80,7 @@ All knobs are environment variables. See [`backend/src/config.ts`](backend/src/c
 | `ADMIN_EXTRA_ALLOWED_HOSTS` | (empty)                  | CSV of extra hostnames allowed in the `Host:` header (e.g. `my-vm,192.168.1.58`). The floor `127.0.0.1` / `localhost` is always allowed. |
 | `GC_SUPERVISOR_URL`         | `http://127.0.0.1:8372`  | gc supervisor API base URL.                                                                                                              |
 | `GC_CITY_NAME`              | `racoon-city`            | Name of the city this dashboard manages. One dashboard per city.                                                                         |
-| `MODULES_ENABLED`           | (empty)                  | CSV of optional first-party modules to mount, e.g. `maintainer`. Core views always mount.                                                 |
+| `MODULES_ENABLED`           | (empty)                  | CSV of optional first-party modules to mount, e.g. `maintainer`. Core views always mount.                                                |
 | `DEFAULT_VIEW`              | (empty)                  | Optional module/view id to use as the city default route.                                                                                |
 | `ADMIN_AUDIT_LOG_PATH`      | `$HOME/.gc/events.jsonl` | Where state-changing actions append audit entries.                                                                                       |
 | `ADMIN_FRONTEND_DIST`       | `../frontend/dist`       | Path to built frontend assets.                                                                                                           |

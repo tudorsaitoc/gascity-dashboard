@@ -1,9 +1,9 @@
 export type Avail<T> =
   | ({ status: 'available' } & T)
   | {
-    status: 'unavailable';
-    error: string;
-  };
+      status: 'unavailable';
+      error: string;
+    };
 
 export interface PartialAwareListMeta {
   /** True when the supervisor reports the list is incomplete. */

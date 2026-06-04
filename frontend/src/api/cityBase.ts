@@ -59,9 +59,7 @@ export function activeCityOrThrow(operation: string): string {
  */
 export function cityPath(suffix: string): string {
   if (activeCity === null) {
-    throw new Error(
-      `cityPath("${suffix}") called before an active city was resolved`,
-    );
+    throw new Error(`cityPath("${suffix}") called before an active city was resolved`);
   }
   return `/api/city/${encodeURIComponent(activeCity)}${suffix}`;
 }

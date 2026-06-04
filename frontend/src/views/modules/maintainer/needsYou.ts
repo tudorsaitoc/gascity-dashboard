@@ -36,8 +36,7 @@ export const NEEDS_YOU_VIEW_PARAM = 'needs-you';
  * lane threshold here would surface every triage item as stalled.
  */
 export const NEEDS_YOU_STALL_THRESHOLD_DAYS = 7;
-export const NEEDS_YOU_STALL_THRESHOLD_MS =
-  NEEDS_YOU_STALL_THRESHOLD_DAYS * 24 * 60 * 60 * 1000;
+export const NEEDS_YOU_STALL_THRESHOLD_MS = NEEDS_YOU_STALL_THRESHOLD_DAYS * 24 * 60 * 60 * 1000;
 
 /** PR/issue whose status is `changes_requested` — a review cycle is open
  *  and someone owes a response (contributor or operator). */

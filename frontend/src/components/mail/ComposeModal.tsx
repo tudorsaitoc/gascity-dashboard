@@ -44,7 +44,8 @@ export function ComposeModal({ open, onClose, onSent }: ComposeModalProps) {
     }
   }, [body, onSent, subject, to]);
 
-  const canSend = viewingAs.isOperator && to.length > 0 && subject.length > 0 && body.length > 0 && !sending;
+  const canSend =
+    viewingAs.isOperator && to.length > 0 && subject.length > 0 && body.length > 0 && !sending;
 
   return (
     <Modal
@@ -111,9 +112,7 @@ export function ComposeModal({ open, onClose, onSent }: ComposeModalProps) {
             label={`Reading as ${displayLabel(viewingAs.alias, OPERATOR_ALIAS)}. Sends from this modal are structurally locked to the operator regardless.`}
           />
         )}
-        {error && (
-          <StatusBadge tone="stuck" label={error} />
-        )}
+        {error && <StatusBadge tone="stuck" label={error} />}
       </div>
     </Modal>
   );

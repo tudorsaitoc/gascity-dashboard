@@ -20,9 +20,7 @@ export async function listSupervisorAgents(): Promise<SupervisorAgentList> {
   };
 }
 
-export async function fetchSupervisorAgentPrime(
-  agentAlias: string,
-): Promise<AgentPrimeBody> {
+export async function fetchSupervisorAgentPrime(agentAlias: string): Promise<AgentPrimeBody> {
   const trimmedAlias = agentAlias.trim();
   if (trimmedAlias.length === 0) throw new Error('agent alias is required');
   return supervisorApi().agentPrime(

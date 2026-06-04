@@ -37,10 +37,7 @@ interface StageLadderProps {
 export function StageLadder({ stages, label }: StageLadderProps) {
   if (stages.length === 0) return null;
   return (
-    <ol
-      className="mt-2 flex items-baseline gap-x-2 flex-wrap"
-      aria-label={`${label} stages`}
-    >
+    <ol className="mt-2 flex items-baseline gap-x-2 flex-wrap" aria-label={`${label} stages`}>
       {stages.map((stage) => (
         <li
           key={stage.key}

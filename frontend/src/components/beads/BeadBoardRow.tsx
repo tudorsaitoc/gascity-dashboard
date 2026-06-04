@@ -29,10 +29,8 @@ export function BeadBoardRow({
   const blockCount = blocks.length;
   const hasNeighbourhood = depCount > 0 || blockCount > 0;
 
-  const {
-    className: attentionClassName = '',
-    ...attentionProps
-  } = attentionListItemProps(attentionSeverity);
+  const { className: attentionClassName = '', ...attentionProps } =
+    attentionListItemProps(attentionSeverity);
 
   useEffect(() => {
     if (!selected) return;
@@ -71,9 +69,7 @@ export function BeadBoardRow({
         </span>
         <span className="flex items-baseline gap-3 pl-4 mt-0.5 text-label uppercase tracking-wider text-fg-faint">
           <span className="tnum">{bead.id}</span>
-          {bead.priority != null && (
-            <span className="tnum">P{bead.priority}</span>
-          )}
+          {bead.priority != null && <span className="tnum">P{bead.priority}</span>}
           {hasNeighbourhood && (
             <span className="tnum normal-case tracking-normal">
               {depCount > 0 && `needs ${depCount}`}
@@ -82,9 +78,7 @@ export function BeadBoardRow({
             </span>
           )}
           {hasUnresolvedDeps && (
-            <span className="normal-case tracking-normal text-warn">
-              unresolved
-            </span>
+            <span className="normal-case tracking-normal text-warn">unresolved</span>
           )}
         </span>
       </button>

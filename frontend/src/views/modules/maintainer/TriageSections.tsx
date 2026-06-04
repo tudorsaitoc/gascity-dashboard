@@ -8,10 +8,7 @@ import type {
   TriageTierSection,
 } from 'gas-city-dashboard-shared';
 import { useAttentionModel } from '../../../attention/context';
-import {
-  attentionBlockProps,
-  resourceAttentionSeverity,
-} from '../../../attention/routeHighlight';
+import { attentionBlockProps, resourceAttentionSeverity } from '../../../attention/routeHighlight';
 import { useNow } from '../../../contexts/NowContext';
 import { formatRelative } from '../../../hooks/time';
 import { CollapsibleHeader } from '../../../components/CollapsibleHeader';
@@ -19,9 +16,7 @@ import { selectionKey } from './selectionKey';
 import { maintainerResourceId } from './attentionKeys';
 import { RunLink, SlungLink, TriageScore } from './TriageSignals';
 
-export type ToggleSelect =
-  | ((item: { kind: 'pr' | 'issue'; number: number }) => void)
-  | null;
+export type ToggleSelect = ((item: { kind: 'pr' | 'issue'; number: number }) => void) | null;
 
 export function TierSection({
   section,
@@ -54,10 +49,8 @@ export function TierSection({
   onToggleSelect: ToggleSelect;
 }) {
   const itemCount =
-    section.clusters.reduce((n, c) => n + c.items.length, 0) +
-    section.unclustered.length;
-  const showFilteredOf =
-    unfilteredItemCount !== undefined && unfilteredItemCount !== itemCount;
+    section.clusters.reduce((n, c) => n + c.items.length, 0) + section.unclustered.length;
+  const showFilteredOf = unfilteredItemCount !== undefined && unfilteredItemCount !== itemCount;
 
   return (
     <section>
@@ -168,22 +161,18 @@ function ClusterBlock({
             >
               <span className="mr-2">{glyph}</span>
               {isTopic && (
-                <span className="text-fg-faint mr-2" aria-hidden>·</span>
+                <span className="text-fg-faint mr-2" aria-hidden>
+                  ·
+                </span>
               )}
               {headerLabel}
             </div>
-            <div className="text-body text-fg-muted tnum shrink-0">
-              {totals.join(' · ')}
-            </div>
+            <div className="text-body text-fg-muted tnum shrink-0">{totals.join(' · ')}</div>
           </>
         )}
       </CollapsibleHeader>
       {!collapsed && (
-        <RowList
-          items={cluster.items}
-          selection={selection}
-          onToggleSelect={onToggleSelect}
-        />
+        <RowList items={cluster.items} selection={selection} onToggleSelect={onToggleSelect} />
       )}
     </div>
   );
@@ -257,7 +246,7 @@ function RowList({
     <div>
       {items.map((it) => {
         if (it.kind === 'pr' && nestedPrNumbers.has(it.number)) return null;
-        const children = it.kind === 'issue' ? childrenOf.get(it.number) ?? [] : [];
+        const children = it.kind === 'issue' ? (childrenOf.get(it.number) ?? []) : [];
         return (
           <div key={rowKey(it)}>
             {it.kind === 'issue' ? (
@@ -336,10 +325,7 @@ export function IssueRow({
     resourceAttentionSeverity(attention, 'maintainer', maintainerResourceId(item)),
   );
   return (
-    <div
-      {...highlightProps}
-      className={`${gridClass} py-1.5 ${highlightProps.className ?? ''}`}
-    >
+    <div {...highlightProps} className={`${gridClass} py-1.5 ${highlightProps.className ?? ''}`}>
       {onToggleSelect && (
         <SelectCheckbox item={item} selection={selection} onToggleSelect={onToggleSelect} />
       )}
@@ -355,9 +341,7 @@ export function IssueRow({
           </span>
         )}
         {showAnchored && (
-          <span className="ml-3 text-label uppercase tracking-wider text-fg-faint">
-            anchored
-          </span>
+          <span className="ml-3 text-label uppercase tracking-wider text-fg-faint">anchored</span>
         )}
         {showNeedsPr && (
           <span
@@ -389,9 +373,13 @@ function PrRow({
     resourceAttentionSeverity(attention, 'maintainer', maintainerResourceId(item)),
   );
   const leading = item.is_marked ? (
-    <span className="text-accent text-[0.85em] leading-none translate-y-[1px]" aria-hidden>●</span>
+    <span className="text-accent text-[0.85em] leading-none translate-y-[1px]" aria-hidden>
+      ●
+    </span>
   ) : nested ? (
-    <span className="text-fg-faint leading-none translate-y-[1px]" aria-label="fixes issue above">↳</span>
+    <span className="text-fg-faint leading-none translate-y-[1px]" aria-label="fixes issue above">
+      ↳
+    </span>
   ) : (
     <span
       className="text-label uppercase tracking-wider text-fg-muted leading-none translate-y-[1px]"
@@ -448,13 +436,7 @@ function extractPriorityLabel(labels: string[]): string | null {
   return null;
 }
 
-function RowMeta({
-  item,
-  extraStatus,
-}: {
-  item: TriageItem;
-  extraStatus?: TriageItemStatus;
-}) {
+function RowMeta({ item, extraStatus }: { item: TriageItem; extraStatus?: TriageItemStatus }) {
   const now = useNow();
   return (
     <div className="flex items-baseline gap-3 text-body text-fg-muted shrink-0 tnum">
@@ -510,8 +492,7 @@ function ContributorByline({ author }: { author: ContributorStat }) {
 
   return (
     <span title={ratesTitle} className="whitespace-nowrap">
-      {author.login}{' '}
-      <span className={tierClass(author.tier)}>{tierWord(author.tier)}</span>
+      {author.login} <span className={tierClass(author.tier)}>{tierWord(author.tier)}</span>
     </span>
   );
 }

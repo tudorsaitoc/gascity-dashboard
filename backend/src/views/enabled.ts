@@ -29,14 +29,10 @@ export function resolveEnabledFirstPartyIds(
   registry: ReadonlyArray<BackendModule<unknown>>,
   enabled: ReadonlySet<string> | null,
 ): ReadonlySet<string> {
-  const firstPartyIds = new Set(
-    registry.filter((m) => m.kind === 'firstParty').map((m) => m.id),
-  );
+  const firstPartyIds = new Set(registry.filter((m) => m.kind === 'firstParty').map((m) => m.id));
   if (enabled === null) return new Set();
 
-  const coreIds = new Set(
-    registry.filter((m) => m.kind === 'core').map((m) => m.id),
-  );
+  const coreIds = new Set(registry.filter((m) => m.kind === 'core').map((m) => m.id));
 
   const resolved = new Set<string>();
   for (const id of enabled) {
@@ -50,10 +46,7 @@ export function resolveEnabledFirstPartyIds(
       // naming a core id in MODULES_ENABLED is benign, not a typo.
       continue;
     }
-    logWarn(
-      LOG_COMPONENT.admin,
-      `MODULES_ENABLED contains unknown module id "${id}" — ignored`,
-    );
+    logWarn(LOG_COMPONENT.admin, `MODULES_ENABLED contains unknown module id "${id}" — ignored`);
   }
   return resolved;
 }

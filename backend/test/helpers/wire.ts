@@ -64,9 +64,7 @@ export function isWireDetails(value: unknown): value is WireDetails {
  * discriminator fails at the contract boundary instead of at the
  * next property read.
  */
-export function assertWireDetails(
-  value: unknown,
-): asserts value is WireDetails {
+export function assertWireDetails(value: unknown): asserts value is WireDetails {
   if (!isWireDetails(value)) {
     const kind =
       value === null

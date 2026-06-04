@@ -237,9 +237,7 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): AdminConfig {
     // same console where the operator sees the dashboard load. The backend
     // mirrors the value into the wire-shape; null when unset or empty.
     defaultView:
-      env.DEFAULT_VIEW !== undefined && env.DEFAULT_VIEW.length > 0
-        ? env.DEFAULT_VIEW
-        : null,
+      env.DEFAULT_VIEW !== undefined && env.DEFAULT_VIEW.length > 0 ? env.DEFAULT_VIEW : null,
   };
 }
 
@@ -342,10 +340,7 @@ function loadMaintainerModuleConfig(env: NodeJS.ProcessEnv): MaintainerModuleCon
 
 function parseBindHost(raw: string | undefined): string {
   if (raw !== undefined && raw !== '' && raw !== '127.0.0.1') {
-    logWarn(
-      LOG_COMPONENT.admin,
-      `HOST="${raw}" ignored; dashboard backend binds 127.0.0.1 only`,
-    );
+    logWarn(LOG_COMPONENT.admin, `HOST="${raw}" ignored; dashboard backend binds 127.0.0.1 only`);
   }
   return '127.0.0.1';
 }

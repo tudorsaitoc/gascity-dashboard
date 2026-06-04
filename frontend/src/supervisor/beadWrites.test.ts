@@ -143,18 +143,22 @@ describe('supervisor bead writes', () => {
     const sling = vi.fn(async () => ({ status: 'ok', bead: 'td-new-1', target: 'mayor' }));
     setSupervisorApiForTests({ ...baseApi, createBead, sling });
 
-    await expect(createAndSlingSupervisorBead({
-      title: ' ',
-      description: '',
-      rig: 'east',
-      target: 'mayor',
-    })).rejects.toThrow(/title is required/i);
-    await expect(createAndSlingSupervisorBead({
-      title: 'Route failing work',
-      description: '',
-      rig: 'east',
-      target: ' ',
-    })).rejects.toThrow(/target is required/i);
+    await expect(
+      createAndSlingSupervisorBead({
+        title: ' ',
+        description: '',
+        rig: 'east',
+        target: 'mayor',
+      }),
+    ).rejects.toThrow(/title is required/i);
+    await expect(
+      createAndSlingSupervisorBead({
+        title: 'Route failing work',
+        description: '',
+        rig: 'east',
+        target: ' ',
+      }),
+    ).rejects.toThrow(/target is required/i);
     expect(createBead).not.toHaveBeenCalled();
     expect(sling).not.toHaveBeenCalled();
   });

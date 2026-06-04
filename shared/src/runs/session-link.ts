@@ -1,11 +1,6 @@
-import type {
-  RunSnapshotBead,
-} from '../run-snapshot.js';
+import type { RunSnapshotBead } from '../run-snapshot.js';
 import type { DashboardSession } from '../dashboard-sessions.js';
-import type {
-  RunNodeStatus,
-  RunSessionLink,
-} from '../run-detail.js';
+import type { RunNodeStatus, RunSessionLink } from '../run-detail.js';
 import { SESSION_ID_RE } from '../session-id.js';
 import { meta, nonEmpty } from './bead-fields.js';
 
@@ -20,9 +15,7 @@ export interface RunSessionLinkContext {
   scopeRef?: string;
 }
 
-export function buildRunSessionIndex(
-  sessions: readonly DashboardSession[],
-): RunSessionIndex {
+export function buildRunSessionIndex(sessions: readonly DashboardSession[]): RunSessionIndex {
   const byId = new Map<string, DashboardSession>();
   const byName = new Map<string, DashboardSession>();
   const byTemplate = new Map<string, DashboardSession[]>();
@@ -109,10 +102,7 @@ function resolveRunSessionSummary(
   return null;
 }
 
-function linkForSession(
-  session: DashboardSession,
-  rawLink: RunSessionLink,
-): RunSessionLink {
+function linkForSession(session: DashboardSession, rawLink: RunSessionLink): RunSessionLink {
   return {
     sessionId: session.id,
     sessionName:
@@ -133,7 +123,9 @@ function linkForSession(
 
 function uniquePreferredSession(sessions: readonly DashboardSession[]): DashboardSession | null {
   if (sessions.length === 0) return null;
-  const active = sessions.filter((session) => session.state === 'active' || session.running === true);
+  const active = sessions.filter(
+    (session) => session.state === 'active' || session.running === true,
+  );
   if (active.length === 1) return active[0] ?? null;
   if (sessions.length === 1) return sessions[0] ?? null;
   return null;

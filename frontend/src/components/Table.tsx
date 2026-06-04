@@ -105,10 +105,7 @@ export function Table<T>({
         <tbody>
           {sortedRows.length === 0 ? (
             <tr>
-              <td
-                colSpan={columns.length}
-                className="py-10 text-center text-fg-muted italic"
-              >
+              <td colSpan={columns.length} className="py-10 text-center text-fg-muted italic">
                 {empty ?? 'No data'}
               </td>
             </tr>
@@ -121,9 +118,7 @@ export function Table<T>({
                   key={rowKey(row)}
                   onClick={onRowClick ? () => onRowClick(row) : undefined}
                   className={`border-b border-rule transition-colors duration-150 ease-out-quart ${
-                    onRowClick
-                      ? 'cursor-pointer hover:bg-surface-tint'
-                      : ''
+                    onRowClick ? 'cursor-pointer hover:bg-surface-tint' : ''
                   } ${rowClassName}`}
                 >
                   {columns.map((col) => {

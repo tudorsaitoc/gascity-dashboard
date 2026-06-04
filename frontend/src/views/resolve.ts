@@ -192,10 +192,7 @@ export function resolveDefaultViewWithLogging(
  * silently outranks a visible nav entry. Final fallback is lexicographic
  * id order so the choice is stable across deploys.
  */
-function compareDefaultCandidates(
-  a: FrontendViewDescriptor,
-  b: FrontendViewDescriptor,
-): number {
+function compareDefaultCandidates(a: FrontendViewDescriptor, b: FrontendViewDescriptor): number {
   const ao = a.nav?.order ?? Number.POSITIVE_INFINITY;
   const bo = b.nav?.order ?? Number.POSITIVE_INFINITY;
   if (ao !== bo) return ao - bo;

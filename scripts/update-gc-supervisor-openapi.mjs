@@ -39,10 +39,6 @@ const schema = await response.json();
 assertOpenApiSchema(schema);
 
 await mkdir(path.dirname(outputPath), { recursive: true });
-await writeFile(
-  outputPath,
-  `${JSON.stringify(normalizeJson(schema), null, 2)}\n`,
-  'utf8',
-);
+await writeFile(outputPath, `${JSON.stringify(normalizeJson(schema), null, 2)}\n`, 'utf8');
 
 console.log(`updated ${path.relative(process.cwd(), outputPath)} from ${schemaUrl}`);

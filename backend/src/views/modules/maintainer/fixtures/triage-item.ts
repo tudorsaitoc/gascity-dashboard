@@ -37,7 +37,9 @@ const FIXED_ISO = '2026-05-24T00:00:00.000Z';
  * item is a plausible One Mark candidate without further setup; tests
  * that need a different tier override explicitly.
  */
-function commonDefaults(number: number): Omit<TriageItem, 'kind' | 'title' | 'html_url' | 'lines_changed' | 'is_marked'> {
+function commonDefaults(
+  number: number,
+): Omit<TriageItem, 'kind' | 'title' | 'html_url' | 'lines_changed' | 'is_marked'> {
   return {
     number,
     status: 'open' as TriageItemStatus,
@@ -74,9 +76,7 @@ function commonDefaults(number: number): Omit<TriageItem, 'kind' | 'title' | 'ht
  * because issues are not One Mark candidates (`isMarkCandidate` rejects
  * them); tests opt in by overriding.
  */
-export function makeIssue(
-  overrides: Partial<TriageItem> & { number: number },
-): TriageItem {
+export function makeIssue(overrides: Partial<TriageItem> & { number: number }): TriageItem {
   return {
     ...commonDefaults(overrides.number),
     kind: 'issue',
@@ -98,9 +98,7 @@ export function makeIssue(
  * 50 was chosen as the smaller, safer default for clusters where the
  * value would feed into a sum.
  */
-export function makePr(
-  overrides: Partial<TriageItem> & { number: number },
-): TriageItem {
+export function makePr(overrides: Partial<TriageItem> & { number: number }): TriageItem {
   return {
     ...commonDefaults(overrides.number),
     kind: 'pr',

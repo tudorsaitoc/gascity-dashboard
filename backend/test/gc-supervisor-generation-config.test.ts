@@ -22,7 +22,10 @@ const frontendGeneratedClientUrl = new URL(
 );
 const sharedIndexUrl = new URL('../../shared/src/index.ts', import.meta.url);
 const sharedDashboardBeadsUrl = new URL('../../shared/src/dashboard-beads.ts', import.meta.url);
-const sharedDashboardSessionsUrl = new URL('../../shared/src/dashboard-sessions.ts', import.meta.url);
+const sharedDashboardSessionsUrl = new URL(
+  '../../shared/src/dashboard-sessions.ts',
+  import.meta.url,
+);
 const sharedAgentsUrl = new URL('../../shared/src/gc-agents.ts', import.meta.url);
 const sharedRigsUrl = new URL('../../shared/src/gc-rigs.ts', import.meta.url);
 const sharedFormulaRunsUrl = new URL('../../shared/src/formula-runs.ts', import.meta.url);
@@ -32,7 +35,10 @@ const frontendRuntimeCompatUrl = new URL(
   import.meta.url,
 );
 const legacyGeneratedTypesUrl = new URL('../src/generated/gc-supervisor.ts', import.meta.url);
-const legacyGeneratedSchemasUrl = new URL('../src/generated/gc-supervisor-schemas.ts', import.meta.url);
+const legacyGeneratedSchemasUrl = new URL(
+  '../src/generated/gc-supervisor-schemas.ts',
+  import.meta.url,
+);
 
 test('gc supervisor generated-client tooling runs on Node 22.13 or newer', async () => {
   const rootPackage = JSON.parse(await readFile(rootPackageUrl, 'utf8')) as {
@@ -157,7 +163,11 @@ test('gc supervisor generated client post-processing is limited to RFC3339 offse
   assert.match(generator, /z\.iso\.datetime\(\{ offset: true \}\)/);
   for (const rootUrl of [generatedClientUrl, frontendGeneratedClientUrl]) {
     for (const { path, source } of await readTsFiles(rootUrl)) {
-      assert.doesNotMatch(source, /@ts-nocheck/, `${path} should be generator output without ts-nocheck`);
+      assert.doesNotMatch(
+        source,
+        /@ts-nocheck/,
+        `${path} should be generator output without ts-nocheck`,
+      );
     }
   }
 });
@@ -197,8 +207,14 @@ test('gc supervisor generated output imports the official fetch runtime instead 
     ]);
     assert.match(client?.source ?? '', /from '@hey-api\/client-fetch'/);
     assert.match(sdk?.source ?? '', /from '@hey-api\/client-fetch'/);
-    assert.equal(generatedPaths.some((path) => path.startsWith('client/')), false);
-    assert.equal(generatedPaths.some((path) => path.startsWith('core/')), false);
+    assert.equal(
+      generatedPaths.some((path) => path.startsWith('client/')),
+      false,
+    );
+    assert.equal(
+      generatedPaths.some((path) => path.startsWith('core/')),
+      false,
+    );
   }
 });
 
@@ -311,13 +327,7 @@ test('shared projection inputs do not use Gc-named supervisor mirror types', asy
 test('GcClient has no unused backend detail/transcript supervisor mirrors', async () => {
   const clientSource = await readFile(gcClientUrl, 'utf8');
 
-  for (const method of [
-    'getAgent',
-    'getBead',
-    'getRun',
-    'getFormulaDetail',
-    'fetchTranscript',
-  ]) {
+  for (const method of ['getAgent', 'getBead', 'getRun', 'getFormulaDetail', 'fetchTranscript']) {
     assert.doesNotMatch(clientSource, new RegExp(`\\basync ${method}\\s*\\(`));
   }
 
@@ -347,7 +357,7 @@ async function readTsFiles(
   for (const entry of entries) {
     const childRelative = `${relative}${entry.name}${entry.isDirectory() ? '/' : ''}`;
     if (entry.isDirectory()) {
-      files.push(...await readTsFiles(rootUrl, childRelative));
+      files.push(...(await readTsFiles(rootUrl, childRelative)));
       continue;
     }
     if (!entry.name.endsWith('.ts')) continue;

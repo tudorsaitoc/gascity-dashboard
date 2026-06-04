@@ -144,10 +144,6 @@ export interface EntityLinkView {
  * a city-scoped and a rig-scoped bead can share a `scope_ref` value and
  * would otherwise collide.
  */
-export function makeNodeKey(
-  type: LinkNodeType,
-  ref: string,
-  scope: string,
-): string {
+export function makeNodeKey(type: LinkNodeType, ref: string, scope: string): string {
   return `${type}:${scope}:${ref}`;
 }

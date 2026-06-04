@@ -13,7 +13,5 @@ export const maintainerView: FrontendViewDescriptor = {
   kind: 'firstParty',
   path: '/maintainer',
   nav: { label: 'Triage', order: 80 },
-  element: lazy(() =>
-    import('./Maintainer').then((m) => ({ default: m.MaintainerPage })),
-  ),
+  element: lazy(() => import('./Maintainer').then((m) => ({ default: m.MaintainerPage }))),
 };

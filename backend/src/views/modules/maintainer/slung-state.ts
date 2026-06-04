@@ -95,10 +95,7 @@ export async function writeSlungEntry(
   await next;
 }
 
-export async function purgeSlungKeys(
-  statePath: string,
-  keys: readonly string[],
-): Promise<void> {
+export async function purgeSlungKeys(statePath: string, keys: readonly string[]): Promise<void> {
   if (keys.length === 0) return;
   const next = writeChain.then(async () => {
     const current = await readSlungState(statePath);
@@ -182,10 +179,7 @@ function isValidStateMap(v: unknown): v is PrenormalizedSlungStateMap {
  * See the `PrenormalizedSlungEntry` type definition above for the rationale
  * of the input shape and the `??` coercion semantics.
  */
-function normalizeLegacyEntries(
-  map: PrenormalizedSlungStateMap,
-  statePath: string,
-): SlungStateMap {
+function normalizeLegacyEntries(map: PrenormalizedSlungStateMap, statePath: string): SlungStateMap {
   let migrated = 0;
   const normalized: SlungStateMap = Object.fromEntries(
     Object.entries(map).map(([key, entry]) => {

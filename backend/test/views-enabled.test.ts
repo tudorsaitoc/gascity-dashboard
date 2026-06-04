@@ -45,10 +45,7 @@ describe('resolveEnabledFirstPartyIds', () => {
   });
 
   test('CSV env naming a core id is silently ignored — core mounts unconditionally', () => {
-    const enabled = resolveEnabledFirstPartyIds(
-      registry,
-      new Set(['health', 'maintainer']),
-    );
+    const enabled = resolveEnabledFirstPartyIds(registry, new Set(['health', 'maintainer']));
     // 'health' is core, not present in the firstParty-only result set.
     assert.deepEqual([...enabled].sort(), ['maintainer']);
   });
@@ -66,10 +63,7 @@ describe('resolveEnabledFirstPartyIds', () => {
     }) as typeof process.stderr.write;
     let enabled: ReadonlySet<string>;
     try {
-      enabled = resolveEnabledFirstPartyIds(
-        registry,
-        new Set(['maintainer', 'typo-here']),
-      );
+      enabled = resolveEnabledFirstPartyIds(registry, new Set(['maintainer', 'typo-here']));
     } finally {
       process.stderr.write = origStderr;
     }

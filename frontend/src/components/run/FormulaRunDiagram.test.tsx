@@ -15,9 +15,7 @@ describe('FormulaRunDiagram', () => {
       />,
     );
 
-    const labels = screen
-      .getAllByRole('button')
-      .map((button) => button.textContent ?? '');
+    const labels = screen.getAllByRole('button').map((button) => button.textContent ?? '');
 
     expect(labels[0]).toContain('Root');
     expect(labels[1]).toContain('Rig A setup');
@@ -46,13 +44,7 @@ describe('FormulaRunDiagram', () => {
       { from: 'root', to: 'rig-a-setup', kind: 'blocks' },
       { from: 'rig-a-setup', to: 'rig-b-review', kind: 'blocks' },
     ];
-    render(
-      <FormulaRunDiagram
-        detail={detail}
-        selectedNodeId={null}
-        onToggleNode={vi.fn()}
-      />,
-    );
+    render(<FormulaRunDiagram detail={detail} selectedNodeId={null} onToggleNode={vi.fn()} />);
 
     expect(screen.queryByText(/step dependencies/i)).toBeNull();
     expect(screen.queryByText(/Root -> Rig A setup · blocks/i)).toBeNull();

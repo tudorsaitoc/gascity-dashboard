@@ -9,7 +9,7 @@ export const ATTENTION_DOMAINS = [
 ] as const;
 
 export type AttentionSeverity = 'attention' | 'watch';
-export type AttentionDomain = typeof ATTENTION_DOMAINS[number];
+export type AttentionDomain = (typeof ATTENTION_DOMAINS)[number];
 
 export interface AttentionItem {
   id: string;

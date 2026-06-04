@@ -70,16 +70,16 @@ These bound every workstream. They come from `AGENTS.md`, the architecture-best-
 
 ## Validation summary
 
-| Claim | Title | Verdict | Disposition | Workstream |
-| --- | --- | --- | --- | --- |
-| A | `/workflows` + `/kanban` redirects exist; delete them | **partial** (redirects exist `App.tsx:80-84`; spec already forbids them; safe to delete) | include as-stated | WS-1 |
-| B | Dashboard-owned `workflow` types/fields → run vocab | **confirmed** | include as-stated | WS-2 |
-| C | Formula identity resolution duplicated 6× | **confirmed** (some divergence is *intentional*) | include **modified** | WS-5 |
-| D | Run scope parsed in 5 places; 1 true duplicate | **confirmed** | include as-stated | WS-6 |
-| E | `snapshot/collectors/runs.ts` (878 LOC) does too much | **confirmed** | include **modified** (after C, D) | WS-8 |
-| F | Supervisor schema authority split; write-edge casts | **confirmed** | **redesigned** → generate client+Zod from OpenAPI (`@hey-api`); see WS-10 | WS-10 |
-| G | Split detail/diff resources; honest diff errors; decouple tab | **confirmed** | **accepted in full** (split hooks + decouple tab); see WS-12 | WS-12 |
-| H | Diff reviewability policy split across `exec.ts` + `diff.ts` | **confirmed** (genuinely cross-file) | include as-stated | WS-7 |
+| Claim | Title                                                         | Verdict                                                                                  | Disposition                                                               | Workstream |
+| ----- | ------------------------------------------------------------- | ---------------------------------------------------------------------------------------- | ------------------------------------------------------------------------- | ---------- |
+| A     | `/workflows` + `/kanban` redirects exist; delete them         | **partial** (redirects exist `App.tsx:80-84`; spec already forbids them; safe to delete) | include as-stated                                                         | WS-1       |
+| B     | Dashboard-owned `workflow` types/fields → run vocab           | **confirmed**                                                                            | include as-stated                                                         | WS-2       |
+| C     | Formula identity resolution duplicated 6×                     | **confirmed** (some divergence is _intentional_)                                         | include **modified**                                                      | WS-5       |
+| D     | Run scope parsed in 5 places; 1 true duplicate                | **confirmed**                                                                            | include as-stated                                                         | WS-6       |
+| E     | `snapshot/collectors/runs.ts` (878 LOC) does too much         | **confirmed**                                                                            | include **modified** (after C, D)                                         | WS-8       |
+| F     | Supervisor schema authority split; write-edge casts           | **confirmed**                                                                            | **redesigned** → generate client+Zod from OpenAPI (`@hey-api`); see WS-10 | WS-10      |
+| G     | Split detail/diff resources; honest diff errors; decouple tab | **confirmed**                                                                            | **accepted in full** (split hooks + decouple tab); see WS-12              | WS-12      |
+| H     | Diff reviewability policy split across `exec.ts` + `diff.ts`  | **confirmed** (genuinely cross-file)                                                     | include as-stated                                                         | WS-7       |
 
 Additional **TN-only** findings not in the Codex prompt are folded in as WS-3, WS-4, WS-9, WS-11, WS-13, WS-14, plus the lower-priority cleanups list.
 
@@ -91,7 +91,7 @@ Each workstream lists: **Why** · **Evidence** (file:line) · **Change** · **Te
 
 ### Tier 0 — Vocabulary isolation (low risk, high signal; do first)
 
-#### WS-1 — Delete the dashboard `/workflows` and `/kanban` route surface  *(Codex A)*
+#### WS-1 — Delete the dashboard `/workflows` and `/kanban` route surface _(Codex A)_
 
 - **Implementation status (2026-05-31):** Complete. `/workflows` and `/kanban` now hit the not-found route, the unused `legacyPaths` descriptor field is gone, and docs and tests were updated to reflect no legacy aliases.
 - **Why:** Product language is Run/Formula. The dashboard owns no `workflow` routes per `specs/architecture/formula-run-detail-type.md:63,472`, yet `App.tsx` still ships client-side redirects — a documentation-vs-implementation divergence keeping the dead concept alive.
@@ -104,7 +104,7 @@ Each workstream lists: **Why** · **Evidence** (file:line) · **Change** · **Te
 - **Risk:** Intentional route break. Old bookmarks now 404 — correct per spec and no-backcompat directive.
 - **Deps:** none.
 
-#### WS-2 — Rename dashboard-owned `workflow` types/fields to run vocabulary  *(Codex B)*
+#### WS-2 — Rename dashboard-owned `workflow` types/fields to run vocabulary _(Codex B)_
 
 - **Implementation status (2026-05-31):** Complete for the dashboard DTO surface covered here. Supervisor wire payloads still use `workflow_id`, but backend decoders normalize them to dashboard `run_id`; tests pin that edge mapping and the maintainer triage `run_id` field.
 - **Why:** The `workflow → run` translation is applied at only ~half the wire edge, so the dashboard interior speaks two dialects for one concept. AGENTS.md mandates translating at the edge, and there is no need to preserve old dashboard field names for external clients.
@@ -114,14 +114,14 @@ Each workstream lists: **Why** · **Evidence** (file:line) · **Change** · **Te
   - `shared/src/index.ts:693` — `GcFormulaRecentRun.workflow_id` → **`run_id`**.
   - `shared/src/index.ts:1038` — `TriageItem.workflow_run_id` → **`run_id`** (stamped at `backend/src/views/modules/maintainer/router.ts:546`, read at `frontend/src/views/modules/maintainer/TriageSignals.tsx:39,43`).
 - **Evidence (keep — genuine wire):** `gc-client.ts:86` endpoint path `/v0/city/{city}/workflow/{workflow_id}`; `gc-supervisor-decoders.ts:50-51,299-300,347,362` raw Zod schemas mirroring OpenAPI `WorkflowSnapshotResponse`/`FormulaRunResponse`. These stay `workflow_*`.
-- **Change:** Rename the four dashboard-consumed symbols with no deprecated aliases. **Critically:** until WS-29 sheds raw `Gc*` wire mirrors from `shared`, `GcFormulaRun`/`GcFormulaRecentRun` are *decoder output* shapes even though the supervisor wire sends `workflow_id`; remap at the edge (`workflow_id → run_id`) and update the propagation site `snapshot/collectors/runs.ts:808` (`run.root_bead_id ?? run.workflow_id`). WS-29 later replaces these temporary shared feed mirrors with generated supervisor types consumed directly by the browser plus dashboard-local view models, so do not introduce long-lived compatibility names. Also fix the `TriageItem` field JSDoc, which points at the **deleted** `/workflows/<id>` route (`index.ts:1026`) → `/runs/<id>`. **Field name is `run_id`** (resolved — spec Naming Boundary L62 "Dashboard DTO identity is runId"; the "best-known-at-sling-time, not live" nuance stays in the JSDoc, not the name).
+- **Change:** Rename the four dashboard-consumed symbols with no deprecated aliases. **Critically:** until WS-29 sheds raw `Gc*` wire mirrors from `shared`, `GcFormulaRun`/`GcFormulaRecentRun` are _decoder output_ shapes even though the supervisor wire sends `workflow_id`; remap at the edge (`workflow_id → run_id`) and update the propagation site `snapshot/collectors/runs.ts:808` (`run.root_bead_id ?? run.workflow_id`). WS-29 later replaces these temporary shared feed mirrors with generated supervisor types consumed directly by the browser plus dashboard-local view models, so do not introduce long-lived compatibility names. Also fix the `TriageItem` field JSDoc, which points at the **deleted** `/workflows/<id>` route (`index.ts:1026`) → `/runs/<id>`. **Field name is `run_id`** (resolved — spec Naming Boundary L62 "Dashboard DTO identity is runId"; the "best-known-at-sling-time, not live" nuance stays in the JSDoc, not the name).
 - **Tests:** Update `backend/src/views/modules/maintainer/maintainer-sling.test.ts` (asserts `workflow_run_id` stamping ~799-876), `frontend/src/views/modules/maintainer/TriageSignals.test.tsx`, `backend/test/gc-client.test.ts`, `backend/test/snapshot-runs.test.ts`, and `shared/src/index.test.ts`. Add a decoder/edge test proving supervisor wire `workflow_id` maps to dashboard `run_id`.
 - **Risk:** `shared` is currently the cross-workspace dashboard contract → run the full validation gate. The `TriageItem.workflow_run_id` JSDoc carries "best-known-at-sling-time" semantics — preserve that meaning in a one-line comment on the renamed `run_id`.
 - **Deps:** none (but conceptually pairs with WS-5/WS-6 which finish the same translation in logic).
 
 ---
 
-### Tier 1 — Quick-win de-duplication (low risk; reverses drift and deletes lines)  *(TN review)*
+### Tier 1 — Quick-win de-duplication (low risk; reverses drift and deletes lines) _(TN review)_
 
 #### WS-3 — Reuse the canonical clock / format / tone / error helpers
 
@@ -158,7 +158,7 @@ These are pure deletion-via-reuse. Each fork has **drifted into a user-visible i
 
 ### Tier 2 — Canonical resolvers & policy (medium risk; unblocks Tier 3 splits)
 
-#### WS-5 — Canonical run-formula identity resolver  *(Codex C — include modified)*
+#### WS-5 — Canonical run-formula identity resolver _(Codex C — include modified)_
 
 - **Implementation status (2026-05-31):** Complete. `resolveRunFormulaIdentity(mode, input)` centralizes formula name/source/target resolution for route/detail/state/lane consumers while preserving the intentional mode differences (`gc.formula_name` route precedence, formula-detail-before-title state precedence, and `mol-`-only lane title fallback).
 - **Why:** Formula name/source/target is resolved in **6 places** with divergent precedence, kept in sync by ~40 lines of prose. The UI can disagree with itself about the same run.
@@ -170,12 +170,12 @@ These are pure deletion-via-reuse. Each fork has **drifted into a user-visible i
   5. `routes/runs.ts:120-124` `getRunFormulaDetail` — NAME: `(source==='metadata' ? resolved.name) → gc.formula_name → resolved.name`. **Intentional** (comment `:114-119`: `gc.formula_name` must win over title-fallback).
   6. `snapshot/collectors/runs.ts:524-546` `runFormula` — NAME: `pr_review.workflow_formula → gc.formula → title` with **extra gate** `title.startsWith('mol-')`. **Intentional** (comment `:502-523`).
   - TARGET is **byte-for-byte identical** at `formula-run.ts:213` and `routes/runs.ts:126`: `gc.run_target ?? gc.routed_to ?? assignee`.
-- **Change:** One `resolveRunFormulaIdentity(root, formulaDetail?, mode)` in `formula-name.ts` returning typed `{ name, source: 'metadata'|'title_fallback'|'formula_detail'|null, target }`. **Use an explicit `mode` enum (`'lane' | 'detail' | 'route' | 'state'`), NOT boolean option flags** — the validation explicitly warns that flag combinations (`includeFormulaNameKey` + `requireTitlePrefix` + …) create untested permutations. The mode encodes each call site's *intentional* divergence (the `mol-` prefix gate, the `pr_review.workflow_formula` key, the `gc.formula_name`-wins rule). Delete `runFormula`/`runFormulaTarget` copies and the inline target resolution.
+- **Change:** One `resolveRunFormulaIdentity(root, formulaDetail?, mode)` in `formula-name.ts` returning typed `{ name, source: 'metadata'|'title_fallback'|'formula_detail'|null, target }`. **Use an explicit `mode` enum (`'lane' | 'detail' | 'route' | 'state'`), NOT boolean option flags** — the validation explicitly warns that flag combinations (`includeFormulaNameKey` + `requireTitlePrefix` + …) create untested permutations. The mode encodes each call site's _intentional_ divergence (the `mol-` prefix gate, the `pr_review.workflow_formula` key, the `gc.formula_name`-wins rule). Delete `runFormula`/`runFormulaTarget` copies and the inline target resolution.
 - **Tests (write first):** Lock each mode's precedence and the missing-metadata behavior as separate cases, especially: (a) `gc.formula_name` beats title-fallback in `route` mode; (b) `lane` mode rejects a non-`mol-` title that `detail` mode would accept; (c) target precedence identical across modes.
 - **Risk:** Behavior-change risk if the consolidated internal order shifts — the two intentional divergences (`mol-` gate, `gc.formula_name`-wins) **must** survive. Pin them with red tests before refactoring.
 - **Deps:** Pairs with WS-2 (same vocabulary edge). Prerequisite for WS-8.
 
-#### WS-6 — Canonical run-scope / store-ref module  *(Codex D)*
+#### WS-6 — Canonical run-scope / store-ref module _(Codex D)_
 
 - **Implementation status (2026-05-31):** Complete. `backend/src/lib/run-scope.ts` now owns request-scope validation, snapshot scope parsing, bead/feed scope parsing, and store-ref parsing while preserving the three distinct missing-scope contracts (request optional, lane unavailable, enrichment throws).
 - **Why:** Scope is parsed from 5 input formats across the backend, with one true duplicate and three different missing-scope contracts.
@@ -186,7 +186,7 @@ These are pure deletion-via-reuse. Each fork has **drifted into a user-visible i
 - **Risk:** Conflating the three contracts would silently change error behavior. Keep return types layer-appropriate.
 - **Deps:** Prerequisite for WS-8.
 
-#### WS-7 — Consolidate run-diff reviewability policy  *(Codex H)*
+#### WS-7 — Consolidate run-diff reviewability policy _(Codex H)_
 
 - **Implementation status (2026-05-31):** Complete. `backend/src/runs/run-diff-policy.ts` owns both the git pathspec exclusions and in-memory path/classification policy; `exec.ts` and `runs/diff.ts` import it so `.beads`/`.gc` reviewability cannot drift.
 - **Why:** The `.beads`/`.gc` exclusion rule exists in **two backend files in two representations** that can drift.
@@ -200,7 +200,7 @@ These are pure deletion-via-reuse. Each fork has **drifted into a user-visible i
 
 ### Tier 3 — Module decomposition (behavior-preserving relocation)
 
-#### WS-8 — Decompose `snapshot/collectors/runs.ts` (878 LOC)  *(Codex E — include modified)*
+#### WS-8 — Decompose `snapshot/collectors/runs.ts` (878 LOC) _(Codex E — include modified)_
 
 - **Implementation status (2026-05-31):** Complete. The public `snapshot/collectors/runs.ts` file is now a thin facade over focused `snapshot/collectors/runs/` modules for constants, filtering, grouping, presentation, progress, discovery, and cache wiring. The n6f1 degraded fan-out semantics and public imports are pinned by tests.
 - **Why:** A god-collector fusing transport, grouping, scope, formula identity, feed discovery, lane projection, and presentation. Four section banners already exist (`:70,91,437,593`) but 180 lines of async transport (`:698-878`) are unlabeled.
@@ -212,7 +212,7 @@ These are pure deletion-via-reuse. Each fork has **drifted into a user-visible i
 - **Risk:** **Preserve the n6f1 degrade-not-collapse block verbatim** (`:734-756`, per-source try/catch + `partial` flag + `logWarn`) — do not "simplify" it into `Promise.allSettled` that hides per-source semantics. Verify no circular import (`phaseMapping` is a pure leaf; confirmed). Grep for any deep import of internal functions before moving.
 - **Deps:** WS-5, WS-6.
 
-#### WS-9 — Decompose `shared/src/index.ts` (1139 LOC) + introduce `Avail<T>` / `GcList<T>` generics  *(TN shared)*
+#### WS-9 — Decompose `shared/src/index.ts` (1139 LOC) + introduce `Avail<T>` / `GcList<T>` generics _(TN shared)_
 
 - **Implementation status (2026-05-31):** Complete for the shared barrel split and list-generic work. `shared/src/index.ts` is now a thin 30-line package-root barrel. Runtime values Claude called out live in leaves and remain value-exported from the barrel: `operator.ts` owns `OPERATOR_DISPLAY_ALIAS`, `OPERATOR_WIRE_ALIAS`, `GC_EVENT_PREFIX`, and `errorMessage`; `context-window.ts` owns `TRUE_CONTEXT_WINDOWS` and `effectiveContextPct`. Runtime values already owned by leaves (`SCOPE_REF_RE`, `CITY_NAME_RE`, `makeNodeKey`) remain in those leaves and are re-exported by the barrel. `lists.ts` owns `Avail<T>`, `GcPartialAware`, `GcList<T>`, `GcCountedList<T>`, and `GcRequiredPartialList<T>`; simple snapshot availability states and repeated list envelopes are wired through those generics, while genuinely irregular status unions remain explicit. Domain DTOs moved to focused leaves: `transcript.ts`, `gc-agents.ts`, `gc-rigs.ts`, `gc-beads.ts`, `gc-mail.ts`, `activity.ts`, `gc-health.ts`, `gc-events.ts`, `formula-runs.ts`, `api-error.ts`, and `maintainer-triage.ts`. Remaining supervisor-wire shedding belongs to WS-10 cleanup, where generated OpenAPI response validators and upstream schema-source accuracy let the temporary dashboard-side adapters disappear.
 - **Why:** A god-barrel that changes independently for beads, mail, health, triage, runs, and events (SRP violated wholesale); the type-only import cycle it already worked around (`gc-client-types.ts`) is a symptom of the barrel being load-bearing.
@@ -229,12 +229,12 @@ These are pure deletion-via-reuse. Each fork has **drifted into a user-visible i
 - **Risk:** This is the largest mechanical change; do it as a pure relocation in one pass and lean on the compiler. Pairs with WS-2 (rename happens in the same files).
 - **Deps:** After WS-2 (rename) and WS-10 G-1b (so the generated/dashboard boundary is set before carving leaves).
 
-#### WS-10 — Replace the hand-written supervisor edge with a generated client (`@hey-api/openapi-ts`)  *(Codex F + TN supervisor — redesigned per resolved decision)*
+#### WS-10 — Replace the hand-written supervisor edge with a generated client (`@hey-api/openapi-ts`) _(Codex F + TN supervisor — redesigned per resolved decision)_
 
 - **Direct-supervisor disposition (2026-06-01):** Revised. Generation is still the right fix, but the generated supervisor client should be browser-consumable for GC-owned surfaces rather than permanently hidden behind a backend `GcClient` facade. Backend generation remains useful for transitional/server-only calls and for any local service code that truly must call the supervisor, but `WS-29` is the preferred cleanup path for browser-facing resources.
 - **Implementation status (2026-05-31):** In progress. G-0 is complete: repo engines and CI now require Node `>=22.13.0`. G-1a is complete: `backend/openapi-ts.config.ts` generates a committed hey-api SDK/type/client/Zod folder under `backend/src/generated/gc-supervisor-client`, and `openapi:gc-supervisor:check` regenerates into a temp dir and byte-compares that generated tree. G-1b transport cutover is complete: `GcClient` now calls the generated SDK and `@hey-api/client-fetch` runtime, and the old `openapi-typescript` artifacts, `openapi-fetch` dependency, custom schema-map extractor, AJV overlay, and generated schema validator have been deleted. G-1c is complete: generated files no longer carry `// @ts-nocheck`, are no longer excluded from backend TypeScript, are no longer ignored by ESLint, and `npm run typecheck` / `npm run lint` fail on generated-client issues (`lint` already uses `--max-warnings=0`). The generator wrapper does not post-process generated output; `@hey-api/client-fetch` is configured with `bundle: false` so the generated tree imports the runtime package instead of copying patchable runtime files into `src/generated`. Because the published `@hey-api/client-fetch` package types lag the current `@hey-api/openapi-ts` generator, `backend/src/types/hey-api-client-fetch-compat.d.ts` is an ambient type-only compatibility shim pinned by tests; it is not wired through `tsconfig.paths`, so runtime imports still resolve to the real npm package. The runtime HTTP path is tested to execute generated response validators. G-3 response validation is now enabled with the hey-api SDK `validator: { response: 'zod' }` option and the generated `zod.gen.ts` file; malformed supervisor payloads are rejected before DTO mapping. Concrete write-edge casts are being removed as found; `sendMail` now decodes its created-message response instead of casting. Remaining WS-10 gaps are explicit: `gc-supervisor-decoders.ts` remains a temporary hand-Zod DTO adapter/normalizer on top of generated response validation, some raw supervisor mirror shapes still live in `shared` until WS-29 deletes or moves them to generated browser supervisor types, and upstream GC supervisor API gaps are consolidated in [`../gc-supervisor-api-gaps.md`](../gc-supervisor-api-gaps.md).
 
-**Decision (grill + gascity reference + no-backcompat directive):** Don't tidy the hand-rolled edge — **replace it.** Generate the supervisor client + types (+ SSE-capable SDK surface) from `backend/openapi/gc-supervisor.openapi.json` with `@hey-api/openapi-ts`, exactly as the upstream `gascity` dashboard does (`~/code/gastownhall/gascity/cmd/gc/dashboard/web/openapi-ts.config.ts`: plugins `@hey-api/client-fetch`, `@hey-api/typescript`, `@hey-api/sdk`, generating the whole `client.gen.ts`/`sdk.gen.ts`/`types.gen.ts`/SSE surface with **zero** hand-written client). Unlike gascity (which validates **nothing** at runtime), also enable the **Zod plugin** so the same spec generates runtime response validators — honoring this repo's spec invariant *"runtime deserialization at GcClient rejects malformed payloads"* (Ideal #2, L691). The target is a **100% generated supervisor API client**, with only non-API dashboard policy and DTO mapping hand-written.
+**Decision (grill + gascity reference + no-backcompat directive):** Don't tidy the hand-rolled edge — **replace it.** Generate the supervisor client + types (+ SSE-capable SDK surface) from `backend/openapi/gc-supervisor.openapi.json` with `@hey-api/openapi-ts`, exactly as the upstream `gascity` dashboard does (`~/code/gastownhall/gascity/cmd/gc/dashboard/web/openapi-ts.config.ts`: plugins `@hey-api/client-fetch`, `@hey-api/typescript`, `@hey-api/sdk`, generating the whole `client.gen.ts`/`sdk.gen.ts`/`types.gen.ts`/SSE surface with **zero** hand-written client). Unlike gascity (which validates **nothing** at runtime), also enable the **Zod plugin** so the same spec generates runtime response validators — honoring this repo's spec invariant _"runtime deserialization at GcClient rejects malformed payloads"_ (Ideal #2, L691). The target is a **100% generated supervisor API client**, with only non-API dashboard policy and DTO mapping hand-written.
 
 - **Why:** `gc-client.ts` (866) and `gc-supervisor-decoders.ts` (879) are ~1.7k hand-written lines reimplementing what the generator produces — path/param construction, request/response types, and per-resource validation — plus three overlapping representations (generated OpenAPI/AJV + hand-Zod + the `SchemaOutputFor` type-machine) and a write edge that casts unknown via `writeJson<T>` (`:261-282`).
 - **Prerequisite:** Current `@hey-api/openapi-ts` releases require Node `>=22.13.0`. G-1 uses Node `>=22.13.0`; do not retain a Node-20 fallback path.
@@ -256,12 +256,12 @@ These are pure deletion-via-reuse. Each fork has **drifted into a user-visible i
   - **client-fetch interceptors + `createClientConfig()`** — `client.interceptors.{request,response,error}.use(...)` is where facade policy lives: **topology-safe error redaction** (response/error interceptor), `Origin`/auth headers, and logging — instead of hand-wrapping each call. `runtimeConfigPath`'s `createClientConfig()` centralizes `baseUrl` (the city URL), a custom `fetch` (timeout + output-cap + 127.0.0.1), and `throwOnError`.
   - **What must stay hand-written (interceptors can't express it):** single-flight URL-keyed **coalescing** (a dedupe layer above the SDK) and the **`workflow_id → run_id` rename** (a field remap, not a type transform). These two are the irreducible core of the `GcClient` facade.
   - **Prerequisite (verified):** hey-api is **ESM-only as of 2026** and requires Node `>=22.13.0`; backend is already `"type": "module"` + `moduleResolution: bundler`. The migration has removed `ajv`, superseded `openapi-typescript`, and removed `openapi-fetch`.
-  - **Out of scope (noted, not silently dropped):** hey-api's TanStack Query plugin would cut the *frontend's* per-route fetch/poll boilerplate — but only if the dashboard's own `/api/*` had an OpenAPI to generate from, which it doesn't today. Authoring a dashboard-side OpenAPI to unlock that is a separate, larger initiative, not part of WS-10.
+  - **Out of scope (noted, not silently dropped):** hey-api's TanStack Query plugin would cut the _frontend's_ per-route fetch/poll boilerplate — but only if the dashboard's own `/api/*` had an OpenAPI to generate from, which it doesn't today. Authoring a dashboard-side OpenAPI to unlock that is a separate, larger initiative, not part of WS-10.
 - **Tests:** Retire `gc-supervisor-decoders-types.test.ts` when `SchemaOutputFor` dies; generated-Zod validation is now covered by `backend/test/gc-supervisor-generation-config.test.ts` and malformed-payload `GcClient` tests. **Keep `GcClient`'s coalescing / redaction / `workflow_id→run_id` tests green — those behaviors must survive the rewrite.** Generator coverage now verifies the old `openapi-typescript` pipeline is gone, `openapi:gc-supervisor:check` verifies the `@hey-api` generated tree, generated code has no `@ts-nocheck`, generated Zod response validators are wired into the SDK, and generated code is covered by backend typecheck + ESLint.
 - **Risk (do-not-break invariants):** single-flight coalescing, topology-safe **redaction**, timeouts/output-cap, and the `workflow_id → run_id` edge normalization must all survive in the thin facade. **SSE:** this repo proxies supervisor SSE same-origin (`routes/sse-proxy.ts`) for CSP — that's a security boundary, not just transport; **default: keep the proxy**, don't replace it with the generated browser SSE handlers. The main remaining risk is ownership drift: do not let `gc-supervisor-decoders.ts` become a second schema authority now that generated response validation is active. **Spec status:** `specs/architecture/formula-run-detail-type.md`, `AGENTS.md`, and `specs/architecture/overview.md` now describe the generated client + runtime-validation boundary and the remaining DTO-adapter cleanup.
 - **Deps:** G-2 upstream source sync still depends on gascity work. Coordinate the `workflow_id → run_id` normalization with WS-2. Unblocks WS-9's shedding of the raw `Gc*` wire mirrors.
 
-#### WS-11 — Decompose the maintainer modules + reuse canonical helpers  *(TN maintainer)*
+#### WS-11 — Decompose the maintainer modules + reuse canonical helpers _(TN maintainer)_
 
 - **Implementation status (2026-05-31):** Complete. The `/sling` request-body validation gauntlet is now a pure `sling-request.ts` decoder with focused unit coverage, serve-time slung overlay lives in `serve-overlay.ts`, and sling dispatch/audit/slung-state persistence/target-resolution/refresh-notification lives in `sling-dispatch.ts`, leaving the Express route to own HTTP decode/response/error mapping. The `/refresh` ExecError path now uses centralized `writeExecError(..., { fallbackStatus: 502 })`; `findContributor` and `countItems` reuse `collectItems`; `triage.ts` imports the shared `parseJsonArray` helper instead of carrying a duplicate parser; and `issueNumbersWithInFlightPr` is now the shared in-flight PR predicate consumed by both `computeHasInFlightPr` and `selectOneMark`. On the frontend, the pure tier transforms now live in `triageFilters.ts`, their tests import that module directly instead of reaching through `Maintainer.tsx`, maintainer collapse state now uses the shared `usePersistedCollapseSet` hook with focused persistence/parse-failure tests, `SelectionActionBar`/`MaintainerFooter` now live in `MaintainerChrome.tsx`, and `CollapsibleHeader`/`CollapseGlyph` are shared by maintainer sections and generic project-group headers.
 - **Why:** `backend/.../maintainer/router.ts` (589) fuses the HTTP edge with the serve-time overlay engine and re-implements three helpers that already exist canonically; `frontend/.../Maintainer.tsx` (682) hoards pure transforms, a storage hook, and sub-views.
@@ -273,7 +273,7 @@ These are pure deletion-via-reuse. Each fork has **drifted into a user-visible i
 - **Risk:** The One-Mark invariant is split across compose-time (`triage.ts`) and serve-time (`serve-overlay.ts`), with direct tests on both halves. Behavior-preserving.
 - **Deps:** WS-3 (format helpers). Independent of backend Tier 2.
 
-#### WS-14 — `groups.ts` single-pass identity model; remove in-place `delete` mutation  *(TN runs/routes)*
+#### WS-14 — `groups.ts` single-pass identity model; remove in-place `delete` mutation _(TN runs/routes)_
 
 - **Implementation status (2026-05-31):** Complete. `groupRunBeads` now resolves a single `BeadIdentity` per bead, buckets visible beads by semantic node id, then builds each `RunNodeGroup` from the complete bucket. Group shape selection is deterministic by construct priority and stable bead keys, optional fields are emitted with conditional object spreads rather than delete-based mutation, and badge aliases reuse the computed identity map instead of recomputing grouping identity. Tests pin order-independent group shape and guard against reintroducing `delete group[...]`.
 - **Why:** `backend/src/runs/groups.ts` has five overlapping notions of bead identity computed redundantly, plus order-dependent in-place mutation — the area `relation-index.ts:7-14` flags as "the single biggest premortem failure mode."
@@ -287,7 +287,7 @@ These are pure deletion-via-reuse. Each fork has **drifted into a user-visible i
 
 ### Tier 4 — Boundary correctness (surfaces previously-hidden failures)
 
-#### WS-12 — Split run detail/diff into independent resources; honest diff errors; decouple tab from node-selection  *(Codex G + TN hooks — resolved: both moves accepted)*
+#### WS-12 — Split run detail/diff into independent resources; honest diff errors; decouple tab from node-selection _(Codex G + TN hooks — resolved: both moves accepted)_
 
 **Decision (grill):** Both Codex moves confirmed — **split the hooks** and **decouple the tab**, overriding the spec's single-hook/auto-switch model. The spec must be amended to match (see Risk).
 
@@ -297,11 +297,11 @@ These are pure deletion-via-reuse. Each fork has **drifted into a user-visible i
 - **Change:**
   1. **Split** into `useFormulaRunDetail` (detail resource) and `useRunDiff` (diff resource), each its own `useCachedData` key and explicit `idle|loading|ready|failed` union; `FormulaRunDetailPage` composes both → a failed `api.runDiff` surfaces a real `failed` state instead of a fabricated `RunDiffResponse`.
   2. **Decouple** the tab: remove the `FormulaRunTabs.tsx:16-18` effect so tab state responds only to user clicks / initialization. Selecting a node no longer auto-switches to Session.
-- **Tests:** **Rewrite** `FormulaRunDetail.test.tsx:164-169` to assert the tab **persists** across node-selection (was: asserts auto-switch to Session). The focused browser harness **`scripts/snap-formula-run-detail.mjs`** clicks Session *before* selecting a node, so it survives — but verify. Add a test asserting a failed `api.runDiff` yields `useRunDiff → failed`, not a silent empty diff.
+- **Tests:** **Rewrite** `FormulaRunDetail.test.tsx:164-169` to assert the tab **persists** across node-selection (was: asserts auto-switch to Session). The focused browser harness **`scripts/snap-formula-run-detail.mjs`** clicks Session _before_ selecting a node, so it survives — but verify. Add a test asserting a failed `api.runDiff` yields `useRunDiff → failed`, not a silent empty diff.
 - **Risk:** This is the **one run-detail interaction behavior change** in the plan: clicking a node no longer jumps to Session, and because the diff is node-independent, a node-click while on Diff now changes only the node's pressed state, not the right panel. Consumers that checked `diff.kind !== 'error'` now get an explicit `failed` state — audit them. **Spec status:** `specs/architecture/formula-run-detail-type.md` (UI Consumption + Invariants) has been amended to the two-resource + tab-as-user-state model; implement to match. The focused harness defaults to `http://127.0.0.1:5174` and can target another dev stack with `SNAP_BASE`.
 - **Deps:** none.
 
-#### WS-13 — Close the remaining swallowed-error gaps  *(TN maintainer / supervisor / hooks)*
+#### WS-13 — Close the remaining swallowed-error gaps _(TN maintainer / supervisor / hooks)_
 
 - **Implementation status (2026-05-31):** Complete for the independent WS-13 items. `buildSlingRequests` now returns `{ requests, skippedKeys }` instead of silently dropping selected-but-vanished items, `MaintainerPage` preserves the skipped count after dispatch, and `SelectionActionBar` surfaces "`M` skipped; no longer in list" while disabling send when nothing sendable remains. The frontend `/api/*` client now threads every `api.*` method through an explicit response decoder at the single `request()` chokepoint; malformed 200 JSON is rejected with `ApiResponseDecodeError` instead of cast to the expected DTO. The supervisor `getStatus`/`decodeSling` all-optional issue is intentionally folded into WS-10 G-2/G-3 generated-Zod validation.
 - **Why:** "Don't swallow errors" is an explicit project rule, violated where it's least visible.
@@ -319,7 +319,7 @@ These are pure deletion-via-reuse. Each fork has **drifted into a user-visible i
 
 These are current, validated against `main` after the earlier completed workstreams. Use red-green TDD for each code change: write or adjust the failing test first, observe the failure when practical, implement the smallest behavior-preserving structural fix, then run the focused suite before moving on.
 
-#### WS-15 — Collapse `GcClient` read/write templates into operation descriptors  *(Claude P1 #1 + TN backend)*
+#### WS-15 — Collapse `GcClient` read/write templates into operation descriptors _(Claude P1 #1 + TN backend)_
 
 - **Direct-supervisor disposition (2026-06-01):** Superseded for browser-facing GC surfaces by `WS-29`. Keep this workstream only as a fallback for server-only or transitional supervisor calls that remain after the migration. Do not invest in a large `GcClient` diet if the same code can be deleted by moving the surface to the generated browser supervisor client.
 - **Implementation status (2026-06-01):** In progress. The descriptor-table slice is complete: read endpoints now use explicit `READ_OPERATIONS` metadata for operation name, payload name, and decoder handoff; `decoderPayloadName()` is gone; pass-through `writeOperation()` / `mutationHeaders()` wrappers are gone; and a structure test pins those guardrails. The second helper slice is also complete: plain city-scoped reads now share `cityReadOptions()` instead of repeating generated-SDK client/path/signal wiring. The class still needs a deeper diet because query assembly and path-param call construction remain inline per endpoint.
@@ -330,7 +330,7 @@ These are current, validated against `main` after the earlier completed workstre
 - **Risk:** Medium. The generated SDK calls are behavior-critical and heavily tested; keep the refactor incremental and let existing `backend/test/gc-client.test.ts` be the safety net.
 - **Deps:** Builds on WS-10 G-1b/G-3; should happen before deleting the temporary decoder adapter because it simplifies that later deletion.
 
-#### WS-16 — Finish dashboard `/api/*` runtime DTO schemas instead of shallow client casts  *(TN boundary + Claude P3 #6)*
+#### WS-16 — Finish dashboard `/api/*` runtime DTO schemas instead of shallow client casts _(TN boundary + Claude P3 #6)_
 
 - **Direct-supervisor disposition (2026-06-01):** Revised scope. Do not add shared runtime schemas for GC-owned mirror lists that should disappear behind the generated supervisor client. Keep shared schemas for dashboard-owned local/composed DTOs, especially `git`, `gh`, host health, client-error telemetry, and any Formula Run Detail view model that remains dashboard-owned until the supervisor exposes a canonical presentation shape.
 - **Implementation status (2026-06-01):** Complete for the validated high-risk dashboard DTO surfaces. `shared/src/dto-schemas.ts` exports `MaintainerTriageSchema`, `FormulaRunDetailSchema`, `RunDiffResponseSchema`, and shared schemas for the common session/agent/bead/mail list DTOs. The frontend API client uses those schemas for `/maintainer/triage`, `/maintainer/refresh`, `/runs/:runId`, `/runs/:runId/diff`, `/sessions`, `/agents`, `/beads`, `/mail`, and `/mail/threads/:id`; backend maintainer cache reads validate the nested triage envelope through the shared schema. Shared, backend, and frontend tests pin nested malformed DTO rejection. Lower-risk endpoints with simple top-level local decoders remain local until a concrete drift or nesting risk justifies promoting them.
@@ -341,7 +341,7 @@ These are current, validated against `main` after the earlier completed workstre
 - **Risk:** Medium. This intentionally turns malformed local API payloads into visible errors; UI surfaces should already handle `ApiResponseDecodeError`.
 - **Deps:** Coordinates with WS-10 cleanup so `shared` schemas describe dashboard DTOs, not raw supervisor wire shapes.
 
-#### WS-17 — Strip public supervisor DTOs and preserve partial-list metadata  *(TN backend + TN boundary)*
+#### WS-17 — Strip public supervisor DTOs and preserve partial-list metadata _(TN backend + TN boundary)_
 
 - **Direct-supervisor disposition (2026-06-01):** Transitional only. Preserving partial metadata and stripping host-only fields is necessary while `/api/*` mirror routes exist, but the final fix is to delete those mirror routes and consume supervisor partial/degraded fields directly from generated types. Do not treat public supervisor DTO stripping as permanent architecture.
 - **Implementation status (2026-06-01):** Complete. `/api/sessions`, `/api/beads`, and `/api/mail` now preserve `partial` / `partial_errors` from decoded supervisor lists, `partialWireFields()` centralizes the route projection, and focused route tests pin the behavior. Frontend API return types/decoders were widened to keep those fields available. `listItemsField()` now accepts required `items: T[] | null` and no longer hand-normalizes missing `items` to `[]`; generated validation already rejected the missing-field case, and a `GcClient` regression test pins it. Public supervisor-derived schemas now strip unknown runtime keys instead of relying on TypeScript-only hiding; tests cover sessions, rigs, agents, beads, mail, events, health, and city envelopes. The host-only city registry path remains explicit through `listSupervisorCities()`, which retains `path` while stripping unknown extras.
@@ -352,7 +352,7 @@ These are current, validated against `main` after the earlier completed workstre
 - **Risk:** Medium. Unknown supervisor keys may currently be visible in ad-hoc debug paths; removing them is intentional.
 - **Deps:** Coordinates with WS-16 and WS-10 cleanup.
 
-#### WS-18 — Split bead close from agent nudge  *(TN backend behavior bug)*
+#### WS-18 — Split bead close from agent nudge _(TN backend behavior bug)_
 
 - **Archived status (2026-06-01):** Superseded by the direct-supervisor
   migration plan. Bead close moved out of the dashboard service after `GC-10`;
@@ -367,7 +367,7 @@ These are current, validated against `main` after the earlier completed workstre
 - **Risk:** Medium-high because this intentionally changes currently pinned tests that encode the wrong abstraction.
 - **Deps:** None.
 
-#### WS-19 — Make mail filtering honest and single-fetch  *(TN backend)*
+#### WS-19 — Make mail filtering honest and single-fetch _(TN backend)_
 
 - **Implementation status (2026-06-01):** Complete. `GcClient.listMail` now exposes only the upstream-supported `limit` parameter, and the thread route fetches one wide mail list before applying local inbox/sent alias filtering and thread filtering. A route regression test proves `/api/mail/threads/:id` makes one supervisor `/mail` call.
 - **Why:** `GcClient.listMail()` accepts filters that the supervisor ignores, keys its inflight cache by those no-op filters, and callers perform duplicate upstream reads for inbox and sent views. The code comments admit the mismatch; the abstraction should match reality.
@@ -377,7 +377,7 @@ These are current, validated against `main` after the earlier completed workstre
 - **Risk:** Low-medium; behavior should be preserved while removing duplicate upstream traffic.
 - **Deps:** None.
 
-#### WS-20 — Typecheck and glob-discover shared tests  *(Claude config #1)*
+#### WS-20 — Typecheck and glob-discover shared tests _(Claude config #1)_
 
 - **Implementation status (2026-06-01):** Complete. `shared/tsconfig.test.json` now typechecks shared test files, root `typecheck:test` includes the shared workspace before backend/frontend, and the shared test script glob-discovers every `src/**/*.test.ts` file instead of hardcoding two entries.
 - **Why:** Shared tests are part of the shared DTO contract but the root typecheck gate skips them, and the test script only names two files. New shared tests can be silently unrun or untypechecked.
@@ -387,7 +387,7 @@ These are current, validated against `main` after the earlier completed workstre
 - **Risk:** Low. This can surface stale test-only type errors, which is the point.
 - **Deps:** None. Do before adding new shared decoder/schema tests for WS-16.
 
-#### WS-21 — Clean build output before compiling  *(Claude config #2)*
+#### WS-21 — Clean build output before compiling _(Claude config #2)_
 
 - **Implementation status (2026-06-01):** Complete. A repo-root `scripts/clean-dist.mjs` removes workspace `dist` directories, each workspace build runs its own clean step before compiling, and root `npm run clean` removes all workspace build outputs. The backend orphan-file red check now passes: a stale file under `backend/dist` disappears before `npm run build:backend` compiles.
 - **Why:** `tsc` does not remove orphaned output. Ignored `dist` directories can keep deleted generated modules around locally and make manual runtime checks lie.
@@ -397,7 +397,7 @@ These are current, validated against `main` after the earlier completed workstre
 - **Risk:** Low. Be careful not to delete generated source under `backend/src/generated`.
 - **Deps:** None.
 
-#### WS-22 — Remove small mutation/dead-scaffold hazards while nearby  *(TN frontend + Claude P5)*
+#### WS-22 — Remove small mutation/dead-scaffold hazards while nearby _(TN frontend + Claude P5)_
 
 - **Implementation status (2026-06-01):** Complete. `RunNodeSessionPanel` now sorts a copy of `executionInstances` and has a focused regression test proving render does not mutate the DTO array. `selectOneMark` keeps the tested behavior but drops the long removed-history commentary. `module.resources` remains a required descriptor contract, but it is no longer passive scaffolding: `bind()` validates resource declarations at runtime and focused tests reject malformed or duplicate resource entries from JS interop.
 - **Why:** These are small code-quality hazards that do not justify architecture on their own, but they are cheap deletion when touched by adjacent work.
@@ -407,7 +407,7 @@ These are current, validated against `main` after the earlier completed workstre
 - **Risk:** Low for the sort fix, medium for module descriptor contract churn.
 - **Deps:** None.
 
-#### WS-23 — Delete confirmed dead formula-name code and parallelize run-detail lookups  *(Claude P5)*
+#### WS-23 — Delete confirmed dead formula-name code and parallelize run-detail lookups _(Claude P5)_
 
 - **Implementation status (2026-06-01):** Complete. The dead `resolveRunFormulaName` / `ResolvedRunFormulaName` export and its duplicate documentation are gone; the useful behavior coverage now targets the live `resolveRunFormulaIdentity()` helper. The run-detail route now fetches sessions and formula detail concurrently after the run snapshot is loaded, and a route regression proves formula-detail starts before the delayed sessions response completes.
 - **Why:** These are verified quick deletions/latency fixes from Claude's P5 list. They preserve behavior while removing stale parallel abstractions and one unnecessary upstream round-trip from every formula run detail load.
@@ -417,7 +417,7 @@ These are current, validated against `main` after the earlier completed workstre
 - **Risk:** Low. Fetch concurrency is bounded to two already-existing typed lookups whose errors are converted into unavailable states.
 - **Deps:** Builds on WS-5.
 
-#### WS-24 — Centralize duplicated run-edge transforms and semantic identity helpers  *(Claude P1 #2)*
+#### WS-24 — Centralize duplicated run-edge transforms and semantic identity helpers _(Claude P1 #2)_
 
 - **Implementation status (2026-06-01):** In progress. First slice complete: `gc-supervisor-decoders.ts` now uses one `withRunId()` / `withRequiredRunId()` helper for supervisor `workflow_id → run_id` mapping across formula feeds, formula history, run snapshots, and sling responses; a structure test prevents the mapping from re-splitting. Larger follow-ups should handle step-ref semantic identity and the `ralph → check-loop` vocabulary map.
 - **Why:** The same concepts are still implemented in several places and held together by comments: wire run id translation, semantic step/control identity, and product-term externalization.
@@ -427,7 +427,7 @@ These are current, validated against `main` after the earlier completed workstre
 - **Risk:** Medium for graph identity; low for the decoder-local helper.
 - **Deps:** Coordinates with WS-10 cleanup and WS-8.
 
-#### WS-25 — Move run-health cross-cycle state into `RunHealthEngine`  *(Claude P1 #3)*
+#### WS-25 — Move run-health cross-cycle state into `RunHealthEngine` _(Claude P1 #3)_
 
 - **Implementation status (2026-06-01):** Planned.
 - **Why:** `snapshot/service.ts` is an orchestrator but owns cross-cycle `progressMarks`, the newer-generation gate, and the race invariant around enrichment. `snapshot/health.ts` already owns the pure health functions and is the cohesive place for the stateful engine.
@@ -437,7 +437,7 @@ These are current, validated against `main` after the earlier completed workstre
 - **Risk:** Medium. This touches dashboard ambient status behavior, so keep the extraction small and behavior-preserving.
 - **Deps:** None.
 
-#### WS-26 — Table-drive phase and formula classification  *(Claude P2 #4)*
+#### WS-26 — Table-drive phase and formula classification _(Claude P2 #4)_
 
 - **Implementation status (2026-06-01):** Planned.
 - **Why:** Phase mapping and formula-stage classification encode precedence in physical `if` order. A typed rule table makes precedence explicit and reduces drift with run kind identity.
@@ -447,7 +447,7 @@ These are current, validated against `main` after the earlier completed workstre
 - **Risk:** Medium. Preserve order exactly first, then simplify.
 - **Deps:** Best after WS-24 semantic identity cleanup.
 
-#### WS-27 — Pull route view-state machines out of large frontend components  *(Claude P2 #5 + P4)*
+#### WS-27 — Pull route view-state machines out of large frontend components _(Claude P2 #5 + P4)_
 
 - **Implementation status (2026-06-01):** Planned.
 - **Why:** `FormulaRunDetail.tsx` and `AgentDetail.tsx` still derive several loading/error/ready booleans and fetch lifecycles inline. The list routes share primitives but still repeat the same search/chips/table/empty-state shell.
@@ -457,7 +457,7 @@ These are current, validated against `main` after the earlier completed workstre
 - **Risk:** Medium; UI behavior should not change.
 - **Deps:** None.
 
-#### WS-28 — Unify dashboard absence envelopes after schema coverage expands  *(Claude P3 #7)*
+#### WS-28 — Unify dashboard absence envelopes after schema coverage expands _(Claude P3 #7)_
 
 - **Implementation status (2026-06-01):** Planned.
 - **Why:** `Avail<T>` is the canonical dashboard absence envelope, but a few DTOs still model availability with parallel booleans and string errors. Domain booleans from supervisor wire types are not part of this cleanup.
@@ -467,7 +467,7 @@ These are current, validated against `main` after the earlier completed workstre
 - **Risk:** Medium because this is a shared DTO change.
 - **Deps:** WS-16.
 
-#### WS-29 — Migrate GC-owned frontend surfaces to the generated supervisor client  *(direct replacement architecture)*
+#### WS-29 — Migrate GC-owned frontend surfaces to the generated supervisor client _(direct replacement architecture)_
 
 - **Implementation status (2026-06-01):** Planned; this is now the preferred architecture for replacing the built-in `gascity` dashboard.
 - **Why:** The current dashboard-server GC facade duplicates the supervisor contract, creates a second DTO authority, and forces the codebase to maintain generated types, hand validators, shared mirror DTOs, frontend decoders, route projections, partial-list metadata copying, cache keys, and vocabulary translation. The existing `gascity` dashboard proves the simpler ownership model: generated browser client over supervisor OpenAPI, with server code limited to static hosting and non-supervisor capabilities.
@@ -487,12 +487,12 @@ These are current, validated against `main` after the earlier completed workstre
 
 ## Lower-priority cleanups (fold in opportunistically; not standalone PRs)
 
-- **`useVisibleRefresh` vs `useAbortableVisibleRefresh`** duplicate the backoff state machine (`useVisibleRefresh.ts:37-61` vs `useAbortableVisibleRefresh.ts:44-90`). Extract `useVisibleBackoffTick({enabled,intervalMs,run,...})`; build both on top. *(TN hooks #3)*
-- **`useLiveCachedData` composite** — `useCachedData(...).refresh` + `useGcEventRefresh(prefix, refresh)` is copy-pasted per route (`Beads.tsx:36,65`; `Agents.tsx:124,159`; `Runs.tsx:52,117`). Promote one hook. *(TN routes #2 / hooks #2)*
-- **`ViewingAsContext` over-defensiveness** — `getSessionsRetryDelay` is ~45 lines of comment guarding a 3-element lookup (`:69-100`); the provider fuses alias-selection, sessions-retry, mail+sessions prefetch, and StrictMode bookkeeping (`:146-376`). Extract `useAliasRoster()` so the security-relevant impersonation logic isn't buried in retry/join plumbing. *(TN hooks #6/#7)*
-- **Comment-archaeology / dead scaffolds** — `triage.ts:412-451 selectOneMark` carries ~25 lines refuting deleted code (violates "no comments for removed functionality"); `slung-state.ts:27-45,135-212` is ~90 lines of legacy-normalization scaffold to default one optional field. Delete the archaeology; collapse the scaffold to a single `?? null` at the read edge. *(TN maintainer #7/#8)*
-- **`AgentDetail.tsx`** hand-rolls 4 parallel fetch/loading/error state machines instead of `useCachedData` (`:54-58,83-120,205-243`). Migrate to the canonical hook. *(TN routes #1/#5)*
-- **`run-snapshot.ts:48,50`** `Record<string,never>[]` is `any` in disguise for `logical_nodes`/`scope_groups` — type honestly as `readonly unknown[] | null` or model the real shape. *(TN shared #7)*
+- **`useVisibleRefresh` vs `useAbortableVisibleRefresh`** duplicate the backoff state machine (`useVisibleRefresh.ts:37-61` vs `useAbortableVisibleRefresh.ts:44-90`). Extract `useVisibleBackoffTick({enabled,intervalMs,run,...})`; build both on top. _(TN hooks #3)_
+- **`useLiveCachedData` composite** — `useCachedData(...).refresh` + `useGcEventRefresh(prefix, refresh)` is copy-pasted per route (`Beads.tsx:36,65`; `Agents.tsx:124,159`; `Runs.tsx:52,117`). Promote one hook. _(TN routes #2 / hooks #2)_
+- **`ViewingAsContext` over-defensiveness** — `getSessionsRetryDelay` is ~45 lines of comment guarding a 3-element lookup (`:69-100`); the provider fuses alias-selection, sessions-retry, mail+sessions prefetch, and StrictMode bookkeeping (`:146-376`). Extract `useAliasRoster()` so the security-relevant impersonation logic isn't buried in retry/join plumbing. _(TN hooks #6/#7)_
+- **Comment-archaeology / dead scaffolds** — `triage.ts:412-451 selectOneMark` carries ~25 lines refuting deleted code (violates "no comments for removed functionality"); `slung-state.ts:27-45,135-212` is ~90 lines of legacy-normalization scaffold to default one optional field. Delete the archaeology; collapse the scaffold to a single `?? null` at the read edge. _(TN maintainer #7/#8)_
+- **`AgentDetail.tsx`** hand-rolls 4 parallel fetch/loading/error state machines instead of `useCachedData` (`:54-58,83-120,205-243`). Migrate to the canonical hook. _(TN routes #1/#5)_
+- **`run-snapshot.ts:48,50`** `Record<string,never>[]` is `any` in disguise for `logical_nodes`/`scope_groups` — type honestly as `readonly unknown[] | null` or model the real shape. _(TN shared #7)_
 
 ## Explicitly NOT in scope (rejected to keep the plan high-conviction)
 
@@ -555,8 +555,8 @@ node scripts/snap-formula-run-detail.mjs --test
 
 ## Resolved decisions (locked via `/grill-me` against the specs + the upstream `gascity` dashboard)
 
-1. **WS-12 tab behavior — DECOUPLE.** Tab is explicit user state; selecting a node no longer auto-switches to Session. Rewrite the locked test. *(Overrode the "keep auto-switch" recommendation; the diff being node-independent made the call genuinely debatable, but the user chose Codex's model.)*
-2. **WS-12 resource shape — SPLIT into two hooks** (`useFormulaRunDetail` + `useRunDiff`). *(Overrode the spec's single-hook `ready={detail,diff}` model — spec amendment required.)*
+1. **WS-12 tab behavior — DECOUPLE.** Tab is explicit user state; selecting a node no longer auto-switches to Session. Rewrite the locked test. _(Overrode the "keep auto-switch" recommendation; the diff being node-independent made the call genuinely debatable, but the user chose Codex's model.)_
+2. **WS-12 resource shape — SPLIT into two hooks** (`useFormulaRunDetail` + `useRunDiff`). _(Overrode the spec's single-hook `ready={detail,diff}` model — spec amendment required.)_
 3. **WS-2 `TriageItem` field — `run_id`.** Spec Naming Boundary L62 mandates uniform `runId`/`run_id` dashboard vocabulary; the "best-known-at-sling-time, not live" nuance stays in the JSDoc; fix the stale `/workflows/<id>` → `/runs/<id>` reference.
 4. **No backwards compatibility for dashboard routes or DTOs.** The browser client in this repo is the only consumer of the backend service. Delete old routes/fields instead of redirecting or aliasing them.
 5. **WS-10 supervisor edge — GENERATE from OpenAPI.** Adopt `@hey-api/openapi-ts`, modeled on gascity's dashboard. **Enable the Zod plugin** where runtime validation is needed. Fix accuracy **upstream** in gascity's OpenAPI. Phased G-0/G-1a/G-1b/G-2/G-3; no permanent parallel hand-written supervisor client, and G-1b must delete the old `openapi-typescript`/`openapi-fetch`/hand-decoder stack rather than preserving it.

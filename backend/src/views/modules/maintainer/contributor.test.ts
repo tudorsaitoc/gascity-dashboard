@@ -31,10 +31,7 @@ describe('deriveTier — trust tier thresholds', () => {
   });
 
   test('>=10 issues_accepted (0 merged PRs) → trusted', () => {
-    assert.equal(
-      deriveTier(counts({ issues_accepted: 10, issues_opened: 12 })),
-      'trusted',
-    );
+    assert.equal(deriveTier(counts({ issues_accepted: 10, issues_opened: 12 })), 'trusted');
   });
 
   test('4 merged PRs (under trusted) but >=1 → regular', () => {
@@ -42,10 +39,7 @@ describe('deriveTier — trust tier thresholds', () => {
   });
 
   test('1 accepted issue, low total → regular', () => {
-    assert.equal(
-      deriveTier(counts({ issues_accepted: 1, issues_opened: 2 })),
-      'regular',
-    );
+    assert.equal(deriveTier(counts({ issues_accepted: 1, issues_opened: 2 })), 'regular');
   });
 });
 
@@ -59,10 +53,7 @@ describe('deriveTier — spam_risk ordering (spam_risk before regular)', () => {
   });
 
   test('mixed 3 issues + 2 PRs opened, none accepted → spam_risk', () => {
-    assert.equal(
-      deriveTier(counts({ issues_opened: 3, prs_opened: 2 })),
-      'spam_risk',
-    );
+    assert.equal(deriveTier(counts({ issues_opened: 3, prs_opened: 2 })), 'spam_risk');
   });
 
   test('4 opened, 0 accepted (under spam threshold) → new (total<=1 is false here, falls to regular)', () => {
@@ -73,10 +64,7 @@ describe('deriveTier — spam_risk ordering (spam_risk before regular)', () => {
 
   test('spam threshold met but one item accepted → NOT spam_risk → regular', () => {
     // accepted===0 is required for spam_risk; one acceptance flips it.
-    assert.equal(
-      deriveTier(counts({ issues_opened: 5, issues_accepted: 1 })),
-      'regular',
-    );
+    assert.equal(deriveTier(counts({ issues_opened: 5, issues_accepted: 1 })), 'regular');
   });
 
   test('spam_risk is reached before the regular fallback (5 opened, 0 accepted)', () => {
@@ -160,9 +148,7 @@ describe('tally — per-author aggregation', () => {
 
   test('derives the correct tier on the aggregated ContributorStat', () => {
     // 25 merged PRs → core.
-    const prs: GhListItem[] = Array.from({ length: 25 }, (_, i) =>
-      issue(i + 1, 'eve', 'MERGED'),
-    );
+    const prs: GhListItem[] = Array.from({ length: 25 }, (_, i) => issue(i + 1, 'eve', 'MERGED'));
     const out = tally([], prs);
     const eve = out.get('eve');
     assert.ok(eve);

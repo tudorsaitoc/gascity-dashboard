@@ -9,9 +9,7 @@ export interface RunScopeWithStoreRef extends RunScope {
   rootStoreRef: string;
 }
 
-export type RequestScopeResult =
-  | { ok: true; scope?: RunScope }
-  | { ok: false; error: string };
+export type RequestScopeResult = { ok: true; scope?: RunScope } | { ok: false; error: string };
 
 export interface RequestScopeFields {
   scope_kind?: unknown;
@@ -59,9 +57,7 @@ export function fromRequestScope(query: RequestScopeFields): RequestScopeResult 
 export function fromSnapshotScope(snapshot: SnapshotScopeFields): RunScope | null {
   const scopeKind = parseRunScopeKind(snapshot.scope_kind);
   const scopeRef = stringValue(snapshot.scope_ref);
-  return scopeKind !== null && scopeRef !== null
-    ? { scopeKind, scopeRef }
-    : null;
+  return scopeKind !== null && scopeRef !== null ? { scopeKind, scopeRef } : null;
 }
 
 export function fromFeedScope(feed: FeedScopeFields): RunScopeWithStoreRef | null {
@@ -99,7 +95,5 @@ export function fromStoreRef(rootStoreRef: unknown): RunScope | null {
 }
 
 function stringValue(value: unknown): string | null {
-  return typeof value === 'string' && value.trim().length > 0
-    ? value.trim()
-    : null;
+  return typeof value === 'string' && value.trim().length > 0 ? value.trim() : null;
 }

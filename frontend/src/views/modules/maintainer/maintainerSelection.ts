@@ -30,10 +30,7 @@ export interface SlingRequestBatch {
 }
 
 /** Immutable add/remove on a selection set, keyed by selectionKey. */
-export function toggleSelectionItem(
-  current: ReadonlySet<string>,
-  item: SelectionKey,
-): Set<string> {
+export function toggleSelectionItem(current: ReadonlySet<string>, item: SelectionKey): Set<string> {
   const next = new Set(current);
   const key = selectionKey(item);
   if (next.has(key)) {

@@ -37,6 +37,7 @@ credentials.*
 !.env.example
 !.github/
 !.github/**
+!.prettierignore
 !.claude/
 !.claude/**
 !.agents/

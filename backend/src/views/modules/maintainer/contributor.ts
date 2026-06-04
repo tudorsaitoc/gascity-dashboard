@@ -1,13 +1,5 @@
-import type {
-  ContributorStat,
-  ContributorTier,
-  IsoTimestamp,
-} from 'gas-city-dashboard-shared';
-import {
-  execGhIssueListAll,
-  execGhPrListAll,
-  ExecError,
-} from '../../../exec.js';
+import type { ContributorStat, ContributorTier, IsoTimestamp } from 'gas-city-dashboard-shared';
+import { execGhIssueListAll, execGhPrListAll, ExecError } from '../../../exec.js';
 import { parseJsonArray } from '../../../lib/parse-json.js';
 
 // Contributor stats + trust tier classifier (gascity-dashboard-alh).
@@ -52,9 +44,7 @@ export interface RawCounts {
 const ISSUE_FETCH_LIMIT = 5000;
 const PR_FETCH_LIMIT = 5000;
 
-export async function computeContributorStats(
-  repo: string,
-): Promise<Map<string, ContributorStat>> {
+export async function computeContributorStats(repo: string): Promise<Map<string, ContributorStat>> {
   const [issuesRaw, prsRaw] = await Promise.all([
     execGhIssueListAll(repo, ISSUE_FETCH_LIMIT),
     execGhPrListAll(repo, PR_FETCH_LIMIT),
@@ -87,7 +77,6 @@ export async function computeContributorStats(
 
 /** @internal Exported for unit testing; not part of this module's public contract. */
 export function tally(issues: GhListItem[], prs: GhListItem[]): Map<string, ContributorStat> {
-
   const counts = new Map<string, RawCounts>();
   for (const it of issues) {
     const login = it.author?.login;
@@ -130,11 +119,7 @@ function ensureCounts(map: Map<string, RawCounts>, login: string): RawCounts {
   return fresh;
 }
 
-function buildStat(
-  login: string,
-  c: RawCounts,
-  computedAt: IsoTimestamp,
-): ContributorStat {
+function buildStat(login: string, c: RawCounts, computedAt: IsoTimestamp): ContributorStat {
   return {
     login,
     tier: deriveTier(c),

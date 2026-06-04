@@ -29,7 +29,9 @@ export function RunDiffPanel({ diff }: RunDiffPanelProps) {
         </div>
       );
     case 'not_git':
-      return <p className="text-body text-fg-muted italic">Execution folder is not a git work tree.</p>;
+      return (
+        <p className="text-body text-fg-muted italic">Execution folder is not a git work tree.</p>
+      );
     case 'error':
       return (
         <p className="text-body text-accent" role="alert">
@@ -59,11 +61,16 @@ function RenderableDiff({ diff }: { diff: Extract<RunDiffResponse, { kind: 'ok' 
         {comparisonText(diff.comparison)}
       </p>
       {files.length === 0 ? (
-        <p className="mt-5 text-body text-fg-muted italic">No renderable patch in this work tree.</p>
+        <p className="mt-5 text-body text-fg-muted italic">
+          No renderable patch in this work tree.
+        </p>
       ) : (
         <div className="formula-run-diff-view mt-5 space-y-3">
           {files.map((file) => (
-            <DiffFile key={`${file.oldRevision}:${file.newRevision}:${filePath(file)}`} file={file} />
+            <DiffFile
+              key={`${file.oldRevision}:${file.newRevision}:${filePath(file)}`}
+              file={file}
+            />
           ))}
         </div>
       )}
@@ -81,7 +88,9 @@ function DiffFile({ file }: { file: FileData }) {
   return (
     <details className="border-y border-rule py-2" open>
       <summary className="cursor-pointer list-none text-label uppercase tracking-wider text-fg-muted">
-        <span className="font-medium normal-case tracking-normal text-body text-fg">{filePath(file)}</span>
+        <span className="font-medium normal-case tracking-normal text-body text-fg">
+          {filePath(file)}
+        </span>
         <span className="ml-3 tnum text-fg-faint">
           +{counts.additions} -{counts.deletions}
         </span>
@@ -115,10 +124,18 @@ function parsePatch(patch: string): FileData[] {
 
 function renderGitGutter({ change, side, renderDefault }: GutterOptions) {
   if (change.type === 'insert' && side === 'old') {
-    return <span className="diff-gutter-sign" aria-hidden>+</span>;
+    return (
+      <span className="diff-gutter-sign" aria-hidden>
+        +
+      </span>
+    );
   }
   if (change.type === 'delete' && side === 'new') {
-    return <span className="diff-gutter-sign" aria-hidden>-</span>;
+    return (
+      <span className="diff-gutter-sign" aria-hidden>
+        -
+      </span>
+    );
   }
   return renderDefault();
 }

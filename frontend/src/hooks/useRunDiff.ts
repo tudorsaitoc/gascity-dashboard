@@ -1,8 +1,4 @@
-import type {
-  RunDiffResponse,
-  RunExecutionPath,
-  RunScopeKind,
-} from 'gas-city-dashboard-shared';
+import type { RunDiffResponse, RunExecutionPath, RunScopeKind } from 'gas-city-dashboard-shared';
 import { errorMessage } from 'gas-city-dashboard-shared';
 import { api } from '../api/client';
 import { reportClientError } from '../lib/clientErrorReporting';
@@ -88,19 +84,12 @@ async function loadRunDiff(
 
 async function noopRefresh(): Promise<void> {}
 
-function refreshState(
-  loading: boolean,
-  error: string | null,
-): RunDiffRefreshState {
+function refreshState(loading: boolean, error: string | null): RunDiffRefreshState {
   if (error !== null) return { kind: 'failed', error };
   return loading ? { kind: 'refreshing' } : { kind: 'idle' };
 }
 
-function reportRunDiffError(
-  operation: string,
-  runId: string,
-  err: unknown,
-): void {
+function reportRunDiffError(operation: string, runId: string, err: unknown): void {
   void reportClientError({
     component: 'formula-run-detail',
     operation,

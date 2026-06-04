@@ -16,12 +16,7 @@ import type { SupervisorBead } from '../supervisor/beadReads';
 // ZFC: pure structural inversion of supervisor-provided fields (`needs`,
 // `dependencies`, `status`). No scoring, no semantic classification.
 
-export type BoardColumnId =
-  | 'ready'
-  | 'open'
-  | 'in_progress'
-  | 'blocked'
-  | 'done';
+export type BoardColumnId = 'ready' | 'open' | 'in_progress' | 'blocked' | 'done';
 
 export interface BoardColumn {
   id: BoardColumnId;
@@ -97,10 +92,7 @@ function blockingNeedIds(bead: SupervisorBead): readonly string[] {
   return (bead.needs ?? []).filter((id) => id.length > 0);
 }
 
-function columnFor(node: {
-  bead: SupervisorBead;
-  ready: boolean;
-}): BoardColumnId {
+function columnFor(node: { bead: SupervisorBead; ready: boolean }): BoardColumnId {
   switch (node.bead.status) {
     case 'in_progress':
       return 'in_progress';
@@ -138,9 +130,7 @@ export function buildBeadGraph(beads: readonly SupervisorBead[]): BeadGraph {
     const hasUnresolvedDeps = deps.some((d) => d.bead === null);
 
     const needs = blockingNeedIds(b);
-    const ready =
-      b.status === 'open' &&
-      needs.every((id) => byId.get(id)?.status === 'closed');
+    const ready = b.status === 'open' && needs.every((id) => byId.get(id)?.status === 'closed');
 
     const node: BeadNode = {
       bead: b,
@@ -165,9 +155,7 @@ export function buildBeadGraph(beads: readonly SupervisorBead[]): BeadGraph {
   for (const [id, blockers] of blocksOf) {
     const node = nodes.get(id);
     if (node) {
-      node.blocks = [...blockers].sort((a, b) =>
-        a.id < b.id ? -1 : a.id > b.id ? 1 : 0,
-      );
+      node.blocks = [...blockers].sort((a, b) => (a.id < b.id ? -1 : a.id > b.id ? 1 : 0));
     }
   }
 

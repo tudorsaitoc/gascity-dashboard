@@ -15,9 +15,7 @@ export function AgentMetadata({ session, now }: { session: DashboardSession; now
       value:
         typeof pct === 'number' ? (
           <span
-            className={`tnum ${
-              pct >= 95 ? 'text-accent' : pct >= 80 ? 'text-warn' : 'text-fg'
-            }`}
+            className={`tnum ${pct >= 95 ? 'text-accent' : pct >= 80 ? 'text-warn' : 'text-fg'}`}
           >
             {pct}%
           </span>
@@ -40,9 +38,7 @@ export function AgentMetadata({ session, now }: { session: DashboardSession; now
     <dl className="grid grid-cols-2 sm:grid-cols-4 gap-x-8 gap-y-5 mb-12">
       {items.map((it) => (
         <div key={it.label}>
-          <dt className="text-label uppercase tracking-wider text-fg-faint mb-1">
-            {it.label}
-          </dt>
+          <dt className="text-label uppercase tracking-wider text-fg-faint mb-1">{it.label}</dt>
           <dd className="text-body text-fg">{it.value}</dd>
         </div>
       ))}

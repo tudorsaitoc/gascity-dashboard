@@ -145,11 +145,7 @@ describe('selectOneMark — in-flight PR excludes parent issue from the mark (bs
       false,
       'parent issue must NOT carry the mark even when it arrives as a candidate',
     );
-    assert.equal(
-      pr.is_marked,
-      true,
-      'PR keeps the mark — it is the action queue (bs2)',
-    );
+    assert.equal(pr.is_marked, true, 'PR keeps the mark — it is the action queue (bs2)');
   });
 
   test('top mark is a merged PR whose parent has no in-flight PR: mark transfers to the open parent issue', () => {

@@ -7,9 +7,7 @@ import tseslint from 'typescript-eslint';
 
 const tsFiles = ['backend/**/*.ts', 'shared/**/*.ts', 'frontend/src/**/*.{ts,tsx}'];
 
-const typedConfigs = [
-  ...tseslint.configs.recommended,
-].map((config) => ({
+const typedConfigs = [...tseslint.configs.recommended].map((config) => ({
   ...config,
   files: tsFiles,
 }));
@@ -26,10 +24,7 @@ const typeAwareSourceFiles = [
 // that behaviour for the migrated colocated tests so the relocation isn't
 // entangled with a global lint-rule expansion (one change, one purpose).
 // Frontend tests stay type-aware as they always were under frontend/src/.
-const backendColocatedTestGlobs = [
-  'backend/src/**/*.test.ts',
-  'backend/src/**/fixtures/**',
-];
+const backendColocatedTestGlobs = ['backend/src/**/*.test.ts', 'backend/src/**/fixtures/**'];
 
 // Names of the module-isolation subdirs under views/modules/. Exported so
 // the drift-detector test can read it and assert it ⊇ actual subdirs of
@@ -75,21 +70,20 @@ export default tseslint.config(
       import: importPlugin,
     },
     rules: {
-      '@typescript-eslint/no-unused-vars': ['error', {
-        argsIgnorePattern: '^_',
-        varsIgnorePattern: '^_',
-        caughtErrorsIgnorePattern: '^_',
-      }],
+      '@typescript-eslint/no-unused-vars': [
+        'error',
+        {
+          argsIgnorePattern: '^_',
+          varsIgnorePattern: '^_',
+          caughtErrorsIgnorePattern: '^_',
+        },
+      ],
       'import/first': 'error',
       'no-console': 'error',
     },
   },
   {
-    files: [
-      'backend/src/logging.ts',
-      'frontend/src/test/**/*.ts',
-      '**/*.test.{ts,tsx}',
-    ],
+    files: ['backend/src/logging.ts', 'frontend/src/test/**/*.ts', '**/*.test.{ts,tsx}'],
     rules: {
       'no-console': 'off',
     },
@@ -114,23 +108,35 @@ export default tseslint.config(
       },
     },
     rules: {
-      '@typescript-eslint/consistent-type-imports': ['error', {
-        fixStyle: 'inline-type-imports',
-      }],
-      '@typescript-eslint/no-floating-promises': ['error', {
-        ignoreVoid: true,
-      }],
-      '@typescript-eslint/no-misused-promises': ['error', {
-        checksVoidReturn: {
-          attributes: false,
+      '@typescript-eslint/consistent-type-imports': [
+        'error',
+        {
+          fixStyle: 'inline-type-imports',
         },
-      }],
+      ],
+      '@typescript-eslint/no-floating-promises': [
+        'error',
+        {
+          ignoreVoid: true,
+        },
+      ],
+      '@typescript-eslint/no-misused-promises': [
+        'error',
+        {
+          checksVoidReturn: {
+            attributes: false,
+          },
+        },
+      ],
       '@typescript-eslint/switch-exhaustiveness-check': 'error',
-      '@typescript-eslint/restrict-template-expressions': ['error', {
-        allowBoolean: true,
-        allowNumber: true,
-        allowNullish: true,
-      }],
+      '@typescript-eslint/restrict-template-expressions': [
+        'error',
+        {
+          allowBoolean: true,
+          allowNumber: true,
+          allowNullish: true,
+        },
+      ],
     },
   },
   {

@@ -1,8 +1,4 @@
-import type {
-  FormulaDetail,
-  RunSnapshotBead,
-  RunSnapshot,
-} from '../run-snapshot.js';
+import type { FormulaDetail, RunSnapshotBead, RunSnapshot } from '../run-snapshot.js';
 import type { DashboardSession } from '../dashboard-sessions.js';
 import type {
   RunFormulaDetailState,
@@ -29,10 +25,7 @@ export class UnsupportedRunError extends Error {
   }
 }
 
-export function enrichFormulaRun(
-  raw: RunSnapshot,
-  opts: EnrichOptions,
-): FormulaRunDetail {
+export function enrichFormulaRun(raw: RunSnapshot, opts: EnrichOptions): FormulaRunDetail {
   if (!isGraphV2(raw)) {
     throw new UnsupportedRunError('run is not a graph.v2 run');
   }

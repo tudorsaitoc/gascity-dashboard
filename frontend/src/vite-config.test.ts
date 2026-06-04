@@ -1,10 +1,7 @@
 // @vitest-environment node
 
 import { describe, expect, it, vi } from 'vitest';
-import viteConfig, {
-  BACKEND_TARGET,
-  configureBackendDevProxy,
-} from '../vite.config';
+import viteConfig, { BACKEND_TARGET, configureBackendDevProxy } from '../vite.config';
 
 describe('vite dev proxy config', () => {
   it('rewrites Origin for both dashboard api and supervisor transport writes', () => {

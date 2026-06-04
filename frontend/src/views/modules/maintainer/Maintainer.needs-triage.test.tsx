@@ -1,17 +1,10 @@
 import { cleanup, render, screen } from '@testing-library/react';
 import type { ReactElement } from 'react';
 import { afterEach, describe, expect, it } from 'vitest';
-import type {
-  TriageAssessment,
-  TriageItem,
-  TriageTierSection,
-} from 'gas-city-dashboard-shared';
+import type { TriageAssessment, TriageItem, TriageTierSection } from 'gas-city-dashboard-shared';
 import { NowProvider } from '../../../contexts/NowContext';
 import { TierSection } from './TriageSections';
-import {
-  countTierByVetted,
-  filterTierByAwaitingTriage,
-} from './triageFilters';
+import { countTierByVetted, filterTierByAwaitingTriage } from './triageFilters';
 
 // gascity-dashboard-x8q: render-level + helper coverage for the
 // "Awaiting triage only" filter chip and the per-tier "N vetted ·
@@ -110,10 +103,7 @@ describe('filterTierByAwaitingTriage — pure filter helper', () => {
     const filtered = filterTierByAwaitingTriage(
       mkSection([issueAwaiting, prAwaiting, issueVetted]),
     );
-    expect(filtered.unclustered.map((i) => `${i.kind}:${i.number}`)).toEqual([
-      'issue:1',
-      'pr:2',
-    ]);
+    expect(filtered.unclustered.map((i) => `${i.kind}:${i.number}`)).toEqual(['issue:1', 'pr:2']);
   });
 
   it('filters each cluster independently and drops clusters that become empty', () => {

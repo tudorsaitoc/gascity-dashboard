@@ -8,10 +8,7 @@ import type { LinkResolutionStat } from '../links.js';
 
 export type ResolutionOutcome = 'resolved' | 'unresolved' | 'n-candidates';
 
-export type ResolutionRecorder = (
-  relation: string,
-  outcome: ResolutionOutcome,
-) => void;
+export type ResolutionRecorder = (relation: string, outcome: ResolutionOutcome) => void;
 
 interface MutableStat {
   resolved: number;
@@ -25,9 +22,7 @@ export class ResolutionRollup {
   record(relation: string, outcome: ResolutionOutcome): void {
     const stat =
       this.byRelation.get(relation) ??
-      this.byRelation.set(relation, { resolved: 0, unresolved: 0, nCandidates: 0 }).get(
-        relation,
-      )!;
+      this.byRelation.set(relation, { resolved: 0, unresolved: 0, nCandidates: 0 }).get(relation)!;
     if (outcome === 'resolved') stat.resolved += 1;
     else if (outcome === 'unresolved') stat.unresolved += 1;
     else stat.nCandidates += 1;

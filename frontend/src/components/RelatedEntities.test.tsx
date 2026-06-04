@@ -13,15 +13,69 @@ function view(over: Partial<EntityLinkView> = {}): EntityLinkView {
   return {
     focus: { key: 'bead:c:focus', type: 'bead', ref: 'focus' },
     nodes: [
-      { key: 'bead:c:focus', type: 'bead', ref: 'focus', title: 'Focus', status: 'open', url: null, fetchedAt: '2026-05-26T11:59:30Z', unresolved: false },
-      { key: 'bead:c:child', type: 'bead', ref: 'child', title: 'Child bead', status: 'open', url: null, fetchedAt: '2026-05-26T11:59:30Z', unresolved: false },
-      { key: 'session:session:s1', type: 'session', ref: 's1', title: 'session one', status: 'active', url: null, fetchedAt: '2026-05-26T11:59:30Z', unresolved: false },
-      { key: 'github_pr:github:42', type: 'github_pr', ref: 'pr/42', title: null, status: null, url: 'https://github.com/o/r/pull/42', fetchedAt: '2026-05-25T11:00:00Z', unresolved: true },
+      {
+        key: 'bead:c:focus',
+        type: 'bead',
+        ref: 'focus',
+        title: 'Focus',
+        status: 'open',
+        url: null,
+        fetchedAt: '2026-05-26T11:59:30Z',
+        unresolved: false,
+      },
+      {
+        key: 'bead:c:child',
+        type: 'bead',
+        ref: 'child',
+        title: 'Child bead',
+        status: 'open',
+        url: null,
+        fetchedAt: '2026-05-26T11:59:30Z',
+        unresolved: false,
+      },
+      {
+        key: 'session:session:s1',
+        type: 'session',
+        ref: 's1',
+        title: 'session one',
+        status: 'active',
+        url: null,
+        fetchedAt: '2026-05-26T11:59:30Z',
+        unresolved: false,
+      },
+      {
+        key: 'github_pr:github:42',
+        type: 'github_pr',
+        ref: 'pr/42',
+        title: null,
+        status: null,
+        url: 'https://github.com/o/r/pull/42',
+        fetchedAt: '2026-05-25T11:00:00Z',
+        unresolved: true,
+      },
     ],
     edges: [
-      { from: 'bead:c:focus', to: 'bead:c:child', relation: 'child', provenance: 'supervisor', resolved: true },
-      { from: 'bead:c:focus', to: 'session:session:s1', relation: 'session', provenance: 'supervisor', resolved: true },
-      { from: 'bead:c:focus', to: 'github_pr:github:42', relation: 'pr', provenance: 'supervisor', resolved: false },
+      {
+        from: 'bead:c:focus',
+        to: 'bead:c:child',
+        relation: 'child',
+        provenance: 'supervisor',
+        resolved: true,
+      },
+      {
+        from: 'bead:c:focus',
+        to: 'session:session:s1',
+        relation: 'session',
+        provenance: 'supervisor',
+        resolved: true,
+      },
+      {
+        from: 'bead:c:focus',
+        to: 'github_pr:github:42',
+        relation: 'pr',
+        provenance: 'supervisor',
+        resolved: false,
+      },
     ],
     stats: [],
     partial: false,
@@ -62,13 +116,43 @@ describe('RelatedEntities (R5/R6/RK3)', () => {
     const v = view({
       nodes: [
         ...view().nodes,
-        { key: 'github_issue:github:7', type: 'github_issue', ref: 'issue/7', title: null, status: null, url: null, fetchedAt: null, unresolved: true },
-        { key: 'github_issue:github:8', type: 'github_issue', ref: 'issue/8', title: null, status: null, url: null, fetchedAt: null, unresolved: true },
+        {
+          key: 'github_issue:github:7',
+          type: 'github_issue',
+          ref: 'issue/7',
+          title: null,
+          status: null,
+          url: null,
+          fetchedAt: null,
+          unresolved: true,
+        },
+        {
+          key: 'github_issue:github:8',
+          type: 'github_issue',
+          ref: 'issue/8',
+          title: null,
+          status: null,
+          url: null,
+          fetchedAt: null,
+          unresolved: true,
+        },
       ],
       edges: [
         ...view().edges,
-        { from: 'bead:c:focus', to: 'github_issue:github:7', relation: 'issue', provenance: 'supervisor', resolved: false },
-        { from: 'bead:c:focus', to: 'github_issue:github:8', relation: 'issue', provenance: 'supervisor', resolved: false },
+        {
+          from: 'bead:c:focus',
+          to: 'github_issue:github:7',
+          relation: 'issue',
+          provenance: 'supervisor',
+          resolved: false,
+        },
+        {
+          from: 'bead:c:focus',
+          to: 'github_issue:github:8',
+          relation: 'issue',
+          provenance: 'supervisor',
+          resolved: false,
+        },
       ],
     });
     const { container } = renderRelated(v);
@@ -99,7 +183,12 @@ describe('RelatedEntities (R5/R6/RK3)', () => {
   it('renders a calm empty state', () => {
     render(
       <MemoryRouter future={{ v7_relativeSplatPath: true, v7_startTransition: true }}>
-        <RelatedEntities view={{ ...view(), nodes: [view().nodes[0]!], edges: [] }} loading={false} error={null} now={NOW} />
+        <RelatedEntities
+          view={{ ...view(), nodes: [view().nodes[0]!], edges: [] }}
+          loading={false}
+          error={null}
+          now={NOW}
+        />
       </MemoryRouter>,
     );
     expect(screen.getByText(/no related entities/i)).toBeTruthy();

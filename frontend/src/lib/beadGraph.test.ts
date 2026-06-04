@@ -1,20 +1,11 @@
 import { describe, expect, it } from 'vitest';
 import type { BeadStatus } from 'gas-city-dashboard-shared';
 import type { SupervisorBead } from '../supervisor/beadReads';
-import {
-  BOARD_COLUMNS,
-  buildBeadGraph,
-  selectColumns,
-  type BoardColumnId,
-} from './beadGraph';
+import { BOARD_COLUMNS, buildBeadGraph, selectColumns, type BoardColumnId } from './beadGraph';
 
 // Minimal bead factory — only the fields beadGraph reads. Everything else
 // is filled with inert defaults so the wire shape stays satisfied.
-function bead(
-  id: string,
-  status: BeadStatus,
-  extra: Partial<SupervisorBead> = {},
-): SupervisorBead {
+function bead(id: string, status: BeadStatus, extra: Partial<SupervisorBead> = {}): SupervisorBead {
   return {
     id,
     title: `bead ${id}`,
@@ -27,10 +18,7 @@ function bead(
 
 describe('buildBeadGraph — forward / inverse edges', () => {
   it('builds forward edges from the needs[] field', () => {
-    const graph = buildBeadGraph([
-      bead('A', 'open'),
-      bead('B', 'open', { needs: ['A'] }),
-    ]);
+    const graph = buildBeadGraph([bead('A', 'open'), bead('B', 'open', { needs: ['A'] })]);
     const b = graph.nodes.get('B');
     expect(b?.deps.map((d) => d.id)).toEqual(['A']);
     expect(b?.deps[0]?.bead?.id).toBe('A');
@@ -61,10 +49,7 @@ describe('buildBeadGraph — forward / inverse edges', () => {
   });
 
   it('computes the inverse blocks[] edge (in-set only)', () => {
-    const graph = buildBeadGraph([
-      bead('A', 'open'),
-      bead('B', 'open', { needs: ['A'] }),
-    ]);
+    const graph = buildBeadGraph([bead('A', 'open'), bead('B', 'open', { needs: ['A'] })]);
     expect(graph.nodes.get('A')?.blocks.map((x) => x.id)).toEqual(['B']);
   });
 
@@ -94,16 +79,11 @@ describe('buildBeadGraph — column placement', () => {
   });
 
   it('places an open bead whose needs are all closed in ready', () => {
-    expect(
-      columnOf([bead('A', 'closed'), bead('B', 'open', { needs: ['A'] })], 'B'),
-    ).toBe('ready');
+    expect(columnOf([bead('A', 'closed'), bead('B', 'open', { needs: ['A'] })], 'B')).toBe('ready');
   });
 
   it('keeps an open bead with an unmet need in the open column, not ready', () => {
-    const graph = buildBeadGraph([
-      bead('A', 'open'),
-      bead('B', 'open', { needs: ['A'] }),
-    ]);
+    const graph = buildBeadGraph([bead('A', 'open'), bead('B', 'open', { needs: ['A'] })]);
     expect(graph.nodes.get('B')?.column).toBe('open');
     expect(graph.nodes.get('B')?.ready).toBe(false);
   });
@@ -129,11 +109,7 @@ describe('buildBeadGraph — column contents', () => {
       bead('A', 'in_progress'),
       bead('M', 'in_progress', { priority: 0 }),
     ]);
-    expect(graph.columns.in_progress.map((n) => n.bead.id)).toEqual([
-      'M',
-      'Z',
-      'A',
-    ]);
+    expect(graph.columns.in_progress.map((n) => n.bead.id)).toEqual(['M', 'Z', 'A']);
   });
 });
 
@@ -152,10 +128,7 @@ describe('selectColumns — per-rig projection', () => {
     // A (rig 1) is closed; B (rig 2) needs A. Build the graph over both,
     // then project to rig 2 only — B is still ready (its need resolved),
     // proving the edge was not lost by the per-rig split.
-    const graph = buildBeadGraph([
-      bead('A', 'closed'),
-      bead('B', 'open', { needs: ['A'] }),
-    ]);
+    const graph = buildBeadGraph([bead('A', 'closed'), bead('B', 'open', { needs: ['A'] })]);
     const rig2 = selectColumns(graph, new Set(['B']));
     expect(rig2.ready.map((n) => n.bead.id)).toEqual(['B']);
     expect(rig2.open).toEqual([]);

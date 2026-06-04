@@ -18,11 +18,7 @@ beforeEach(() => {
 
 afterEach(() => cleanup());
 
-function bead(
-  id: string,
-  status: BeadStatus,
-  extra: Partial<SupervisorBead> = {},
-): SupervisorBead {
+function bead(id: string, status: BeadStatus, extra: Partial<SupervisorBead> = {}): SupervisorBead {
   return {
     id,
     title: `bead ${id}`,
@@ -40,11 +36,7 @@ function renderBoard(
 ) {
   const graph = buildBeadGraph(beads);
   const result = render(
-    <BeadBoard
-      columns={graph.columns}
-      selectedId={selectedId}
-      onSelect={onSelect}
-    />,
+    <BeadBoard columns={graph.columns} selectedId={selectedId} onSelect={onSelect} />,
   );
   return { ...result, onSelect };
 }
@@ -98,11 +90,7 @@ describe('BeadBoard', () => {
     // A is closed (done column); B needs A so B is ready (ready column). The
     // board row carries only the compact neighbourhood summary; the full
     // navigable dependency tree lives in the bead detail modal.
-    renderBoard(
-      [bead('A', 'closed'), bead('B', 'open', { needs: ['A'] })],
-      'B',
-      onSelect,
-    );
+    renderBoard([bead('A', 'closed'), bead('B', 'open', { needs: ['A'] })], 'B', onSelect);
     const ready = screen.getByRole('region', { name: 'ready' });
     expect(within(ready).getByText(/needs 1/)).toBeTruthy();
     expect(within(ready).queryByTitle('Select A')).toBeNull();

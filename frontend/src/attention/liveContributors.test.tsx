@@ -75,32 +75,36 @@ describe('useLiveAttentionContributors', () => {
     });
     mockSupervisorApi.listAgents.mockResolvedValue({
       total: 1,
-      items: [{
-        available: true,
-        name: 'reviewer',
-        running: true,
-        state: 'failed',
-        suspended: false,
-        session: {
-          attached: true,
-          last_activity: '2026-05-29T20:00:00.000Z',
+      items: [
+        {
+          available: true,
           name: 'reviewer',
+          running: true,
+          state: 'failed',
+          suspended: false,
+          session: {
+            attached: true,
+            last_activity: '2026-05-29T20:00:00.000Z',
+            name: 'reviewer',
+          },
         },
-      }],
+      ],
     });
     mockSupervisorApi.listSessions.mockResolvedValue({
       total: 1,
-      items: [{
-        id: 'gc-2568',
-        session_name: 'reviewer',
-        state: 'active',
-        template: 'reviewer',
-        alias: 'reviewer',
-        provider: 'codex',
-        running: true,
-        attached: true,
-        created_at: '2026-05-29T20:00:00.000Z',
-      }],
+      items: [
+        {
+          id: 'gc-2568',
+          session_name: 'reviewer',
+          state: 'active',
+          template: 'reviewer',
+          alias: 'reviewer',
+          provider: 'codex',
+          running: true,
+          attached: true,
+          created_at: '2026-05-29T20:00:00.000Z',
+        },
+      ],
     });
     mockSupervisorApi.sessionPending.mockResolvedValue({
       supported: true,
@@ -118,51 +122,58 @@ describe('useLiveAttentionContributors', () => {
       }
       return Promise.resolve({
         total: 1,
-        items: [{
-          created_at: '2026-05-29T20:00:00.000Z',
-          id: 'B-1',
-          issue_type: 'task',
-          priority: null,
-          status: 'blocked',
-          title: 'Blocked bead',
-        }],
+        items: [
+          {
+            created_at: '2026-05-29T20:00:00.000Z',
+            id: 'B-1',
+            issue_type: 'task',
+            priority: null,
+            status: 'blocked',
+            title: 'Blocked bead',
+          },
+        ],
       });
     });
     mockSupervisorApi.listMail.mockResolvedValue({
       total: 2,
-      items: [{
-        body: '',
-        created_at: '2026-05-29T20:00:00.000Z',
-        from: 'sam',
-        id: 'M-1',
-        read: false,
-        subject: 'Need approval',
-        to: 'human',
-      }, {
-        body: '',
-        created_at: '2026-05-29T20:01:00.000Z',
-        from: 'sam',
-        id: 'M-other',
-        read: false,
-        subject: 'Someone else needs approval',
-        to: 'mayor',
-      }],
+      items: [
+        {
+          body: '',
+          created_at: '2026-05-29T20:00:00.000Z',
+          from: 'sam',
+          id: 'M-1',
+          read: false,
+          subject: 'Need approval',
+          to: 'human',
+        },
+        {
+          body: '',
+          created_at: '2026-05-29T20:01:00.000Z',
+          from: 'sam',
+          id: 'M-other',
+          read: false,
+          subject: 'Someone else needs approval',
+          to: 'mayor',
+        },
+      ],
     });
     mockSupervisorApi.listEvents.mockResolvedValue({
       total: 1,
-      items: [{
-        actor: 'supervisor',
-        message: 'session crashed while applying patch',
-        payload: {
-          reason: 'panic',
-          session_id: 'gc-session-1',
-          template: 'mayor',
+      items: [
+        {
+          actor: 'supervisor',
+          message: 'session crashed while applying patch',
+          payload: {
+            reason: 'panic',
+            session_id: 'gc-session-1',
+            template: 'mayor',
+          },
+          seq: 42,
+          subject: 'gc-session-1',
+          ts: '2026-06-01T10:10:00.000Z',
+          type: 'session.crashed',
         },
-        seq: 42,
-        subject: 'gc-session-1',
-        ts: '2026-06-01T10:10:00.000Z',
-        type: 'session.crashed',
-      }],
+      ],
     });
     mockSupervisorApi.cityHealth.mockResolvedValue({
       city: 'test-city',
@@ -205,36 +216,38 @@ describe('useLiveAttentionContributors', () => {
         {
           tier: 'regression_breaking',
           clusters: [],
-          unclustered: [{
-            author: {
-              computed_at: null,
-              issues_accepted: null,
-              issues_opened: null,
-              login: 'reviewer',
-              prs_merged: null,
-              prs_opened: null,
-              tier: 'trusted',
+          unclustered: [
+            {
+              author: {
+                computed_at: null,
+                issues_accepted: null,
+                issues_opened: null,
+                login: 'reviewer',
+                prs_merged: null,
+                prs_opened: null,
+                tier: 'trusted',
+              },
+              blast_files: [],
+              cluster_id: null,
+              created_at: '2026-06-01T09:00:00.000Z',
+              has_in_flight_pr: false,
+              html_url: 'https://github.com/gastownhall/gascity/pull/101',
+              is_marked: false,
+              kind: 'pr',
+              labels: [],
+              lines_changed: null,
+              linked_numbers: [],
+              number: 101,
+              slung: null,
+              status: 'changes_requested',
+              tier: 'regression_breaking',
+              title: 'review feedback needs operator',
+              triage_assessment: null,
+              triage_score: 240,
+              updated_at: '2026-06-01T09:30:00.000Z',
+              weak_ties: [],
             },
-            blast_files: [],
-            cluster_id: null,
-            created_at: '2026-06-01T09:00:00.000Z',
-            has_in_flight_pr: false,
-            html_url: 'https://github.com/gastownhall/gascity/pull/101',
-            is_marked: false,
-            kind: 'pr',
-            labels: [],
-            lines_changed: null,
-            linked_numbers: [],
-            number: 101,
-            slung: null,
-            status: 'changes_requested',
-            tier: 'regression_breaking',
-            title: 'review feedback needs operator',
-            triage_assessment: null,
-            triage_score: 240,
-            updated_at: '2026-06-01T09:30:00.000Z',
-            weak_ties: [],
-          }],
+          ],
         },
         { tier: 'regression', clusters: [], unclustered: [] },
         { tier: 'stability', clusters: [], unclustered: [] },
@@ -257,9 +270,7 @@ describe('useLiveAttentionContributors', () => {
       expect(model.byDomain.beads.attention).toBe(1);
       expect(model.byDomain.mail.attention).toBe(1);
       expect(model.byDomain.mail.watch).toBe(0);
-      expect(model.byDomain.mail.items.map((item) => item.id)).toEqual([
-        'mail:M-1:unread-stale',
-      ]);
+      expect(model.byDomain.mail.items.map((item) => item.id)).toEqual(['mail:M-1:unread-stale']);
       expect(model.byDomain.activity.attention).toBe(2);
       expect(model.byDomain.health.attention).toBe(1);
       expect(model.byDomain.maintainer.attention).toBe(1);
@@ -278,7 +289,10 @@ describe('useLiveAttentionContributors', () => {
       label: 'needs/stephanie',
       status: 'open',
     });
-    expect(mockSupervisorApi.listEvents).toHaveBeenCalledWith('test-city', { limit: 100, since: '24h' });
+    expect(mockSupervisorApi.listEvents).toHaveBeenCalledWith('test-city', {
+      limit: 100,
+      since: '24h',
+    });
     expect(mockSupervisorApi.listMail).toHaveBeenCalledWith('test-city', { limit: 100 });
     expect(mockSupervisorApi.cityHealth).toHaveBeenCalledWith('test-city');
     expect(mockApi.listBuilds).toHaveBeenCalledTimes(1);

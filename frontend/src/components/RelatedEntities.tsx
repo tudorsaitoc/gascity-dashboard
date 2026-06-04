@@ -1,10 +1,6 @@
 import { useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
-import type {
-  EntityLinkView,
-  LinkNode,
-  LinkNodeType,
-} from 'gas-city-dashboard-shared';
+import type { EntityLinkView, LinkNode, LinkNodeType } from 'gas-city-dashboard-shared';
 import { formatRelative } from '../hooks/time';
 
 // Reusable "Related" section (R5). One component woven into the foot of
@@ -66,13 +62,7 @@ interface GroupRow {
   relation: string;
 }
 
-export function RelatedEntities({
-  view,
-  loading,
-  error,
-  now,
-  onOpenBead,
-}: RelatedEntitiesProps) {
+export function RelatedEntities({ view, loading, error, now, onOpenBead }: RelatedEntitiesProps) {
   const [expanded, setExpanded] = useState(false);
 
   const groups = useMemo(() => buildGroups(view), [view]);
@@ -90,11 +80,7 @@ export function RelatedEntities({
               as of {formatRelative(view.asOf, now)}
             </span>
           )}
-          <SummaryLine
-            loading={loading}
-            counts={counts}
-            showMark={showMark}
-          />
+          <SummaryLine loading={loading} counts={counts} showMark={showMark} />
         </div>
       </header>
 
@@ -187,9 +173,7 @@ function RelatedGroup({
   return (
     <div>
       <header className="flex items-baseline justify-between mb-2">
-        <h3 className="text-label uppercase tracking-wider text-fg-faint">
-          {GROUP_LABEL[type]}
-        </h3>
+        <h3 className="text-label uppercase tracking-wider text-fg-faint">{GROUP_LABEL[type]}</h3>
         <span className="text-label uppercase tracking-wider text-fg-faint tnum">
           {rows.length}
         </span>
@@ -205,9 +189,7 @@ function RelatedGroup({
         ))}
       </ul>
       {overflow > 0 && (
-        <p className="text-label uppercase tracking-wider text-fg-faint mt-2">
-          + {overflow} more
-        </p>
+        <p className="text-label uppercase tracking-wider text-fg-faint mt-2">+ {overflow} more</p>
       )}
     </div>
   );
@@ -245,7 +227,7 @@ function RelatedRow({
           ? unresolvedLabel(node)
           : node.fetchedAt
             ? formatRelative(node.fetchedAt, now)
-            : node.status ?? '·'}
+            : (node.status ?? '·')}
       </span>
     </li>
   );

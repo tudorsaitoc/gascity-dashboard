@@ -1,32 +1,17 @@
-import type {
-    RunDisplayNode,
-    RunExecutionInstance,
-} from "gas-city-dashboard-shared";
-import { useEffect, useMemo, useState } from "react";
-import {
-    useSessionStream,
-    type SessionStreamProgress,
-} from "../../hooks/useSessionStream";
-import { SessionPeekContent } from "../SessionPeek";
-import { StatusBadge, type StatusTone } from "../StatusBadge";
+import type { RunDisplayNode, RunExecutionInstance } from 'gas-city-dashboard-shared';
+import { useEffect, useMemo, useState } from 'react';
+import { useSessionStream, type SessionStreamProgress } from '../../hooks/useSessionStream';
+import { SessionPeekContent } from '../SessionPeek';
+import { StatusBadge, type StatusTone } from '../StatusBadge';
 
 interface RunNodeSessionPanelProps {
   node: RunDisplayNode | null;
   visible: boolean;
 }
 
-export function RunNodeSessionPanel({
-  node,
-  visible,
-}: RunNodeSessionPanelProps) {
-  const instances = useMemo(
-    () => node?.executionInstances.sort(compareInstances) ?? [],
-    [node],
-  );
-  const defaultInstance = useMemo(
-    () => preferredInstance(instances),
-    [instances],
-  );
+export function RunNodeSessionPanel({ node, visible }: RunNodeSessionPanelProps) {
+  const instances = useMemo(() => node?.executionInstances.sort(compareInstances) ?? [], [node]);
+  const defaultInstance = useMemo(() => preferredInstance(instances), [instances]);
   const [selectedKey, setSelectedKey] = useState<string | null>(null);
 
   useEffect(() => {
@@ -34,35 +19,21 @@ export function RunNodeSessionPanel({
   }, [node?.id, defaultInstance]);
 
   if (!node) {
-    return (
-      <p className="text-body text-fg-muted italic">
-        Select a node to inspect its session.
-      </p>
-    );
+    return <p className="text-body text-fg-muted italic">Select a node to inspect its session.</p>;
   }
   if (instances.length === 0) {
-    return (
-      <p className="text-body text-fg-muted italic">
-        {sessionUnavailableCopy(node)}
-      </p>
-    );
+    return <p className="text-body text-fg-muted italic">{sessionUnavailableCopy(node)}</p>;
   }
 
   const selected =
     instances.find((instance) => instanceKey(instance) === selectedKey) ??
     defaultInstance ??
     instances[0];
-  const selectedIteration = selected ? iterationValue(selected) : "base";
+  const selectedIteration = selected ? iterationValue(selected) : 'base';
   const iterationGroups = groupIterations(instances);
-  const attempts = instances.filter(
-    (instance) => iterationValue(instance) === selectedIteration,
-  );
+  const attempts = instances.filter((instance) => iterationValue(instance) === selectedIteration);
   if (!selected) {
-    return (
-      <p className="text-body text-fg-muted italic">
-        {sessionUnavailableCopy(node)}
-      </p>
-    );
+    return <p className="text-body text-fg-muted italic">{sessionUnavailableCopy(node)}</p>;
   }
 
   return (
@@ -71,7 +42,7 @@ export function RunNodeSessionPanel({
         <h3 className="text-body font-semibold text-fg">{node.title}</h3>
         {(node.historicalOnly || selected?.historical) && (
           <span className="text-label uppercase tracking-wider text-fg-faint">
-            {node.historicalOnly ? "historical-only" : "historical"}
+            {node.historicalOnly ? 'historical-only' : 'historical'}
           </span>
         )}
       </div>
@@ -81,16 +52,11 @@ export function RunNodeSessionPanel({
           role="radiogroup"
           aria-label="Iterations"
         >
-          <span className="uppercase tracking-wider text-fg-faint">
-            Iterations
-          </span>
+          <span className="uppercase tracking-wider text-fg-faint">Iterations</span>
           {iterationGroups.map((group) => {
             const instance = group.instances.at(-1);
             if (!instance) return null;
-            const label =
-              group.iteration === "base"
-                ? "Base"
-                : `Iteration ${group.iteration}`;
+            const label = group.iteration === 'base' ? 'Base' : `Iteration ${group.iteration}`;
             const active = group.iteration === selectedIteration;
             return (
               <span key={label} className="flex items-baseline gap-1">
@@ -103,8 +69,8 @@ export function RunNodeSessionPanel({
                   aria-checked={active}
                   className={`focus-mark rounded-sm px-0.5 uppercase tracking-wider ${
                     active
-                      ? "text-fg font-semibold underline decoration-fg underline-offset-4"
-                      : "text-fg-muted hover:text-fg"
+                      ? 'text-fg font-semibold underline decoration-fg underline-offset-4'
+                      : 'text-fg-muted hover:text-fg'
                   }`}
                   onClick={() => setSelectedKey(instanceKey(instance))}
                 >
@@ -121,14 +87,9 @@ export function RunNodeSessionPanel({
           role="radiogroup"
           aria-label="Attempts"
         >
-          <span className="uppercase tracking-wider text-fg-faint">
-            Attempts
-          </span>
+          <span className="uppercase tracking-wider text-fg-faint">Attempts</span>
           {attempts.map((instance) => (
-            <span
-              key={instanceKey(instance)}
-              className="flex items-baseline gap-1"
-            >
+            <span key={instanceKey(instance)} className="flex items-baseline gap-1">
               <span aria-hidden className="text-fg-faint">
                 ·
               </span>
@@ -138,8 +99,8 @@ export function RunNodeSessionPanel({
                 aria-checked={instanceKey(instance) === instanceKey(selected)}
                 className={`focus-mark rounded-sm px-0.5 uppercase tracking-wider ${
                   instanceKey(instance) === instanceKey(selected)
-                    ? "text-fg font-semibold underline decoration-fg underline-offset-4"
-                    : "text-fg-muted hover:text-fg"
+                    ? 'text-fg font-semibold underline decoration-fg underline-offset-4'
+                    : 'text-fg-muted hover:text-fg'
                 }`}
                 onClick={() => setSelectedKey(instanceKey(instance))}
               >
@@ -150,9 +111,7 @@ export function RunNodeSessionPanel({
         </div>
       )}
       <dl className="mt-4 grid grid-cols-[max-content_minmax(0,1fr)] gap-x-3 gap-y-1 text-label">
-        <dt className="uppercase tracking-wider text-fg-faint">
-          Execution instance
-        </dt>
+        <dt className="uppercase tracking-wider text-fg-faint">Execution instance</dt>
         <dd className="break-all text-fg-muted tnum">{selected.id}</dd>
         <dt className="uppercase tracking-wider text-fg-faint">Bead</dt>
         <dd className="break-all text-fg-muted tnum">{selected.beadId}</dd>
@@ -169,8 +128,7 @@ function SessionTranscript({
   instance: RunExecutionInstance;
   visible: boolean;
 }) {
-  const attached =
-    instance.session.kind === "attached" ? instance.session : null;
+  const attached = instance.session.kind === 'attached' ? instance.session : null;
   const sessionId = attached?.link.sessionId ?? null;
   const stream = visible && Boolean(attached?.streamable);
   const sessionState = useSessionStream(sessionId, stream);
@@ -182,11 +140,11 @@ function SessionTranscript({
     );
   }
   const badge = streamBadge(sessionState.stream);
-  const loading = sessionState.status === "loading";
-  const result = sessionState.status === "ready" ? sessionState.result : null;
-  const error = sessionState.status === "failed" ? sessionState.error : null;
+  const loading = sessionState.status === 'loading';
+  const result = sessionState.status === 'ready' ? sessionState.result : null;
+  const error = sessionState.status === 'failed' ? sessionState.error : null;
   const streamError =
-    sessionState.status === "ready" && sessionState.stream.status === "degraded"
+    sessionState.status === 'ready' && sessionState.stream.status === 'degraded'
       ? sessionState.stream.error
       : null;
   return (
@@ -216,76 +174,68 @@ function streamBadge(stream: SessionStreamProgress): {
   label: string;
 } {
   switch (stream.status) {
-    case "open":
-      return { tone: "ok", label: "live" };
-    case "connecting":
-      return { tone: "warn", label: "connecting" };
-    case "closed":
-      return { tone: "stuck", label: "offline" };
-    case "degraded":
-      return { tone: "warn", label: "degraded" };
-    case "idle":
-      return { tone: "neutral", label: "snapshot" };
+    case 'open':
+      return { tone: 'ok', label: 'live' };
+    case 'connecting':
+      return { tone: 'warn', label: 'connecting' };
+    case 'closed':
+      return { tone: 'stuck', label: 'offline' };
+    case 'degraded':
+      return { tone: 'warn', label: 'degraded' };
+    case 'idle':
+      return { tone: 'neutral', label: 'snapshot' };
   }
 }
 
 function sessionUnavailableCopy(node: RunDisplayNode): string {
-  const missing = node.executionInstances.filter(
-    (instance) => instance.session.kind === "none",
-  );
+  const missing = node.executionInstances.filter((instance) => instance.session.kind === 'none');
   const hasUnresolvedRunning = missing.some(
     (instance) =>
       instance.currentIteration &&
-      instance.session.kind === "none" &&
-      instance.session.reason === "session_unresolved" &&
+      instance.session.kind === 'none' &&
+      instance.session.reason === 'session_unresolved' &&
       isRunningStatus(instance.status),
   );
   if (hasUnresolvedRunning) {
-    return "Session unresolved for the current running node.";
+    return 'Session unresolved for the current running node.';
   }
   if (
     missing.some(
       (instance) =>
-        instance.session.kind === "none" &&
-        instance.session.reason === "session_unresolved",
+        instance.session.kind === 'none' && instance.session.reason === 'session_unresolved',
     )
   ) {
-    return "Session unresolved for this node.";
+    return 'Session unresolved for this node.';
   }
-  return "This node has not started a session yet.";
+  return 'This node has not started a session yet.';
 }
 
-function instanceSessionUnavailableCopy(
-  instance: RunExecutionInstance,
-): string {
-  if (instance.session.kind === "attached") return "";
+function instanceSessionUnavailableCopy(instance: RunExecutionInstance): string {
+  if (instance.session.kind === 'attached') return '';
   if (
     instance.currentIteration &&
-    instance.session.reason === "session_unresolved" &&
+    instance.session.reason === 'session_unresolved' &&
     isRunningStatus(instance.status)
   ) {
-    return "Session unresolved for the current running node.";
+    return 'Session unresolved for the current running node.';
   }
-  if (instance.session.reason === "session_unresolved") {
-    return "Session unresolved for this node.";
+  if (instance.session.reason === 'session_unresolved') {
+    return 'Session unresolved for this node.';
   }
-  return "This node has not started a session yet.";
+  return 'This node has not started a session yet.';
 }
 
-function isRunningStatus(status: RunExecutionInstance["status"]): boolean {
-  return status === "active" || status === "running";
+function isRunningStatus(status: RunExecutionInstance['status']): boolean {
+  return status === 'active' || status === 'running';
 }
 
-function preferredInstance(
-  instances: RunExecutionInstance[],
-): RunExecutionInstance | undefined {
+function preferredInstance(instances: RunExecutionInstance[]): RunExecutionInstance | undefined {
   return (
     instances.find(
-      (instance) =>
-        instance.session.kind === "attached" && instance.session.streamable,
+      (instance) => instance.session.kind === 'attached' && instance.session.streamable,
     ) ??
     [...instances]
-      .filter((instance) => instance.session.kind === "attached")
+      .filter((instance) => instance.session.kind === 'attached')
       .sort(compareInstances)
       .at(-1) ??
     [...instances].sort(compareInstances).at(-1)
@@ -293,7 +243,7 @@ function preferredInstance(
 }
 
 function groupIterations(instances: RunExecutionInstance[]) {
-  const groups = new Map<number | "base", RunExecutionInstance[]>();
+  const groups = new Map<number | 'base', RunExecutionInstance[]>();
   for (const instance of instances) {
     const key = iterationValue(instance);
     groups.set(key, [...(groups.get(key) ?? []), instance]);
@@ -306,13 +256,9 @@ function groupIterations(instances: RunExecutionInstance[]) {
     .sort((a, b) => iterationOrder(a.iteration) - iterationOrder(b.iteration));
 }
 
-function compareInstances(
-  left: RunExecutionInstance,
-  right: RunExecutionInstance,
-): number {
+function compareInstances(left: RunExecutionInstance, right: RunExecutionInstance): number {
   return (
-    iterationOrder(iterationValue(left)) -
-      iterationOrder(iterationValue(right)) ||
+    iterationOrder(iterationValue(left)) - iterationOrder(iterationValue(right)) ||
     attemptValue(left) - attemptValue(right) ||
     left.id.localeCompare(right.id)
   );
@@ -322,14 +268,14 @@ function instanceKey(instance: RunExecutionInstance): string {
   return instance.id;
 }
 
-function iterationValue(instance: RunExecutionInstance): number | "base" {
-  return instance.iteration.kind === "loop" ? instance.iteration.value : "base";
+function iterationValue(instance: RunExecutionInstance): number | 'base' {
+  return instance.iteration.kind === 'loop' ? instance.iteration.value : 'base';
 }
 
-function iterationOrder(iteration: number | "base"): number {
-  return iteration === "base" ? 0 : iteration;
+function iterationOrder(iteration: number | 'base'): number {
+  return iteration === 'base' ? 0 : iteration;
 }
 
 function attemptValue(instance: RunExecutionInstance): number {
-  return instance.attempt.kind === "attempt" ? instance.attempt.value : 1;
+  return instance.attempt.kind === 'attempt' ? instance.attempt.value : 1;
 }

@@ -92,10 +92,7 @@ describe('GET /api/git/commits — catch-arm err.message redaction', { concurren
     // string, never the raw spawn message.
     h = await buildApp({
       execGitLog: async () => {
-        throw new ExecError(
-          'spawn failed: spawn /home/ds/.local/bin/git ENOENT',
-          'spawn',
-        );
+        throw new ExecError('spawn failed: spawn /home/ds/.local/bin/git ENOENT', 'spawn');
       },
     });
     const res = await getJson(`${h.url}/api/git/commits?view=recent-main`);
@@ -129,9 +126,7 @@ describe('GET /api/git/commits — catch-arm err.message redaction', { concurren
     // An unexpected throw (e.g. a parse/IO error wrapping a network
     // failure) must not echo its raw message. details.name (Error class)
     // is the only safe channel; the OS detail stays in journalctl.
-    const leakyErr = new Error(
-      'connect ECONNREFUSED 127.0.0.1:1 (interface lo) at /var/run/sock',
-    );
+    const leakyErr = new Error('connect ECONNREFUSED 127.0.0.1:1 (interface lo) at /var/run/sock');
     leakyErr.name = 'NetworkError';
     h = await buildApp({
       execGitLog: async () => {

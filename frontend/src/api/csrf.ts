@@ -1,8 +1,6 @@
 const COOKIE_NAME = 'gascity_admin_csrf';
 
-export type CsrfTokenResult =
-  | { status: 'available'; token: string }
-  | { status: 'missing' };
+export type CsrfTokenResult = { status: 'available'; token: string } | { status: 'missing' };
 
 export function readCsrfToken(): CsrfTokenResult {
   const match = document.cookie

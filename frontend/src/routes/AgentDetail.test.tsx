@@ -37,6 +37,7 @@ const mockListSupervisorSessions = vi.hoisted(() => vi.fn());
 const mockListSupervisorBeads = vi.hoisted(() => vi.fn());
 const mockListSupervisorMail = vi.hoisted(() => vi.fn());
 const mockFetchSupervisorAgentPrime = vi.hoisted(() => vi.fn());
+const mockUseVisibleRefresh = vi.hoisted(() => vi.fn());
 
 vi.mock('../supervisor/sessionReads', () => ({
   listSupervisorSessions: mockListSupervisorSessions,
@@ -83,6 +84,10 @@ vi.mock('../hooks/useVisibleInterval', () => ({
   useVisibleInterval: vi.fn(),
 }));
 
+vi.mock('../hooks/useVisibleRefresh', () => ({
+  useVisibleRefresh: mockUseVisibleRefresh,
+}));
+
 vi.mock('../lib/clientErrorReporting', () => ({
   reportClientError: vi.fn(),
 }));
@@ -96,6 +101,7 @@ describe('AgentDetailPage error reporting', () => {
     mockListSupervisorMail.mockResolvedValue({ items: [] });
     mockFetchSupervisorAgentPrime.mockResolvedValue({ agent: 'mayor', prompt: '', bytes: 0 });
     mockReportClientError.mockReset();
+    mockUseVisibleRefresh.mockClear();
   });
 
   afterEach(() => {
@@ -105,18 +111,20 @@ describe('AgentDetailPage error reporting', () => {
 
   it('reports assigned-bead refresh failures instead of silently dropping them', async () => {
     mockListSupervisorSessions.mockResolvedValue({
-      items: [{
-        id: 'gc-session-1',
-        session_name: 'mayor',
-        alias: 'mayor',
-        template: 'mayor',
-        title: 'mayor',
-        state: 'active',
-        provider: 'claude',
-        running: true,
-        attached: false,
-        created_at: '2026-06-01T00:00:00Z',
-      }],
+      items: [
+        {
+          id: 'gc-session-1',
+          session_name: 'mayor',
+          alias: 'mayor',
+          template: 'mayor',
+          title: 'mayor',
+          state: 'active',
+          provider: 'claude',
+          running: true,
+          attached: false,
+          created_at: '2026-06-01T00:00:00Z',
+        },
+      ],
     });
 
     render(
@@ -133,10 +141,9 @@ describe('AgentDetailPage error reporting', () => {
     );
 
     await waitFor(() => {
-      expect(mockListSupervisorBeads).toHaveBeenCalledWith(
-        ['mayor', 'mayor', 'gc-session-1'],
-        { includeClosed: true },
-      );
+      expect(mockListSupervisorBeads).toHaveBeenCalledWith(['mayor', 'mayor', 'gc-session-1'], {
+        includeClosed: true,
+      });
       expect(mockReportClientError).toHaveBeenCalledWith({
         component: 'AgentDetail',
         operation: 'refreshBeads',
@@ -149,18 +156,20 @@ describe('AgentDetailPage error reporting', () => {
 
   it('fetches directives through the supervisor prime API when refreshed', async () => {
     mockListSupervisorSessions.mockResolvedValue({
-      items: [{
-        id: 'gc-session-1',
-        session_name: 'mayor',
-        alias: 'mayor',
-        template: 'mayor',
-        title: 'mayor',
-        state: 'active',
-        provider: 'claude',
-        running: true,
-        attached: false,
-        created_at: '2026-06-01T00:00:00Z',
-      }],
+      items: [
+        {
+          id: 'gc-session-1',
+          session_name: 'mayor',
+          alias: 'mayor',
+          template: 'mayor',
+          title: 'mayor',
+          state: 'active',
+          provider: 'claude',
+          running: true,
+          attached: false,
+          created_at: '2026-06-01T00:00:00Z',
+        },
+      ],
     });
     mockListSupervisorBeads.mockResolvedValue({ items: [] });
     mockFetchSupervisorAgentPrime.mockResolvedValue({
@@ -187,5 +196,44 @@ describe('AgentDetailPage error reporting', () => {
       expect(mockFetchSupervisorAgentPrime).toHaveBeenCalledWith('mayor');
     });
     expect(await screen.findByText('DIRECTIVE BODY')).toBeTruthy();
+  });
+
+  it('uses supervisor SSE rather than visible polling for session and bead refreshes', async () => {
+    mockListSupervisorSessions.mockResolvedValue({
+      items: [
+        {
+          id: 'gc-session-1',
+          session_name: 'mayor',
+          alias: 'mayor',
+          template: 'mayor',
+          title: 'mayor',
+          state: 'active',
+          provider: 'claude',
+          running: true,
+          attached: false,
+          created_at: '2026-06-01T00:00:00Z',
+        },
+      ],
+    });
+    mockListSupervisorBeads.mockResolvedValue({ items: [] });
+
+    render(
+      <MemoryRouter
+        initialEntries={['/agents/mayor']}
+        future={{ v7_relativeSplatPath: true, v7_startTransition: true }}
+      >
+        <NowProvider intervalMs={1_000_000}>
+          <Routes>
+            <Route path="/agents/:slug" element={<AgentDetailPage />} />
+          </Routes>
+        </NowProvider>
+      </MemoryRouter>,
+    );
+
+    await waitFor(() => {
+      expect(mockListSupervisorSessions).toHaveBeenCalled();
+      expect(mockListSupervisorBeads).toHaveBeenCalled();
+    });
+    expect(mockUseVisibleRefresh).not.toHaveBeenCalled();
   });
 });

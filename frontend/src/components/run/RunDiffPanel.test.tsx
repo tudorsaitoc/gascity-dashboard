@@ -28,8 +28,9 @@ describe('RunDiffPanel', () => {
     expect(screen.getByText('docs/plan.md')).toBeTruthy();
     expect(screen.queryByText(/^\?\? docs\/plan\.md/)).toBeNull();
     expect(screen.getByText(/diff truncated/i)).toBeTruthy();
-    const gutterSigns = [...container.querySelectorAll('.diff-gutter-sign')]
-      .map((node) => node.textContent ?? '');
+    const gutterSigns = [...container.querySelectorAll('.diff-gutter-sign')].map(
+      (node) => node.textContent ?? '',
+    );
     expect(gutterSigns).toContain('+');
     expect(gutterSigns).toContain('-');
     expect(container.querySelector('.diff-code-insert')?.textContent).toContain('new session');

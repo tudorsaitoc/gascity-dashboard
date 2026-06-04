@@ -6,11 +6,7 @@ import type {
   ListBodySessionResponse,
   SessionResponse,
 } from '../generated/gc-supervisor-client/types.gen';
-import {
-  resetSupervisorApiForTests,
-  setSupervisorApiForTests,
-  type SupervisorApi,
-} from './client';
+import { resetSupervisorApiForTests, setSupervisorApiForTests, type SupervisorApi } from './client';
 import { loadSupervisorEntityLinks } from './entityLinks';
 
 const baseApi: SupervisorApi = {
@@ -64,22 +60,24 @@ describe('loadSupervisorEntityLinks', () => {
   it('builds a related-entity view from direct supervisor beads and sessions', async () => {
     const fetchSpy = vi.fn();
     vi.stubGlobal('fetch', fetchSpy);
-    const listBeads = vi.fn(async () => beadList([
-      bead({ id: 'focus', title: 'Focus bead' }),
-      bead({
-        id: 'child',
-        title: 'Child bead',
-        status: 'in_progress',
-        metadata: {
-          'gc.parent_bead_id': 'focus',
-          session_id: 'session-1',
-          session_name: 'session one',
-        },
-      }),
-    ]));
-    const listSessions = vi.fn(async () => sessionList([
-      session({ id: 'session-1', title: 'Session one', state: 'running' }),
-    ]));
+    const listBeads = vi.fn(async () =>
+      beadList([
+        bead({ id: 'focus', title: 'Focus bead' }),
+        bead({
+          id: 'child',
+          title: 'Child bead',
+          status: 'in_progress',
+          metadata: {
+            'gc.parent_bead_id': 'focus',
+            session_id: 'session-1',
+            session_name: 'session one',
+          },
+        }),
+      ]),
+    );
+    const listSessions = vi.fn(async () =>
+      sessionList([session({ id: 'session-1', title: 'Session one', state: 'running' })]),
+    );
     setSupervisorApiForTests({ ...baseApi, listBeads, listSessions });
 
     const view = await loadSupervisorEntityLinks('focus');
@@ -91,10 +89,12 @@ describe('loadSupervisorEntityLinks', () => {
     });
     expect(view.partial).toBe(false);
     expect(view.generatedAt).toBe('2026-06-01T12:00:00.000Z');
-    expect(view.nodes).toEqual(expect.arrayContaining([
-      expect.objectContaining({ ref: 'focus', title: 'Focus bead', unresolved: false }),
-      expect.objectContaining({ ref: 'child', title: 'Child bead', unresolved: false }),
-    ]));
+    expect(view.nodes).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ ref: 'focus', title: 'Focus bead', unresolved: false }),
+        expect.objectContaining({ ref: 'child', title: 'Child bead', unresolved: false }),
+      ]),
+    );
     expect(view.edges).toEqual([
       {
         from: 'bead:city:test-city:focus',
@@ -112,14 +112,16 @@ describe('loadSupervisorEntityLinks', () => {
   it('keeps bead links available while marking the view partial when sessions fail', async () => {
     setSupervisorApiForTests({
       ...baseApi,
-      listBeads: vi.fn(async () => beadList([
-        bead({ id: 'focus', title: 'Focus bead' }),
-        bead({
-          id: 'child',
-          title: 'Child bead',
-          metadata: { 'gc.parent_bead_id': 'focus' },
-        }),
-      ])),
+      listBeads: vi.fn(async () =>
+        beadList([
+          bead({ id: 'focus', title: 'Focus bead' }),
+          bead({
+            id: 'child',
+            title: 'Child bead',
+            metadata: { 'gc.parent_bead_id': 'focus' },
+          }),
+        ]),
+      ),
       listSessions: vi.fn(async () => {
         throw new Error('sessions unavailable');
       }),

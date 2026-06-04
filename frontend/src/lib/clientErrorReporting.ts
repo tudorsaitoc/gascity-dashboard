@@ -2,9 +2,7 @@ import type { ClientErrorReport } from 'gas-city-dashboard-shared';
 import { errorMessage } from 'gas-city-dashboard-shared';
 import { readCsrfToken } from '../api/csrf';
 
-export type ClientErrorReportResult =
-  | { status: 'reported' }
-  | { status: 'failed'; error: string };
+export type ClientErrorReportResult = { status: 'reported' } | { status: 'failed'; error: string };
 
 export async function reportClientError(
   event: ClientErrorReport,

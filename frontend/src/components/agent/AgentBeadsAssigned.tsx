@@ -14,9 +14,7 @@ export function AgentBeadsAssigned({
   return (
     <section className="mb-12">
       <header className="flex items-baseline justify-between mb-4">
-        <h2 className="text-label uppercase tracking-wider text-fg-faint">
-          Beads assigned
-        </h2>
+        <h2 className="text-label uppercase tracking-wider text-fg-faint">Beads assigned</h2>
         <span className="text-label uppercase tracking-wider text-fg-faint tnum">
           {loading ? '·' : beads.length}
         </span>

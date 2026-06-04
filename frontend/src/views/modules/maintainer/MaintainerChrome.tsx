@@ -68,9 +68,7 @@ export function SelectionActionBar({
           )}
           {success !== null && (
             <>
-              {(count > 0 || skippedCount > 0 || error !== null) && (
-                <span aria-hidden>·</span>
-              )}
+              {(count > 0 || skippedCount > 0 || error !== null) && <span aria-hidden>·</span>}
               <span className="text-fg" role="status">
                 Slung <span className="tnum">{success.count}</span> to {success.target}.{' '}
                 <Link
@@ -87,12 +85,7 @@ export function SelectionActionBar({
           <Button size="sm" onClick={onSend} disabled={isSending || count === 0}>
             {sending === 'triage' ? 'Sending' : 'Send to triage agent'}
           </Button>
-          <Button
-            size="sm"
-            tone="quiet"
-            onClick={onSendDraft}
-            disabled={isSending || count === 0}
-          >
+          <Button size="sm" tone="quiet" onClick={onSendDraft} disabled={isSending || count === 0}>
             {sending === 'draft' ? 'Sending' : 'Send to draft agent'}
           </Button>
           <Button size="sm" tone="quiet" onClick={onClear} disabled={isSending}>
@@ -104,13 +97,7 @@ export function SelectionActionBar({
   );
 }
 
-export function MaintainerFooter({
-  computedAt,
-  now,
-}: {
-  computedAt: string | null;
-  now: number;
-}) {
+export function MaintainerFooter({ computedAt, now }: { computedAt: string | null; now: number }) {
   if (computedAt === null) {
     return (
       <p className="mt-16 text-label uppercase tracking-wider text-fg-faint">

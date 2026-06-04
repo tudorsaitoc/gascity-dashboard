@@ -81,9 +81,7 @@ export function buildClusters(items: TriageItem[]): {
     clusters.push({
       cluster_id: pivotFile,
       files: deriveClusterHeaderFiles(eligible),
-      items: eligible
-        .slice()
-        .sort((a, b) => sortScore(b) - sortScore(a)),
+      items: eligible.slice().sort((a, b) => sortScore(b) - sortScore(a)),
       lines_pending: eligible
         .filter((it) => it.kind === 'pr')
         .reduce((sum, it) => sum + (it.lines_changed ?? 0), 0),

@@ -29,9 +29,7 @@
     },
     "completeness": {
       "kind": "partial",
-      "reasons": [
-        "formula_detail_missing_formula_metadata"
-      ]
+      "reasons": ["formula_detail_missing_formula_metadata"]
     },
     "phase": "review",
     "stages": [
@@ -54,9 +52,7 @@
       "executionInstanceCount": 9,
       "sessionLinkCount": 5,
       "streamableSessionCount": 1,
-      "streamableSessionIds": [
-        "gc-session-review-i2"
-      ],
+      "streamableSessionIds": ["gc-session-review-i2"],
       "statusCounts": {
         "active": 3,
         "completed": 1,

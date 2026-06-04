@@ -8,17 +8,11 @@
 import type { Avail } from '../lists.js';
 import type { AlertItem } from '../alert.js';
 
-export type SourceName =
-  | 'city'
-  | 'resources'
-  | 'runs'
-  | 'work';
+export type SourceName = 'city' | 'resources' | 'runs' | 'work';
 
 export type SourceStatus = 'fresh' | 'stale' | 'error' | 'fixture';
 
-export type SourceError =
-  | { kind: 'none' }
-  | { kind: 'message'; message: string };
+export type SourceError = { kind: 'none' } | { kind: 'message'; message: string };
 
 export interface SourceAvailableState<T> {
   source: SourceName;
@@ -128,14 +122,14 @@ export interface DashboardMaintainerRuntimeConfig {
 
 export type DashboardMetric =
   | {
-    status: 'available';
-    value: number;
-  }
+      status: 'available';
+      value: number;
+    }
   | {
-    status: 'unavailable';
-    source: SourceName;
-    error: string;
-  };
+      status: 'unavailable';
+      source: SourceName;
+      error: string;
+    };
 
 export interface DashboardHeadline {
   activeAgents: DashboardMetric;
@@ -168,9 +162,7 @@ export interface DashboardSources {
  * a required error instead of a nullable data sentinel.
  */
 export type SourceDataMap = {
-  [K in SourceName]: DashboardSources[K] extends SourceState<infer T>
-  ? NonNullable<T>
-  : never;
+  [K in SourceName]: DashboardSources[K] extends SourceState<infer T> ? NonNullable<T> : never;
 };
 
 // ── city ──────────────────────────────────────────────────────────────────
@@ -454,21 +446,21 @@ export type RunLaneUpdatedAt = Avail<{
 
 export type RunLaneProgress =
   | {
-    status: 'active_step';
-    /** Raw gc.step_id of the active primary step. */
-    stepId: string;
-    stage: RunLaneStagePosition;
-    attempt: RunLaneStepAttempt;
-  }
+      status: 'active_step';
+      /** Raw gc.step_id of the active primary step. */
+      stepId: string;
+      stage: RunLaneStagePosition;
+      attempt: RunLaneStepAttempt;
+    }
   | {
-    status: 'stage_only';
-    stage: RunLaneStagePosition;
-    error: string;
-  }
+      status: 'stage_only';
+      stage: RunLaneStagePosition;
+      error: string;
+    }
   | {
-    status: 'unavailable';
-    error: string;
-  };
+      status: 'unavailable';
+      error: string;
+    };
 
 export type RunLaneStagePosition = Avail<{
   index: number;
@@ -486,15 +478,15 @@ export type RunLaneStuckNode = Avail<{
 
 export type RunLaneSessionState =
   | {
-    status: 'resolved';
-    lastActive: RunLaneSessionLastActive;
-    running: RunLaneSessionRunning;
-    activity: RunLaneSessionActivity;
-  }
+      status: 'resolved';
+      lastActive: RunLaneSessionLastActive;
+      running: RunLaneSessionRunning;
+      activity: RunLaneSessionActivity;
+    }
   | {
-    status: 'unresolved';
-    error: string;
-  };
+      status: 'unresolved';
+      error: string;
+    };
 
 export type RunLaneSessionLastActive = Avail<{
   at: string;
@@ -510,28 +502,28 @@ export type RunLaneSessionActivity = Avail<{
 
 export type RunLaneFormula =
   | {
-    status: 'known';
-    name: string;
-  }
+      status: 'known';
+      name: string;
+    }
   | {
-    status: 'unavailable';
-    error: string;
-  };
+      status: 'unavailable';
+      error: string;
+    };
 
 export type RunLaneExternalReference =
   | {
-    status: 'available';
-    label: string;
-    url: string;
-  }
+      status: 'available';
+      label: string;
+      url: string;
+    }
   | {
-    status: 'label_only';
-    label: string;
-  }
+      status: 'label_only';
+      label: string;
+    }
   | {
-    status: 'unavailable';
-    error: string;
-  };
+      status: 'unavailable';
+      error: string;
+    };
 
 export type RunLaneScope = Avail<{
   kind: 'city' | 'rig';

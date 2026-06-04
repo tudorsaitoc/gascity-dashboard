@@ -32,8 +32,7 @@ describe('sanitiseTerminalOutput', () => {
     // covers \x1b, so any ESC bytes still attached to an SGR sequence
     // are removed too — the visible "[31m" bracket-payload survives as
     // plain text but no ANSI-renderable sequence remains.
-    const input =
-      'red \x1b[31mblock\x1b[0m end \x1b]0;title\x07 cleared\x1b[2J';
+    const input = 'red \x1b[31mblock\x1b[0m end \x1b]0;title\x07 cleared\x1b[2J';
     const cleaned = sanitiseTerminalOutput(input);
     // Every ESC byte is gone — no live escape sequences reach the client.
     assert.doesNotMatch(cleaned, /\x1b/);
@@ -147,8 +146,7 @@ describe('sanitiseTerminalOutput', () => {
     // The realistic worst case: ANSI escape + C1 NEL + Bidi RLO +
     // cursor-move CSI in one line. Every control class is gone; the
     // visible (printable) text survives.
-    const input =
-      'storage \x1b[31mblocked\x1b[0m\x85‮[admin]\x1b[2J end';
+    const input = 'storage \x1b[31mblocked\x1b[0m\x85‮[admin]\x1b[2J end';
     const cleaned = sanitiseTerminalOutput(input);
     assert.doesNotMatch(cleaned, /\x1b/);
     assert.doesNotMatch(cleaned, /[\x80-\x9f]/);

@@ -70,9 +70,8 @@ const NEEDS_PR_KEY = 'maintainer:needsPrOnly';
 const AWAITING_KEY = 'maintainer:awaitingOnly';
 
 export function MaintainerPage() {
-  const { data, loading, error, refresh } = useCachedData<MaintainerTriage>(
-    CACHE_KEY,
-    () => api.maintainerTriage(),
+  const { data, loading, error, refresh } = useCachedData<MaintainerTriage>(CACHE_KEY, () =>
+    api.maintainerTriage(),
   );
   const { viewingAs } = useViewingAs();
   // dw8 — `?view=needs-you` activates the Needs-You composite filter
@@ -99,8 +98,11 @@ export function MaintainerPage() {
   // Post-sling success acknowledgement (gascity-dashboard-5ly). Hook
   // owns the auto-clear timer + unmount cleanup so this component just
   // calls setSuccess on the happy path.
-  const { success: slingSuccess, setSuccess: setSlingSuccess, clearSuccess: clearSlingSuccess } =
-    useSlingSuccess();
+  const {
+    success: slingSuccess,
+    setSuccess: setSlingSuccess,
+    clearSuccess: clearSlingSuccess,
+  } = useSlingSuccess();
   const [slingSkippedCount, setSlingSkippedCount] = useState(0);
   const [focusBreaking, setFocusBreaking] = useState<boolean>(() => {
     return readStorageFlag(FOCUS_KEY);
@@ -200,59 +202,60 @@ export function MaintainerPage() {
   // (default 'chief-of-staff'); intent='draft' → MAINTAINER_SLING_TARGET
   // (default 'mayor'). The browser then calls the generated supervisor sling
   // endpoint directly; the dashboard service records only local slung state.
-  const handleSend = useCallback(async (intent: MaintainerSlingIntent) => {
-    const successLabel =
-      intent === 'triage' ? TRIAGE_TARGET_LABEL : DRAFT_TARGET_LABEL;
-    setSlinging(intent);
-    setSlingError(null);
-    setSlingSkippedCount(0);
-    // New dispatch supersedes any prior success line. The TTL would also
-    // clear it eventually, but clearing now avoids a stale 'Slung 3 to X'
-    // lingering next to 'Sending' on the next batch.
-    clearSlingSuccess();
-    try {
-      const batch = buildSlingRequests(selection, allItems, intent);
-      let summary: SlingSummary = { outcomes: [], succeeded: 0, failed: 0 };
-      if (batch.requests.length > 0) {
-        const defaults = await loadMaintainerSlingDefaults();
-        summary = await dispatchSlings(
-          batch.requests,
-          (req) => dispatchMaintainerSupervisorSling(req, defaults),
-        );
+  const handleSend = useCallback(
+    async (intent: MaintainerSlingIntent) => {
+      const successLabel = intent === 'triage' ? TRIAGE_TARGET_LABEL : DRAFT_TARGET_LABEL;
+      setSlinging(intent);
+      setSlingError(null);
+      setSlingSkippedCount(0);
+      // New dispatch supersedes any prior success line. The TTL would also
+      // clear it eventually, but clearing now avoids a stale 'Slung 3 to X'
+      // lingering next to 'Sending' on the next batch.
+      clearSlingSuccess();
+      try {
+        const batch = buildSlingRequests(selection, allItems, intent);
+        let summary: SlingSummary = { outcomes: [], succeeded: 0, failed: 0 };
+        if (batch.requests.length > 0) {
+          const defaults = await loadMaintainerSlingDefaults();
+          summary = await dispatchSlings(batch.requests, (req) =>
+            dispatchMaintainerSupervisorSling(req, defaults),
+          );
+        }
+        setSlingSkippedCount(batch.skippedKeys.length);
+        if (summary.failed === 0) {
+          setSelection(new Set());
+          if (summary.succeeded > 0) {
+            // Abstract label, not the resolved alias: the actual server-side
+            // target is invisible to the frontend and the label matches its
+            // button copy so the success line reads in one voice.
+            setSlingSuccess({ count: summary.succeeded, target: successLabel });
+          }
+        } else {
+          // Keep the failed subset selected so the operator can retry. The
+          // succeeded ones get dropped so the next click doesn't redispatch them.
+          const remaining = new Set<string>();
+          for (const o of summary.outcomes) {
+            if (!o.ok) remaining.add(selectionKey(o.request));
+          }
+          setSelection(remaining);
+          setSlingError(
+            `${summary.failed} of ${summary.outcomes.length} failed: ${summary.outcomes.find((o) => !o.ok)?.error ?? 'unknown error'}`,
+          );
+          // Partial success: surface what landed even though the line
+          // shares space with the error. The operator's next action will
+          // clear both via clearSlingSuccess + setSlingError(null).
+          if (summary.succeeded > 0) {
+            setSlingSuccess({ count: summary.succeeded, target: successLabel });
+          }
+        }
+      } catch (err) {
+        setSlingError(err instanceof Error ? err.message : 'send failed');
+      } finally {
+        setSlinging(null);
       }
-      setSlingSkippedCount(batch.skippedKeys.length);
-      if (summary.failed === 0) {
-        setSelection(new Set());
-        if (summary.succeeded > 0) {
-          // Abstract label, not the resolved alias: the actual server-side
-          // target is invisible to the frontend and the label matches its
-          // button copy so the success line reads in one voice.
-          setSlingSuccess({ count: summary.succeeded, target: successLabel });
-        }
-      } else {
-        // Keep the failed subset selected so the operator can retry. The
-        // succeeded ones get dropped so the next click doesn't redispatch them.
-        const remaining = new Set<string>();
-        for (const o of summary.outcomes) {
-          if (!o.ok) remaining.add(selectionKey(o.request));
-        }
-        setSelection(remaining);
-        setSlingError(
-          `${summary.failed} of ${summary.outcomes.length} failed: ${summary.outcomes.find((o) => !o.ok)?.error ?? 'unknown error'}`,
-        );
-        // Partial success: surface what landed even though the line
-        // shares space with the error. The operator's next action will
-        // clear both via clearSlingSuccess + setSlingError(null).
-        if (summary.succeeded > 0) {
-          setSlingSuccess({ count: summary.succeeded, target: successLabel });
-        }
-      }
-    } catch (err) {
-      setSlingError(err instanceof Error ? err.message : 'send failed');
-    } finally {
-      setSlinging(null);
-    }
-  }, [selection, allItems, setSlingSuccess, clearSlingSuccess]);
+    },
+    [selection, allItems, setSlingSuccess, clearSlingSuccess],
+  );
 
   return (
     <section>
@@ -373,17 +376,17 @@ export function MaintainerPage() {
           <MaintainerFooter computedAt={data.computed_at} now={nowMs} />
           {viewingAs.isOperator &&
             (selection.size > 0 || slingSuccess !== null || slingSkippedCount > 0) && (
-            <SelectionActionBar
-              count={selection.size}
-              skippedCount={slingSkippedCount}
-              onSend={() => void handleSend('triage')}
-              onSendDraft={() => void handleSend('draft')}
-              onClear={clearSelection}
-              sending={slinging}
-              error={slingError}
-              success={slingSuccess}
-            />
-          )}
+              <SelectionActionBar
+                count={selection.size}
+                skippedCount={slingSkippedCount}
+                onSend={() => void handleSend('triage')}
+                onSendDraft={() => void handleSend('draft')}
+                onClear={clearSelection}
+                sending={slinging}
+                error={slingError}
+                success={slingSuccess}
+              />
+            )}
         </>
       ) : loading ? (
         <p className="text-body text-fg-muted italic">Loading.</p>
@@ -452,8 +455,7 @@ async function resolveMaintainerSlingTarget(
 function buildSynopsis(data: MaintainerTriage): string {
   const breaking = data.tiers.find((t) => t.tier === 'regression_breaking');
   const breakingCount = breaking
-    ? breaking.clusters.reduce((n, c) => n + c.items.length, 0) +
-      breaking.unclustered.length
+    ? breaking.clusters.reduce((n, c) => n + c.items.length, 0) + breaking.unclustered.length
     : 0;
   if (breakingCount > 0) {
     return `${breakingCount} item${breakingCount === 1 ? '' : 's'} in regression+breaking. ${data.totals.issues_open} issues, ${data.totals.prs_open} PRs open across ${data.repo}.`;

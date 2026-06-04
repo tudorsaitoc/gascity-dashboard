@@ -40,9 +40,7 @@ describe('BeadDetailModal', () => {
   it('renders a calm resolved-or-removed state for a stale deep-link (404)', () => {
     mockUseBeadDetail.mockReturnValue(detailState({ notFound: true }));
 
-    render(
-      <BeadDetailModal open onClose={() => {}} beadId="gc-316879" />,
-    );
+    render(<BeadDetailModal open onClose={() => {}} beadId="gc-316879" />);
 
     expect(screen.getByText(/resolved or removed/i)).toBeTruthy();
     // Never the hard "Bead not found in the supervisor." error, and never the
@@ -52,9 +50,7 @@ describe('BeadDetailModal', () => {
   });
 
   it('still surfaces genuine errors via the alert role', () => {
-    mockUseBeadDetail.mockReturnValue(
-      detailState({ error: '500 supervisor down' }),
-    );
+    mockUseBeadDetail.mockReturnValue(detailState({ error: '500 supervisor down' }));
 
     render(<BeadDetailModal open onClose={() => {}} beadId="gc-1" />);
 

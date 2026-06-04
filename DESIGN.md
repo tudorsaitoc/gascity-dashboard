@@ -1,7 +1,8 @@
-<!-- SEED: re-run /impeccable document once there's code to capture the actual tokens and components. -->
----
+## <!-- SEED: re-run /impeccable document once there's code to capture the actual tokens and components. -->
+
 name: ds-research dashboard
 description: A calm, opinionated cockpit for a single Gas City operator.
+
 ---
 
 # Design System: ds-research dashboard
@@ -15,6 +16,7 @@ A single-operator dashboard that reads like a thoughtfully-set page. The room is
 This system rejects the dense observability template (Datadog, Grafana, Splunk, Posthog) where every chart competes for attention and density pretends to be insight. It also rejects the dark-slate-and-neon look that every developer tool has converged on in 2026 (Linear, Vercel, Resend, the citadel default). The aesthetic lane is single-typeface editorial, in the Are.na / FT Edit / NYT Cooking-at-rest tradition. Bookish but not ornamental, confident but not loud.
 
 **Key Characteristics:**
+
 - Light by default. Dark optional for late-night use.
 - One typeface family throughout, with weight and scale carrying the hierarchy.
 - Surface is warm paper, body type is warm graphite, the single accent is maroon.
@@ -26,15 +28,18 @@ This system rejects the dense observability template (Datadog, Grafana, Splunk, 
 A warm restrained palette. Three roles, not five.
 
 ### Primary
+
 - **Maroon Mark** (to be resolved during implementation; target: deep oxblood OKLCH around `oklch(38% 0.09 25)` in light theme, lifted to roughly `oklch(70% 0.10 25)` in dark theme): the only deliberate non-neutral. Used for the rare loud moment: an anomaly indicator, a focused state, a destructive action, a count that has crossed a threshold. The maroon never carries body type and never appears on more than ten percent of the visible page.
 
 ### Neutral
+
 - **Warm Paper** (to be resolved; target: warm cream, very low chroma, very high lightness, tinted toward the maroon hue, e.g. `oklch(98% 0.008 25)`): the dominant surface. Reads as paper, not as white. Never `#fff`.
 - **Warm Graphite** (to be resolved; target: warm near-black, low chroma, very low lightness, tinted toward the maroon hue, e.g. `oklch(20% 0.012 25)`): body type, headings, primary borders. Never `#000`.
 - **Tea-Stain** (to be resolved; target: warm grey at roughly 45 percent lightness): secondary type, hairlines, divider rules.
 - **Faint Margin** (to be resolved; target: warm grey at roughly 80 percent lightness): tertiary type, placeholder, disabled states.
 
 ### Status (always paired with a glyph and a word, never the primary signal)
+
 - **Healthy Sage** (to be resolved; target: low-chroma green roughly 50 percent lightness): paired with an OK glyph and a word.
 - **Caution Ochre** (to be resolved; target: warm amber roughly 60 percent lightness): paired with a warning glyph and a word.
 - **Stuck Maroon**: same maroon as Primary, doubled-purpose for errored or stuck state. Always paired with the word.

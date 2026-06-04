@@ -129,9 +129,7 @@ describe('buildLinkView (R2/R3/R4/R6/R7/R11)', () => {
   });
 
   test('R7: section asOf is the older of two contributing sources', () => {
-    const beads = [
-      bead('focus', { session_id: 'sess-1' }),
-    ];
+    const beads = [bead('focus', { session_id: 'sess-1' })];
     const fresh = '2026-05-26T12:00:00Z';
     const old = '2026-05-25T12:00:00Z';
     const index = buildRelationIndex(beads, [session('sess-1')], 'c');

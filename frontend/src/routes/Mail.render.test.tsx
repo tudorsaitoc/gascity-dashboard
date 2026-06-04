@@ -30,163 +30,172 @@ vi.mock('../contexts/ViewingAsContext', () => ({
 }));
 
 function stubFetch() {
-  vi.stubGlobal('fetch', vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
-    const url = requestUrl(input);
-    const method = requestMethod(input, init);
-    fetchCalls.push({
-      method,
-      url,
-      body: await requestBody(input, init),
-      gcRequest: requestHeader(input, init, 'X-GC-Request'),
-    });
-    if (url === '/gc-supervisor/v0/city/test-city/mail?limit=100') {
-      return jsonResponse({
-        items: [
-          mail({
-            id: 'mail-inbox',
-            from: 'mayor',
-            to: 'human',
-            subject: 'direct supervisor inbox',
-            body: 'inbox preview',
-            created_at: '2026-06-01T10:00:00Z',
-            thread_id: 'thread-direct',
-          }),
-          mail({
-            id: 'mail-sent',
-            from: 'human',
-            to: 'mechanic',
-            subject: 'operator sent only',
-            body: 'sent preview',
-            created_at: '2026-06-01T10:01:00Z',
-            read: true,
-            thread_id: 'thread-direct',
-          }),
-          mail({
-            id: 'mail-other',
-            from: 'mechanic',
-            to: 'mayor',
-            subject: 'other inbox',
-            body: 'other preview',
-            created_at: '2026-06-01T10:02:00Z',
-            thread_id: 'thread-other',
-          }),
-        ],
-        total: 3,
+  vi.stubGlobal(
+    'fetch',
+    vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+      const url = requestUrl(input);
+      const method = requestMethod(input, init);
+      fetchCalls.push({
+        method,
+        url,
+        body: await requestBody(input, init),
+        gcRequest: requestHeader(input, init, 'X-GC-Request'),
       });
-    }
-    if (url === '/gc-supervisor/v0/city/test-city/mail?limit=1000') {
-      return jsonResponse({
-        items: [
-          mail({
-            id: 'mail-inbox',
-            from: 'mayor',
-            to: 'human',
-            subject: 'direct supervisor inbox',
-            body: 'inbox preview',
-            created_at: '2026-06-01T10:00:00Z',
-            thread_id: 'thread-direct',
-          }),
-          mail({
-            id: 'mail-sent',
+      if (url === '/gc-supervisor/v0/city/test-city/mail?limit=100') {
+        return jsonResponse({
+          items: [
+            mail({
+              id: 'mail-inbox',
+              from: 'mayor',
+              to: 'human',
+              subject: 'direct supervisor inbox',
+              body: 'inbox preview',
+              created_at: '2026-06-01T10:00:00Z',
+              thread_id: 'thread-direct',
+            }),
+            mail({
+              id: 'mail-sent',
+              from: 'human',
+              to: 'mechanic',
+              subject: 'operator sent only',
+              body: 'sent preview',
+              created_at: '2026-06-01T10:01:00Z',
+              read: true,
+              thread_id: 'thread-direct',
+            }),
+            mail({
+              id: 'mail-other',
+              from: 'mechanic',
+              to: 'mayor',
+              subject: 'other inbox',
+              body: 'other preview',
+              created_at: '2026-06-01T10:02:00Z',
+              thread_id: 'thread-other',
+            }),
+          ],
+          total: 3,
+        });
+      }
+      if (url === '/gc-supervisor/v0/city/test-city/mail?limit=1000') {
+        return jsonResponse({
+          items: [
+            mail({
+              id: 'mail-inbox',
+              from: 'mayor',
+              to: 'human',
+              subject: 'direct supervisor inbox',
+              body: 'inbox preview',
+              created_at: '2026-06-01T10:00:00Z',
+              thread_id: 'thread-direct',
+            }),
+            mail({
+              id: 'mail-sent',
+              from: 'human',
+              to: 'mechanic',
+              subject: 'operator sent only',
+              body: 'sent preview',
+              created_at: '2026-06-01T10:01:00Z',
+              read: true,
+              thread_id: 'thread-direct',
+            }),
+            mail({
+              id: 'mail-other',
+              from: 'mechanic',
+              to: 'mayor',
+              subject: 'other inbox',
+              body: 'other preview',
+              created_at: '2026-06-01T10:02:00Z',
+              thread_id: 'thread-other',
+            }),
+            mail({
+              id: 'mail-older',
+              from: 'mayor',
+              to: 'human',
+              subject: 'expanded history item',
+              body: 'older preview',
+              created_at: '2026-05-30T10:02:00Z',
+              read: true,
+              thread_id: 'thread-older',
+            }),
+          ],
+          total: 4,
+        });
+      }
+      if (url === '/gc-supervisor/v0/city/test-city/mail/thread/thread-direct') {
+        return jsonResponse({
+          items: [
+            mail({
+              id: 'thread-new',
+              from: 'human',
+              to: 'mayor',
+              subject: 'direct supervisor inbox',
+              body: 'newest in thread',
+              created_at: '2026-06-01T10:02:00Z',
+              thread_id: 'thread-direct',
+            }),
+            mail({
+              id: 'thread-old',
+              from: 'mayor',
+              to: 'human',
+              subject: 'direct supervisor inbox',
+              body: 'oldest in thread',
+              created_at: '2026-06-01T10:00:00Z',
+              thread_id: 'thread-direct',
+            }),
+          ],
+          total: 2,
+        });
+      }
+      if (url === '/gc-supervisor/v0/city/test-city/mail' && method === 'POST') {
+        return jsonResponse(
+          {
+            id: 'mail-new',
             from: 'human',
-            to: 'mechanic',
-            subject: 'operator sent only',
-            body: 'sent preview',
-            created_at: '2026-06-01T10:01:00Z',
-            read: true,
-            thread_id: 'thread-direct',
-          }),
-          mail({
-            id: 'mail-other',
-            from: 'mechanic',
             to: 'mayor',
-            subject: 'other inbox',
-            body: 'other preview',
-            created_at: '2026-06-01T10:02:00Z',
-            thread_id: 'thread-other',
-          }),
-          mail({
-            id: 'mail-older',
-            from: 'mayor',
-            to: 'human',
-            subject: 'expanded history item',
-            body: 'older preview',
-            created_at: '2026-05-30T10:02:00Z',
-            read: true,
-            thread_id: 'thread-older',
-          }),
-        ],
-        total: 4,
-      });
-    }
-    if (url === '/gc-supervisor/v0/city/test-city/mail/thread/thread-direct') {
-      return jsonResponse({
-        items: [
-          mail({
-            id: 'thread-new',
+            subject: 'status',
+            body: 'all green',
+            created_at: '2026-06-01T10:03:00Z',
+            read: false,
+            thread_id: 'thread-new',
+          },
+          201,
+        );
+      }
+      if (url === '/gc-supervisor/v0/city/test-city/mail/mail-inbox/read' && method === 'POST') {
+        return jsonResponse({ status: 'ok' });
+      }
+      if (
+        url === '/gc-supervisor/v0/city/test-city/mail/mail-sent/mark-unread' &&
+        method === 'POST'
+      ) {
+        return jsonResponse({ status: 'ok' });
+      }
+      if (url === '/gc-supervisor/v0/city/test-city/mail/mail-inbox/archive' && method === 'POST') {
+        return jsonResponse({ status: 'ok' });
+      }
+      if (url === '/gc-supervisor/v0/city/test-city/mail/mail-inbox/reply' && method === 'POST') {
+        return jsonResponse(
+          {
+            id: 'mail-reply',
             from: 'human',
             to: 'mayor',
             subject: 'direct supervisor inbox',
-            body: 'newest in thread',
-            created_at: '2026-06-01T10:02:00Z',
+            body: 'got it',
+            created_at: '2026-06-01T10:04:00Z',
+            read: false,
             thread_id: 'thread-direct',
-          }),
-          mail({
-            id: 'thread-old',
-            from: 'mayor',
-            to: 'human',
-            subject: 'direct supervisor inbox',
-            body: 'oldest in thread',
-            created_at: '2026-06-01T10:00:00Z',
-            thread_id: 'thread-direct',
-          }),
-        ],
-        total: 2,
-      });
-    }
-    if (url === '/gc-supervisor/v0/city/test-city/mail' && method === 'POST') {
-      return jsonResponse({
-        id: 'mail-new',
-        from: 'human',
-        to: 'mayor',
-        subject: 'status',
-        body: 'all green',
-        created_at: '2026-06-01T10:03:00Z',
-        read: false,
-        thread_id: 'thread-new',
-      }, 201);
-    }
-    if (url === '/gc-supervisor/v0/city/test-city/mail/mail-inbox/read' && method === 'POST') {
-      return jsonResponse({ status: 'ok' });
-    }
-    if (url === '/gc-supervisor/v0/city/test-city/mail/mail-sent/mark-unread' && method === 'POST') {
-      return jsonResponse({ status: 'ok' });
-    }
-    if (url === '/gc-supervisor/v0/city/test-city/mail/mail-inbox/archive' && method === 'POST') {
-      return jsonResponse({ status: 'ok' });
-    }
-    if (url === '/gc-supervisor/v0/city/test-city/mail/mail-inbox/reply' && method === 'POST') {
-      return jsonResponse({
-        id: 'mail-reply',
-        from: 'human',
-        to: 'mayor',
-        subject: 'direct supervisor inbox',
-        body: 'got it',
-        created_at: '2026-06-01T10:04:00Z',
-        read: false,
-        thread_id: 'thread-direct',
-      }, 201);
-    }
-    throw new Error(`unexpected fetch: ${url}`);
-  }));
+          },
+          201,
+        );
+      }
+      throw new Error(`unexpected fetch: ${url}`);
+    }),
+  );
 }
 
 function requestUrl(input: RequestInfo | URL): string {
-  const url = input instanceof Request
-    ? input.url
-    : input instanceof URL
-      ? input.toString()
-      : String(input);
+  const url =
+    input instanceof Request ? input.url : input instanceof URL ? input.toString() : String(input);
   return stripSameOrigin(url);
 }
 
@@ -201,7 +210,10 @@ function requestMethod(input: RequestInfo | URL, init: RequestInit | undefined):
   return 'GET';
 }
 
-async function requestBody(input: RequestInfo | URL, init: RequestInit | undefined): Promise<unknown> {
+async function requestBody(
+  input: RequestInfo | URL,
+  init: RequestInit | undefined,
+): Promise<unknown> {
   const raw = init?.body ?? (input instanceof Request ? await input.clone().text() : undefined);
   if (typeof raw !== 'string' || raw.length === 0) return undefined;
   return JSON.parse(raw) as unknown;
@@ -253,7 +265,9 @@ describe('MailPage supervisor reads', () => {
 
     await screen.findByText('direct supervisor inbox');
 
-    expect(fetchCalls.map((call) => call.url)).toContain('/gc-supervisor/v0/city/test-city/mail?limit=100');
+    expect(fetchCalls.map((call) => call.url)).toContain(
+      '/gc-supervisor/v0/city/test-city/mail?limit=100',
+    );
     expect(fetchCalls.some((call) => call.url.startsWith('/api/city/test-city/mail'))).toBe(false);
     expect(screen.queryByText('operator sent only')).toBeNull();
     expect(screen.queryByText('other inbox')).toBeNull();
@@ -268,7 +282,9 @@ describe('MailPage supervisor reads', () => {
     });
 
     expect(await screen.findByText('expanded history item')).toBeTruthy();
-    expect(fetchCalls.map((call) => call.url)).toContain('/gc-supervisor/v0/city/test-city/mail?limit=1000');
+    expect(fetchCalls.map((call) => call.url)).toContain(
+      '/gc-supervisor/v0/city/test-city/mail?limit=1000',
+    );
     expect((screen.getByLabelText('Mail history limit') as HTMLSelectElement).value).toBe('1000');
   });
 
@@ -283,7 +299,9 @@ describe('MailPage supervisor reads', () => {
     });
 
     expect((screen.getByLabelText('Mail time window') as HTMLSelectElement).value).toBe('7d');
-    expect(fetchCalls.map((call) => call.url)).toContain('/gc-supervisor/v0/city/test-city/mail?limit=100');
+    expect(fetchCalls.map((call) => call.url)).toContain(
+      '/gc-supervisor/v0/city/test-city/mail?limit=100',
+    );
     expect(fetchCalls.some((call) => call.url.includes('since='))).toBe(false);
   });
 
@@ -294,8 +312,12 @@ describe('MailPage supervisor reads', () => {
 
     await screen.findByText('oldest in thread');
     expect(screen.getByText('newest in thread')).toBeTruthy();
-    expect(fetchCalls.map((call) => call.url)).toContain('/gc-supervisor/v0/city/test-city/mail/thread/thread-direct');
-    expect(fetchCalls.some((call) => call.url.startsWith('/api/city/test-city/mail/threads'))).toBe(false);
+    expect(fetchCalls.map((call) => call.url)).toContain(
+      '/gc-supervisor/v0/city/test-city/mail/thread/thread-direct',
+    );
+    expect(fetchCalls.some((call) => call.url.startsWith('/api/city/test-city/mail/threads'))).toBe(
+      false,
+    );
   });
 
   it('opens a message thread from the message query parameter', async () => {
@@ -304,8 +326,12 @@ describe('MailPage supervisor reads', () => {
     await screen.findByText('oldest in thread');
 
     expect(screen.getByText('newest in thread')).toBeTruthy();
-    expect(fetchCalls.map((call) => call.url)).toContain('/gc-supervisor/v0/city/test-city/mail?limit=1000');
-    expect(fetchCalls.map((call) => call.url)).toContain('/gc-supervisor/v0/city/test-city/mail/thread/thread-direct');
+    expect(fetchCalls.map((call) => call.url)).toContain(
+      '/gc-supervisor/v0/city/test-city/mail?limit=1000',
+    );
+    expect(fetchCalls.map((call) => call.url)).toContain(
+      '/gc-supervisor/v0/city/test-city/mail/thread/thread-direct',
+    );
   });
 
   it('sends mail through the supervisor API instead of the dashboard write mirror', async () => {
@@ -418,14 +444,18 @@ describe('MailPage supervisor reads', () => {
     render(
       <MemoryRouter future={{ v7_relativeSplatPath: true, v7_startTransition: true }}>
         <NowProvider intervalMs={1_000_000}>
-          <AttentionProvider contributors={[
-            contributor('mail', [{
-              id: 'mail:mail-inbox:unread',
-              domain: 'mail',
-              severity: 'attention',
-              title: 'direct supervisor inbox',
-            }]),
-          ]}>
+          <AttentionProvider
+            contributors={[
+              contributor('mail', [
+                {
+                  id: 'mail:mail-inbox:unread',
+                  domain: 'mail',
+                  severity: 'attention',
+                  title: 'direct supervisor inbox',
+                },
+              ]),
+            ]}
+          >
             <MailPage />
           </AttentionProvider>
         </NowProvider>
@@ -441,14 +471,18 @@ describe('MailPage supervisor reads', () => {
     render(
       <MemoryRouter future={{ v7_relativeSplatPath: true, v7_startTransition: true }}>
         <NowProvider intervalMs={1_000_000}>
-          <AttentionProvider contributors={[
-            contributor('mail', [{
-              id: 'mail:thread-old:unread',
-              domain: 'mail',
-              severity: 'attention',
-              title: 'direct supervisor inbox',
-            }]),
-          ]}>
+          <AttentionProvider
+            contributors={[
+              contributor('mail', [
+                {
+                  id: 'mail:thread-old:unread',
+                  domain: 'mail',
+                  severity: 'attention',
+                  title: 'direct supervisor inbox',
+                },
+              ]),
+            ]}
+          >
             <MailPage />
           </AttentionProvider>
         </NowProvider>

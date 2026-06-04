@@ -1,9 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import {
-  displayLabel,
-  prioritizeAliases,
-  type AliasTier,
-} from './aliasPriority';
+import { displayLabel, prioritizeAliases, type AliasTier } from './aliasPriority';
 
 // gascity-dashboard-e85 — Mail identity-switcher prioritization rules.
 //

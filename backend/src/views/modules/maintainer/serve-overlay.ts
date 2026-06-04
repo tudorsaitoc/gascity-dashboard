@@ -50,9 +50,7 @@ export async function applySlungOverlay(
   // batch as a group instead of inline markers. Most-recent sling on top.
   if (slung.length > 0) {
     removeItemsFromTiers(envelope, slung);
-    slung.sort((a, b) =>
-      (b.slung?.slung_at ?? '').localeCompare(a.slung?.slung_at ?? ''),
-    );
+    slung.sort((a, b) => (b.slung?.slung_at ?? '').localeCompare(a.slung?.slung_at ?? ''));
   }
   envelope.slung_section = slung;
 }
@@ -62,10 +60,7 @@ export async function applySlungOverlay(
  * clusters and unclustered lists, dropping any cluster left empty so the
  * UI never renders a zero-row cluster block.
  */
-function removeItemsFromTiers(
-  envelope: MaintainerTriage,
-  toRemove: readonly TriageItem[],
-): void {
+function removeItemsFromTiers(envelope: MaintainerTriage, toRemove: readonly TriageItem[]): void {
   const keys = new Set(toRemove.map((it) => slungKey(it.kind, it.number)));
   const keep = (it: TriageItem): boolean => !keys.has(slungKey(it.kind, it.number));
   for (const tier of envelope.tiers) {

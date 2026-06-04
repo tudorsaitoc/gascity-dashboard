@@ -1,15 +1,9 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
-import {
-  GC_EVENT_PREFIX,
-  effectiveContextPct,
-} from 'gas-city-dashboard-shared';
+import { GC_EVENT_PREFIX, effectiveContextPct } from 'gas-city-dashboard-shared';
 import { Button } from '../components/Button';
 import { useAttentionModel } from '../attention/context';
-import {
-  attentionDataProps,
-  resourceAttentionSeverity,
-} from '../attention/routeHighlight';
+import { attentionDataProps, resourceAttentionSeverity } from '../attention/routeHighlight';
 import { ListSearchBar } from '../components/ListSearchBar';
 import { Modal } from '../components/Modal';
 import { PageHeader } from '../components/PageHeader';
@@ -29,15 +23,8 @@ import {
   type AgentPendingInteraction,
 } from '../supervisor/agentPending';
 import { listSupervisorSessions } from '../supervisor/sessionReads';
-import {
-  listSupervisorAgents,
-  type SupervisorAgent,
-} from '../supervisor/agentReads';
-import {
-  agentProject,
-  isAgentOutsideRig,
-  isPerRigDispatcherAgent,
-} from '../hooks/projectOf';
+import { listSupervisorAgents, type SupervisorAgent } from '../supervisor/agentReads';
+import { agentProject, isAgentOutsideRig, isPerRigDispatcherAgent } from '../hooks/projectOf';
 import { agentSlug } from '../hooks/sessionSlug';
 
 // gascity-dashboard-ay6: the Agents view consumes the supervisor's
@@ -56,10 +43,7 @@ import { agentSlug } from '../hooks/sessionSlug';
 // supervisor reports it as alive (state active/running, or running flag
 // set on a detached-but-live process). The default view shows only these.
 export function isRunningAgent(a: SupervisorAgent): boolean {
-  return (
-    !a.suspended &&
-    (a.state === 'active' || a.state === 'running' || a.running === true)
-  );
+  return !a.suspended && (a.state === 'active' || a.state === 'running' || a.running === true);
 }
 
 // Display label for the row: 'rig · agent' (e.g. 'gascity-packs · polecat-1').
@@ -77,10 +61,7 @@ const AGENT_SEARCH_FIELDS = (a: SupervisorAgent): ReadonlyArray<string> =>
 
 export function AgentsPage() {
   const attention = useAttentionModel();
-  const { data, loading, error, refresh } = useCachedData(
-    'agents',
-    listSupervisorAgents,
-  );
+  const { data, loading, error, refresh } = useCachedData('agents', listSupervisorAgents);
   // The supervisor's AgentResponse.session (SessionInfo) carries only
   // `name`/`attached`/`last_activity` — NOT the session id. Peek needs
   // the session id (gc-XXX format) per SESSION_ID_RE on the backend.
@@ -92,10 +73,7 @@ export function AgentsPage() {
     () => (sessionsCache.data?.items ?? []).map((session) => session.id).sort(),
     [sessionsCache.data],
   );
-  const agentNames = useMemo(
-    () => rows.map((agent) => agent.name).sort(),
-    [rows],
-  );
+  const agentNames = useMemo(() => rows.map((agent) => agent.name).sort(), [rows]);
   const pendingCache = useCachedData(
     `agent-pending:${agentNames.join(',')}:${sessionIds.join(',')}`,
     () => listAgentPendingInteractions(rows, sessionsCache.data?.items ?? []),
@@ -132,7 +110,7 @@ export function AgentsPage() {
     action: string;
   } | null>(null);
   const peekAgent = useMemo(
-    () => (peekAlias === null ? null : rows.find((a) => a.name === peekAlias) ?? null),
+    () => (peekAlias === null ? null : (rows.find((a) => a.name === peekAlias) ?? null)),
     [rows, peekAlias],
   );
   const peekSessionId = useMemo(() => {
@@ -144,32 +122,34 @@ export function AgentsPage() {
   const sseState = useGcEventRefresh([GC_EVENT_PREFIX.session, 'agent.'], () => void refresh());
 
   const synopsis = useMemo(() => buildAgentSynopsis(rows), [rows]);
-  const handlePendingResponse = useCallback(async (
-    pending: AgentPendingInteraction,
-    action: 'approve' | 'deny',
-  ) => {
-    setResponding({ sessionId: pending.sessionId, action });
-    setResponseMessage(null);
-    setResponseError(null);
-    try {
-      await respondToAgentPendingInteraction(pending.sessionId, {
-        action,
-        request_id: pending.pending.request_id,
-      });
-      setResponseMessage(`responded to ${pending.agentName}`);
-      await pendingCache.refresh();
-    } catch (err) {
-      setResponseError(err instanceof Error ? err.message : 'response failed');
-    } finally {
-      setResponding(null);
-    }
-  }, [pendingCache]);
+  const handlePendingResponse = useCallback(
+    async (pending: AgentPendingInteraction, action: 'approve' | 'deny') => {
+      setResponding({ sessionId: pending.sessionId, action });
+      setResponseMessage(null);
+      setResponseError(null);
+      try {
+        await respondToAgentPendingInteraction(pending.sessionId, {
+          action,
+          request_id: pending.pending.request_id,
+        });
+        setResponseMessage(`responded to ${pending.agentName}`);
+        await pendingCache.refresh();
+      } catch (err) {
+        setResponseError(err instanceof Error ? err.message : 'response failed');
+      } finally {
+        setResponding(null);
+      }
+    },
+    [pendingCache],
+  );
 
   // Rig dropdown options: the normalized rig labels (basenames, not raw
   // paths) present in the current roster, sorted. Empty value = all rigs.
   const rigOptions = useMemo(
-    () => Array.from(new Set(rows.map((a) => agentProject(a).label)))
-      .sort((x, y) => x.localeCompare(y)),
+    () =>
+      Array.from(new Set(rows.map((a) => agentProject(a).label))).sort((x, y) =>
+        x.localeCompare(y),
+      ),
     [rows],
   );
   // If the selected rig leaves the roster, fall back to all rigs.
@@ -186,8 +166,7 @@ export function AgentsPage() {
       // Always surface agents that need attention (e.g. blocked on a pending
       // interaction) — they must never be hidden by the 'running' default,
       // since a stuck agent is usually NOT running.
-      const needsAttention =
-        resourceAttentionSeverity(attention, 'agents', a.name) !== null;
+      const needsAttention = resourceAttentionSeverity(attention, 'agents', a.name) !== null;
       if (runningOnly && !isRunningAgent(a) && !needsAttention) return false;
       if (q.length === 0) return true;
       return AGENT_SEARCH_FIELDS(a).some((field) => field.toLowerCase().includes(q));
@@ -206,190 +185,188 @@ export function AgentsPage() {
       ? 'No agents configured.'
       : 'No agents match the current search or filter.';
 
-  const columns = useMemo<ReadonlyArray<TableColumn<SupervisorAgent>>>(() => [
-    {
-      key: 'name',
-      label: 'Agent',
-      sortable: true,
-      // Sort by the visible 'rig · agent' label so the column order matches.
-      sortValue: (r) => agentRowLabel(r),
-      render: (r) => {
-        // Per-rig dispatchers (alias '<rig>/control-dispatcher') perform an
-        // orchestration role; italicize the label so the operator can spot
-        // them at a glance.
-        const dispatcher = isPerRigDispatcherAgent(r);
-        // Primary label is 'rig · agent' (e.g. 'gascity-packs · polecat-1').
-        // display_name is the provider's human-readable label
-        // (e.g. "Claude (Account 5)") and reads as muted secondary context.
-        const secondary = r.display_name && r.display_name !== r.name
-          ? r.display_name
-          : (r.provider ?? r.model ?? '');
-        // ay6.2: orphan agents (no bound session) still render a link, but
-        // AgentDetail resolves nothing — a distinct title tooltip and muted
-        // color pre-empt the dead-end without disabling the link.
-        const orphan = !r.session;
-        const linkTitle = orphan
-          ? `${r.name} — configured but not running; detail will show no live session`
-          : `Open drilldown for ${r.name}`;
-        const linkColor = orphan ? 'text-fg-muted' : 'text-fg';
-        return (
-          <div className="min-w-0">
-            <Link
-              to={`/agents/${encodeURIComponent(agentSlug(r))}`}
-              className={`block ${linkColor} truncate hover:text-accent focus-mark ${
-                dispatcher ? 'font-normal italic' : 'font-medium'
-              }`}
-              title={linkTitle}
-            >
-              {agentRowLabel(r)}
-            </Link>
-            {secondary && (
-              <div className="text-label uppercase tracking-wider text-fg-faint mt-1 truncate">
-                {secondary}
-              </div>
-            )}
-          </div>
-        );
-      },
-    },
-    {
-      key: 'state',
-      label: 'State',
-      sortable: true,
-      sortValue: (r) => r.state,
-      render: (r) => (
-        <StatusBadge
-          tone={stateTone(r.state)}
-          label={r.state}
-          {...(r.session?.attached ? { trailing: 'att' } : {})}
-          {...(r.unavailable_reason ? { title: `unavailable: ${r.unavailable_reason}` } : {})}
-        />
-      ),
-      className: 'w-32',
-    },
-    {
-      key: 'activity',
-      label: 'Activity',
-      sortable: true,
-      sortValue: (r) => r.activity ?? '',
-      render: (r) => {
-        const pending = pendingByAgent.get(r.name);
-        if (pending !== undefined) {
+  const columns = useMemo<ReadonlyArray<TableColumn<SupervisorAgent>>>(
+    () => [
+      {
+        key: 'name',
+        label: 'Agent',
+        sortable: true,
+        // Sort by the visible 'rig · agent' label so the column order matches.
+        sortValue: (r) => agentRowLabel(r),
+        render: (r) => {
+          // Per-rig dispatchers (alias '<rig>/control-dispatcher') perform an
+          // orchestration role; italicize the label so the operator can spot
+          // them at a glance.
+          const dispatcher = isPerRigDispatcherAgent(r);
+          // Primary label is 'rig · agent' (e.g. 'gascity-packs · polecat-1').
+          // display_name is the provider's human-readable label
+          // (e.g. "Claude (Account 5)") and reads as muted secondary context.
+          const secondary =
+            r.display_name && r.display_name !== r.name
+              ? r.display_name
+              : (r.provider ?? r.model ?? '');
+          // ay6.2: orphan agents (no bound session) still render a link, but
+          // AgentDetail resolves nothing — a distinct title tooltip and muted
+          // color pre-empt the dead-end without disabling the link.
+          const orphan = !r.session;
+          const linkTitle = orphan
+            ? `${r.name} — configured but not running; detail will show no live session`
+            : `Open drilldown for ${r.name}`;
+          const linkColor = orphan ? 'text-fg-muted' : 'text-fg';
           return (
             <div className="min-w-0">
-              <StatusBadge tone="stuck" label="needs you" />
-              <p className="mt-1 truncate text-fg-muted" title={pending.pending.prompt}>
-                {pending.pending.prompt ?? pending.pending.kind}
-              </p>
+              <Link
+                to={`/agents/${encodeURIComponent(agentSlug(r))}`}
+                className={`block ${linkColor} truncate hover:text-accent focus-mark ${
+                  dispatcher ? 'font-normal italic' : 'font-medium'
+                }`}
+                title={linkTitle}
+              >
+                {agentRowLabel(r)}
+              </Link>
+              {secondary && (
+                <div className="text-label uppercase tracking-wider text-fg-faint mt-1 truncate">
+                  {secondary}
+                </div>
+              )}
             </div>
           );
-        }
-        return (
-          <span className="text-fg-muted">
-            {r.activity ?? (r.running ? 'running' : '·')}
-          </span>
-        );
+        },
       },
-      className: 'w-28',
-    },
-    {
-      key: 'context',
-      label: 'Context',
-      sortable: true,
-      // Sort by the value we DISPLAY, not the raw gc value — otherwise
-      // mayor (raw 89%, effective 18%) would sort above a true-90%
-      // agent that looks calmer.
-      sortValue: (r) => effectiveContextPct(r) ?? -1,
-      align: 'right',
-      render: (r) => {
-        const pct = effectiveContextPct(r);
-        if (typeof pct !== 'number') {
-          return <span className="text-fg-faint">·</span>;
-        }
-        // Tooltip exposes the raw gc value when scaling kicked in so
-        // the operator can audit the dashboard against gc directly.
-        const title =
-          typeof r.context_pct === 'number' && r.context_pct !== pct
-            ? `gc reports ${r.context_pct}% against ${r.context_window ?? '?'}-token window; scaled to model's true window`
-            : undefined;
-        return (
-          <span
-            title={title}
-            className={`tnum ${
-              pct >= 95
-                ? 'text-accent font-medium'
-                : pct >= 80
-                  ? 'text-warn font-medium'
-                  : 'text-fg-muted'
-            }`}
-          >
-            {pct}%
-          </span>
-        );
+      {
+        key: 'state',
+        label: 'State',
+        sortable: true,
+        sortValue: (r) => r.state,
+        render: (r) => (
+          <StatusBadge
+            tone={stateTone(r.state)}
+            label={r.state}
+            {...(r.session?.attached ? { trailing: 'att' } : {})}
+            {...(r.unavailable_reason ? { title: `unavailable: ${r.unavailable_reason}` } : {})}
+          />
+        ),
+        className: 'w-32',
       },
-      className: 'w-24',
-    },
-    {
-      key: 'last_active',
-      label: 'Last active',
-      sortable: true,
-      sortValue: (r) => r.session?.last_activity ?? '',
-      render: (r) => {
-        const ts = r.session?.last_activity;
-        if (!ts) return <span className="text-fg-faint tnum">·</span>;
-        return (
-          <span className="tnum text-fg-muted">
-            {formatRelative(ts, now)}
-          </span>
-        );
+      {
+        key: 'activity',
+        label: 'Activity',
+        sortable: true,
+        sortValue: (r) => r.activity ?? '',
+        render: (r) => {
+          const pending = pendingByAgent.get(r.name);
+          if (pending !== undefined) {
+            return (
+              <div className="min-w-0">
+                <StatusBadge tone="stuck" label="needs you" />
+                <p className="mt-1 truncate text-fg-muted" title={pending.pending.prompt}>
+                  {pending.pending.prompt ?? pending.pending.kind}
+                </p>
+              </div>
+            );
+          }
+          return (
+            <span className="text-fg-muted">{r.activity ?? (r.running ? 'running' : '·')}</span>
+          );
+        },
+        className: 'w-28',
       },
-      className: 'w-32',
-    },
-    {
-      key: 'actions',
-      label: '',
-      render: (r) => {
-        // Orphan agents (no bound session) have nothing to peek into.
-        // Render an empty cell rather than collapsing the column width.
-        if (!r.session) return null;
-        const pending = pendingByAgent.get(r.name);
-        return (
-          <div className="flex justify-end gap-2">
-            {pending !== undefined && (
-              <>
-                <Button
-                  size="sm"
-                  tone="quiet"
-                  disabled={responding?.sessionId === pending.sessionId}
-                  onClick={() => void handlePendingResponse(pending, 'approve')}
-                >
-                  {responding?.sessionId === pending.sessionId && responding.action === 'approve'
-                    ? 'Approving'
-                    : 'Approve'}
-                </Button>
-                <Button
-                  size="sm"
-                  tone="quiet"
-                  disabled={responding?.sessionId === pending.sessionId}
-                  onClick={() => void handlePendingResponse(pending, 'deny')}
-                >
-                  {responding?.sessionId === pending.sessionId && responding.action === 'deny'
-                    ? 'Denying'
-                    : 'Deny'}
-                </Button>
-                <CopyAttachButton command={attachCommand(r.name)} />
-              </>
-            )}
-            <Button size="sm" tone="quiet" onClick={() => setPeekAlias(r.name)}>
-              Peek
-            </Button>
-          </div>
-        );
+      {
+        key: 'context',
+        label: 'Context',
+        sortable: true,
+        // Sort by the value we DISPLAY, not the raw gc value — otherwise
+        // mayor (raw 89%, effective 18%) would sort above a true-90%
+        // agent that looks calmer.
+        sortValue: (r) => effectiveContextPct(r) ?? -1,
+        align: 'right',
+        render: (r) => {
+          const pct = effectiveContextPct(r);
+          if (typeof pct !== 'number') {
+            return <span className="text-fg-faint">·</span>;
+          }
+          // Tooltip exposes the raw gc value when scaling kicked in so
+          // the operator can audit the dashboard against gc directly.
+          const title =
+            typeof r.context_pct === 'number' && r.context_pct !== pct
+              ? `gc reports ${r.context_pct}% against ${r.context_window ?? '?'}-token window; scaled to model's true window`
+              : undefined;
+          return (
+            <span
+              title={title}
+              className={`tnum ${
+                pct >= 95
+                  ? 'text-accent font-medium'
+                  : pct >= 80
+                    ? 'text-warn font-medium'
+                    : 'text-fg-muted'
+              }`}
+            >
+              {pct}%
+            </span>
+          );
+        },
+        className: 'w-24',
       },
-      align: 'right',
-      className: 'w-80',
-    },
-  ], [handlePendingResponse, now, pendingByAgent, responding]);
+      {
+        key: 'last_active',
+        label: 'Last active',
+        sortable: true,
+        sortValue: (r) => r.session?.last_activity ?? '',
+        render: (r) => {
+          const ts = r.session?.last_activity;
+          if (!ts) return <span className="text-fg-faint tnum">·</span>;
+          return <span className="tnum text-fg-muted">{formatRelative(ts, now)}</span>;
+        },
+        className: 'w-32',
+      },
+      {
+        key: 'actions',
+        label: '',
+        render: (r) => {
+          // Orphan agents (no bound session) have nothing to peek into.
+          // Render an empty cell rather than collapsing the column width.
+          if (!r.session) return null;
+          const pending = pendingByAgent.get(r.name);
+          return (
+            <div className="flex justify-end gap-2">
+              {pending !== undefined && (
+                <>
+                  <Button
+                    size="sm"
+                    tone="quiet"
+                    disabled={responding?.sessionId === pending.sessionId}
+                    onClick={() => void handlePendingResponse(pending, 'approve')}
+                  >
+                    {responding?.sessionId === pending.sessionId && responding.action === 'approve'
+                      ? 'Approving'
+                      : 'Approve'}
+                  </Button>
+                  <Button
+                    size="sm"
+                    tone="quiet"
+                    disabled={responding?.sessionId === pending.sessionId}
+                    onClick={() => void handlePendingResponse(pending, 'deny')}
+                  >
+                    {responding?.sessionId === pending.sessionId && responding.action === 'deny'
+                      ? 'Denying'
+                      : 'Deny'}
+                  </Button>
+                  <CopyAttachButton command={attachCommand(r.name)} />
+                </>
+              )}
+              <Button size="sm" tone="quiet" onClick={() => setPeekAlias(r.name)}>
+                Peek
+              </Button>
+            </div>
+          );
+        },
+        align: 'right',
+        className: 'w-80',
+      },
+    ],
+    [handlePendingResponse, now, pendingByAgent, responding],
+  );
 
   return (
     <section>
@@ -450,7 +427,9 @@ export function AgentsPage() {
               >
                 <option value="">all rigs</option>
                 {rigOptions.map((rig) => (
-                  <option key={rig} value={rig}>{rig}</option>
+                  <option key={rig} value={rig}>
+                    {rig}
+                  </option>
                 ))}
               </select>
             </label>
@@ -511,11 +490,7 @@ export function AgentsPage() {
 
 function CopyAttachButton({ command }: { command: string }) {
   const [state, setState] = useState<'idle' | 'copied' | 'failed'>('idle');
-  const label = state === 'copied'
-    ? 'Copied'
-    : state === 'failed'
-      ? 'Copy failed'
-      : 'Copy attach';
+  const label = state === 'copied' ? 'Copied' : state === 'failed' ? 'Copy failed' : 'Copy attach';
 
   return (
     <Button

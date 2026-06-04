@@ -7,7 +7,9 @@ import { IssueRow, TierSection } from './TriageSections';
 
 const FIXED_ISO = '2026-05-27T00:00:00.000Z';
 
-function item(overrides: Partial<TriageItem> & { kind: 'issue' | 'pr'; number: number }): TriageItem {
+function item(
+  overrides: Partial<TriageItem> & { kind: 'issue' | 'pr'; number: number },
+): TriageItem {
   return {
     kind: overrides.kind,
     number: overrides.number,

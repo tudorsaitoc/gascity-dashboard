@@ -34,11 +34,7 @@ export function classifyRunDiffFile(filePath: string): RunChangedFileKind {
   ) {
     return 'test';
   }
-  if (
-    lower.endsWith('.md') ||
-    lower.endsWith('.mdx') ||
-    lower.includes('/docs/')
-  ) {
+  if (lower.endsWith('.md') || lower.endsWith('.mdx') || lower.includes('/docs/')) {
     return 'docs';
   }
   if (
@@ -53,9 +49,7 @@ export function classifyRunDiffFile(filePath: string): RunChangedFileKind {
   ) {
     return 'config';
   }
-  if (
-    /\.(ts|tsx|js|jsx|go|rs|py|rb|java|kt|swift|c|cc|cpp|h|hpp|css|scss|html)$/.test(lower)
-  ) {
+  if (/\.(ts|tsx|js|jsx|go|rs|py|rb|java|kt|swift|c|cc|cpp|h|hpp|css|scss|html)$/.test(lower)) {
     return 'code';
   }
   return 'other';

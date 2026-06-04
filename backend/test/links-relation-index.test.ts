@@ -6,7 +6,11 @@ import { buildRelationIndex } from '../src/links/relation-index.js';
 
 // R1 + RK1 unit tests for the backend relation index.
 
-function bead(id: string, metadata: Record<string, string> = {}, over: Partial<DashboardBead> = {}): DashboardBead {
+function bead(
+  id: string,
+  metadata: Record<string, string> = {},
+  over: Partial<DashboardBead> = {},
+): DashboardBead {
   return {
     id,
     title: `bead ${id}`,

@@ -160,8 +160,8 @@ interface FormulaRunDetail {
 
 ```ts
 type FormulaRunCompleteness =
-  | { kind: "complete" }
-  | { kind: "partial"; reasons: FormulaRunPartialReason[] };
+  | { kind: 'complete' }
+  | { kind: 'partial'; reasons: FormulaRunPartialReason[] };
 ```
 
 Current partial reasons are supervisor snapshot incompleteness, failed runtime
@@ -181,24 +181,19 @@ dashboard fetch the compiled formula detail and, if not, why?"
 
 ```ts
 type RunFormula =
-  | { kind: "known"; name: string }
-  | { kind: "unavailable"; reason: "missing_formula_metadata" };
+  | { kind: 'known'; name: string }
+  | { kind: 'unavailable'; reason: 'missing_formula_metadata' };
 
 type RunFormulaDetailState =
-  | { kind: "available"; name: string; target: string }
-  | { kind: "unavailable"; reason: "missing_formula_metadata" }
-  | { kind: "unavailable"; reason: "missing_run_target"; name: string }
+  | { kind: 'available'; name: string; target: string }
+  | { kind: 'unavailable'; reason: 'missing_formula_metadata' }
+  | { kind: 'unavailable'; reason: 'missing_run_target'; name: string }
   | {
-      kind: "unavailable";
-      reason: "fetch_failed";
+      kind: 'unavailable';
+      reason: 'fetch_failed';
       name: string;
       target: string;
-      failure:
-        | "timeout"
-        | "not_found"
-        | "invalid_payload"
-        | "empty_response"
-        | "upstream_error";
+      failure: 'timeout' | 'not_found' | 'invalid_payload' | 'empty_response' | 'upstream_error';
     };
 ```
 
@@ -732,7 +727,7 @@ supervisor or shared Gas City presentation code:
 
    The target boundary generates the supervisor client, types, and Zod response
    validators from the committed OpenAPI (`@hey-api/openapi-ts`). The dominant
-   risk is schema *accuracy*: future schema refreshes must not make generated
+   risk is schema _accuracy_: future schema refreshes must not make generated
    validators reject valid degraded payloads. The upstream source-of-truth work
    is tracked as GC-6 in
    [`../gc-supervisor-api-gaps.md`](../gc-supervisor-api-gaps.md).

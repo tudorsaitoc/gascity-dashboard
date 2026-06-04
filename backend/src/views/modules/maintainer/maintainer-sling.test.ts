@@ -42,12 +42,15 @@ async function buildApp(opts: BuildOpts = {}): Promise<AppHandle> {
 
   const app = express();
   app.use(express.json());
-  app.use('/api/maintainer', maintainerRouter({
-    repo: 'gastownhall/gascity',
-    cachePath,
-    slungStatePath,
-    ...(opts.fetchTriage === undefined ? {} : { fetchTriage: opts.fetchTriage }),
-  }));
+  app.use(
+    '/api/maintainer',
+    maintainerRouter({
+      repo: 'gastownhall/gascity',
+      cachePath,
+      slungStatePath,
+      ...(opts.fetchTriage === undefined ? {} : { fetchTriage: opts.fetchTriage }),
+    }),
+  );
 
   return new Promise((resolve) => {
     const srv = app.listen(0, '127.0.0.1', () => {
@@ -188,7 +191,9 @@ describe('GET /api/maintainer/triage — slung overlay', { concurrency: false },
     h = await buildApp();
     await writeEnvelope(h, envelopeWithMarkedCandidates([47, 48]));
 
-    const before = await fetch(`${h.url}/api/maintainer/triage`).then((r) => r.json()) as MaintainerTriage;
+    const before = (await fetch(`${h.url}/api/maintainer/triage`).then((r) =>
+      r.json(),
+    )) as MaintainerTriage;
     assert.deepEqual(
       before.tiers[0]?.unclustered.filter((it) => it.is_marked).map((it) => it.number),
       [47],
@@ -201,9 +206,14 @@ describe('GET /api/maintainer/triage — slung overlay', { concurrency: false },
       resolved_session_name: 'oversight-rig__chief-of-staff',
     });
 
-    const after = await fetch(`${h.url}/api/maintainer/triage`).then((r) => r.json()) as MaintainerTriage;
+    const after = (await fetch(`${h.url}/api/maintainer/triage`).then((r) =>
+      r.json(),
+    )) as MaintainerTriage;
     const afterItems = after.tiers[0]?.unclustered ?? [];
-    assert.equal(afterItems.find((it) => it.number === 47), undefined);
+    assert.equal(
+      afterItems.find((it) => it.number === 47),
+      undefined,
+    );
     assert.equal(afterItems.find((it) => it.number === 48)?.is_marked, true);
     const slungItem = after.slung_section?.find((it) => it.number === 47);
     assert.ok(slungItem?.slung);
@@ -258,9 +268,7 @@ describe('GET /api/maintainer/contributor/:login', { concurrency: false }, () =>
 
 describe('POST /api/maintainer/refresh — redaction', { concurrency: false }, () => {
   test('502 response redacts raw err.message from non-ExecError failures', async () => {
-    const leakyErr = new Error(
-      'connect ECONNREFUSED 127.0.0.1:1 (interface lo) at /var/run/sock',
-    );
+    const leakyErr = new Error('connect ECONNREFUSED 127.0.0.1:1 (interface lo) at /var/run/sock');
     leakyErr.name = 'FetchError';
     h = await buildApp({
       fetchTriage: async () => {
@@ -291,10 +299,7 @@ describe('POST /api/maintainer/refresh — redaction', { concurrency: false }, (
   test('502 response redacts spawn-arm host path from ExecError', async () => {
     h = await buildApp({
       fetchTriage: async () => {
-        throw new ExecError(
-          'spawn failed: spawn /home/ds/.local/bin/gh ENOENT',
-          'spawn',
-        );
+        throw new ExecError('spawn failed: spawn /home/ds/.local/bin/gh ENOENT', 'spawn');
       },
     });
 

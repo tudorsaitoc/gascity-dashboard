@@ -21,9 +21,7 @@ export function PageHeader({ title, synopsis, meta, className = '' }: PageHeader
         <h1 className="text-display font-semibold tracking-tighter text-fg leading-[1.05]">
           {title}
         </h1>
-        {synopsis && (
-          <p className="text-body text-fg-muted max-w-prose">{synopsis}</p>
-        )}
+        {synopsis && <p className="text-body text-fg-muted max-w-prose">{synopsis}</p>}
       </div>
       {meta && (
         <div className="flex flex-wrap items-center gap-4 text-label uppercase tracking-wider md:justify-end">

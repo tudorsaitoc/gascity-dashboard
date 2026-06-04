@@ -19,10 +19,7 @@ import { useGcEventRefresh } from '../hooks/useGcEvents';
 import { useListFilters, type FilterChip } from '../hooks/useListFilters';
 import { beadProject } from '../hooks/projectOf';
 import { listSupervisorAgents } from '../supervisor/agentReads';
-import {
-  listSupervisorBeads,
-  type SupervisorBead,
-} from '../supervisor/beadReads';
+import { listSupervisorBeads, type SupervisorBead } from '../supervisor/beadReads';
 import {
   claimSupervisorBead,
   closeSupervisorBead,
@@ -98,10 +95,11 @@ export function BeadsPage() {
 
   const { data, loading, error, refresh } = useCachedData(
     `beads:board:${cityCacheKey}:${rigFilter}:${showClosed ? 'all' : 'open'}`,
-    () => listSupervisorBeads({
-      includeClosed: showClosed,
-      ...(rigFilter === RIG_FILTER_ALL ? {} : { rigFilter }),
-    }),
+    () =>
+      listSupervisorBeads({
+        includeClosed: showClosed,
+        ...(rigFilter === RIG_FILTER_ALL ? {} : { rigFilter }),
+      }),
   );
   const rows = useMemo(() => data?.items ?? [], [data]);
   const totalShown = data?.total ?? 0;
@@ -111,28 +109,19 @@ export function BeadsPage() {
   const hasLoadedBoard = data !== undefined;
 
   const sessions = useCachedData(`sessions:${cityCacheKey}`, listSupervisorSessions);
-  const sessionItems = useMemo(
-    () => sessions.data?.items ?? [],
-    [sessions.data],
-  );
+  const sessionItems = useMemo(() => sessions.data?.items ?? [], [sessions.data]);
   const agents = useCachedData(`agents:${cityCacheKey}`, listSupervisorAgents);
-  const agentItems = useMemo(
-    () => agents.data?.items ?? [],
-    [agents.data],
-  );
+  const agentItems = useMemo(() => agents.data?.items ?? [], [agents.data]);
 
   const dispatchRigOptions = useMemo(
-    () => Array.from(
-      new Set(agentItems.map((agent) => agent.rig).filter(isNonEmptyString)),
-    ).sort((a, b) => a.localeCompare(b)),
+    () =>
+      Array.from(new Set(agentItems.map((agent) => agent.rig).filter(isNonEmptyString))).sort(
+        (a, b) => a.localeCompare(b),
+      ),
     [agentItems],
   );
   const filteredDispatchAgents = useMemo(
-    () => (
-      newRig.length === 0
-        ? agentItems
-        : agentItems.filter((agent) => agent.rig === newRig)
-    ),
+    () => (newRig.length === 0 ? agentItems : agentItems.filter((agent) => agent.rig === newRig)),
     [agentItems, newRig],
   );
 
@@ -172,10 +161,13 @@ export function BeadsPage() {
   // (the `filters` object is a fresh ref each render); keeps toggleStatusChip
   // stable without depending on the whole object.
   const { toggleChip } = filters;
-  const toggleStatusChip = useCallback((id: string) => {
-    if (id === CLOSED_CHIP_ID) setShowClosed((prev) => !prev);
-    toggleChip(id);
-  }, [toggleChip]);
+  const toggleStatusChip = useCallback(
+    (id: string) => {
+      if (id === CLOSED_CHIP_ID) setShowClosed((prev) => !prev);
+      toggleChip(id);
+    },
+    [toggleChip],
+  );
 
   useGcEventRefresh([GC_EVENT_PREFIX.bead], () => void refresh());
 
@@ -183,42 +175,41 @@ export function BeadsPage() {
     if (selectedBeadParam !== null) setSelectedId(selectedBeadParam);
   }, [selectedBeadParam]);
 
-  const runAction = useCallback(async (
-    bead: SupervisorBead,
-    action: BeadAction,
-    reason?: string,
-  ) => {
-    setActionInFlight({ id: bead.id, action });
-    setActionMessage(null);
-    try {
-      if (action === 'claim') {
-        await claimSupervisorBead(bead.id);
-        setActionMessage({ tone: 'ok', text: `Claimed ${bead.id}.` });
-      } else if (action === 'close') {
-        await closeSupervisorBead(bead.id, reason);
-        setClosing(null);
-        setCloseReason('');
-        setActionMessage({ tone: 'ok', text: `Closed ${bead.id}.` });
-      } else {
-        const assignee = bead.assignee?.trim() ?? '';
-        if (assignee.length === 0) {
-          throw new Error('Assigned agent is required before nudging.');
+  const runAction = useCallback(
+    async (bead: SupervisorBead, action: BeadAction, reason?: string) => {
+      setActionInFlight({ id: bead.id, action });
+      setActionMessage(null);
+      try {
+        if (action === 'claim') {
+          await claimSupervisorBead(bead.id);
+          setActionMessage({ tone: 'ok', text: `Claimed ${bead.id}.` });
+        } else if (action === 'close') {
+          await closeSupervisorBead(bead.id, reason);
+          setClosing(null);
+          setCloseReason('');
+          setActionMessage({ tone: 'ok', text: `Closed ${bead.id}.` });
+        } else {
+          const assignee = bead.assignee?.trim() ?? '';
+          if (assignee.length === 0) {
+            throw new Error('Assigned agent is required before nudging.');
+          }
+          await nudgeSupervisorAgent(assignee);
+          setActionMessage({ tone: 'ok', text: `Nudged ${assignee}.` });
         }
-        await nudgeSupervisorAgent(assignee);
-        setActionMessage({ tone: 'ok', text: `Nudged ${assignee}.` });
+        await refresh();
+      } catch (err) {
+        setActionMessage({ tone: 'error', text: formatApiError(err, `${action} failed`) });
+      } finally {
+        setActionInFlight(null);
       }
-      await refresh();
-    } catch (err) {
-      setActionMessage({ tone: 'error', text: formatApiError(err, `${action} failed`) });
-    } finally {
-      setActionInFlight(null);
-    }
-  }, [refresh]);
+    },
+    [refresh],
+  );
 
   const openCreateBead = useCallback(() => {
     const defaultRig = dispatchRigOptions[0] ?? '';
-    const defaultAgent = agentItems.find((agent) =>
-      defaultRig.length === 0 || agent.rig === defaultRig
+    const defaultAgent = agentItems.find(
+      (agent) => defaultRig.length === 0 || agent.rig === defaultRig,
     );
     setNewTitle('');
     setNewBody('');
@@ -229,18 +220,19 @@ export function BeadsPage() {
     setCreating(true);
   }, [agentItems, dispatchRigOptions]);
 
-  const handleDispatchRigChange = useCallback((rig: string) => {
-    setNewRig(rig);
-    const currentAgentStillVisible = agentItems.some((agent) =>
-      agent.name === newAgent && (rig.length === 0 || agent.rig === rig)
-    );
-    if (!currentAgentStillVisible) {
-      const defaultAgent = agentItems.find((agent) =>
-        rig.length === 0 || agent.rig === rig
+  const handleDispatchRigChange = useCallback(
+    (rig: string) => {
+      setNewRig(rig);
+      const currentAgentStillVisible = agentItems.some(
+        (agent) => agent.name === newAgent && (rig.length === 0 || agent.rig === rig),
       );
-      setNewAgent(defaultAgent?.name ?? '');
-    }
-  }, [agentItems, newAgent]);
+      if (!currentAgentStillVisible) {
+        const defaultAgent = agentItems.find((agent) => rig.length === 0 || agent.rig === rig);
+        setNewAgent(defaultAgent?.name ?? '');
+      }
+    },
+    [agentItems, newAgent],
+  );
 
   const createAndSling = useCallback(async () => {
     setCreateInFlight(true);
@@ -265,10 +257,7 @@ export function BeadsPage() {
     }
   }, [newAgent, newBody, newRig, newTitle, refresh]);
 
-  const matched = useMemo(
-    () => filters.groups.flatMap((group) => group.rows),
-    [filters.groups],
-  );
+  const matched = useMemo(() => filters.groups.flatMap((group) => group.rows), [filters.groups]);
   const graph = useMemo(() => buildBeadGraph(matched), [matched]);
   const groupIds = useMemo(() => {
     const map = new Map<string, Set<string>>();
@@ -282,7 +271,7 @@ export function BeadsPage() {
     [matched, selectedId],
   );
   const selectedNode = useMemo(
-    () => (selectedId === null ? null : graph.nodes.get(selectedId) ?? null),
+    () => (selectedId === null ? null : (graph.nodes.get(selectedId) ?? null)),
     [graph, selectedId],
   );
   const beadAttentionSeverity = useMemo(
@@ -290,61 +279,57 @@ export function BeadsPage() {
     [attention],
   );
 
-  const renderBeadActions = useCallback((bead: SupervisorBead) => {
-    const assignee = bead.assignee?.trim() ?? '';
-    const busy = actionInFlight !== null;
-    const actionLabel = actionInFlight?.id === bead.id
-      ? actionInFlight.action.replace('_', ' ')
-      : null;
+  const renderBeadActions = useCallback(
+    (bead: SupervisorBead) => {
+      const assignee = bead.assignee?.trim() ?? '';
+      const busy = actionInFlight !== null;
+      const actionLabel =
+        actionInFlight?.id === bead.id ? actionInFlight.action.replace('_', ' ') : null;
 
-    return (
-      <div className="flex flex-wrap items-center justify-end gap-2">
-        {actionLabel && (
-          <span className="text-label uppercase tracking-wider text-fg-faint">
-            {actionLabel}
-          </span>
-        )}
-        <Button
-          type="button"
-          size="sm"
-          tone="quiet"
-          disabled={busy || bead.status === 'in_progress' || bead.status === 'closed'}
-          onClick={() => void runAction(bead, 'claim')}
-        >
-          Claim
-        </Button>
-        <Button
-          type="button"
-          size="sm"
-          tone="quiet"
-          disabled={busy || bead.status === 'closed'}
-          onClick={() => {
-            setCloseReason('');
-            setActionMessage(null);
-            setClosing(bead);
-          }}
-        >
-          Close
-        </Button>
-        <Button
-          type="button"
-          size="sm"
-          tone="quiet"
-          disabled={busy || assignee.length === 0}
-          onClick={() => void runAction(bead, 'nudge')}
-        >
-          Nudge
-        </Button>
-      </div>
-    );
-  }, [actionInFlight, runAction]);
+      return (
+        <div className="flex flex-wrap items-center justify-end gap-2">
+          {actionLabel && (
+            <span className="text-label uppercase tracking-wider text-fg-faint">{actionLabel}</span>
+          )}
+          <Button
+            type="button"
+            size="sm"
+            tone="quiet"
+            disabled={busy || bead.status === 'in_progress' || bead.status === 'closed'}
+            onClick={() => void runAction(bead, 'claim')}
+          >
+            Claim
+          </Button>
+          <Button
+            type="button"
+            size="sm"
+            tone="quiet"
+            disabled={busy || bead.status === 'closed'}
+            onClick={() => {
+              setCloseReason('');
+              setActionMessage(null);
+              setClosing(bead);
+            }}
+          >
+            Close
+          </Button>
+          <Button
+            type="button"
+            size="sm"
+            tone="quiet"
+            disabled={busy || assignee.length === 0}
+            onClick={() => void runAction(bead, 'nudge')}
+          >
+            Nudge
+          </Button>
+        </div>
+      );
+    },
+    [actionInFlight, runAction],
+  );
 
   const synopsis = useMemo(
-    () => (
-      hasLoadedBoard
-        ? buildSynopsis(filteredRows, totalShown, rigFilter)
-        : 'Loading beads.'
-    ),
+    () => (hasLoadedBoard ? buildSynopsis(filteredRows, totalShown, rigFilter) : 'Loading beads.'),
     [filteredRows, hasLoadedBoard, totalShown, rigFilter],
   );
 
@@ -462,9 +447,7 @@ export function BeadsPage() {
       </div>
 
       {!hasLoadedBoard && loading ? (
-        <p className="text-body text-fg-muted italic">
-          Loading beads.
-        </p>
+        <p className="text-body text-fg-muted italic">Loading beads.</p>
       ) : matched.length === 0 ? (
         <p className="text-body text-fg-muted italic">
           {filters.search.length > 0 || filters.activeChipIds.size > 0
@@ -539,9 +522,7 @@ export function BeadsPage() {
         }
       >
         <label className="block space-y-2 text-body">
-          <span className="text-label uppercase tracking-wider text-fg-muted">
-            Reason
-          </span>
+          <span className="text-label uppercase tracking-wider text-fg-muted">Reason</span>
           <textarea
             value={closeReason}
             onChange={(event) => setCloseReason(event.target.value)}
@@ -576,9 +557,7 @@ export function BeadsPage() {
               form="new-bead-form"
               size="sm"
               disabled={
-                createInFlight ||
-                newTitle.trim().length === 0 ||
-                newAgent.trim().length === 0
+                createInFlight || newTitle.trim().length === 0 || newAgent.trim().length === 0
               }
             >
               {createInFlight ? 'Creating' : 'Create and sling'}
@@ -600,9 +579,7 @@ export function BeadsPage() {
             </p>
           )}
           <label className="block space-y-2 text-body">
-            <span className="text-label uppercase tracking-wider text-fg-muted">
-              Title
-            </span>
+            <span className="text-label uppercase tracking-wider text-fg-muted">Title</span>
             <input
               value={newTitle}
               onChange={(event) => setNewTitle(event.target.value)}
@@ -611,9 +588,7 @@ export function BeadsPage() {
             />
           </label>
           <label className="block space-y-2 text-body">
-            <span className="text-label uppercase tracking-wider text-fg-muted">
-              Body
-            </span>
+            <span className="text-label uppercase tracking-wider text-fg-muted">Body</span>
             <textarea
               value={newBody}
               onChange={(event) => setNewBody(event.target.value)}
@@ -623,17 +598,13 @@ export function BeadsPage() {
           </label>
           <div className="grid gap-4 sm:grid-cols-2">
             <label className="block space-y-2 text-body">
-              <span className="text-label uppercase tracking-wider text-fg-muted">
-                Rig
-              </span>
+              <span className="text-label uppercase tracking-wider text-fg-muted">Rig</span>
               <select
                 value={newRig}
                 onChange={(event) => handleDispatchRigChange(event.target.value)}
                 className="w-full rounded-sm border border-rule bg-transparent px-3 py-2 text-body text-fg focus-mark"
               >
-                {dispatchRigOptions.length === 0 && (
-                  <option value="">all rigs</option>
-                )}
+                {dispatchRigOptions.length === 0 && <option value="">all rigs</option>}
                 {dispatchRigOptions.map((rig) => (
                   <option key={rig} value={rig}>
                     {rig}
@@ -642,9 +613,7 @@ export function BeadsPage() {
               </select>
             </label>
             <label className="block space-y-2 text-body">
-              <span className="text-label uppercase tracking-wider text-fg-muted">
-                Agent
-              </span>
+              <span className="text-label uppercase tracking-wider text-fg-muted">Agent</span>
               <select
                 value={newAgent}
                 onChange={(event) => setNewAgent(event.target.value)}

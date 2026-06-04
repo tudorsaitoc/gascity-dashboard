@@ -50,12 +50,7 @@ export type ExecSpawn = (
 ) => Promise<ExecResult>;
 
 export interface ExecRunner {
-  runExec(
-    cmd: string,
-    args: string[],
-    timeoutMs: number,
-    maxBytes?: number,
-  ): Promise<ExecResult>;
+  runExec(cmd: string, args: string[], timeoutMs: number, maxBytes?: number): Promise<ExecResult>;
 }
 
 export interface ExecRunnerOptions {
@@ -64,7 +59,10 @@ export interface ExecRunnerOptions {
 }
 
 export class ExecError extends Error {
-  constructor(message: string, public readonly kind: 'validation' | 'timeout' | 'spawn') {
+  constructor(
+    message: string,
+    public readonly kind: 'validation' | 'timeout' | 'spawn',
+  ) {
     super(message);
     this.name = 'ExecError';
   }
@@ -72,8 +70,7 @@ export class ExecError extends Error {
 
 function cleanEnv(): NodeJS.ProcessEnv {
   const home = process.env.HOME ?? '/tmp';
-  const path =
-    process.env.ADMIN_PATH ?? `${home}/.local/bin:/usr/local/bin:/usr/bin:/bin`;
+  const path = process.env.ADMIN_PATH ?? `${home}/.local/bin:/usr/local/bin:/usr/bin:/bin`;
   const env: NodeJS.ProcessEnv = {
     PATH: path,
     HOME: home,

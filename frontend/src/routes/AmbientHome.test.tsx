@@ -439,9 +439,7 @@ describe('AmbientHomePage', () => {
   it('renders a clear error when the runs source is in error state', async () => {
     mockLoadRunSummary.mockResolvedValue(runsErrorSource());
     mount();
-    await waitFor(() =>
-      expect(screen.getByTestId('runs-source-error')).toBeTruthy(),
-    );
+    await waitFor(() => expect(screen.getByTestId('runs-source-error')).toBeTruthy());
     expect(screen.queryByTestId('phase-census')).toBeNull();
   });
 

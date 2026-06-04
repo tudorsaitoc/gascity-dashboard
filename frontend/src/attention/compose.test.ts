@@ -28,7 +28,9 @@ describe('composeAttention', () => {
   it('ranks attention before watch, current actionable items before historical items, then nav domain order', () => {
     const model = composeAttention([
       contributor('mail', [item('mail-watch', 'mail', 'watch', { actionable: true })]),
-      contributor('activity', [item('historical-activity', 'activity', 'attention', { current: false, actionable: true })]),
+      contributor('activity', [
+        item('historical-activity', 'activity', 'attention', { current: false, actionable: true }),
+      ]),
       contributor('beads', [item('bead-attention', 'beads', 'attention')]),
       contributor('agents', [item('agent-attention', 'agents', 'attention', { actionable: true })]),
     ]);
@@ -48,18 +50,13 @@ describe('composeAttention', () => {
           item('run-1', 'runs', 'attention', { actionable: true }),
           item('run-2', 'runs', 'watch'),
         ]),
-        contributor('mail', [
-          item('mail-1', 'mail', 'watch'),
-          item('mail-2', 'mail', 'watch'),
-        ]),
+        contributor('mail', [item('mail-1', 'mail', 'watch'), item('mail-2', 'mail', 'watch')]),
       ],
       { topLimit: 2 },
     );
 
     expect(model.topItems.map((attention) => attention.id)).toEqual(['run-1', 'run-2']);
-    expect(model.overflowByDomain).toEqual([
-      { domain: 'mail', attention: 0, watch: 2, total: 2 },
-    ]);
+    expect(model.overflowByDomain).toEqual([{ domain: 'mail', attention: 0, watch: 2, total: 2 }]);
   });
 
   it('keeps the domain set explicit so nav consumers cannot drift', () => {

@@ -40,9 +40,7 @@ const MAYOR_ALIAS = 'mayor';
  * win over mail because supervisor session metadata is the canonical
  * shape.
  */
-export function prioritizeAliases(
-  input: PrioritizeAliasesInput,
-): AliasBucket[] {
+export function prioritizeAliases(input: PrioritizeAliasesInput): AliasBucket[] {
   const { operator, sessionAliases, mailFromOrTo } = input;
 
   // Canonicalize: collect the display form of each unique alias.

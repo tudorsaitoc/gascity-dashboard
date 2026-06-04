@@ -40,13 +40,15 @@ if (THEME === 'dark') {
 // Give the board a chance to render; always snap, even if the region wait
 // times out, so we can see what actually came up.
 try {
-  await page
-    .getByRole('region', { name: 'in progress' })
-    .waitFor({ timeout: 12_000 });
+  await page.getByRole('region', { name: 'in progress' }).waitFor({ timeout: 12_000 });
   console.log('board columns rendered.');
 } catch {
   console.log('board region not found in time — snapping whatever rendered.');
-  const heading = await page.locator('h1, h2').first().textContent().catch(() => null);
+  const heading = await page
+    .locator('h1, h2')
+    .first()
+    .textContent()
+    .catch(() => null);
   console.log('top heading:', heading);
 }
 await page.screenshot({ path: `${OUT}/${THEME}-beads-board.png`, fullPage: true });

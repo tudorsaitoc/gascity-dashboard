@@ -47,89 +47,97 @@ async function withApp<T>(app: Express, fn: (url: string) => Promise<T>): Promis
   }
 }
 
-async function withSupervisorRegistry<T>(
-  fn: (baseUrl: string) => Promise<T>,
-): Promise<T> {
+async function withSupervisorRegistry<T>(fn: (baseUrl: string) => Promise<T>): Promise<T> {
   const server = await new Promise<Server>((resolve) => {
     const listening = http.createServer((req, res) => {
       if (req.url === '/v0/cities') {
         res.statusCode = 200;
         res.setHeader('content-type', 'application/json');
-        res.end(JSON.stringify({
-          items: [{ name: 'test-city', path: '/srv/gc/test-city', running: true }],
-          total: 1,
-        }));
+        res.end(
+          JSON.stringify({
+            items: [{ name: 'test-city', path: '/srv/gc/test-city', running: true }],
+            total: 1,
+          }),
+        );
         return;
       }
       if (req.url === '/v0/city/test-city/beads?limit=1000') {
         res.statusCode = 200;
         res.setHeader('content-type', 'application/json');
-        res.end(JSON.stringify({
-          items: [
-            {
-              id: 'td-bead-abc123',
-              title: 'old mirror should not serve this',
-              status: 'open',
-              issue_type: 'task',
-              created_at: '2026-06-01T00:00:00Z',
-              priority: null,
-            },
-          ],
-          total: 1,
-        }));
+        res.end(
+          JSON.stringify({
+            items: [
+              {
+                id: 'td-bead-abc123',
+                title: 'old mirror should not serve this',
+                status: 'open',
+                issue_type: 'task',
+                created_at: '2026-06-01T00:00:00Z',
+                priority: null,
+              },
+            ],
+            total: 1,
+          }),
+        );
         return;
       }
       if (req.url === '/v0/city/test-city/bead/td-bead-abc123') {
         res.statusCode = 200;
         res.setHeader('content-type', 'application/json');
-        res.end(JSON.stringify({
-          id: 'td-bead-abc123',
-          title: 'old detail mirror should not serve this',
-          status: 'open',
-          issue_type: 'task',
-          created_at: '2026-06-01T00:00:00Z',
-          priority: null,
-        }));
+        res.end(
+          JSON.stringify({
+            id: 'td-bead-abc123',
+            title: 'old detail mirror should not serve this',
+            status: 'open',
+            issue_type: 'task',
+            created_at: '2026-06-01T00:00:00Z',
+            priority: null,
+          }),
+        );
         return;
       }
       if (req.url === '/v0/city/test-city/mail?limit=1000') {
         res.statusCode = 200;
         res.setHeader('content-type', 'application/json');
-        res.end(JSON.stringify({
-          items: [
-            {
-              id: 'mail-1',
-              from: 'mayor',
-              to: 'human',
-              subject: 'old mail mirror should not serve this',
-              body: 'body',
-              created_at: '2026-06-01T00:00:00Z',
-              read: false,
-              thread_id: 'thread-1',
-            },
-          ],
-          total: 1,
-        }));
+        res.end(
+          JSON.stringify({
+            items: [
+              {
+                id: 'mail-1',
+                from: 'mayor',
+                to: 'human',
+                subject: 'old mail mirror should not serve this',
+                body: 'body',
+                created_at: '2026-06-01T00:00:00Z',
+                read: false,
+                thread_id: 'thread-1',
+              },
+            ],
+            total: 1,
+          }),
+        );
         return;
       }
       if (req.url === '/v0/city/test-city/mail/thread/thread-1') {
         res.statusCode = 200;
         res.setHeader('content-type', 'application/json');
-        res.end(JSON.stringify({
-          items: [
-            {
-              id: 'mail-1',
-              from: 'mayor',
-              to: 'human',
-              subject: 'old thread mirror should not serve this',
-              body: 'body',
-              created_at: '2026-06-01T00:00:00Z',
-              read: false,
-              thread_id: 'thread-1',
-            },
-          ],
-          total: 1,
-        }));
+        res.end(
+          JSON.stringify({
+            items: [
+              {
+                id: 'mail-1',
+                from: 'mayor',
+                to: 'human',
+                subject: 'old thread mirror should not serve this',
+                body: 'body',
+                created_at: '2026-06-01T00:00:00Z',
+                read: false,
+                thread_id: 'thread-1',
+              },
+            ],
+            total: 1,
+          }),
+        );
         return;
       }
       res.statusCode = 404;
@@ -227,7 +235,9 @@ describe('createDashboardApp', () => {
           const res = await fetch(`${url}/api/city/test-city/sessions`);
           assert.equal(res.status, 404);
 
-          const stream = await fetch(`${url}/api/city/test-city/session-stream/gc-session-b/stream`);
+          const stream = await fetch(
+            `${url}/api/city/test-city/session-stream/gc-session-b/stream`,
+          );
           assert.equal(stream.status, 404);
           await stream.body?.cancel();
         });
@@ -314,7 +324,9 @@ describe('createDashboardApp', () => {
           const list = await fetch(`${url}/api/city/test-city/mail?alias=stephanie&box=inbox`);
           assert.equal(list.status, 404);
 
-          const thread = await fetch(`${url}/api/city/test-city/mail/threads/thread-1?alias=stephanie`);
+          const thread = await fetch(
+            `${url}/api/city/test-city/mail/threads/thread-1?alias=stephanie`,
+          );
           assert.equal(thread.status, 404);
         });
       } finally {
@@ -354,10 +366,12 @@ describe('createDashboardApp', () => {
 
   test('does not mount the old maintainer sling supervisor facade under the city request plane', async () => {
     await withSupervisorRegistry(async (gcSupervisorUrl) => {
-      const { app, runtime } = createDashboardApp(makeConfig({
-        gcSupervisorUrl,
-        enabledModules: new Set(['maintainer']),
-      }));
+      const { app, runtime } = createDashboardApp(
+        makeConfig({
+          gcSupervisorUrl,
+          enabledModules: new Set(['maintainer']),
+        }),
+      );
       runtime.start();
       try {
         await withApp(app, async (url) => {

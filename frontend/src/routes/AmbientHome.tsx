@@ -1,10 +1,5 @@
 import { useMemo } from 'react';
-import type {
-  DashboardMetric,
-  RunLane,
-  RunSummary,
-  SourceState,
-} from 'gas-city-dashboard-shared';
+import type { DashboardMetric, RunLane, RunSummary, SourceState } from 'gas-city-dashboard-shared';
 import { getActiveCity } from '../api/cityBase';
 import { AttentionSummaryPanel } from '../attention/AttentionSummaryPanel';
 import { PageHeader } from '../components/PageHeader';
@@ -148,9 +143,7 @@ function AmbientBody({ fresh, cityName, cycleKey, workInProgress }: BodyProps) {
   const inProgressClause =
     workInProgress.status === 'available' ? `, ${workInProgress.value} in progress` : '';
   const synopsis =
-    cityName !== null
-      ? `${cityName}, ${summary.totalActive} active${inProgressClause}`
-      : null;
+    cityName !== null ? `${cityName}, ${summary.totalActive} active${inProgressClause}` : null;
 
   if (summary.census.status !== 'available') {
     return (
@@ -192,10 +185,7 @@ export function AmbientHomePage() {
     `runs:summary:${cityName ?? 'no-city'}`,
     loadSupervisorRunSummarySource,
   );
-  const work = useCachedData(
-    `home:work:${cityName ?? 'no-city'}`,
-    fetchHomeWorkInProgress,
-  );
+  const work = useCachedData(`home:work:${cityName ?? 'no-city'}`, fetchHomeWorkInProgress);
 
   const fresh = readFresh(data);
   // cycleKey advances per run-source generation (drives R8 hysteresis);
@@ -227,11 +217,7 @@ export function AmbientHomePage() {
     return (
       <section>
         <PageHeader title="Home" synopsis={null} />
-        <p
-          className="mt-6 text-body text-accent"
-          role="alert"
-          data-testid="runs-source-error"
-        >
+        <p className="mt-6 text-body text-accent" role="alert" data-testid="runs-source-error">
           Run data is unavailable.
         </p>
       </section>

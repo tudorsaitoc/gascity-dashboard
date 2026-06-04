@@ -40,10 +40,7 @@ export function supervisorTransportProxy(supervisorBaseUrl: string): Router {
       const upstream = await fetch(target, requestInit(req));
       await writeUpstreamResponse(upstream, res);
     } catch (err) {
-      logWarn(
-        LOG_COMPONENT.admin,
-        `gc supervisor transport proxy failed: ${errorMessage(err)}`,
-      );
+      logWarn(LOG_COMPONENT.admin, `gc supervisor transport proxy failed: ${errorMessage(err)}`);
       if (!res.headersSent) {
         res.status(HTTP_STATUS.badGateway).json({
           error: 'gc supervisor transport failed',
@@ -97,8 +94,5 @@ async function writeUpstreamResponse(upstream: Response, res: ExpressResponse): 
     res.end();
     return;
   }
-  await pipeline(
-    Readable.fromWeb(upstream.body as unknown as NodeReadableStream<Uint8Array>),
-    res,
-  );
+  await pipeline(Readable.fromWeb(upstream.body as unknown as NodeReadableStream<Uint8Array>), res);
 }
