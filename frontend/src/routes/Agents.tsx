@@ -437,6 +437,8 @@ export function AgentsPage() {
       <WorkInFlight
         beads={beadsCache.data?.items ?? []}
         sessions={sessionsCache.data?.items ?? []}
+        sessionsLoading={sessionsCache.loading}
+        sessionsError={sessionsCache.error}
       />
 
       {/* The bottom roster is the "available agents" view — the mayor, PLs, and

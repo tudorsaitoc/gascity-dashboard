@@ -35,6 +35,16 @@ import { StatusBadge, stateTone } from './StatusBadge';
 interface WorkInFlightProps {
   beads: readonly SupervisorBead[];
   sessions: readonly SupervisorSession[];
+  // The "Workers active" count is SESSION-driven, so the section's honesty
+  // depends on the sessions fetch having actually delivered. Thread its
+  // loading/error state through: when sessions data is absent (initial load or
+  // a fetch that never succeeded) the section must render an explicit
+  // unavailable/loading state — never the calm "No workers active" all-clear,
+  // which would mask a dead aggregator (the fail-safe invariant: failure must
+  // read as explicit unavailable, never silent all-clear). Beads are
+  // best-effort secondary context and do not gate this signal.
+  sessionsLoading: boolean;
+  sessionsError: string | null;
 }
 
 function WorkerRow({
@@ -105,7 +115,12 @@ function isWorkerStreamable(session: SupervisorSession): boolean {
   return session.running === true || session.state === 'active' || session.state === 'running';
 }
 
-export function WorkInFlight({ beads, sessions }: WorkInFlightProps) {
+export function WorkInFlight({
+  beads,
+  sessions,
+  sessionsLoading,
+  sessionsError,
+}: WorkInFlightProps) {
   // Memoized on the fetched inputs: the parent AgentsPage re-renders every
   // second on the useNow tick, and the derivation walks the full bead +
   // session lists — only recompute when a fetch/SSE refresh changes them.
@@ -128,13 +143,32 @@ export function WorkInFlight({ beads, sessions }: WorkInFlightProps) {
     [active.workers],
   );
 
+  // Fail-safe: the all-clear ("No workers active") is only honest once the
+  // sessions fetch has delivered data. With no data yet, distinguish a failed
+  // fetch (explicit "unavailable") from an in-flight one (loading) — the mirror
+  // of the Agents roster's rosterUnavailable pattern. useCachedData retains
+  // stale data across a re-fetch error, so this window is only the initial-load
+  // / never-succeeded case; a prior success keeps rendering its workers.
+  const sessionsAbsent = sessions.length === 0;
+  const sessionsUnavailable = sessionsError !== null && sessionsAbsent;
+  const sessionsPending = sessionsLoading && sessionsAbsent;
+  const countLabel = sessionsUnavailable || sessionsPending ? '—' : active.total;
+
   return (
     <section className="mb-10" aria-label="Workers active">
       <header className="flex items-baseline justify-between border-b border-rule pb-2 mb-4">
         <h2 className="text-headline text-fg">Workers active</h2>
-        <span className="text-label tnum text-fg-muted">{active.total}</span>
+        <span className="text-label tnum text-fg-muted">{countLabel}</span>
       </header>
-      {active.total === 0 ? (
+      {sessionsUnavailable ? (
+        <p className="text-body text-fg-muted" role="status">
+          Worker status unavailable.
+        </p>
+      ) : sessionsPending ? (
+        <p className="text-body text-fg-muted" role="status">
+          Checking worker status…
+        </p>
+      ) : active.total === 0 ? (
         <p className="text-body text-fg-muted">No workers active right now.</p>
       ) : (
         <>

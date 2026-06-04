@@ -36,11 +36,20 @@ function session(partial: Partial<SupervisorSession> & { id: string }): Supervis
   } as SupervisorSession;
 }
 
-function renderSection(beads: SupervisorBead[], sessions: SupervisorSession[]) {
+function renderSection(
+  beads: SupervisorBead[],
+  sessions: SupervisorSession[],
+  opts: { loading?: boolean; error?: string | null } = {},
+) {
   return render(
     <MemoryRouter future={{ v7_relativeSplatPath: true, v7_startTransition: true }}>
       <NowProvider intervalMs={1_000_000}>
-        <WorkInFlight beads={beads} sessions={sessions} />
+        <WorkInFlight
+          beads={beads}
+          sessions={sessions}
+          sessionsLoading={opts.loading ?? false}
+          sessionsError={opts.error ?? null}
+        />
       </NowProvider>
     </MemoryRouter>,
   );
@@ -182,5 +191,31 @@ describe('WorkInFlight (Workers active)', () => {
     );
     expect(screen.getByText('No workers active right now.')).toBeTruthy();
     expect(screen.queryByRole('link')).toBeNull();
+  });
+
+  // Fail-safe: when the sessions fetch has not delivered data, the section must
+  // NOT render the calm "No workers active" all-clear — that would mask a dead
+  // aggregator on the exact surface the work-in-flight signal is meant to make
+  // trustworthy. Distinguish a failed fetch from an in-flight one.
+  it('renders explicit unavailable (not the all-clear) when the sessions fetch failed with no data', () => {
+    renderSection([], [], { error: 'sessions backend unavailable' });
+    expect(screen.getByText('Worker status unavailable.')).toBeTruthy();
+    expect(screen.queryByText('No workers active right now.')).toBeNull();
+  });
+
+  it('renders a loading state (not the all-clear) while the initial sessions fetch is in flight', () => {
+    renderSection([], [], { loading: true });
+    expect(screen.getByText('Checking worker status…')).toBeTruthy();
+    expect(screen.queryByText('No workers active right now.')).toBeNull();
+  });
+
+  it('keeps rendering stale workers when a re-fetch errors but prior data is retained', () => {
+    // useCachedData holds the last good data across a re-fetch failure, so the
+    // false-all-clear window is only the no-data case — stale data still counts.
+    renderSection([], [session({ id: 'gc-1', template: 'polecat', rig: 'gascity' })], {
+      error: 're-fetch failed',
+    });
+    expect(screen.queryByText('Worker status unavailable.')).toBeNull();
+    expect(screen.getByText('1 worker active across gascity (1).')).toBeTruthy();
   });
 });

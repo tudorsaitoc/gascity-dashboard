@@ -104,12 +104,15 @@ const RIG_ORCHESTRATION_RX = /(?:\.project-lead|chief-of-staff)$/;
 
 /**
  * True when a session is a live worker actively performing work — the signal
- * the Work-in-flight section counts. Requires state `active`, a worker/pool
- * role in the template or runtime name, and that the session is NOT any flavour
- * of orchestration (cross-rig, per-rig dispatcher, project-lead, chief-of-staff).
+ * the Work-in-flight section counts. Requires a live state (`active` or
+ * `running` — the same running signal isRunningAgent / isSessionStreamable /
+ * stateTone honour, so a worker reported as `running` is not silently dropped),
+ * a worker/pool role in the template or runtime name, and that the session is
+ * NOT any flavour of orchestration (cross-rig, per-rig dispatcher,
+ * project-lead, chief-of-staff).
  */
 export function isWorkerSession(s: DashboardSession): boolean {
-  if (s.state !== 'active') return false;
+  if (s.state !== 'active' && s.state !== 'running') return false;
   if (isOrchestrationSession(s) || isPerRigDispatcher(s)) return false;
   const template = s.template ?? '';
   const alias = s.alias ?? '';
@@ -223,8 +226,12 @@ export function canonicalRigLabel(name: string): string {
 // slot by its session (e.g. `polecat-gc-335825`). Mirrors the session-id
 // alphabet; anchored to the END so only a real suffix is cut. The id body is
 // hyphen-free (`gc-335825`, not `gc-33-5825`) so the match binds to the minimal
-// trailing handle and never swallows a hyphenated role like `scix-worker`.
-const WORKER_SESSION_SUFFIX_RX = /-(?:gc|td|th|[a-z]{4})-[a-z0-9]{1,32}$/;
+// trailing handle. The body MUST contain a digit (mirroring BARE_SESSION_ID_RX
+// in shared/work-in-flight.ts): live session ids always carry a numeric handle,
+// so requiring a digit stops the `[a-z]{4}` prefix branch from false-stripping a
+// hyphenated role whose penultimate segment is four letters (e.g. the `-scix-`
+// in `*-scix-worker`, which has no digit in `worker`).
+const WORKER_SESSION_SUFFIX_RX = /-(?:gc|td|th|[a-z]{4})-[a-z0-9]*[0-9][a-z0-9]*$/;
 
 /**
  * Clean a worker/agent/assignee name for display: strip any leading filesystem

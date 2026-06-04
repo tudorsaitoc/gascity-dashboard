@@ -1,47 +1,18 @@
-// "Work in flight" derivation — the operator's at-a-glance view of what is
-// actually being worked on right now.
+// Work-in-flight assignee parsing — the primitives the "Workers active" section
+// uses to tie an in-progress bead to the live worker session that owns it.
 //
-// The agent roster (configured agent slots) is the WRONG signal for this:
-// the supervisor reports nearly every worker slot as state=stopped with no
-// active bead, because the live work happens in dynamically-spawned worker
-// SESSIONS, not the configured slots. Driving off the roster makes "working"
-// read as 0 even when the city is busy.
-//
-// The RIGHT signal is the in-progress beads — the actual units of work. Each
-// in-progress bead carries an `assignee` that embeds the live session id:
+// Each in-progress bead carries an `assignee` that embeds the live session id:
 //
 //   bead gc-5rarj               assignee polecat-gc-335825          → gc-335825
 //   bead scix_experiments-4if7h assignee scix-worker-gc-335812      → gc-335812
 //   bead EnterpriseBench-mda    assignee enterprisebench-worker-gc-335808 → gc-335808
 //
 // Pattern: `<worker-role>-<session-id>` where the session id is the trailing
-// `gc-…` (or other 2/4-letter-prefixed) handle. Extract the session id, join
-// it to the live sessions list, and the result is one row per unit of work:
-// who (role), where (rig), what (bead id + title), and the live session state.
+// `gc-…` (or other 2/4-letter-prefixed) handle. The frontend derives the live
+// Workers-active list from the SESSIONS (see hooks/activeWorkers), using
+// parseAssignee only to best-effort attach a captured bead to a worker row.
 //
-// Pure over the shared wire types (GcBead + GcSession) — no IO, no React, no
-// DOM. The frontend layers display-label cleaning on top via projectOf helpers.
-
-// The derivation reads only a handful of fields. Parametrize over these
-// structural minimums (rather than the full GcBead/GcSession) so both the
-// shared wire types AND the generated supervisor client types — which differ
-// in optionality under exactOptionalPropertyTypes — can be passed without a
-// cast at the call sites.
-export interface WorkInFlightBead {
-  id: string;
-  title: string;
-  status: string;
-  assignee?: string;
-  created_at: string;
-  updated_at?: string;
-}
-
-export interface WorkInFlightSession {
-  id: string;
-  state: string;
-  rig?: string;
-  last_active?: string;
-}
+// Pure over plain strings — no IO, no React, no DOM.
 
 /**
  * The trailing supervisor session-handle embedded in an assignee. Anchored to
@@ -105,73 +76,7 @@ export function parseAssignee(assignee: string): ParsedAssignee {
 }
 
 /**
- * One unit of work in flight: an in-progress bead joined to the live worker
- * session it is assigned to. `session` is undefined when the embedded session
- * id does not resolve to a live session (completed/closed/never-spawned) — the
- * row is still emitted so the bead + assignee remain visible (graceful
- * degradation; never silently drop work).
- */
-export interface WorkInFlightRow<
-  B extends WorkInFlightBead = WorkInFlightBead,
-  S extends WorkInFlightSession = WorkInFlightSession,
-> {
-  bead: B;
-  /** Raw assignee string, or undefined when the bead carries none. */
-  assignee?: string;
-  /** Worker role parsed from the assignee (e.g. `polecat`). Undefined when the
-   *  bead has no assignee at all. */
-  role?: string;
-  /** Live session joined by the embedded id, or undefined when unresolved. */
-  session?: S;
-}
-
-/**
  * The bead status that means "actively being worked on". A single literal so
  * the work-in-flight filter and the status badge stay in lockstep.
  */
 export const IN_PROGRESS_STATUS = 'in_progress';
-
-function recencyKey(row: WorkInFlightRow): number {
-  // Read through the structural minimum (WorkInFlightBead/Session).
-  // Prefer the live session's last activity (the freshest signal of work), then
-  // fall back to the bead's update/create time. Unparseable timestamps sort
-  // oldest so rows with real activity float to the top.
-  const candidate = row.session?.last_active ?? row.bead.updated_at ?? row.bead.created_at;
-  const ms = candidate ? Date.parse(candidate) : NaN;
-  return Number.isFinite(ms) ? ms : 0;
-}
-
-/**
- * Derive the work-in-flight rows from the raw beads + sessions lists.
- *
- * Steps (mechanical, no semantic judgment):
- *  1. Keep only in-progress beads.
- *  2. Parse each bead's assignee into role + embedded session id.
- *  3. Join the session id to the live sessions list by `session.id`.
- *  4. Sort newest-/most-recently-active first.
- *
- * Beads whose embedded session id does not resolve are retained (session
- * undefined) so nothing in flight is dropped.
- */
-export function deriveWorkInFlight<B extends WorkInFlightBead, S extends WorkInFlightSession>(
-  beads: readonly B[],
-  sessions: readonly S[],
-): WorkInFlightRow<B, S>[] {
-  const sessionsById = new Map<string, S>();
-  for (const session of sessions) sessionsById.set(session.id, session);
-
-  const rows: WorkInFlightRow<B, S>[] = [];
-  for (const bead of beads) {
-    if (bead.status !== IN_PROGRESS_STATUS) continue;
-    const assignee = bead.assignee?.trim();
-    if (assignee === undefined || assignee.length === 0) {
-      rows.push({ bead });
-      continue;
-    }
-    const { role, sessionId } = parseAssignee(assignee);
-    const session = sessionId ? sessionsById.get(sessionId) : undefined;
-    rows.push({ bead, assignee, role, ...(session ? { session } : {}) });
-  }
-
-  return rows.sort((a, b) => recencyKey(b) - recencyKey(a));
-}

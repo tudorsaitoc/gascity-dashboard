@@ -294,6 +294,17 @@ describe('cleanWorkerName', () => {
     expect(cleanWorkerName('worker-fddc-12xy')).toBe('worker');
   });
 
+  it('does NOT strip a hyphenated role whose penultimate segment is 4 letters but carries no session digit', () => {
+    // `-scix-worker` matches the `<4-letter-prefix>-<body>` shape, but the body
+    // (`worker`) has no digit, so it is a role suffix, not a live-session handle
+    // (live ids always carry a numeric handle). Stripping it would truncate the
+    // label and mis-classify the worker.
+    expect(cleanWorkerName('city-scix-worker')).toBe('city-scix-worker');
+    expect(cleanWorkerName('infra-scix-worker')).toBe('infra-scix-worker');
+    // The genuine handle (digit body) on the same role still strips cleanly.
+    expect(cleanWorkerName('city-scix-worker-gc-335812')).toBe('city-scix-worker');
+  });
+
   it('leaves a clean name unchanged', () => {
     expect(cleanWorkerName('polecat-1')).toBe('polecat-1');
     expect(cleanWorkerName('mayor')).toBe('mayor');
@@ -320,6 +331,15 @@ describe('isWorkerSession', () => {
           rig: 'gascity',
         }),
       ),
+    ).toBe(true);
+  });
+
+  it("counts a worker reported in the 'running' state", () => {
+    // isRunningAgent / isSessionStreamable / stateTone all honour 'running';
+    // isWorkerSession must too, or a worker in that state is silently dropped
+    // from the Workers-active count.
+    expect(
+      isWorkerSession(gcSession({ template: 'polecat', rig: 'gascity', state: 'running' })),
     ).toBe(true);
   });
 
