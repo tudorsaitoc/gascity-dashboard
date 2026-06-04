@@ -6,33 +6,30 @@
 
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import type { GcBead } from './gc-beads.js';
-import type { GcSession } from './gc-client-types.js';
-import { deriveWorkInFlight, parseAssignee } from './work-in-flight.js';
+import {
+  deriveWorkInFlight,
+  parseAssignee,
+  type WorkInFlightBead,
+  type WorkInFlightSession,
+} from './work-in-flight.js';
 
-function bead(partial: Partial<GcBead> & { id: string }): GcBead {
+// Fixtures are typed against the structural minimums the derivation reads
+// (WorkInFlightBead/Session), not a full supervisor wire shape — the
+// generated client types are the wire authority and aren't mirrored here.
+function bead(partial: Partial<WorkInFlightBead> & { id: string }): WorkInFlightBead {
   return {
     title: `title for ${partial.id}`,
     status: 'in_progress',
-    issue_type: 'task',
-    priority: null,
     created_at: '2026-06-03T00:00:00Z',
     ...partial,
   };
 }
 
-function session(partial: Partial<GcSession> & { id: string }): GcSession {
+function session(partial: Partial<WorkInFlightSession> & { id: string }): WorkInFlightSession {
   return {
-    template: 'worker',
-    session_name: partial.id,
-    title: partial.id,
     state: 'active',
-    created_at: '2026-06-03T00:00:00Z',
-    attached: false,
-    running: true,
-    provider: 'claude',
     ...partial,
-  } as GcSession;
+  };
 }
 
 test('parseAssignee splits the real verified examples into role + session id', () => {

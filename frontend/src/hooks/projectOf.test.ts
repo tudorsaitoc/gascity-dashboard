@@ -14,9 +14,9 @@ import {
   orchestrationLabel,
   sessionProject,
 } from './projectOf';
-import type { GcSession } from 'gas-city-dashboard-shared';
+import type { DashboardSession } from 'gas-city-dashboard-shared';
 
-function gcSession(partial: Partial<GcSession>): GcSession {
+function gcSession(partial: Partial<DashboardSession>): DashboardSession {
   return {
     id: partial.id ?? 'gc-1',
     template: '',
@@ -28,7 +28,7 @@ function gcSession(partial: Partial<GcSession>): GcSession {
     running: true,
     provider: 'claude',
     ...partial,
-  } as GcSession;
+  } as DashboardSession;
 }
 
 // The cross-rig orchestration bucket now LABELS with the active city name
