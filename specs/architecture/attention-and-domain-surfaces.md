@@ -75,8 +75,8 @@ Health:
   process, local-tool, and dolt-noms facts.
 - Supervisor diagnostics use a short generated-client request budget so host
   health renders even when the supervisor is slow.
-- Richer rig/service health waits on upstream supervisor facts; no service/rig
-  mutation controls are in scope.
+- Richer rig/service health waits on upstream supervisor facts tracked as
+  `GC-14`; no service/rig mutation controls are in scope.
 
 Maintainer:
 
