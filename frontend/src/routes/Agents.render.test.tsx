@@ -115,6 +115,12 @@ function stubFetch(options: StubFetchOptions = {}) {
           },
         });
       }
+      // Work-in-flight section fans out typed bead queries (feature/bug/task).
+      // None of the post-ay6 regression cases assert on it, so return an empty
+      // board — the section renders its calm "Nothing is in flight" empty state.
+      if (url.startsWith('/gc-supervisor/v0/city/test-city/beads') && method === 'GET') {
+        return jsonResponse({ items: [], total: 0 });
+      }
       if (url === '/gc-supervisor/v0/city/test-city/session/gc-2568/respond' && method === 'POST') {
         return jsonResponse({ id: 'gc-2568', status: 'accepted' }, { status: 202 });
       }
@@ -190,6 +196,7 @@ beforeEach(() => {
   fetchCalls.length = 0;
   invalidate('agents');
   invalidate('sessions');
+  invalidate('beads:in-flight');
   stubFetch();
 });
 

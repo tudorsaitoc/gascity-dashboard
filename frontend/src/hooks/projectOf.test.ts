@@ -1,14 +1,25 @@
 import { describe, expect, it } from 'vitest';
+import { getActiveCity, setActiveCity } from '../api/cityBase';
 import {
+  ORCHESTRATION_PROJECT,
   agentProject,
   beadProject,
+  cleanWorkerName,
   isAgentOutsideRig,
   isOrchestrationAgent,
   isOrchestrationSession,
   isPerRigDispatcherAgent,
   mailProject,
+  orchestrationLabel,
   sessionProject,
 } from './projectOf';
+
+// The cross-rig orchestration bucket now LABELS with the active city name
+// (the operator thinks "the city", not "Orchestration"); the KEY stays the
+// stable ORCHESTRATION_PROJECT constant. The global test setup sets the active
+// city to 'test-city'. Resolved lazily (a function, not a module-load const)
+// so it reads the city AFTER setup has run, not at import time.
+const cityLabel = (): string => getActiveCity() ?? ORCHESTRATION_PROJECT;
 
 describe('beadProject', () => {
   it.each([
@@ -85,18 +96,18 @@ describe('mailProject', () => {
 
 // ── Agent grouping (gascity-dashboard-ay6 + Phase-4 H3/M3 follow-up) ──
 describe('agentProject', () => {
-  it('routes cross-rig orchestration agents to the Orchestration pinned group', () => {
+  it('routes cross-rig orchestration agents to the pinned group, labelled with the city name', () => {
     expect(agentProject({ name: 'mayor' } as never)).toEqual({
-      key: 'Orchestration',
-      label: 'Orchestration',
+      key: ORCHESTRATION_PROJECT,
+      label: cityLabel(),
     });
     expect(agentProject({ name: 'control-dispatcher' } as never)).toEqual({
-      key: 'Orchestration',
-      label: 'Orchestration',
+      key: ORCHESTRATION_PROJECT,
+      label: cityLabel(),
     });
     expect(agentProject({ name: 'oversight-rig.chief-of-staff' } as never)).toEqual({
-      key: 'Orchestration',
-      label: 'Orchestration',
+      key: ORCHESTRATION_PROJECT,
+      label: cityLabel(),
     });
   });
 
@@ -223,5 +234,55 @@ describe('agentProject -main canonicalization', () => {
     expect(agentProject({ name: 'z', rig: '/home/ds/gascity-packs' } as never).label).toBe(
       'gascity-packs',
     );
+  });
+});
+
+describe('orchestrationLabel', () => {
+  it('returns the active city name (operator thinks "the city", not "Orchestration")', () => {
+    const prior = getActiveCity();
+    try {
+      setActiveCity('ds-research');
+      expect(orchestrationLabel()).toBe('ds-research');
+      // The KEY is unaffected — only the display label tracks the city.
+      expect(agentProject({ name: 'mayor' } as never).key).toBe(ORCHESTRATION_PROJECT);
+      expect(agentProject({ name: 'mayor' } as never).label).toBe('ds-research');
+      // sessionProject mirrors the same label change for orchestration sessions.
+      expect(sessionProject({ template: 'mayor' } as never)).toEqual({
+        key: ORCHESTRATION_PROJECT,
+        label: 'ds-research',
+      });
+    } finally {
+      if (prior !== null) setActiveCity(prior);
+    }
+  });
+});
+
+describe('cleanWorkerName', () => {
+  it('strips a trailing -gc-XXXXX live-session suffix to the role', () => {
+    expect(cleanWorkerName('polecat-gc-335825')).toBe('polecat');
+    expect(cleanWorkerName('scix-worker-gc-335812')).toBe('scix-worker');
+    expect(cleanWorkerName('enterprisebench-worker-gc-335808')).toBe('enterprisebench-worker');
+  });
+
+  it('strips a leading filesystem path to the basename', () => {
+    expect(cleanWorkerName('/home/ds/gas-city/city-infra-polecat')).toBe('city-infra-polecat');
+  });
+
+  it('strips both a path and a session suffix together', () => {
+    expect(cleanWorkerName('/home/ds/gas-city/polecat-gc-335825')).toBe('polecat');
+  });
+
+  it('also strips td-/th-/4-letter-prefixed session handles', () => {
+    expect(cleanWorkerName('worker-td-9abc')).toBe('worker');
+    expect(cleanWorkerName('worker-fddc-12xy')).toBe('worker');
+  });
+
+  it('leaves a clean name unchanged', () => {
+    expect(cleanWorkerName('polecat-1')).toBe('polecat-1');
+    expect(cleanWorkerName('mayor')).toBe('mayor');
+  });
+
+  it('trims surrounding whitespace', () => {
+    expect(cleanWorkerName('  polecat-gc-335825  ')).toBe('polecat');
   });
 });

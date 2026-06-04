@@ -1,4 +1,5 @@
 import type { DashboardSession } from 'gas-city-dashboard-shared';
+import { getActiveCity } from '../api/cityBase';
 import type { AgentResponse } from '../generated/gc-supervisor-client/types.gen';
 import type { SupervisorBead } from '../supervisor/beadReads';
 import type { SupervisorMailItem } from '../supervisor/mailReads';
@@ -31,7 +32,23 @@ export function beadProject(bead: SupervisorBead): string {
   return m?.[1] ?? bead.id;
 }
 
+// Stable grouping KEY for cross-rig orchestration agents/sessions. This is an
+// internal identity used for bucketing + collapse state and never shown raw to
+// the operator: the displayed LABEL is the active city name (see
+// `orchestrationLabel`). The key stays a constant so grouping is independent of
+// whichever city is currently mounted.
 export const ORCHESTRATION_PROJECT = 'Orchestration';
+
+/**
+ * Display label for the cross-rig orchestration bucket. The operator thinks of
+ * mayor / dispatchers / PLs as "the city", not as an abstract "Orchestration"
+ * group, so we render the active city name (e.g. `ds-research`). Falls back to
+ * the constant before the router has resolved a city — a degraded label is
+ * better than an empty one.
+ */
+export function orchestrationLabel(): string {
+  return getActiveCity() ?? ORCHESTRATION_PROJECT;
+}
 
 // Residual bucket for a row with no rig association and no orchestration role.
 export const NO_RIG_PROJECT = '(no rig)';
@@ -73,7 +90,7 @@ export interface ProjectBucket {
 
 export function sessionProject(session: DashboardSession): ProjectBucket {
   if (isOrchestrationSession(session)) {
-    return { key: ORCHESTRATION_PROJECT, label: ORCHESTRATION_PROJECT };
+    return { key: ORCHESTRATION_PROJECT, label: orchestrationLabel() };
   }
   const candidate = session.rig ?? session.pool ?? session.template;
   if (!candidate) {
@@ -125,7 +142,7 @@ export function isPerRigDispatcherAgent(a: AgentResponse): boolean {
 
 export function agentProject(agent: AgentResponse): ProjectBucket {
   if (isOrchestrationAgent(agent)) {
-    return { key: ORCHESTRATION_PROJECT, label: ORCHESTRATION_PROJECT };
+    return { key: ORCHESTRATION_PROJECT, label: orchestrationLabel() };
   }
   // Agents — unlike sessions — never carry a `template` field; rig/pool are
   // the only grouping candidates. Empty-string `rig` is treated as absent
@@ -149,6 +166,31 @@ export function agentProject(agent: AgentResponse): ProjectBucket {
  */
 export function canonicalRigLabel(name: string): string {
   return name.endsWith('-main') ? name.slice(0, -'-main'.length) : name;
+}
+
+// Trailing `-gc-XXXXX` (or other 2/4-letter-prefixed) live-session handle that
+// leaks into a worker name when the supervisor labels a dynamically-spawned
+// slot by its session (e.g. `polecat-gc-335825`). Mirrors the session-id
+// alphabet; anchored to the END so only a real suffix is cut. The id body is
+// hyphen-free (`gc-335825`, not `gc-33-5825`) so the match binds to the minimal
+// trailing handle and never swallows a hyphenated role like `scix-worker`.
+const WORKER_SESSION_SUFFIX_RX =
+  /-(?:gc|td|th|[a-z]{4})-[a-z0-9]{1,32}$/;
+
+/**
+ * Clean a worker/agent/assignee name for display: strip any leading filesystem
+ * path (keep the basename) and any trailing `-gc-XXXXX` live-session suffix, so
+ * `/home/ds/gas-city/city-infra-polecat` shows as `city-infra-polecat` and
+ * `polecat-gc-335825` shows as `polecat`. Returns the trimmed input unchanged
+ * when neither a path nor a session suffix is present.
+ */
+export function cleanWorkerName(name: string): string {
+  const trimmed = name.trim();
+  // basename — handle both '/' and '\' for cross-platform safety.
+  const parts = trimmed.split(/[\\/]/).filter(Boolean);
+  const basename = parts[parts.length - 1] ?? trimmed;
+  const stripped = basename.replace(WORKER_SESSION_SUFFIX_RX, '');
+  return stripped.length > 0 ? stripped : basename;
 }
 
 /**

@@ -8,6 +8,7 @@ export * from './run-detail.js';
 export type * from './run-snapshot.js';
 export * from './run-scope.js';
 export * from './session-id.js';
+export * from './work-in-flight.js';
 export type * from './viewing-as.js';
 export * from './runs/bead-fields.js';
 export * from './runs/display-state.js';

@@ -8,6 +8,7 @@ import { ListSearchBar } from '../components/ListSearchBar';
 import { Modal } from '../components/Modal';
 import { PageHeader } from '../components/PageHeader';
 import { PartialDataNotice } from '../components/PartialDataNotice';
+import { WorkInFlight } from '../components/WorkInFlight';
 import { LiveSessionPeek, isAgentStreamable } from '../components/LiveSessionPeek';
 import { SseIndicator } from '../components/SseIndicator';
 import { StatusBadge, type StatusTone } from '../components/StatusBadge';
@@ -23,8 +24,14 @@ import {
   type AgentPendingInteraction,
 } from '../supervisor/agentPending';
 import { listSupervisorSessions } from '../supervisor/sessionReads';
+import { listSupervisorBeads } from '../supervisor/beadReads';
 import { listSupervisorAgents, type SupervisorAgent } from '../supervisor/agentReads';
-import { agentProject, isAgentOutsideRig, isPerRigDispatcherAgent } from '../hooks/projectOf';
+import {
+  agentProject,
+  cleanWorkerName,
+  isAgentOutsideRig,
+  isPerRigDispatcherAgent,
+} from '../hooks/projectOf';
 import { agentSlug } from '../hooks/sessionSlug';
 
 // gascity-dashboard-ay6: the Agents view consumes the supervisor's
@@ -48,10 +55,14 @@ export function isRunningAgent(a: SupervisorAgent): boolean {
 
 // Display label for the row: 'rig · agent' (e.g. 'gascity-packs · polecat-1').
 // Agents outside a rig (cross-rig orchestration or the residual no-rig
-// bucket) carry no rig prefix — just the alias.
+// bucket) carry no rig prefix — just the (cleaned) alias. The alias is run
+// through cleanWorkerName so a path-leaking or session-suffixed name
+// (e.g. `/home/ds/gas-city/city-infra-polecat`, `polecat-gc-335825`) renders
+// as a clean role, never the raw path or `-gc-XXXXX` suffix.
 export function agentRowLabel(a: SupervisorAgent): string {
-  if (isAgentOutsideRig(a)) return a.name;
-  return `${agentProject(a).label} · ${a.name}`;
+  const name = cleanWorkerName(a.name);
+  if (isAgentOutsideRig(a)) return name;
+  return `${agentProject(a).label} · ${name}`;
 }
 
 const AGENT_SEARCH_FIELDS = (a: SupervisorAgent): ReadonlyArray<string> =>
@@ -68,6 +79,13 @@ export function AgentsPage() {
   // Fetch the sessions list in parallel so we can map agent.session.name
   // -> session.id at peek time.
   const sessionsCache = useCachedData('sessions', listSupervisorSessions);
+  // Work-in-flight is driven by the IN-PROGRESS beads, NOT the agent roster
+  // (the roster reports nearly every worker as stopped with no active bead,
+  // because live work runs in dynamically-spawned sessions). The default
+  // listSupervisorBeads() returns the non-closed engineering beads, from which
+  // the WorkInFlight section keeps only the in-progress units and joins each to
+  // its live session via the session id embedded in the assignee.
+  const beadsCache = useCachedData('beads:in-flight', () => listSupervisorBeads());
   const rows = useMemo<SupervisorAgent[]>(() => data?.items ?? [], [data]);
   const sessionIds = useMemo(
     () => (sessionsCache.data?.items ?? []).map((session) => session.id).sort(),
@@ -119,7 +137,16 @@ export function AgentsPage() {
     return sessionsById.get(sessionName) ?? null;
   }, [peekAgent, sessionsById]);
 
-  const sseState = useGcEventRefresh([GC_EVENT_PREFIX.session, 'agent.'], () => void refresh());
+  const sseState = useGcEventRefresh(
+    [GC_EVENT_PREFIX.session, GC_EVENT_PREFIX.bead, 'agent.'],
+    () => {
+      void refresh();
+      // The Work-in-flight section reads beads + sessions; keep both fresh on a
+      // bead/session transition so the in-flight rows track the live work.
+      void beadsCache.refresh();
+      void sessionsCache.refresh();
+    },
+  );
 
   const synopsis = useMemo(() => buildAgentSynopsis(rows), [rows]);
   const handlePendingResponse = useCallback(
@@ -391,6 +418,11 @@ export function AgentsPage() {
             </Button>
           </>
         }
+      />
+
+      <WorkInFlight
+        beads={beadsCache.data?.items ?? []}
+        sessions={sessionsCache.data?.items ?? []}
       />
 
       <div className="mb-6 space-y-3">
