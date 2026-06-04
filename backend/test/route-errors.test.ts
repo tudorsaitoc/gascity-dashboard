@@ -23,7 +23,7 @@ describe('route error adapter', () => {
 
     assert.deepEqual(
       routeUpstreamError(err, {
-        component: LOG_COMPONENT.sessions,
+        component: LOG_COMPONENT.admin,
         operation: 'session stream failed',
         responseError: 'failed to list sessions',
         isTimeout: GcClient.isTimeoutError,
@@ -43,7 +43,7 @@ describe('route error adapter', () => {
     err.name = 'SupervisorPayloadError';
 
     const wire = routeUpstreamError(err, {
-      component: LOG_COMPONENT.mail,
+      component: LOG_COMPONENT.admin,
       operation: '/api/mail failed',
       responseError: 'failed to list mail',
       isTimeout: GcClient.isTimeoutError,
@@ -79,7 +79,7 @@ describe('route error adapter', () => {
     const err = new TypeError('secret path /Users/operator/app.ts');
 
     const wire = routeInternalError(err, {
-      component: LOG_COMPONENT.snapshot,
+      component: LOG_COMPONENT.admin,
       operation: 'failed to build snapshot',
       responseError: 'failed to build snapshot',
       log: (component, message) => logs.push(`${component}:${message}`),

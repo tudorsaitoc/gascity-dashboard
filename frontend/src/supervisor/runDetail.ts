@@ -19,6 +19,7 @@ import type {
   WorkflowSnapshotResponse,
 } from '../generated/gc-supervisor-client/types.gen';
 import { SupervisorApiError, supervisorApi, type SupervisorApi } from './client';
+import { normalizeSessions } from './sessionReads';
 
 export async function loadSupervisorFormulaRunDetail(
   runId: string,
@@ -70,7 +71,7 @@ async function loadRunSessions(cityName: string): Promise<RunSessionsLookup> {
     const list = await supervisorApi().listSessions(cityName);
     return {
       kind: 'available',
-      sessions: (list.items ?? []) as DashboardSession[],
+      sessions: normalizeSessions(list),
     };
   } catch {
     return { kind: 'unavailable', sessions: [] };

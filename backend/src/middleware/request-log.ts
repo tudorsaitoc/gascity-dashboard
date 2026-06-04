@@ -17,11 +17,6 @@ const REQUEST_ID_RE = /^[A-Za-z0-9._:-]{1,128}$/;
 export function requestLog(options: RequestLogOptions = {}): RequestHandler {
   const log = options.log ?? logInfo;
   return (req, res, next) => {
-    if (req.path.startsWith('/api/snapshot')) {
-      next();
-      return;
-    }
-
     const requestId = requestIdFromHeaders(req.headers);
     res.setHeader(REQUEST_ID_HEADER, requestId);
     const startedAt = Date.now();

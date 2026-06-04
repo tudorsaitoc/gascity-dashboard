@@ -9,20 +9,14 @@ export const REQUEST_ID_HEADER = 'X-Request-ID';
 export const LOG_COMPONENT = {
   admin: 'admin',
   adminAudit: 'admin-audit',
-  agents: 'agents',
-  beads: 'beads',
   builds: 'builds',
   client: 'client',
   doltNoms: 'dolt-noms',
   health: 'health',
   git: 'git',
   links: 'links',
-  mail: 'mail',
   maintainer: 'maintainer',
   metrics: 'metrics',
-  sessions: 'sessions',
-  snapshot: 'snapshot',
-  sse: 'sse',
   runs: 'runs',
 } as const;
 

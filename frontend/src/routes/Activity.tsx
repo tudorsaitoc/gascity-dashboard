@@ -582,7 +582,7 @@ function ActivitySection({
   return (
     <section aria-labelledby={sectionId(title)} className="space-y-4">
       <div className="flex items-baseline justify-between gap-4">
-        <h2 id={sectionId(title)} className="text-title font-semibold tracking-tight text-fg">
+        <h2 id={sectionId(title)} className="text-headline font-semibold tracking-tight text-fg">
           {title}
         </h2>
         {meta !== null && (

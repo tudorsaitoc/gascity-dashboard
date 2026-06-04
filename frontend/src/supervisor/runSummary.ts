@@ -23,10 +23,9 @@ import type {
   Bead,
   FormulaFeedBody,
   ListBodyBead,
-  ListBodySessionResponse,
-  SessionResponse,
 } from '../generated/gc-supervisor-client/types.gen';
 import { supervisorApiForRequestBudget } from './client';
+import { normalizeSessions } from './sessionReads';
 
 const RUNS_FETCH_LIMIT = 1_000;
 const RECENT_RUN_FETCH_LIMIT = 80;
@@ -339,36 +338,6 @@ function normalizeBead(bead: Bead): DashboardBead {
   if (bead.needs !== undefined) normalized.needs = bead.needs;
   if (bead.dependencies !== undefined) normalized.dependencies = bead.dependencies;
   if (bead.updated_at !== undefined) normalized.updated_at = bead.updated_at;
-  return normalized;
-}
-
-function normalizeSessions(list: ListBodySessionResponse): DashboardSession[] {
-  return (list.items ?? []).map(normalizeSession);
-}
-
-function normalizeSession(session: SessionResponse): DashboardSession {
-  const normalized: DashboardSession = {
-    id: session.id,
-    template: session.template,
-    session_name: session.session_name,
-    title: session.title,
-    state: session.state,
-    created_at: session.created_at,
-    attached: session.attached,
-    running: session.running,
-    provider: session.provider,
-  };
-  if (session.alias !== undefined) normalized.alias = session.alias;
-  if (session.reason !== undefined) normalized.reason = session.reason;
-  if (session.display_name !== undefined) normalized.display_name = session.display_name;
-  if (session.last_active !== undefined) normalized.last_active = session.last_active;
-  if (session.rig !== undefined) normalized.rig = session.rig;
-  if (session.pool !== undefined) normalized.pool = session.pool;
-  if (session.agent_kind !== undefined) normalized.agent_kind = session.agent_kind;
-  if (session.model !== undefined) normalized.model = session.model;
-  if (session.context_pct !== undefined) normalized.context_pct = session.context_pct;
-  if (session.context_window !== undefined) normalized.context_window = session.context_window;
-  if (session.activity !== undefined) normalized.activity = session.activity;
   return normalized;
 }
 

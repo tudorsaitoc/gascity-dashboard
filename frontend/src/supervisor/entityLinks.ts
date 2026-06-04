@@ -1,13 +1,9 @@
 import type { EntityLinkView, DashboardBead, DashboardSession } from 'gas-city-dashboard-shared';
 import { buildLinkView, buildRelationIndex, parseRef } from 'gas-city-dashboard-shared';
 import { activeCityOrThrow } from '../api/cityBase';
-import type {
-  Bead,
-  ListBodyBead,
-  ListBodySessionResponse,
-  SessionResponse,
-} from '../generated/gc-supervisor-client/types.gen';
+import type { Bead, ListBodyBead } from '../generated/gc-supervisor-client/types.gen';
 import { supervisorApi } from './client';
+import { normalizeSessions, type SupervisorSessionList } from './sessionReads';
 
 const LINKS_FETCH_LIMIT = 5_000;
 
@@ -68,40 +64,10 @@ function normalizeBead(bead: Bead): DashboardBead {
   return normalized;
 }
 
-function normalizeSessions(list: ListBodySessionResponse): DashboardSession[] {
-  return (list.items ?? []).map(normalizeSession);
-}
-
-function normalizeSession(session: SessionResponse): DashboardSession {
-  const normalized: DashboardSession = {
-    id: session.id,
-    template: session.template,
-    session_name: session.session_name,
-    title: session.title,
-    state: session.state,
-    created_at: session.created_at,
-    attached: session.attached,
-    running: session.running,
-    provider: session.provider,
-  };
-  if (session.alias !== undefined) normalized.alias = session.alias;
-  if (session.reason !== undefined) normalized.reason = session.reason;
-  if (session.display_name !== undefined) normalized.display_name = session.display_name;
-  if (session.last_active !== undefined) normalized.last_active = session.last_active;
-  if (session.rig !== undefined) normalized.rig = session.rig;
-  if (session.pool !== undefined) normalized.pool = session.pool;
-  if (session.agent_kind !== undefined) normalized.agent_kind = session.agent_kind;
-  if (session.model !== undefined) normalized.model = session.model;
-  if (session.context_pct !== undefined) normalized.context_pct = session.context_pct;
-  if (session.context_window !== undefined) normalized.context_window = session.context_window;
-  if (session.activity !== undefined) normalized.activity = session.activity;
-  return normalized;
-}
-
 function listIsPartial(list: ListBodyBead): boolean {
   return list.partial === true || (list.partial_errors?.length ?? 0) > 0;
 }
 
-function sessionListIsPartial(list: ListBodySessionResponse): boolean {
+function sessionListIsPartial(list: SupervisorSessionList): boolean {
   return list.partial === true || (list.partial_errors?.length ?? 0) > 0;
 }

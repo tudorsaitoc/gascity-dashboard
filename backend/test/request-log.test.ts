@@ -16,9 +16,6 @@ async function withApp<T>(logs: string[], fn: (url: string) => Promise<T>): Prom
   app.get('/api/demo', (_req, res) => {
     res.status(201).json({ ok: true, request_id: currentRequestId() });
   });
-  app.get('/api/snapshot', (_req, res) => {
-    res.json({ ok: true });
-  });
 
   const server = await new Promise<Server>((resolve) => {
     const listening = app.listen(0, '127.0.0.1', () => resolve(listening));
@@ -62,15 +59,5 @@ describe('requestLog middleware', () => {
     });
 
     assert.equal(logs.length, 1);
-  });
-
-  test('skips ambient snapshot polling', async () => {
-    const logs: string[] = [];
-    await withApp(logs, async (url) => {
-      const res = await fetch(`${url}/api/snapshot`);
-      assert.equal(res.status, 200);
-    });
-
-    assert.deepEqual(logs, []);
   });
 });
