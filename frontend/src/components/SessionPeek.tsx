@@ -137,7 +137,7 @@ function ansiToReactNodes(text: string): ReactNode[] {
   const renderer = new AnsiUp();
   renderer.use_classes = true;
   const html = renderer.ansi_to_html(cleaned);
-  if (typeof DOMParser === 'undefined') return [text];
+  if (typeof DOMParser === 'undefined') return [cleaned];
 
   const doc = new DOMParser().parseFromString(`<body>${html}</body>`, 'text/html');
   return Array.from(doc.body.childNodes).map((node, index) => htmlNodeToReact(node, String(index)));

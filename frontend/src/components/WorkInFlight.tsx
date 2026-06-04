@@ -22,7 +22,7 @@ import { StatusBadge, stateTone } from './StatusBadge';
 // doesn't reliably aggregate, while the worker SESSIONS stay active across that
 // churn. So the primary signal is the live worker sessions, grouped by rig:
 //
-//     7 workers active across gascity (3), scix-experiments (3), gascity-packs (2).
+//     8 workers active across gascity (3), scix-experiments (3), gascity-packs (2).
 //
 // Per-worker rows below the summary, most-recently-active first:
 //

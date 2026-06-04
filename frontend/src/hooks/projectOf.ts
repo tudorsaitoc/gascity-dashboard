@@ -120,7 +120,7 @@ export function isWorkerSession(s: DashboardSession): boolean {
   // for a dynamically-spawned slot, in the runtime session_name
   // (`polecat-gc-335825`). Strip any `-gc-XXXXX` handle first so the role
   // anchor matches the cleaned name.
-  const sessionName = (s as { session_name?: string }).session_name ?? '';
+  const sessionName = s.session_name;
   const candidates = [template, alias, sessionName]
     .filter((c) => c.length > 0)
     .map((c) => cleanWorkerName(c));
