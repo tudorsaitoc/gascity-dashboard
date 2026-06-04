@@ -360,12 +360,14 @@ describe('RunsPage — SSE wiring (gascity-dashboard-bqn)', () => {
     await waitForMount();
     expect(screen.queryByText('Completed formula run')).toBeNull();
     expect(
-      screen.getByText(/No active formula runs\. \(1 completed\.\)/i),
+      await screen.findByText(/No active formula runs\. \(1 completed\.\)/i),
     ).toBeTruthy();
     // The toggle button is enabled (totalHistorical > 0) and labeled
     // with the count.
-    const toggleDefault = screen.getByRole('button', { name: /show 1 completed/i }) as HTMLButtonElement;
-    expect(toggleDefault.disabled).toBe(false);
+    const toggleDefault = (await screen.findByRole('button', {
+      name: /show 1 completed/i,
+    })) as HTMLButtonElement;
+    await waitFor(() => expect(toggleDefault.disabled).toBe(false));
     expect(toggleDefault.getAttribute('aria-expanded')).toBe('false');
     cleanup();
 
