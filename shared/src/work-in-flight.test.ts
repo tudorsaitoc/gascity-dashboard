@@ -87,8 +87,16 @@ test('parseAssignee trims surrounding whitespace', () => {
 });
 
 test('deriveWorkInFlight joins in-progress beads to their live session, newest first', () => {
-  const polecat = session({ id: 'gc-335825', rig: '/home/ds/gascity', last_active: '2026-06-03T10:00:00Z' });
-  const scixWorker = session({ id: 'gc-335812', rig: 'scix_experiments', last_active: '2026-06-03T11:00:00Z' });
+  const polecat = session({
+    id: 'gc-335825',
+    rig: '/home/ds/gascity',
+    last_active: '2026-06-03T10:00:00Z',
+  });
+  const scixWorker = session({
+    id: 'gc-335812',
+    rig: 'scix_experiments',
+    last_active: '2026-06-03T11:00:00Z',
+  });
   const beads = [
     bead({ id: 'gc-5rarj', assignee: 'polecat-gc-335825' }),
     bead({ id: 'scix_experiments-4if7h', assignee: 'scix-worker-gc-335812' }),
@@ -111,7 +119,10 @@ test('deriveWorkInFlight includes only in-progress beads', () => {
     bead({ id: 'a-3', status: 'in_progress', assignee: 'polecat-gc-335825' }),
   ];
   const rows = deriveWorkInFlight(beads, []);
-  assert.deepEqual(rows.map((r) => r.bead.id), ['a-3']);
+  assert.deepEqual(
+    rows.map((r) => r.bead.id),
+    ['a-3'],
+  );
 });
 
 test('deriveWorkInFlight retains a row when the embedded session id does not resolve', () => {

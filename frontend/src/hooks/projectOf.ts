@@ -224,8 +224,7 @@ export function canonicalRigLabel(name: string): string {
 // alphabet; anchored to the END so only a real suffix is cut. The id body is
 // hyphen-free (`gc-335825`, not `gc-33-5825`) so the match binds to the minimal
 // trailing handle and never swallows a hyphenated role like `scix-worker`.
-const WORKER_SESSION_SUFFIX_RX =
-  /-(?:gc|td|th|[a-z]{4})-[a-z0-9]{1,32}$/;
+const WORKER_SESSION_SUFFIX_RX = /-(?:gc|td|th|[a-z]{4})-[a-z0-9]{1,32}$/;
 
 /**
  * Clean a worker/agent/assignee name for display: strip any leading filesystem

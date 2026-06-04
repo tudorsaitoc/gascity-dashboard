@@ -1,12 +1,7 @@
 import { parseAssignee, IN_PROGRESS_STATUS } from 'gas-city-dashboard-shared';
 import type { SupervisorBead } from '../supervisor/beadReads';
 import type { SupervisorSession } from '../supervisor/sessionReads';
-import {
-  canonicalRigLabel,
-  cleanWorkerName,
-  isWorkerSession,
-  sessionProject,
-} from './projectOf';
+import { canonicalRigLabel, cleanWorkerName, isWorkerSession, sessionProject } from './projectOf';
 
 // Session-driven "Workers active" derivation.
 //
@@ -128,8 +123,6 @@ export function deriveActiveWorkers(
 export function summarizeActiveWorkers(workers: ActiveWorkers): string {
   if (workers.total === 0) return 'No workers active right now.';
   const noun = workers.total === 1 ? 'worker' : 'workers';
-  const groups = workers.byRig
-    .map((g) => `${g.rig} (${g.count})`)
-    .join(', ');
+  const groups = workers.byRig.map((g) => `${g.rig} (${g.count})`).join(', ');
   return `${workers.total} ${noun} active across ${groups}.`;
 }

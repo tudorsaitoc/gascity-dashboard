@@ -58,7 +58,10 @@ function WorkerRow({
       <div className="flex items-baseline justify-between gap-4">
         <div className="min-w-0 text-body text-fg">
           <span className="font-medium">{rig}</span>
-          <span className="text-fg-faint" aria-hidden="true"> · </span>
+          <span className="text-fg-faint" aria-hidden="true">
+            {' '}
+            ·{' '}
+          </span>
           <span className="text-fg-muted">{worker.worker}</span>
           {bead && (
             <Link
@@ -66,7 +69,10 @@ function WorkerRow({
               className="hover:text-accent focus-mark"
               title={`Open ${bead.id}`}
             >
-              <span className="text-fg-faint" aria-hidden="true"> → </span>
+              <span className="text-fg-faint" aria-hidden="true">
+                {' '}
+                →{' '}
+              </span>
               <span className="tnum text-fg-muted">{bead.id}</span>
               <span className="text-fg-muted">: {bead.title}</span>
             </Link>
@@ -96,11 +102,7 @@ function WorkerRow({
 // a freshly-stuck worker may not be — gate the stream so a dead session shows a
 // snapshot instead of a perpetual "connecting" badge.
 function isWorkerStreamable(session: SupervisorSession): boolean {
-  return (
-    session.running === true ||
-    session.state === 'active' ||
-    session.state === 'running'
-  );
+  return session.running === true || session.state === 'active' || session.state === 'running';
 }
 
 export function WorkInFlight({ beads, sessions }: WorkInFlightProps) {
@@ -114,9 +116,7 @@ export function WorkInFlight({ beads, sessions }: WorkInFlightProps) {
   const [peekSessionId, setPeekSessionId] = useState<string | null>(null);
   const peekWorker = useMemo(
     () =>
-      peekSessionId
-        ? (active.workers.find((w) => w.session.id === peekSessionId) ?? null)
-        : null,
+      peekSessionId ? (active.workers.find((w) => w.session.id === peekSessionId) ?? null) : null,
     [active.workers, peekSessionId],
   );
 
@@ -155,11 +155,7 @@ export function WorkInFlight({ beads, sessions }: WorkInFlightProps) {
       <Modal
         open={peekWorker !== null}
         onClose={() => setPeekSessionId(null)}
-        title={
-          peekWorker
-            ? `${peekWorker.rig} · ${peekWorker.worker}`
-            : 'Transcript'
-        }
+        title={peekWorker ? `${peekWorker.rig} · ${peekWorker.worker}` : 'Transcript'}
         caption={
           peekWorker?.bead ? (
             // Surface the worker's captured bead beside the peek so its work

@@ -7,19 +7,16 @@ import { stripTerminalControls } from './stripTerminalControls';
 // classes that share the same path.
 
 describe('stripTerminalControls', () => {
-  it("strips the trailing lone ESC Stephanie saw (`... then proceed.^[`)", () => {
+  it('strips the trailing lone ESC Stephanie saw (`... then proceed.^[`)', () => {
     const dirty = '... then proceed.\x1b';
     expect(stripTerminalControls(dirty)).toBe('... then proceed.');
   });
 
   it('cleans a turn carrying ESC, OSC, SGR colour, and a bare \\x9c at once', () => {
-    const dirty =
-      'start\x1b]0;evil-title\x07 mid \x1b[31mred\x1b[0m tail.\x1b done\x9chere';
+    const dirty = 'start\x1b]0;evil-title\x07 mid \x1b[31mred\x1b[0m tail.\x1b done\x9chere';
     // SGR sequences are preserved (ansi_up renders them); every other control
     // byte is removed. Printable text and spaces survive intact.
-    expect(stripTerminalControls(dirty)).toBe(
-      'start mid \x1b[31mred\x1b[0m tail. donehere',
-    );
+    expect(stripTerminalControls(dirty)).toBe('start mid \x1b[31mred\x1b[0m tail. donehere');
   });
 
   it('strips a bare \\x9c (8-bit C1 OSC string terminator)', () => {

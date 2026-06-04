@@ -335,9 +335,9 @@ describe('isWorkerSession', () => {
   it('excludes cross-rig orchestration (mayor, control-dispatcher, chief-of-staff)', () => {
     expect(isWorkerSession(gcSession({ template: 'mayor', rig: '' }))).toBe(false);
     expect(isWorkerSession(gcSession({ template: 'control-dispatcher', rig: '' }))).toBe(false);
-    expect(
-      isWorkerSession(gcSession({ template: 'oversight-rig.chief-of-staff', rig: '' })),
-    ).toBe(false);
+    expect(isWorkerSession(gcSession({ template: 'oversight-rig.chief-of-staff', rig: '' }))).toBe(
+      false,
+    );
   });
 
   it('excludes per-rig dispatchers and project-leads', () => {
@@ -346,9 +346,9 @@ describe('isWorkerSession', () => {
         gcSession({ template: 'worker', rig: 'gascity', alias: 'gascity/control-dispatcher' }),
       ),
     ).toBe(false);
-    expect(
-      isWorkerSession(gcSession({ template: 'gascity.project-lead', rig: 'gascity' })),
-    ).toBe(false);
+    expect(isWorkerSession(gcSession({ template: 'gascity.project-lead', rig: 'gascity' }))).toBe(
+      false,
+    );
   });
 
   it('excludes a non-worker rig session (no worker/pool role)', () => {

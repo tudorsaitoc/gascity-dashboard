@@ -57,8 +57,7 @@ export interface WorkInFlightSession {
  * session ids are hyphen-free after the prefix dash (`gc-335825`, `td-9abc`),
  * so this loses nothing real.
  */
-const ASSIGNEE_SESSION_ID_RX =
-  /[-_/]((?:gc|td|th|[a-z]{4})-[a-z0-9]{1,32})$/;
+const ASSIGNEE_SESSION_ID_RX = /[-_/]((?:gc|td|th|[a-z]{4})-[a-z0-9]{1,32})$/;
 
 // A bare session handle (the assignee IS a session id, no role prefix). Same
 // alphabet as ASSIGNEE_SESSION_ID_RX but whole-string. NOT SESSION_ID_RE: that
@@ -69,8 +68,7 @@ const ASSIGNEE_SESSION_ID_RX =
 // numeric handle (`gc-335825`, `td-9abc`); a plain 4-letter-prefixed *role* like
 // `scix-worker` would otherwise match (`scix` prefix + `worker` body) and be
 // misparsed as a bare session id. Requiring a digit keeps roles out.
-const BARE_SESSION_ID_RX =
-  /^(?:gc|td|th|[a-z]{4})-[a-z0-9]*[0-9][a-z0-9]*$/;
+const BARE_SESSION_ID_RX = /^(?:gc|td|th|[a-z]{4})-[a-z0-9]*[0-9][a-z0-9]*$/;
 
 export interface ParsedAssignee {
   /** The extracted live session id (e.g. `gc-335825`), or undefined when the
@@ -138,8 +136,7 @@ function recencyKey(row: WorkInFlightRow): number {
   // Prefer the live session's last activity (the freshest signal of work), then
   // fall back to the bead's update/create time. Unparseable timestamps sort
   // oldest so rows with real activity float to the top.
-  const candidate =
-    row.session?.last_active ?? row.bead.updated_at ?? row.bead.created_at;
+  const candidate = row.session?.last_active ?? row.bead.updated_at ?? row.bead.created_at;
   const ms = candidate ? Date.parse(candidate) : NaN;
   return Number.isFinite(ms) ? ms : 0;
 }
@@ -156,10 +153,7 @@ function recencyKey(row: WorkInFlightRow): number {
  * Beads whose embedded session id does not resolve are retained (session
  * undefined) so nothing in flight is dropped.
  */
-export function deriveWorkInFlight<
-  B extends WorkInFlightBead,
-  S extends WorkInFlightSession,
->(
+export function deriveWorkInFlight<B extends WorkInFlightBead, S extends WorkInFlightSession>(
   beads: readonly B[],
   sessions: readonly S[],
 ): WorkInFlightRow<B, S>[] {

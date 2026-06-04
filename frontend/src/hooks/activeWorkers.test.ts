@@ -69,12 +69,8 @@ describe('deriveActiveWorkers', () => {
   });
 
   it('attaches an in-progress bead when its assignee embeds the worker session id', () => {
-    const sessions = [
-      session({ id: 'gc-335825', template: 'polecat', rig: '/home/ds/gascity' }),
-    ];
-    const beads = [
-      bead({ id: 'gc-5rarj', title: 'fix the thing', assignee: 'polecat-gc-335825' }),
-    ];
+    const sessions = [session({ id: 'gc-335825', template: 'polecat', rig: '/home/ds/gascity' })];
+    const beads = [bead({ id: 'gc-5rarj', title: 'fix the thing', assignee: 'polecat-gc-335825' })];
     const result = deriveActiveWorkers(sessions, beads);
     expect(result.workers[0]?.bead?.id).toBe('gc-5rarj');
     expect(result.workers[0]?.rig).toBe('gascity');

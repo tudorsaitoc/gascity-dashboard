@@ -36,10 +36,7 @@ function session(partial: Partial<SupervisorSession> & { id: string }): Supervis
   } as SupervisorSession;
 }
 
-function renderSection(
-  beads: SupervisorBead[],
-  sessions: SupervisorSession[],
-) {
+function renderSection(beads: SupervisorBead[], sessions: SupervisorSession[]) {
   return render(
     <MemoryRouter future={{ v7_relativeSplatPath: true, v7_startTransition: true }}>
       <NowProvider intervalMs={1_000_000}>
@@ -141,7 +138,7 @@ describe('WorkInFlight (Workers active)', () => {
     expect(screen.queryByRole('link')).toBeNull();
   });
 
-  it('opens the peek for the worker\'s own session id when its Peek control is clicked', async () => {
+  it("opens the peek for the worker's own session id when its Peek control is clicked", async () => {
     stubTranscriptFetch();
     const sessions = [
       session({ id: 'gc-335825', template: 'polecat', rig: 'gascity', state: 'active' }),
