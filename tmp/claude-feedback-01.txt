@@ -1,0 +1,67 @@
+Here's a self-contained prompt you can paste to an implementation agent. It assumes no prior context from this conversation.
+
+---
+
+# Task: Complete the Direct-Supervisor Migration backend deletion tail (Phase 6)
+
+You are working in `gascity-dashboard` (npm workspaces: `backend`, `frontend`, `shared`, `tui`). Read `AGENTS.md`, `specs/plans/direct-supervisor-client-migration.md`, and `specs/plans/feature-gap-remediation-plan.md` before starting.
+
+## Context
+
+A prior gap analysis found that the browser-facing supervisor migration (Phases 0–5) is complete, but **Phase 6 backend/shared cleanup is not done**. A large body of backend code is now **orphaned** — it has no live HTTP route or runtime consumer and is kept alive only by its own tests. Its browser-side replacements already exist and are wired, so this code is safe to delete. The migration plan's stated ~3.8k–5.4k production-LOC deletion target is currently unmet because of this.
+
+The **only** live `GcClient` method is `getStatus()` (used by the dolt-noms sampler at `backend/src/city/runtime.ts:131`). Verify this before deleting anything.
+
+## Required ordering and discipline
+
+Follow the plan's red-green discipline. After each numbered step: run `npm run typecheck`, `npm --workspace backend test`, `npm --workspace frontend test`, and `npm run lint`. Do not batch all deletions before testing. Commit per step on a feature branch (do not push unless asked). If any "orphaned" claim below turns out to have a live consumer you didn't expect, **stop and report** rather than forcing the deletion.
+
+## Steps
+
+**Step 0 — Verify the orphan claims (do this first, do not skip).**
+For each target below, confirm there is no non-test, non-self importer before deleting:
+- `rg -ln "snapshot/" backend/src --glob '!*.test.ts'` → expect only `backend/src/runs/formula-run.ts` (which is itself orphaned).
+- `rg -ln "runs/enrich|runs/formula-run" backend/src --glob '!*.test.ts' --glob '!backend/src/runs/**'` → expect empty.
+- `rg -n "gc\.(listMail|listSessions|listBeads|listFormulaRuns|listRigs|listAgents)" backend/src --glob '!*.test.ts' --glob '!backend/src/snapshot/**'` → expect empty (only snapshot collectors use them).
+- Confirm `backend/src/routes/runs.ts` serves only `POST /:runId/diff` via `runs/diff.ts`, independent of the projection layer.
+Report the actual results. If they differ from the above, halt.
+
+**Step 1 — Delete the orphaned snapshot subsystem.**
+Remove `backend/src/snapshot/` (all collectors, service, cache) and its tests under `backend/test/snapshot-*.test.ts`. Remove any now-dead imports/wiring.
+
+**Step 2 — Delete the orphaned backend run-projection layer.**
+Remove everything under `backend/src/runs/` **except** `diff.ts` (and anything `diff.ts` transitively imports — verify with the compiler). The projection logic already lives in `shared/src/runs/*` and is browser-consumed. Keep the live `POST /:runId/diff` route working.
+
+**Step 3 — Reduce `GcClient` to live surface only.**
+In `backend/src/gc-client.ts`, delete `listMail`, `listSessions`, `listBeads`, `listFormulaRuns`, `listRigs`, `listAgents` (and `sessionStreamUrl` if nothing live uses it — check). Keep `getStatus()` and whatever `runtime.ts` actually calls. Then delete `backend/src/gc-supervisor-decoders.ts` if no live code references it after Steps 1–2; otherwise reduce it to the still-referenced decoders only. Prefer inlining the single remaining supervisor call if that lets you delete the file entirely. Update/remove `backend/test/gc-client.test.ts` and `backend/test/gc-supervisor-decoders-types.test.ts` accordingly.
+
+**Step 4 — Remove the dead empty router mount.**
+`backend/src/routes/agents.ts` returns an empty `Router()`. Delete the file and its mount at `backend/src/city/runtime.ts` (`router.use('/agents', ...)`), plus related tests.
+
+**Step 5 — Resolve `tui/`.**
+`tui/` is a declared workspace not mentioned in `AGENTS.md`, and `tui/src/api.ts` still references old `/api/city/*` patterns. Determine if it is live or legacy: check whether anything builds/runs it and whether it's in CI. If legacy, delete the workspace and its `package.json` entry. If kept, update `AGENTS.md` to document it. **Ask the user which** if it's ambiguous — do not delete a live workspace silently.
+
+**Step 6 — Re-add/verify structure tests and fix plan drift.**
+- Ensure a structure/grep test asserts the deleted mirror routes and snapshot route are not mounted (the plan calls for "deletion gate" tests).
+- Run the plan's Phase 6 acceptance grep: `rg "GcClient|gc-supervisor-decoders|/api/city/.*/(agents|beads|mail|sessions|events|snapshot)" --glob '!**/*.md'`. It should now be clean except any intentionally-retained `getStatus` path. Report remaining matches.
+- Fix the doc contradiction in `direct-supervisor-client-migration.md` Phase 6: it claims `GcClient.listMail()` was deleted, but it currently exists. Update the doc to reflect the new reality after your deletions, and update the LOC-progress section.
+
+## Acceptance criteria
+
+- `npm run typecheck`, `npm run lint`, `npm --workspace backend test`, `npm --workspace frontend test`, and `npm --workspace shared` build/tests all pass.
+- The live `POST /api/city/:cityName/runs/:runId/diff` route still works (dolt-noms sampler and run-diff are the only backend GC-adjacent live surfaces that should remain).
+- The Phase 6 acceptance grep is clean except documented retained calls.
+- `git diff --stat` shows a net deletion in the multi-thousand-LOC range (production + tests); report the actual number against the plan's 3.8k–5.4k production / 4k–7k test targets.
+- `direct-supervisor-client-migration.md` Phase 6 status reflects what is actually in the tree.
+
+## Out of scope (do not do these)
+
+- No frontend feature changes. The `feature-gap-remediation-plan.md` frontend work is complete; its only open items (clock-based mail window / GC-13, threshold-constant tuning, richer rig grouping) are explicitly deferred and depend on upstream `gascity` work — leave them.
+- Do not add new `/api/*` GC mirror routes or shared supervisor DTO mirrors.
+- Do not push or open a PR unless the user asks.
+
+If at any point a deletion breaks a live consumer you didn't anticipate, stop and report the consumer rather than reworking the architecture to preserve the dead code.
+
+---
+
+Want me to tailor this further — e.g., split it into separate prompts per step, or add the exact verification commands as a runnable checklist?
