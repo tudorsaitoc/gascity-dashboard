@@ -77,6 +77,56 @@ export function isPerRigDispatcher(s: DashboardSession): boolean {
   return PER_RIG_DISPATCHER_RX.test(s.alias ?? '');
 }
 
+// ── Worker-session classification (Work-in-flight signal) ─────────────────
+//
+// The Work-in-flight section counts the live WORKER sessions, not the
+// in-progress beads: the work-beads churn to zero within seconds (focus-reviews
+// finish fast) and live in rig stores the dashboard's bead fetch doesn't
+// reliably aggregate, while the worker SESSIONS stay active across that churn.
+// A worker session is the stable "what is working" signal.
+//
+// Orchestration sessions (mayor, the global + per-rig control dispatchers, the
+// per-rig project leads, the oversight chief-of-staff) are excluded: they
+// direct work, they don't perform it. The exclusion reuses the orchestration
+// predicates above plus the role markers below.
+
+// A worker session's template/name ends in a worker/pool role — `polecat`,
+// `scix-worker`, `worker-1` — optionally with a numeric slot suffix, and may
+// carry a trailing `-gc-XXXXX` spawned-session handle. Anchored to the END so a
+// role like `oversight-worker-review` (not a worker) doesn't slip through on a
+// mid-string match.
+const WORKER_ROLE_RX = /(?:worker|polecat)(?:-\d+)?$/;
+
+// Per-rig orchestration markers that DON'T live in ORCHESTRATION_TEMPLATES
+// (which only covers the rig-less cross-rig set). A rig-scoped project-lead or
+// chief-of-staff directs that rig's work; it is not a worker.
+const RIG_ORCHESTRATION_RX = /(?:\.project-lead|chief-of-staff)$/;
+
+/**
+ * True when a session is a live worker actively performing work — the signal
+ * the Work-in-flight section counts. Requires state `active`, a worker/pool
+ * role in the template or runtime name, and that the session is NOT any flavour
+ * of orchestration (cross-rig, per-rig dispatcher, project-lead, chief-of-staff).
+ */
+export function isWorkerSession(s: DashboardSession): boolean {
+  if (s.state !== 'active') return false;
+  if (isOrchestrationSession(s) || isPerRigDispatcher(s)) return false;
+  const template = s.template ?? '';
+  const alias = s.alias ?? '';
+  if (RIG_ORCHESTRATION_RX.test(template) || RIG_ORCHESTRATION_RX.test(alias)) {
+    return false;
+  }
+  // The worker role can surface in the template (`polecat`, `scix-worker`) or,
+  // for a dynamically-spawned slot, in the runtime session_name
+  // (`polecat-gc-335825`). Strip any `-gc-XXXXX` handle first so the role
+  // anchor matches the cleaned name.
+  const sessionName = (s as { session_name?: string }).session_name ?? '';
+  const candidates = [template, alias, sessionName]
+    .filter((c) => c.length > 0)
+    .map((c) => cleanWorkerName(c));
+  return candidates.some((c) => WORKER_ROLE_RX.test(c));
+}
+
 function normalizeRigKey(name: string): string {
   return name.toLowerCase().replace(/_/g, '-');
 }

@@ -70,3 +70,33 @@ export function beadStatusTone(status: string): StatusTone {
       return 'warn';
   }
 }
+
+// Single source of truth for session/agent state → tone mapping. Aligned with
+// how the gc supervisor emits agent (and session) states. Unknown states
+// default to neutral so we don't lie about them. 'detached' is explicit (not a
+// silent default) so reviewers see the intent. Co-located with the other tone
+// mappers here so display components depend only on StatusBadge, not on the
+// Agents route (which would be an import cycle: Agents imports WorkInFlight,
+// WorkInFlight imported stateTone from Agents).
+export function stateTone(state: string): StatusTone {
+  switch (state) {
+    case 'active':
+    case 'running':
+      return 'ok';
+    case 'rate-limited':
+    case 'rate_limited':
+    case 'waiting':
+      return 'warn';
+    case 'failed':
+    case 'closed':
+    case 'errored':
+    case 'stuck':
+      return 'stuck';
+    case 'detached':
+    case 'asleep':
+    case 'idle':
+    case 'creating':
+    default:
+      return 'neutral';
+  }
+}

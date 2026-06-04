@@ -1,101 +1,69 @@
 import { Link } from 'react-router-dom';
-import {
-  deriveWorkInFlight,
-  type WorkInFlightRow,
-} from 'gas-city-dashboard-shared';
 import type { SupervisorBead } from '../supervisor/beadReads';
 import type { SupervisorSession } from '../supervisor/sessionReads';
 import { useNow } from '../contexts/NowContext';
 import { formatRelative } from '../hooks/time';
 import {
-  beadProject,
-  canonicalRigLabel,
-  cleanWorkerName,
-  sessionProject,
-} from '../hooks/projectOf';
-import { stateTone } from '../routes/Agents';
-import { StatusBadge } from './StatusBadge';
+  deriveActiveWorkers,
+  summarizeActiveWorkers,
+  type ActiveWorker,
+} from '../hooks/activeWorkers';
+import { StatusBadge, stateTone } from './StatusBadge';
 
-// Concrete row type for this surface — the shared generic specialized to the
-// generated supervisor wire types the dashboard actually holds.
-type Row = WorkInFlightRow<SupervisorBead, SupervisorSession>;
-
-// "Work in flight" — the operator's at-a-glance answer to "what is actually
-// working right now". Driven by the IN-PROGRESS BEADS (the real units of work),
-// each joined to its live worker session via the session id embedded in the
-// bead's assignee (see shared/work-in-flight.ts). One row per unit of work:
+// "Workers active" — the operator's calm at-a-glance answer to "what is
+// actually working right now".
 //
-//     <rig> · <role>  →  <bead-id>: <title>          [session state · 12m]
+// SESSION-DRIVEN, not bead-driven. The work-beads churn to zero within seconds
+// (focus-reviews finish fast) and live in rig stores the dashboard's bead fetch
+// doesn't reliably aggregate, while the worker SESSIONS stay active across that
+// churn. So the primary signal is the live worker sessions, grouped by rig:
 //
-// The roster (configured agent slots) is deliberately NOT the source: it
-// reports nearly every worker as stopped with no active bead because the live
-// work happens in dynamically-spawned sessions, not the slots.
+//     7 workers active across gascity (3), scix-experiments (3), gascity-packs (2).
+//
+// Per-worker rows below the summary, most-recently-active first:
+//
+//     gascity · polecat · 2m              [→ gc-5rarj: fix the thing]
+//
+// The bead is best-effort secondary context — attached only when an in-progress
+// bead's assignee embeds this session's id. The common case is no bead; the
+// worker being active IS the signal, so there is never an "unassigned" row.
 
 interface WorkInFlightProps {
   beads: readonly SupervisorBead[];
   sessions: readonly SupervisorSession[];
 }
 
-/**
- * The rig label for a row. Prefer the live session's rig (the authoritative
- * source once joined); fall back to the bead's project prefix when the session
- * didn't resolve. Both are run through canonicalRigLabel to strip a `-main`
- * build-tree/worktree suffix so the operator sees `gascity`, not `gascity-main`.
- */
-function rigLabelFor(row: Row): string {
-  if (row.session) {
-    return canonicalRigLabel(sessionProject(row.session).label);
-  }
-  return canonicalRigLabel(beadProject(row.bead));
-}
-
-/**
- * Clean worker label `<rig> · <role>` (e.g. `gascity · polecat`). The role is
- * the parsed assignee prefix, run through cleanWorkerName so any leaked path or
- * `-gc-XXXXX` session suffix is stripped. Falls back to just the rig when the
- * bead has no assignee/role.
- */
-function workerLabelFor(row: Row): string {
-  const rig = rigLabelFor(row);
-  if (!row.role) return rig;
-  const role = cleanWorkerName(row.role);
-  return role.length > 0 ? `${rig} · ${role}` : rig;
-}
-
-function WorkInFlightItem({ row }: { row: Row }) {
+function WorkerRow({ worker, accent }: { worker: ActiveWorker; accent: boolean }) {
   const now = useNow();
-  const worker = workerLabelFor(row);
-  const lastActivity = row.session?.last_active;
+  const { session, rig, bead } = worker;
+  // Workers being "active" is normal, not an alert. Per the One Mark Rule, only
+  // the FIRST stuck/failed worker (accent === true) renders its state badge in
+  // tone; every other worker reads as neutral state text so at most one maroon
+  // mark appears per viewport.
+  const tone = accent ? stateTone(session.state) : 'neutral';
   return (
     <li className="px-2 py-2 -mx-2 rounded-sm transition-colors duration-150 ease-out-quart hover:bg-surface-tint/60">
       <div className="flex items-baseline justify-between gap-4">
-        <div className="min-w-0">
-          <Link
-            to={`/beads?bead=${encodeURIComponent(row.bead.id)}`}
-            className="block text-body text-fg hover:text-accent focus-mark truncate"
-            title={`Open ${row.bead.id}`}
-          >
-            <span className="font-medium">{worker}</span>
-            <span className="text-fg-faint" aria-hidden="true"> → </span>
-            <span className="tnum text-fg-muted">{row.bead.id}</span>
-            <span className="text-fg-muted">: {row.bead.title}</span>
-          </Link>
+        <div className="min-w-0 text-body text-fg">
+          <span className="font-medium">{rig}</span>
+          <span className="text-fg-faint" aria-hidden="true"> · </span>
+          <span className="text-fg-muted">{worker.worker}</span>
+          {bead && (
+            <Link
+              to={`/beads?bead=${encodeURIComponent(bead.id)}`}
+              className="hover:text-accent focus-mark"
+              title={`Open ${bead.id}`}
+            >
+              <span className="text-fg-faint" aria-hidden="true"> → </span>
+              <span className="tnum text-fg-muted">{bead.id}</span>
+              <span className="text-fg-muted">: {bead.title}</span>
+            </Link>
+          )}
         </div>
         <div className="flex items-baseline gap-3 shrink-0">
-          {row.session ? (
-            <StatusBadge tone={stateTone(row.session.state)} label={row.session.state} />
-          ) : (
-            // The embedded session id didn't resolve to a live session: show the
-            // raw assignee so the work stays visible (degrade, never drop).
-            <span
-              className="text-label uppercase tracking-wider text-fg-faint truncate max-w-[16rem]"
-              title={row.assignee ? `assignee ${row.assignee}` : 'no live session'}
-            >
-              {row.assignee ? 'no live session' : 'unassigned'}
-            </span>
-          )}
+          <StatusBadge tone={tone} label={session.state} />
           <span className="tnum text-fg-muted w-10 text-right">
-            {formatRelative(lastActivity, now)}
+            {formatRelative(session.last_active, now)}
           </span>
         </div>
       </div>
@@ -104,22 +72,37 @@ function WorkInFlightItem({ row }: { row: Row }) {
 }
 
 export function WorkInFlight({ beads, sessions }: WorkInFlightProps) {
-  const rows = deriveWorkInFlight(beads, sessions);
+  const active = deriveActiveWorkers(sessions, beads);
+  const summary = summarizeActiveWorkers(active);
+
+  // One Mark Rule: render at most one accent state badge — the first worker
+  // whose state is stuck/failed (an actual anomaly). Every other worker's state
+  // is neutral, since an active worker is the expected, calm case.
+  const accentIndex = active.workers.findIndex(
+    (w) => stateTone(w.session.state) === 'stuck',
+  );
 
   return (
-    <section className="mb-10" aria-label="Work in flight">
+    <section className="mb-10" aria-label="Workers active">
       <header className="flex items-baseline justify-between border-b border-rule pb-2 mb-4">
-        <h2 className="text-headline text-fg">Work in flight</h2>
-        <span className="text-label tnum text-fg-muted">{rows.length}</span>
+        <h2 className="text-headline text-fg">Workers active</h2>
+        <span className="text-label tnum text-fg-muted">{active.total}</span>
       </header>
-      {rows.length === 0 ? (
-        <p className="text-body text-fg-muted">Nothing is in flight right now.</p>
+      {active.total === 0 ? (
+        <p className="text-body text-fg-muted">No workers active right now.</p>
       ) : (
-        <ul className="space-y-1">
-          {rows.map((row) => (
-            <WorkInFlightItem key={row.bead.id} row={row} />
-          ))}
-        </ul>
+        <>
+          <p className="text-body text-fg-muted mb-4">{summary}</p>
+          <ul className="space-y-1">
+            {active.workers.map((worker, i) => (
+              <WorkerRow
+                key={worker.session.id}
+                worker={worker}
+                accent={i === accentIndex}
+              />
+            ))}
+          </ul>
+        </>
       )}
     </section>
   );

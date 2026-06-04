@@ -93,6 +93,16 @@ In the meantime, every component built during initial implementation should sati
 - **One mark per region.** Maroon never appears twice in adjacent regions. If two regions both want emphasis, the page is unclear about what it is emphasising.
 - **States have words.** Hover, focus, selected, disabled, errored. Every state has a textual or glyph correlate. Color is the accelerator, not the carrier.
 
+### Workers active (Agents view)
+
+The calm "what is working right now" section at the top of the Agents view.
+
+- **Session-driven, not bead-driven.** It counts the live worker sessions, not the in-progress beads. The work-beads churn to zero within seconds (focus-reviews finish fast) and live in rig stores the dashboard's bead fetch doesn't reliably aggregate, while the worker sessions stay active across that churn. A worker session is the stable signal.
+- **Summary line.** One calm sentence: "N workers active across rig (n), rig (n), ..." — active worker sessions grouped by clean rig name, most workers first. Orchestration (mayor, control-dispatchers, project-leads, chief-of-staff) is excluded; it directs work, it doesn't perform it.
+- **Per-worker rows.** One row per active worker session: "rig · clean-worker · relative-activity". The worker name is cleaned (no path, no -gc-XXXXX session suffix). When an in-progress bead's assignee embeds that session id, the bead is appended as secondary context: "→ bead-id: title". The common case is no bead; the worker being active is the signal, so there is never an "unassigned" row.
+- **One mark.** An active worker is the normal, calm case, so worker state reads neutral. At most one accent (maroon) badge per viewport: only the first stuck/failed worker, an actual anomaly, renders its state in tone.
+- **Empty state.** "No workers active right now." Calm, not an alert.
+
 ## 6. Do's and Don'ts
 
 ### Do:

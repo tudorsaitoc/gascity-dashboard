@@ -6,7 +6,7 @@ import { BeadDetailModal } from '../components/BeadDetailModal';
 import { Button } from '../components/Button';
 import { PageHeader } from '../components/PageHeader';
 import { RelatedEntities } from '../components/RelatedEntities';
-import { StatusBadge } from '../components/StatusBadge';
+import { StatusBadge, stateTone } from '../components/StatusBadge';
 import { AgentBeadsAssigned } from '../components/agent/AgentBeadsAssigned';
 import { AgentChatThread } from '../components/agent/AgentChatThread';
 import { AgentDirectives, type AgentDirectivesError } from '../components/agent/AgentDirectives';
@@ -22,7 +22,6 @@ import { fetchSupervisorAgentPrime } from '../supervisor/agentReads';
 import { listSupervisorBeadsAssignedTo, type SupervisorBead } from '../supervisor/beadReads';
 import { listSupervisorMail, type SupervisorMailItem } from '../supervisor/mailReads';
 import { listSupervisorSessions, type SupervisorSession } from '../supervisor/sessionReads';
-import { stateTone } from './Agents';
 
 // Read-only drilldown for a single agent. Route: /agents/:slug where
 // slug resolves against session_name, alias, then id (see sessionSlug).

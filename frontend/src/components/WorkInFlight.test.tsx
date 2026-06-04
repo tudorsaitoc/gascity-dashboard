@@ -6,9 +6,10 @@ import { NowProvider } from '../contexts/NowContext';
 import type { SupervisorBead } from '../supervisor/beadReads';
 import type { SupervisorSession } from '../supervisor/sessionReads';
 
-// The Work-in-flight section is driven by the IN-PROGRESS beads joined to their
-// live worker session via the session id embedded in the assignee. These tests
-// use the real verified examples as fixtures (see shared/work-in-flight.ts).
+// The "Workers active" section is SESSION-driven: it counts the live worker
+// sessions, groups them by rig for the calm summary, and best-effort attaches an
+// in-progress bead when one is captured. Orchestration sessions are excluded;
+// an unassigned in-progress bead is NOT surfaced (the worker is the signal).
 
 function bead(partial: Partial<SupervisorBead> & { id: string }): SupervisorBead {
   return {
@@ -22,7 +23,7 @@ function bead(partial: Partial<SupervisorBead> & { id: string }): SupervisorBead
 
 function session(partial: Partial<SupervisorSession> & { id: string }): SupervisorSession {
   return {
-    template: 'worker',
+    template: 'polecat',
     session_name: partial.id,
     title: partial.id,
     state: 'active',
@@ -49,58 +50,70 @@ function renderSection(
 
 afterEach(() => cleanup());
 
-describe('WorkInFlight', () => {
-  it('renders a clean "<rig> · <role>" label, bead id + title, and live session state', () => {
-    const beads = [bead({ id: 'gc-5rarj', title: 'fix the thing', assignee: 'polecat-gc-335825' })];
-    const sessions = [session({ id: 'gc-335825', rig: '/home/ds/gascity', state: 'active' })];
-    renderSection(beads, sessions);
-
-    const link = screen.getByRole('link', { name: /gc-5rarj/ });
-    // Worker label is cleaned: rig basename + role (no path, no -gc suffix).
-    expect(link.textContent).toContain('gascity · polecat');
-    expect(link.textContent).toContain('gc-5rarj');
-    expect(link.textContent).toContain('fix the thing');
-    // Live session state badge present.
-    expect(screen.getByText('active')).toBeTruthy();
-    // Links to the bead board with the bead pre-selected.
-    expect(link.getAttribute('href')).toBe('/beads?bead=gc-5rarj');
-  });
-
-  it('strips a -main rig suffix in the worker label (gascity-main → gascity)', () => {
-    const beads = [bead({ id: 'gc-1', assignee: 'polecat-gc-2222' })];
-    const sessions = [session({ id: 'gc-2222', rig: '/home/ds/gascity-main' })];
-    renderSection(beads, sessions);
-    expect(screen.getByRole('link', { name: /gc-1/ }).textContent).toContain('gascity · polecat');
-  });
-
-  it('orders rows by most-recent session activity first', () => {
-    const beads = [
-      bead({ id: 'older-1', assignee: 'polecat-gc-100' }),
-      bead({ id: 'newer-2', assignee: 'worker-gc-200' }),
-    ];
+describe('WorkInFlight (Workers active)', () => {
+  it('renders the calm session-driven summary line grouped by rig', () => {
     const sessions = [
-      session({ id: 'gc-100', rig: 'gascity', last_active: '2026-06-03T10:00:00Z' }),
-      session({ id: 'gc-200', rig: 'scix', last_active: '2026-06-03T11:00:00Z' }),
+      session({ id: 'gc-1', template: 'polecat', rig: '/home/ds/gascity' }),
+      session({ id: 'gc-2', template: 'polecat', rig: '/home/ds/gascity' }),
+      session({ id: 'gc-3', template: 'polecat', rig: '/home/ds/gascity' }),
+      session({ id: 'gc-4', template: 'scix-worker', rig: 'scix_experiments' }),
+      session({ id: 'gc-5', template: 'scix-worker', rig: 'scix_experiments' }),
+      session({ id: 'gc-6', template: 'scix-worker', rig: 'scix_experiments' }),
+      session({ id: 'gc-7', template: 'polecat', rig: '/home/ds/gascity-packs-main' }),
+      session({ id: 'gc-8', template: 'polecat', rig: '/home/ds/gascity-packs-main' }),
+      session({ id: 'gc-9', template: 'worker', rig: 'zeldascension' }),
+      // Orchestration — excluded from the count.
+      session({ id: 'gc-m', template: 'mayor', rig: '' }),
     ];
+    renderSection([], sessions);
+    expect(screen.getByText('Workers active')).toBeTruthy();
+    expect(
+      screen.getByText(
+        '9 workers active across gascity (3), scix_experiments (3), gascity-packs (2), zeldascension (1).',
+      ),
+    ).toBeTruthy();
+  });
+
+  it('renders a per-worker row "<rig> · <clean-worker>" with relative activity', () => {
+    const sessions = [
+      session({
+        id: 'gc-335825',
+        template: 'polecat',
+        rig: '/home/ds/gascity-main',
+        last_active: '2026-06-03T00:00:00Z',
+      }),
+    ];
+    renderSection([], sessions);
+    // -main rig suffix stripped, role cleaned.
+    expect(screen.getByText('gascity')).toBeTruthy();
+    expect(screen.getByText('polecat')).toBeTruthy();
+  });
+
+  it('appends "→ <bead-id>: <title>" when an in-progress bead embeds the session id', () => {
+    const sessions = [session({ id: 'gc-335825', template: 'polecat', rig: 'gascity' })];
+    const beads = [bead({ id: 'gc-5rarj', title: 'fix the thing', assignee: 'polecat-gc-335825' })];
     renderSection(beads, sessions);
-    const links = screen.getAllByRole('link');
-    expect(links[0]?.textContent).toContain('newer-2');
-    expect(links[1]?.textContent).toContain('older-1');
+    const link = screen.getByRole('link', { name: /gc-5rarj/ });
+    expect(link.getAttribute('href')).toBe('/beads?bead=gc-5rarj');
+    expect(link.textContent).toContain('fix the thing');
   });
 
-  it('degrades gracefully when the embedded session id does not resolve (keeps the row)', () => {
-    const beads = [bead({ id: 'EnterpriseBench-mda', assignee: 'enterprisebench-worker-gc-335808' })];
-    renderSection(beads, []); // no live session for gc-335808
-    const link = screen.getByRole('link', { name: /EnterpriseBench-mda/ });
-    // Falls back to the bead-derived rig + parsed role; no live state badge.
-    expect(link.textContent).toContain('EnterpriseBench · enterprisebench-worker');
-    expect(screen.getByText(/no live session/i)).toBeTruthy();
+  it('does NOT surface an unassigned in-progress bead as a row', () => {
+    const sessions = [session({ id: 'gc-1', template: 'polecat', rig: 'gascity' })];
+    // A stalled, unassigned in-progress bead is not a working worker.
+    renderSection([bead({ id: 'gc-stalled' })], sessions);
+    expect(screen.queryByText(/gc-stalled/)).toBeNull();
+    // No bead link rendered for the worker without a captured bead.
+    expect(screen.queryByRole('link')).toBeNull();
   });
 
-  it('shows a calm empty state when nothing is in flight', () => {
-    const beads = [bead({ id: 'open-1', status: 'open', assignee: 'polecat-gc-1' })];
-    renderSection(beads, []);
-    expect(screen.getByText('Nothing is in flight right now.')).toBeTruthy();
+  it('shows the calm empty state when no workers are active', () => {
+    // Only orchestration + an in-progress bead present: still empty.
+    renderSection(
+      [bead({ id: 'gc-1', assignee: 'polecat-gc-1' })],
+      [session({ id: 'gc-m', template: 'mayor', rig: '' })],
+    );
+    expect(screen.getByText('No workers active right now.')).toBeTruthy();
     expect(screen.queryByRole('link')).toBeNull();
   });
 });

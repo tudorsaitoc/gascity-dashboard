@@ -11,7 +11,7 @@ import { PartialDataNotice } from '../components/PartialDataNotice';
 import { WorkInFlight } from '../components/WorkInFlight';
 import { LiveSessionPeek, isAgentStreamable } from '../components/LiveSessionPeek';
 import { SseIndicator } from '../components/SseIndicator';
-import { StatusBadge, type StatusTone } from '../components/StatusBadge';
+import { StatusBadge, stateTone } from '../components/StatusBadge';
 import { Table, type TableColumn } from '../components/Table';
 import { useNow } from '../contexts/NowContext';
 import { useCachedData } from '../hooks/useCachedData';
@@ -53,6 +53,19 @@ export function isRunningAgent(a: SupervisorAgent): boolean {
   return !a.suspended && (a.state === 'active' || a.state === 'running' || a.running === true);
 }
 
+// Whether an agent is visible while the 'running' toggle is on. Running agents
+// always show; a non-running agent shows ONLY if it has an urgent ('attention')
+// item (e.g. blocked on a pending interaction) so a genuinely stuck agent is
+// never hidden. A passive 'watch' item (suspended / asleep / idle) does NOT
+// keep a non-running agent visible — keying on any-non-null severity is what
+// let a suspended=true agent leak through the 'running' filter.
+export function isVisibleUnderRunning(
+  a: SupervisorAgent,
+  severity: 'attention' | 'watch' | null,
+): boolean {
+  return isRunningAgent(a) || severity === 'attention';
+}
+
 // Display label for the row: 'rig · agent' (e.g. 'gascity-packs · polecat-1').
 // Agents outside a rig (cross-rig orchestration or the residual no-rig
 // bucket) carry no rig prefix — just the (cleaned) alias. The alias is run
@@ -79,12 +92,12 @@ export function AgentsPage() {
   // Fetch the sessions list in parallel so we can map agent.session.name
   // -> session.id at peek time.
   const sessionsCache = useCachedData('sessions', listSupervisorSessions);
-  // Work-in-flight is driven by the IN-PROGRESS beads, NOT the agent roster
-  // (the roster reports nearly every worker as stopped with no active bead,
-  // because live work runs in dynamically-spawned sessions). The default
-  // listSupervisorBeads() returns the non-closed engineering beads, from which
-  // the WorkInFlight section keeps only the in-progress units and joins each to
-  // its live session via the session id embedded in the assignee.
+  // The "Workers active" section is SESSION-driven: it counts the live worker
+  // sessions (stable across the bead churn), grouped by rig. Beads are fetched
+  // as best-effort secondary context only — when an in-progress bead's assignee
+  // embeds a worker session's id, the section appends it to that worker's row.
+  // The beads churn to zero within seconds and aren't reliably aggregated, so a
+  // worker with no captured bead is the common (and still-valid) case.
   const beadsCache = useCachedData('beads:in-flight', () => listSupervisorBeads());
   const rows = useMemo<SupervisorAgent[]>(() => data?.items ?? [], [data]);
   const sessionIds = useMemo(
@@ -190,11 +203,12 @@ export function AgentsPage() {
     const q = search.trim().toLowerCase();
     return rows.filter((a) => {
       if (rigFilter !== '' && agentProject(a).label !== rigFilter) return false;
-      // Always surface agents that need attention (e.g. blocked on a pending
-      // interaction) — they must never be hidden by the 'running' default,
-      // since a stuck agent is usually NOT running.
-      const needsAttention = resourceAttentionSeverity(attention, 'agents', a.name) !== null;
-      if (runningOnly && !isRunningAgent(a) && !needsAttention) return false;
+      // Only 'attention' severity (e.g. blocked on a pending interaction)
+      // bypasses the 'running' filter, never a passive 'watch' (suspended /
+      // asleep / idle). Keying on any-non-null severity is what let a
+      // suspended=true agent leak through the toggle. See isVisibleUnderRunning.
+      const severity = resourceAttentionSeverity(attention, 'agents', a.name);
+      if (runningOnly && !isVisibleUnderRunning(a, severity)) return false;
       if (q.length === 0) return true;
       return AGENT_SEARCH_FIELDS(a).some((field) => field.toLowerCase().includes(q));
     });
@@ -550,32 +564,10 @@ async function copyAttachCommand(
   }
 }
 
-// Single source of truth for state → tone mapping. Aligned with how the
-// gc supervisor emits agent (and session) states. Unknown states default
-// to neutral so we don't lie about them. 'detached' is explicit (not a
-// silent default) so reviewers see the intent.
-export function stateTone(state: string): StatusTone {
-  switch (state) {
-    case 'active':
-    case 'running':
-      return 'ok';
-    case 'rate-limited':
-    case 'rate_limited':
-    case 'waiting':
-      return 'warn';
-    case 'failed':
-    case 'closed':
-    case 'errored':
-    case 'stuck':
-      return 'stuck';
-    case 'detached':
-    case 'asleep':
-    case 'idle':
-    case 'creating':
-    default:
-      return 'neutral';
-  }
-}
+// stateTone moved to components/StatusBadge.tsx (alongside StatusTone /
+// beadStatusTone) to break the Agents → WorkInFlight → Agents import cycle.
+// Re-exported here so existing importers of `./Agents` keep working.
+export { stateTone } from '../components/StatusBadge';
 
 // Buckets a raw state into the synopsis category. Distinct from
 // stateTone because 'detached' and 'idle' share a tone (neutral) but the

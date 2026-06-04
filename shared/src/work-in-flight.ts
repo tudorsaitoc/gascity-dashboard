@@ -64,7 +64,13 @@ const ASSIGNEE_SESSION_ID_RX =
 // alphabet as ASSIGNEE_SESSION_ID_RX but whole-string. NOT SESSION_ID_RE: that
 // validator permits internal hyphens in the body, which would let a composite
 // like `scix-worker-gc-335812` masquerade as one bare handle.
-const BARE_SESSION_ID_RX = /^(?:gc|td|th|[a-z]{4})-[a-z0-9]{1,32}$/;
+//
+// The id body MUST contain at least one digit. Live session ids always carry a
+// numeric handle (`gc-335825`, `td-9abc`); a plain 4-letter-prefixed *role* like
+// `scix-worker` would otherwise match (`scix` prefix + `worker` body) and be
+// misparsed as a bare session id. Requiring a digit keeps roles out.
+const BARE_SESSION_ID_RX =
+  /^(?:gc|td|th|[a-z]{4})-[a-z0-9]*[0-9][a-z0-9]*$/;
 
 export interface ParsedAssignee {
   /** The extracted live session id (e.g. `gc-335825`), or undefined when the

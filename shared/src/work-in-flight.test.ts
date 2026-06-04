@@ -75,6 +75,13 @@ test('parseAssignee falls back to the whole string when no session handle is pre
   });
 });
 
+test('parseAssignee does NOT misparse a plain role as a bare session id', () => {
+  // `scix-worker` is a worker ROLE, not a session id: its body has no digit, so
+  // the bare-handle branch must reject it and leave sessionId undefined. (A live
+  // session id always carries a numeric handle, e.g. `gc-335812`.)
+  assert.deepEqual(parseAssignee('scix-worker'), { role: 'scix-worker' });
+});
+
 test('parseAssignee trims surrounding whitespace', () => {
   assert.deepEqual(parseAssignee('  polecat-gc-335825  '), {
     role: 'polecat',

@@ -1,6 +1,12 @@
 import { describe, expect, it } from 'vitest';
 import type { AgentResponse } from '../generated/gc-supervisor-client/types.gen';
-import { agentRowLabel, buildAgentSynopsis, isRunningAgent, stateTone } from './Agents';
+import {
+  agentRowLabel,
+  buildAgentSynopsis,
+  isRunningAgent,
+  isVisibleUnderRunning,
+  stateTone,
+} from './Agents';
 
 // gascity-dashboard-fgzf: the Agents view was reverted from the flat
 // sortable/filterable table (chips + sort + rig dropdown) to the older,
@@ -42,6 +48,30 @@ describe('isRunningAgent', () => {
   it('never counts a suspended agent as running, even if its state reads alive', () => {
     expect(isRunningAgent(mkAgent('active', { suspended: true }))).toBe(false);
     expect(isRunningAgent(mkAgent('detached', { running: true, suspended: true }))).toBe(false);
+  });
+});
+
+describe('isVisibleUnderRunning', () => {
+  it('shows running agents regardless of attention severity', () => {
+    expect(isVisibleUnderRunning(mkAgent('active'), null)).toBe(true);
+    expect(isVisibleUnderRunning(mkAgent('running'), 'watch')).toBe(true);
+  });
+
+  it('excludes a suspended agent under the running filter even with a watch item', () => {
+    // Regression: /home/ds/gas-city/city-infra-polecat was suspended=true,
+    // running=false, state=suspended, yet showed under 'running'. The registry
+    // raises a passive 'watch' (idle) item for suspended agents; keying the
+    // carve-out on any-non-null severity kept it visible. Only 'attention'
+    // should bypass the filter.
+    const suspended = mkAgent('suspended', { suspended: true, running: false });
+    expect(isVisibleUnderRunning(suspended, 'watch')).toBe(false);
+    expect(isVisibleUnderRunning(suspended, null)).toBe(false);
+  });
+
+  it('still surfaces a non-running agent that has an urgent attention item', () => {
+    // A stuck agent blocked on a pending interaction is usually NOT running but
+    // must never be hidden by the 'running' default.
+    expect(isVisibleUnderRunning(mkAgent('asleep'), 'attention')).toBe(true);
   });
 });
 

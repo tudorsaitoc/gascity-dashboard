@@ -9,10 +9,27 @@ import {
   isOrchestrationAgent,
   isOrchestrationSession,
   isPerRigDispatcherAgent,
+  isWorkerSession,
   mailProject,
   orchestrationLabel,
   sessionProject,
 } from './projectOf';
+import type { GcSession } from 'gas-city-dashboard-shared';
+
+function gcSession(partial: Partial<GcSession>): GcSession {
+  return {
+    id: partial.id ?? 'gc-1',
+    template: '',
+    session_name: partial.id ?? 'gc-1',
+    title: '',
+    state: 'active',
+    created_at: '2026-06-03T00:00:00Z',
+    attached: false,
+    running: true,
+    provider: 'claude',
+    ...partial,
+  } as GcSession;
+}
 
 // The cross-rig orchestration bucket now LABELS with the active city name
 // (the operator thinks "the city", not "Orchestration"); the KEY stays the
@@ -284,5 +301,57 @@ describe('cleanWorkerName', () => {
 
   it('trims surrounding whitespace', () => {
     expect(cleanWorkerName('  polecat-gc-335825  ')).toBe('polecat');
+  });
+});
+
+describe('isWorkerSession', () => {
+  it('counts active polecat / worker sessions', () => {
+    expect(isWorkerSession(gcSession({ template: 'polecat', rig: 'gascity' }))).toBe(true);
+    expect(isWorkerSession(gcSession({ template: 'scix-worker', rig: 'scix' }))).toBe(true);
+    expect(isWorkerSession(gcSession({ template: 'worker-1', rig: 'geo' }))).toBe(true);
+  });
+
+  it('counts a dynamically-spawned slot named by its session handle', () => {
+    expect(
+      isWorkerSession(
+        gcSession({
+          template: 'pool',
+          session_name: 'polecat-gc-335825',
+          rig: 'gascity',
+        }),
+      ),
+    ).toBe(true);
+  });
+
+  it('excludes a worker session that is not active', () => {
+    expect(
+      isWorkerSession(gcSession({ template: 'polecat', rig: 'gascity', state: 'asleep' })),
+    ).toBe(false);
+    expect(
+      isWorkerSession(gcSession({ template: 'polecat', rig: 'gascity', state: 'closed' })),
+    ).toBe(false);
+  });
+
+  it('excludes cross-rig orchestration (mayor, control-dispatcher, chief-of-staff)', () => {
+    expect(isWorkerSession(gcSession({ template: 'mayor', rig: '' }))).toBe(false);
+    expect(isWorkerSession(gcSession({ template: 'control-dispatcher', rig: '' }))).toBe(false);
+    expect(
+      isWorkerSession(gcSession({ template: 'oversight-rig.chief-of-staff', rig: '' })),
+    ).toBe(false);
+  });
+
+  it('excludes per-rig dispatchers and project-leads', () => {
+    expect(
+      isWorkerSession(
+        gcSession({ template: 'worker', rig: 'gascity', alias: 'gascity/control-dispatcher' }),
+      ),
+    ).toBe(false);
+    expect(
+      isWorkerSession(gcSession({ template: 'gascity.project-lead', rig: 'gascity' })),
+    ).toBe(false);
+  });
+
+  it('excludes a non-worker rig session (no worker/pool role)', () => {
+    expect(isWorkerSession(gcSession({ template: 'reviewer', rig: 'gascity' }))).toBe(false);
   });
 });

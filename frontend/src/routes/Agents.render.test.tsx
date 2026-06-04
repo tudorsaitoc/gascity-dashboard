@@ -115,9 +115,10 @@ function stubFetch(options: StubFetchOptions = {}) {
           },
         });
       }
-      // Work-in-flight section fans out typed bead queries (feature/bug/task).
-      // None of the post-ay6 regression cases assert on it, so return an empty
-      // board — the section renders its calm "Nothing is in flight" empty state.
+      // The "Workers active" section reads sessions (+ beads as best-effort
+      // context). None of the post-ay6 regression cases assert on it; the stub
+      // sessions list carries only orchestration, so it renders its calm
+      // "No workers active right now." empty state.
       if (url.startsWith('/gc-supervisor/v0/city/test-city/beads') && method === 'GET') {
         return jsonResponse({ items: [], total: 0 });
       }
