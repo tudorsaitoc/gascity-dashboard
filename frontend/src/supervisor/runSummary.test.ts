@@ -202,6 +202,30 @@ describe('loadSupervisorRunSummarySource', () => {
     expect(source.data.lanesPartial).toBe(true);
   });
 
+  it('does not let optional enrichment reads hold the summary refresh indefinitely', async () => {
+    const listBeads = vi.fn(async (_cityName: string, query?: Record<string, unknown>) => {
+      if (query?.type === 'molecule') return new Promise<ListBodyBead>(() => {});
+      if (query?.rig === 'rig-a') return beadList([]);
+      return beadList([runRoot()]);
+    });
+    const formulaFeed = vi.fn(async () => new Promise<FormulaFeedBody>(() => {}));
+    setSupervisorApiForTests({
+      ...baseApi,
+      listBeads,
+      formulaFeed,
+      listSessions: vi.fn(async () => sessionList()),
+    });
+
+    const pending = loadSupervisorRunSummarySource();
+    await vi.advanceTimersByTimeAsync(2_500);
+    const source = await pending;
+
+    expect(source.status).toBe('fresh');
+    if (source.status === 'error') throw new Error(source.error);
+    expect(source.data.totalActive).toBe(1);
+    expect(source.data.lanesPartial).toBe(true);
+  });
+
   it('returns an error source when the active bead list fails', async () => {
     setSupervisorApiForTests({
       ...baseApi,

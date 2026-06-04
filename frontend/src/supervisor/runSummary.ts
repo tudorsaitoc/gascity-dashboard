@@ -31,6 +31,7 @@ import { supervisorApi } from './client';
 const RUNS_FETCH_LIMIT = 1_000;
 const RECENT_RUN_FETCH_LIMIT = 80;
 const RUNS_STALE_AFTER_MS = 60 * 1000;
+const OPTIONAL_ENRICHMENT_TIMEOUT_MS = 2_500;
 
 interface LoadedRunBeads {
   beads: GcBead[];
@@ -170,7 +171,10 @@ async function settledRecentFetch(
   query: { limit: number; type: string; all: true; rig?: string },
 ): Promise<RecentFetchOutcome> {
   try {
-    const list = await supervisorApi().listBeads(cityName, query);
+    const list = await withOptionalReadBudget(
+      supervisorApi().listBeads(cityName, query),
+      `recent ${query.type} beads`,
+    );
     return {
       ok: true,
       items: normalizeBeads(list.items ?? []),
@@ -189,10 +193,13 @@ interface FeedDiscovery {
 
 async function discoverFromFeed(cityName: string): Promise<FeedDiscovery> {
   try {
-    const runs = await supervisorApi().formulaFeed(cityName, {
-      scope_kind: 'city',
-      scope_ref: cityName,
-    });
+    const runs = await withOptionalReadBudget(
+      supervisorApi().formulaFeed(cityName, {
+        scope_kind: 'city',
+        scope_ref: cityName,
+      }),
+      'formula feed',
+    );
     const rigNames = new Set<string>();
     const scopes = new Map<string, RunFeedScope>();
     for (const run of runs.items ?? []) {
@@ -219,7 +226,10 @@ async function discoverFromFeed(cityName: string): Promise<FeedDiscovery> {
 
 async function loadRunSessions(cityName: string): Promise<RunSessionsLookup> {
   try {
-    const list = await supervisorApi().listSessions(cityName);
+    const list = await withOptionalReadBudget(
+      supervisorApi().listSessions(cityName),
+      'run sessions',
+    );
     return {
       kind: 'available',
       sessions: normalizeSessions(list),
@@ -278,6 +288,21 @@ function unionRigNames(a: readonly string[], b: readonly string[]): string[] {
   for (const name of a) all.add(name);
   for (const name of b) all.add(name);
   return [...all];
+}
+
+function withOptionalReadBudget<T>(promise: Promise<T>, label: string): Promise<T> {
+  let timeout: ReturnType<typeof setTimeout> | null = null;
+  const budget = new Promise<T>((_, reject) => {
+    timeout = setTimeout(() => {
+      reject(new Error(`${label} timed out after ${OPTIONAL_ENRICHMENT_TIMEOUT_MS}ms`));
+    }, OPTIONAL_ENRICHMENT_TIMEOUT_MS);
+  });
+  return Promise.race([
+    promise.finally(() => {
+      if (timeout !== null) clearTimeout(timeout);
+    }),
+    budget,
+  ]);
 }
 
 function uniqueBeads(beads: readonly GcBead[]): GcBead[] {

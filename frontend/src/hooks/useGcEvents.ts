@@ -25,6 +25,8 @@ export interface GcEventRefreshOptions {
   matches?: (event: GcEventEnvelope) => boolean;
 }
 
+const CONNECTING_GRACE_MS = 2_000;
+
 /**
  * Subscribe to gc events. When an event whose type starts with any of
  * `prefixes` arrives, `onMatch` is invoked. Designed for "refresh this
@@ -63,10 +65,16 @@ export function useGcEventRefresh(
     let es: EventSource | null = null;
     let cancelled = false;
     let retryTimer: ReturnType<typeof setTimeout> | null = null;
+    let connectGraceTimer: ReturnType<typeof setTimeout> | null = null;
     let retryDelayMs = 1_000;
     let malformedEventReported = false;
 
     const COALESCE_MS = 2_500;
+    const clearConnectGraceTimer = () => {
+      if (connectGraceTimer === null) return;
+      clearTimeout(connectGraceTimer);
+      connectGraceTimer = null;
+    };
     const reportMalformedEventOnce = (reason: string) => {
       if (malformedEventReported) return;
       malformedEventReported = true;
@@ -109,10 +117,16 @@ export function useGcEventRefresh(
       }
       // The browser sends Last-Event-ID automatically on reconnect; the
       // supervisor event stream accepts that header directly.
-      es = new EventSourceCtor(supervisorApi().cityEventStreamUrl(cityName));
+      const source = new EventSourceCtor(supervisorApi().cityEventStreamUrl(cityName));
+      es = source;
       setState('connecting');
+      connectGraceTimer = setTimeout(() => {
+        if (cancelled || es !== source || source.readyState === EventSourceCtor.CLOSED) return;
+        setState('open');
+      }, CONNECTING_GRACE_MS);
       es.onopen = () => {
         if (cancelled) return;
+        clearConnectGraceTimer();
         setState('open');
         retryDelayMs = 1_000;
       };
@@ -156,6 +170,7 @@ export function useGcEventRefresh(
       es.addEventListener('event', handleData as EventListener);
       es.onerror = () => {
         if (cancelled) return;
+        clearConnectGraceTimer();
         setState('closed');
         es?.close();
         es = null;
@@ -172,6 +187,7 @@ export function useGcEventRefresh(
     return () => {
       cancelled = true;
       if (retryTimer) clearTimeout(retryTimer);
+      clearConnectGraceTimer();
       if (coalesceTimerRef.current) {
         clearTimeout(coalesceTimerRef.current);
         coalesceTimerRef.current = null;

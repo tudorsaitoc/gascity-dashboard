@@ -125,6 +125,20 @@ describe("useGcEventRefresh", () => {
     expect(result.current).toBe("closed");
   });
 
+  it("does not leave a quiet supervisor stream showing connecting indefinitely", () => {
+    vi.useFakeTimers();
+
+    const { result } = renderHook(() =>
+      useGcEventRefresh([GC_EVENT_PREFIX.bead], vi.fn()),
+    );
+
+    expect(result.current).toBe("connecting");
+    act(() => { vi.advanceTimersByTime(1_999); });
+    expect(result.current).toBe("connecting");
+    act(() => { vi.advanceTimersByTime(1); });
+    expect(result.current).toBe("open");
+  });
+
   it("does not open a city event stream when no prefixes are requested", () => {
     const { result } = renderHook(() => useGcEventRefresh([], vi.fn()));
 
