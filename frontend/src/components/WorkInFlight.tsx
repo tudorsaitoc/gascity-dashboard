@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import type { SupervisorBead } from '../supervisor/beadReads';
 import type { SupervisorSession } from '../supervisor/sessionReads';
@@ -104,20 +104,28 @@ function isWorkerStreamable(session: SupervisorSession): boolean {
 }
 
 export function WorkInFlight({ beads, sessions }: WorkInFlightProps) {
-  const active = deriveActiveWorkers(sessions, beads);
-  const summary = summarizeActiveWorkers(active);
+  // Memoized on the fetched inputs: the parent AgentsPage re-renders every
+  // second on the useNow tick, and the derivation walks the full bead +
+  // session lists — only recompute when a fetch/SSE refresh changes them.
+  const active = useMemo(() => deriveActiveWorkers(sessions, beads), [sessions, beads]);
+  const summary = useMemo(() => summarizeActiveWorkers(active), [active]);
 
   // Peek key is the worker's live session id (directly available on the row).
   const [peekSessionId, setPeekSessionId] = useState<string | null>(null);
-  const peekWorker = peekSessionId
-    ? active.workers.find((w) => w.session.id === peekSessionId) ?? null
-    : null;
+  const peekWorker = useMemo(
+    () =>
+      peekSessionId
+        ? (active.workers.find((w) => w.session.id === peekSessionId) ?? null)
+        : null,
+    [active.workers, peekSessionId],
+  );
 
   // One Mark Rule: render at most one accent state badge — the first worker
   // whose state is stuck/failed (an actual anomaly). Every other worker's state
   // is neutral, since an active worker is the expected, calm case.
-  const accentIndex = active.workers.findIndex(
-    (w) => stateTone(w.session.state) === 'stuck',
+  const accentIndex = useMemo(
+    () => active.workers.findIndex((w) => stateTone(w.session.state) === 'stuck'),
+    [active.workers],
   );
 
   return (
