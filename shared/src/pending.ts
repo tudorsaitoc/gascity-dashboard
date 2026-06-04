@@ -15,7 +15,7 @@
 
 import type { AlertItem } from './alert.js';
 import { makeAlertDedupKey } from './alert.js';
-import type { IsoTimestamp } from './gc-client-types.js';
+import type { IsoTimestamp } from './dashboard-sessions.js';
 import type { SourceStatus } from './snapshot/types.js';
 
 export interface PendingInteraction {

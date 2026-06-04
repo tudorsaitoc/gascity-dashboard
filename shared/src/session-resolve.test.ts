@@ -6,7 +6,7 @@
 import { test, describe } from 'node:test';
 import assert from 'node:assert/strict';
 import { resolveSessionForTarget, lastSegment } from './session-resolve.js';
-import type { DashboardSession } from './gc-client-types.js';
+import type { DashboardSession } from './dashboard-sessions.js';
 
 function sess(partial: Partial<DashboardSession> & { id: string }): DashboardSession {
   return {

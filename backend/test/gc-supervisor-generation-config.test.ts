@@ -21,8 +21,8 @@ const frontendGeneratedClientUrl = new URL(
   import.meta.url,
 );
 const sharedIndexUrl = new URL('../../shared/src/index.ts', import.meta.url);
-const sharedGcBeadsUrl = new URL('../../shared/src/gc-beads.ts', import.meta.url);
-const sharedGcClientTypesUrl = new URL('../../shared/src/gc-client-types.ts', import.meta.url);
+const sharedDashboardBeadsUrl = new URL('../../shared/src/dashboard-beads.ts', import.meta.url);
+const sharedDashboardSessionsUrl = new URL('../../shared/src/dashboard-sessions.ts', import.meta.url);
 const sharedAgentsUrl = new URL('../../shared/src/gc-agents.ts', import.meta.url);
 const sharedRigsUrl = new URL('../../shared/src/gc-rigs.ts', import.meta.url);
 const sharedFormulaRunsUrl = new URL('../../shared/src/formula-runs.ts', import.meta.url);
@@ -287,7 +287,7 @@ test('GcClient is limited to dashboard host-local supervisor reads', async () =>
 
 test('Maintainer sling does not reintroduce backend supervisor DTOs or GcClient writes', async () => {
   const clientSource = await readFile(gcClientUrl, 'utf8');
-  const sharedClientTypes = await readFile(sharedGcClientTypesUrl, 'utf8');
+  const sharedClientTypes = await readFile(sharedDashboardSessionsUrl, 'utf8');
   const sharedIndex = await readFile(sharedIndexUrl, 'utf8');
 
   assert.doesNotMatch(clientSource, /\bpostV0CityByCityNameSling\b/);
@@ -299,8 +299,8 @@ test('Maintainer sling does not reintroduce backend supervisor DTOs or GcClient 
 });
 
 test('shared projection inputs do not use Gc-named supervisor mirror types', async () => {
-  const sharedBeads = await readFile(sharedGcBeadsUrl, 'utf8');
-  const sharedClientTypes = await readFile(sharedGcClientTypesUrl, 'utf8');
+  const sharedBeads = await readFile(sharedDashboardBeadsUrl, 'utf8');
+  const sharedClientTypes = await readFile(sharedDashboardSessionsUrl, 'utf8');
 
   assert.doesNotMatch(sharedBeads, /\bGcBead\b/);
   assert.doesNotMatch(sharedBeads, /\bGcBeadList\b/);

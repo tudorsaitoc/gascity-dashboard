@@ -1,6 +1,6 @@
 // Dashboard-owned session projection used by pure selectors and view-model
 // helpers. Supervisor `SessionResponse` values are normalized into this shape
-// at frontend/backend edges; shared modules do not import or own the generated
+// at frontend edges; shared modules do not import or own the generated
 // supervisor type.
 //
 // 9yj.1.1: extracted from `shared/src/index.ts` to break a type-only cycle
@@ -15,7 +15,7 @@
 // the cycle this file exists to prevent. Keep it as a leaf node in the
 // module graph.
 
-import type { GcCountedList } from './lists.js';
+import type { CountedList } from './lists.js';
 
 export type IsoTimestamp = string;
 export type SessionId = string;
@@ -60,4 +60,4 @@ export interface DashboardSession {
   provider: string;
 }
 
-export type DashboardSessionList = GcCountedList<DashboardSession>;
+export type DashboardSessionList = CountedList<DashboardSession>;

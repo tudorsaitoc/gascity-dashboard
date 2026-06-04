@@ -1,7 +1,9 @@
 # Direct Supervisor Client Migration
 
 Date: 2026-06-01
-Status: In progress
+Status: Archived; direct-supervisor boundary migration completed in this
+standalone dashboard branch. Durable architecture now lives in
+[`../../architecture/direct-supervisor-boundary.md`](../../architecture/direct-supervisor-boundary.md).
 
 ## Goal
 
@@ -60,7 +62,7 @@ cache, rename, or otherwise own supervisor DTOs.
 
 When direct use is blocked because the supervisor does not expose a needed
 capability or its OpenAPI schema is inaccurate, add or update the gap in
-[`../gc-supervisor-api-gaps.md`](../gc-supervisor-api-gaps.md), then implement
+[`../gc-supervisor-api-gaps.md`](../../gc-supervisor-api-gaps.md), then implement
 the fix in `gastownhall/gascity`. The dashboard may carry temporary migration
 glue, but that glue must include a deletion condition tied to the upstream gap.
 
@@ -116,7 +118,7 @@ glue, but that glue must include a deletion condition tied to the upstream gap.
    - Prefer supervisor-owned run snapshot, formula detail, session identity,
      and graph presentation fields.
    - Keep local view-model derivation only where
-     [`../gc-supervisor-api-gaps.md`](../gc-supervisor-api-gaps.md) says the
+     [`../gc-supervisor-api-gaps.md`](../../gc-supervisor-api-gaps.md) says the
      supervisor does not yet expose the canonical shape.
    - Keep execution-folder git diff in the dashboard service; it is local
      filesystem evidence, not a supervisor responsibility.
@@ -441,14 +443,13 @@ net removed**, before counting tests. Test and fixture deletion should be
 larger, likely **4k-7k LOC**, because mocked backend routes for supervisor
 resources disappear.
 
-Measured progress in this branch already removes about **2.4k+ LOC** from the
-main deletion pool before counting tests: selected GC mirror routes shrink by
-about 1.2k LOC, shared supervisor mirror leaves by about 420 LOC,
-`GcClient`/decoder code by about 670 LOC, and GC-specific frontend API client
-code by about 140 LOC before the final prime-route deletion. The remaining
-savings come from deleting the transitional `GcClient`/decoder tail and
-composed backend snapshot/run mirrors once their client-side or
-upstream-supervisor replacements are complete.
+This branch completed the planned deletion pool for the standalone dashboard:
+browser-facing supervisor entity routes, shared supervisor mirror leaves, the
+decoder tail, the backend snapshot/run mirror, the old TUI workspace, and the
+final prime-route subprocess path are gone. The remaining code is either
+dashboard-local service surface, transport-only proxying, host-local
+status/city discovery, or browser/shared projection code with upstream deletion
+conditions.
 
 The reliability improvement is qualitative as much as numeric:
 

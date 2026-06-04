@@ -1,6 +1,6 @@
 import type {
-  GcFormulaDetail,
-  GcRunBead,
+  FormulaDetail,
+  RunSnapshotBead,
 } from '../run-snapshot.js';
 import type {
   RunFormulaSource,
@@ -25,7 +25,7 @@ export interface ResolvedRunFormulaIdentity {
 
 export interface ResolveRunFormulaIdentityInput {
   root?: RunFormulaRootLike | undefined;
-  formulaDetail?: Pick<GcFormulaDetail, 'name'> | undefined;
+  formulaDetail?: Pick<FormulaDetail, 'name'> | undefined;
   issues?: readonly RunFormulaRootLike[];
 }
 
@@ -85,7 +85,7 @@ export interface ResolvedRunFormulaName {
  * resolution path with the source label of another.
  */
 export function resolveRunFormulaName(
-  root: GcRunBead | undefined,
+  root: RunSnapshotBead | undefined,
 ): ResolvedRunFormulaName | null {
   if (!root) return null;
   const explicit = meta(root, 'gc.formula');

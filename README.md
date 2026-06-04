@@ -55,8 +55,18 @@ For systemd-managed install: [`deploy/README.md`](deploy/README.md).
 ```bash
 npm run lint       # ESLint, zero warnings allowed
 npm run typecheck  # source + test TypeScript checks
+npm --workspace shared test
 npm --workspace frontend test
 npm --workspace backend test
+npm --workspace frontend run build
+npm run openapi:gc-supervisor:check
+```
+
+When backend and frontend dev servers are running against a reachable
+supervisor, run the browser smoke harness too:
+
+```bash
+npm run browser:test
 ```
 
 ## Configuration
@@ -103,6 +113,11 @@ Full threat model: [`specs/architecture/security.md`](specs/architecture/securit
 - **Supervisor client** — generated OpenAPI client artifacts in backend and frontend. GC-owned resources should use these generated supervisor types directly.
 - **Shared types** — `gas-city-dashboard-shared` workspace package for dashboard-owned `/api/*` DTOs and UI contracts, not supervisor DTO mirrors.
 - **Deploy** — systemd user unit. Deliberately _not_ managed by `gc [[services]]`; see [`specs/architecture/overview.md`](specs/architecture/overview.md) for why the dashboard must outlive supervisor outages.
+
+The durable direct-supervisor boundary is captured in
+[`specs/architecture/direct-supervisor-boundary.md`](specs/architecture/direct-supervisor-boundary.md);
+attention/domain surface rules are captured in
+[`specs/architecture/attention-and-domain-surfaces.md`](specs/architecture/attention-and-domain-surfaces.md).
 
 ## Layout
 

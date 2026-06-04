@@ -37,9 +37,9 @@ import { SCOPE_REF_RE as leafScopeRefRe } from './run-detail.js';
 import type {
   Avail,
   ClientErrorReport,
-  GcCountedList,
-  GcList,
-  GcRequiredPartialList,
+  CountedList,
+  PartialAwareList,
+  RequiredPartialList,
   DashboardSession,
   SlingIntent,
   SlingKind,
@@ -59,15 +59,15 @@ import type {
 } from './index.js';
 import type {
   Avail as LeafAvail,
-  GcCountedList as LeafGcCountedList,
-  GcList as LeafGcList,
-  GcRequiredPartialList as LeafGcRequiredPartialList,
+  CountedList as LeafCountedList,
+  PartialAwareList as LeafPartialAwareList,
+  RequiredPartialList as LeafRequiredPartialList,
 } from './lists.js';
 import './lists.js';
 import './viewing-as.js';
-import './gc-beads.js';
+import './dashboard-beads.js';
 import './activity.js';
-import './gc-health.js';
+import './dashboard-health.js';
 import './transcript.js';
 import './api-error.js';
 import './maintainer-triage.js';
@@ -225,7 +225,7 @@ test('leaf-owned runtime exports stay available through the barrel', () => {
 
 test('shared barrel does not expose dashboard mirror DTOs for direct supervisor surfaces', () => {
   const source = readFileSync(new URL('./index.ts', import.meta.url), 'utf8');
-  const healthSource = readFileSync(new URL('./gc-health.ts', import.meta.url), 'utf8');
+  const healthSource = readFileSync(new URL('./dashboard-health.ts', import.meta.url), 'utf8');
 
   assert.doesNotMatch(source, /gc-agents/);
   assert.doesNotMatch(source, /gc-rigs/);
@@ -267,19 +267,19 @@ test('shared list envelope generics compile from leaves and barrel', () => {
     status: 'unavailable',
     error: 'missing supervisor data',
   };
-  const list: GcList<{ id: string }> = { items: [{ id: 'a' }] };
-  const counted: GcCountedList<{ id: string }> = {
+  const list: PartialAwareList<{ id: string }> = { items: [{ id: 'a' }] };
+  const counted: CountedList<{ id: string }> = {
     items: [{ id: 'a' }],
     total: 1,
   };
-  const requiredPartial: GcRequiredPartialList<{ id: string }> = {
+  const requiredPartial: RequiredPartialList<{ id: string }> = {
     items: [],
     partial: false,
   };
 
-  const leafList: LeafGcList<{ id: string }> = list;
-  const leafCounted: LeafGcCountedList<{ id: string }> = counted;
-  const leafRequiredPartial: LeafGcRequiredPartialList<{ id: string }> = requiredPartial;
+  const leafList: LeafPartialAwareList<{ id: string }> = list;
+  const leafCounted: LeafCountedList<{ id: string }> = counted;
+  const leafRequiredPartial: LeafRequiredPartialList<{ id: string }> = requiredPartial;
 
   assert.equal(available.data, 'ok');
   assert.equal(unavailable.error, 'missing supervisor data');

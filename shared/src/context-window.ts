@@ -1,4 +1,4 @@
-import type { DashboardSession } from './gc-client-types.js';
+import type { DashboardSession } from './dashboard-sessions.js';
 
 /**
  * Models known to run with the 1M-token extended-context beta header

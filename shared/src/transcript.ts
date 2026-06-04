@@ -1,4 +1,4 @@
-import type { IsoTimestamp, SessionId } from './gc-client-types.js';
+import type { IsoTimestamp, SessionId } from './dashboard-sessions.js';
 
 /**
  * One turn in a session's transcript. Architect th-1i30ih addendum

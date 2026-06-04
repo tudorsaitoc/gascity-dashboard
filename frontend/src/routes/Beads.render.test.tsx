@@ -166,12 +166,6 @@ function stubFetch() {
         total: 1,
       });
     }
-    if (url.pathname.startsWith('/api/city/test-city/links/')) {
-      throw new Error('old dashboard links mirror should not be called');
-    }
-    if (url.pathname.startsWith('/api/city/test-city/beads')) {
-      throw new Error('old dashboard bead read mirror should not be called');
-    }
     throw new Error(`unexpected fetch: ${url.pathname}${url.search}`);
   }));
 }

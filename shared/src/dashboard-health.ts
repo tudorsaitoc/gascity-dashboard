@@ -1,4 +1,4 @@
-import type { IsoTimestamp } from './gc-client-types.js';
+import type { IsoTimestamp } from './dashboard-sessions.js';
 
 export interface SystemHealth {
   /** Backend process state — totally local to the admin dashboard's node process. */

@@ -3,7 +3,7 @@
 Historical exit artifact for the awaiting-decision feasibility spike in
 `prd_incorporate-tmai-amux-components.md`. Verified against committed repo
 artifacts on 2026-06-01 and superseded by the Agents pending-interaction
-implementation tracked in `specs/plans/feature-gap-remediation-plan.md`.
+implementation described in `specs/architecture/attention-and-domain-surfaces.md`.
 
 ## Verdict
 
@@ -33,7 +33,7 @@ implementation tracked in `specs/plans/feature-gap-remediation-plan.md`.
 - `frontend/src/hooks/useSessionStream.ts` remains transcript-focused and does
   not consume `pending` SSE frames; Agents uses the generated REST pending path
   instead.
-- The `blocked` values in `shared/src/gc-beads.ts` (BeadStatus) and `shared/src/run-detail.ts` (RunNodeStatus) are **work-graph** blocked (dependency), unrelated to awaiting-human-input.
+- The `blocked` values in `shared/src/dashboard-beads.ts` (BeadStatus) and `shared/src/run-detail.ts` (RunNodeStatus) are **work-graph** blocked (dependency), unrelated to awaiting-human-input.
 
 ## Path to surface it
 

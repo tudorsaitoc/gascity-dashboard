@@ -23,8 +23,10 @@ back into `gastownhall/gascity` as the replacement for the existing
 
 The dashboard-server GC mirror layer has been deleted. Remaining shared
 projection helpers are browser/shared view-model code over generated supervisor
-inputs plus dashboard-local resources. The migration record lives in
-[`../plans/direct-supervisor-client-migration.md`](../plans/direct-supervisor-client-migration.md).
+inputs plus dashboard-local resources. The current boundary contract lives in
+[`direct-supervisor-boundary.md`](direct-supervisor-boundary.md); the
+attention/domain surface contract lives in
+[`attention-and-domain-surfaces.md`](attention-and-domain-surfaces.md).
 
 ## Stack: TypeScript end-to-end
 

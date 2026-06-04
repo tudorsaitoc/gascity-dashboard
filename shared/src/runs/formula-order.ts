@@ -1,13 +1,13 @@
 import type {
-  GcFormulaDetail,
-  GcRunBead,
+  FormulaDetail,
+  RunSnapshotBead,
 } from '../run-snapshot.js';
 import { externalizeId, meta, nonEmpty, normalizedStepRef } from './bead-fields.js';
 import type { RunNodeGroup } from './execution-instances.js';
 
 export function orderRunNodeGroups(
   groups: readonly RunNodeGroup[],
-  formulaDetail: GcFormulaDetail | undefined,
+  formulaDetail: FormulaDetail | undefined,
   rootBeadId: string,
 ): RunNodeGroup[] {
   const rankByAlias = formulaRankByAlias(formulaDetail);
@@ -24,7 +24,7 @@ export function orderRunNodeGroups(
 }
 
 function formulaRankByAlias(
-  formulaDetail: GcFormulaDetail | undefined,
+  formulaDetail: FormulaDetail | undefined,
 ): Map<string, number> {
   const steps = formulaDetail?.preview?.nodes ?? formulaDetail?.steps ?? [];
   const ranks = new Map<string, number>();
@@ -60,7 +60,7 @@ function groupAliases(
 }
 
 function beadAliases(
-  bead: GcRunBead,
+  bead: RunSnapshotBead,
   formulaName: string | undefined,
 ): string[] {
   return [

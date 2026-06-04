@@ -1,5 +1,5 @@
-import type { DashboardBead } from '../gc-beads.js';
-import type { DashboardSession } from '../gc-client-types.js';
+import type { DashboardBead } from '../dashboard-beads.js';
+import type { DashboardSession } from '../dashboard-sessions.js';
 
 function metaString(bead: DashboardBead, key: string): string | undefined {
   const value = bead.metadata?.[key];

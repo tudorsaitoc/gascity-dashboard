@@ -1,6 +1,6 @@
 import type {
-  GcRunDep,
-  GcRunSnapshot,
+  RunSnapshotDep,
+  RunSnapshot,
 } from '../run-snapshot.js';
 import type {
   RunDisplayEdge,
@@ -9,7 +9,7 @@ import type {
 import { externalizeId, nonEmpty } from './bead-fields.js';
 
 export function buildRunDisplayEdges(
-  raw: GcRunSnapshot,
+  raw: RunSnapshot,
   physicalToSemantic: Map<string, string>,
   nodes: RunDisplayNode[],
 ): RunDisplayEdge[] {
@@ -24,7 +24,7 @@ export function buildRunDisplayEdges(
 }
 
 function projectEdges(
-  deps: GcRunDep[],
+  deps: RunSnapshotDep[],
   physicalToSemantic: Map<string, string>,
   nodes: RunDisplayNode[],
   bridgeableHiddenIds = new Set<string>(),
@@ -82,7 +82,7 @@ function bridgeHiddenEdges({
   seen: Set<string>;
   source: string;
   currentRawId: string;
-  outgoing: Map<string, GcRunDep[]>;
+  outgoing: Map<string, RunSnapshotDep[]>;
   visible: Set<string>;
   bridgeableHiddenIds: Set<string>;
   physicalToSemantic: Map<string, string>;
@@ -132,8 +132,8 @@ function pushEdge(
   edges.push({ from, to, kind: edgeKind });
 }
 
-function outgoingDeps(deps: GcRunDep[]): Map<string, GcRunDep[]> {
-  const out = new Map<string, GcRunDep[]>();
+function outgoingDeps(deps: RunSnapshotDep[]): Map<string, RunSnapshotDep[]> {
+  const out = new Map<string, RunSnapshotDep[]>();
   for (const dep of deps) {
     const from = nonEmpty(dep.from);
     const to = nonEmpty(dep.to);
@@ -143,7 +143,7 @@ function outgoingDeps(deps: GcRunDep[]): Map<string, GcRunDep[]> {
   return out;
 }
 
-function bridgeableScopeCheckIds(raw: GcRunSnapshot): Set<string> {
+function bridgeableScopeCheckIds(raw: RunSnapshot): Set<string> {
   const ids = new Set<string>();
   for (const bead of raw.beads ?? []) {
     const id = nonEmpty(bead.id);

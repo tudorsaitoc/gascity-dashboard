@@ -1,7 +1,7 @@
 import type {
-  GcRunBead,
+  RunSnapshotBead,
 } from '../run-snapshot.js';
-import type { DashboardSession } from '../gc-client-types.js';
+import type { DashboardSession } from '../dashboard-sessions.js';
 import type {
   RunNodeStatus,
   RunSessionLink,
@@ -40,7 +40,7 @@ export function buildRunSessionIndex(
 }
 
 export function runSessionLinkFor(
-  bead: GcRunBead,
+  bead: RunSnapshotBead,
   status: RunNodeStatus,
   context: RunSessionLinkContext = {},
 ): RunSessionLink | undefined {

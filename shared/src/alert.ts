@@ -16,7 +16,7 @@
 //  - Ranking, eligibility predicates, and inhibition live in R5/R8, not here —
 //    this module is the contract only.
 
-import type { IsoTimestamp } from './gc-client-types.js';
+import type { IsoTimestamp } from './dashboard-sessions.js';
 import type { SourceStatus } from './snapshot/types.js';
 
 /** The closed set of actionable-signal kinds surfaced on the home view. */

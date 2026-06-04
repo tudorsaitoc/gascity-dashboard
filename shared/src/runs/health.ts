@@ -1,7 +1,7 @@
 import {
   resolveSessionForTarget,
 } from '../session-resolve.js';
-import type { DashboardSession } from '../gc-client-types.js';
+import type { DashboardSession } from '../dashboard-sessions.js';
 import type {
   RunCensus,
   RunLane,

@@ -1,4 +1,4 @@
-import type { DashboardSession } from './gc-client-types.js';
+import type { DashboardSession } from './dashboard-sessions.js';
 
 // The lossy role/assignee → session resolution (gascity-dashboard-3ax).
 //

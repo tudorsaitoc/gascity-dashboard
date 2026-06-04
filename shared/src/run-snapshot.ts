@@ -2,7 +2,7 @@
  * Raw dependency edge from gc supervisor's run snapshot endpoint.
  * This mirrors RunDepResponse in the supervisor OpenAPI schema.
  */
-export interface GcRunDep {
+export interface RunSnapshotDep {
   from: string;
   to: string;
   kind?: string;
@@ -13,7 +13,7 @@ export interface GcRunDep {
  * supervisor wire shape, not the dashboard's display node shape. It mirrors
  * RunBeadResponse in the supervisor OpenAPI schema.
  */
-export interface GcRunBead {
+export interface RunSnapshotBead {
   id: string;
   title: string;
   status: string;
@@ -32,7 +32,7 @@ export interface GcRunBead {
  * translates `workflow_id` to `run_id` at the edge so the rest of the app uses
  * product language.
  */
-export interface GcRunSnapshot {
+export interface RunSnapshot {
   run_id: string;
   root_bead_id: string;
   root_store_ref: string;
@@ -43,14 +43,14 @@ export interface GcRunSnapshot {
   snapshot_event_seq?: number | null;
   partial: boolean;
   stores_scanned: string[] | null;
-  beads: GcRunBead[] | null;
-  deps: GcRunDep[] | null;
+  beads: RunSnapshotBead[] | null;
+  deps: RunSnapshotDep[] | null;
   logical_nodes: Record<string, never>[] | null;
-  logical_edges: GcRunDep[] | null;
+  logical_edges: RunSnapshotDep[] | null;
   scope_groups: Record<string, never>[] | null;
 }
 
-export interface GcFormulaPreviewNode {
+export interface FormulaPreviewNode {
   id: string;
   /** Required per OpenAPI FormulaPreviewNodeResponse. */
   title: string;
@@ -58,18 +58,18 @@ export interface GcFormulaPreviewNode {
   kind: string;
 }
 
-export interface GcFormulaPreviewEdge {
+export interface FormulaPreviewEdge {
   from: string;
   to: string;
   kind?: string;
 }
 
-export interface GcFormulaDetail {
+export interface FormulaDetail {
   name: string;
   preview?: {
-    nodes?: GcFormulaPreviewNode[];
-    edges?: GcFormulaPreviewEdge[];
+    nodes?: FormulaPreviewNode[];
+    edges?: FormulaPreviewEdge[];
   };
-  steps?: GcFormulaPreviewNode[];
-  deps?: GcFormulaPreviewEdge[];
+  steps?: FormulaPreviewNode[];
+  deps?: FormulaPreviewEdge[];
 }

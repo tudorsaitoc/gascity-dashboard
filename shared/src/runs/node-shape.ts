@@ -1,5 +1,5 @@
 import type {
-  GcRunBead,
+  RunSnapshotBead,
 } from '../run-snapshot.js';
 import type {
   RunConstructKind,
@@ -22,7 +22,7 @@ export function isHiddenConstruct(kind: RunConstructKind): boolean {
 }
 
 export function semanticNodeIdFor(
-  bead: GcRunBead,
+  bead: RunSnapshotBead,
   rootBeadId: string,
 ): string {
   const beadId = nonEmpty(bead.id);
@@ -40,7 +40,7 @@ export function semanticNodeIdFor(
 }
 
 export function hiddenBadgeTargetFor(
-  bead: GcRunBead,
+  bead: RunSnapshotBead,
   rootBeadId: string,
 ): string | null {
   const kind = constructKindFor(bead, rootBeadId);
@@ -57,7 +57,7 @@ export function hiddenBadgeTargetFor(
 }
 
 export function constructKindFor(
-  bead: GcRunBead,
+  bead: RunSnapshotBead,
   rootBeadId: string,
 ): RunConstructKind {
   const beadId = nonEmpty(bead.id);
@@ -93,7 +93,7 @@ export function constructKindFor(
 }
 
 export function externalKindFor(
-  bead: GcRunBead,
+  bead: RunSnapshotBead,
   constructKind: RunConstructKind,
 ): string {
   if (constructKind === 'check-loop') return 'check-loop';
@@ -101,7 +101,7 @@ export function externalKindFor(
   return kind === 'ralph' ? 'check-loop' : kind || constructKind;
 }
 
-export function displayTitleFor(bead: GcRunBead, fallback: string): string {
+export function displayTitleFor(bead: RunSnapshotBead, fallback: string): string {
   return externalizeDisplayText(
     nonEmpty(bead.title) ?? fallback.replace(/[-_]/g, ' '),
   );
@@ -128,7 +128,7 @@ export function badgeLabelFor(kind: RunConstructKind): string {
   }
 }
 
-export function loopControlNodeIdFor(bead: GcRunBead): string | undefined {
+export function loopControlNodeIdFor(bead: RunSnapshotBead): string | undefined {
   const scopeRef = meta(bead, 'gc.scope_ref') ?? nonEmpty(bead.scope_ref);
   const scopeControlId = scopeRef
     ? loopControlIdFromRuntimeRef(scopeRef, ['iteration', 'run'])
@@ -140,7 +140,7 @@ export function loopControlNodeIdFor(bead: GcRunBead): string | undefined {
   return loopControlIdFromRuntimeRef(ref, ['iteration']);
 }
 
-function rawKind(bead: GcRunBead): string {
+function rawKind(bead: RunSnapshotBead): string {
   return (
     meta(bead, 'gc.kind') ??
     meta(bead, 'gc.original_kind') ??

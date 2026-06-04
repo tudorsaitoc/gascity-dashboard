@@ -1,5 +1,5 @@
 import type {
-  GcRunBead,
+  RunSnapshotBead,
 } from '../run-snapshot.js';
 import type {
   RunExecutionInstance,
@@ -7,7 +7,7 @@ import type {
 } from '../run-detail.js';
 import { meta, nonEmpty } from './bead-fields.js';
 
-export function presentationStatus(bead: GcRunBead): RunNodeStatus {
+export function presentationStatus(bead: RunSnapshotBead): RunNodeStatus {
   const raw = (nonEmpty(bead.status) ?? '').toLowerCase();
   const outcome = meta(bead, 'gc.outcome')?.toLowerCase();
   if (raw === 'closed' || raw === 'completed' || raw === 'done') {

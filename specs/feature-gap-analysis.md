@@ -2,7 +2,8 @@
 
 Date: 2026-05-31
 Status: Combined, source-validated, and product-dispositioned
-Implementation plan: [`plans/feature-gap-remediation-plan.md`](plans/feature-gap-remediation-plan.md)
+Implementation record: [`plans/archive/feature-gap-remediation-plan.md`](plans/archive/feature-gap-remediation-plan.md)
+Current architecture: [`architecture/attention-and-domain-surfaces.md`](architecture/attention-and-domain-surfaces.md)
 
 This document has two parts:
 
@@ -346,7 +347,7 @@ Defer:
 
 ### Implementation Sequencing
 
-Detailed execution plan: [`plans/feature-gap-remediation-plan.md`](plans/feature-gap-remediation-plan.md).
+Detailed execution record: [`plans/archive/feature-gap-remediation-plan.md`](plans/archive/feature-gap-remediation-plan.md).
 
 1. Build the client attention foundation.
 2. Wire domain attention contributors.

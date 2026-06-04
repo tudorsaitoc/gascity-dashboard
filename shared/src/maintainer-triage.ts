@@ -1,4 +1,4 @@
-import type { IsoTimestamp } from './gc-client-types.js';
+import type { IsoTimestamp } from './dashboard-sessions.js';
 
 export type TriageTier =
   | 'regression_breaking'

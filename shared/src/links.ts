@@ -10,7 +10,7 @@
 // Browser code can build it directly from supervisor API reads; backend tests
 // still exercise the same shared builder through compatibility re-exports.
 
-import type { IsoTimestamp } from './gc-client-types.js';
+import type { IsoTimestamp } from './dashboard-sessions.js';
 
 /**
  * Entity kinds a relation node can point at. Bead-native kinds resolve

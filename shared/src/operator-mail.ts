@@ -8,13 +8,13 @@
 // Pure over dashboard-owned projections (DashboardSession + a minimal
 // OperatorMailItem) — no IO, no React.
 
-import type { DashboardSession } from './gc-client-types.js';
+import type { DashboardSession } from './dashboard-sessions.js';
 
 /**
  * The mail fields the operator-mail sender-role filter reads — read state,
  * sender, and timestamp. Kept as a minimal structural shape rather than a
  * specific wire DTO so the filter stays portable across generated supervisor
- * mail reads. The direct-supervisor migration removed the shared GcMailItem
+ * mail reads. The direct-supervisor migration removed the shared mail DTO
  * DTO; this is the only mail surface this module needs.
  */
 export interface OperatorMailItem {

@@ -1,5 +1,5 @@
 import type {
-  GcRunBead,
+  RunSnapshotBead,
 } from '../run-snapshot.js';
 import type {
   RunExecutionPath,
@@ -7,8 +7,8 @@ import type {
 import { meta, nonEmpty } from './bead-fields.js';
 
 export function resolveRunExecutionPath(
-  root: GcRunBead | undefined,
-  beads: GcRunBead[],
+  root: RunSnapshotBead | undefined,
+  beads: RunSnapshotBead[],
   rigRoot?: string,
 ): RunExecutionPath {
   const candidates = [
@@ -24,7 +24,7 @@ export function resolveRunExecutionPath(
     : { kind: 'known', path };
 }
 
-function executionWorkDirs(bead: GcRunBead | undefined): Array<string | undefined> {
+function executionWorkDirs(bead: RunSnapshotBead | undefined): Array<string | undefined> {
   return [
     meta(bead, 'gc.cwd'),
     meta(bead, 'cwd'),
@@ -33,7 +33,7 @@ function executionWorkDirs(bead: GcRunBead | undefined): Array<string | undefine
   ];
 }
 
-function rigRoots(bead: GcRunBead | undefined): Array<string | undefined> {
+function rigRoots(bead: RunSnapshotBead | undefined): Array<string | undefined> {
   return [
     meta(bead, 'gc.rig_root'),
     meta(bead, 'rig_root'),

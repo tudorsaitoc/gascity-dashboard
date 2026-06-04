@@ -1,9 +1,9 @@
 import type {
-  GcFormulaDetail,
-  GcRunBead,
-  GcRunSnapshot,
+  FormulaDetail,
+  RunSnapshotBead,
+  RunSnapshot,
 } from '../run-snapshot.js';
-import type { DashboardSession } from '../gc-client-types.js';
+import type { DashboardSession } from '../dashboard-sessions.js';
 import type {
   RunFormulaDetailState,
   FormulaRunCompleteness,
@@ -18,7 +18,7 @@ import { buildRunningFormulaRun } from './formula-run.js';
 interface EnrichOptions {
   rigRoot?: string;
   sessions?: readonly DashboardSession[];
-  formulaDetail?: GcFormulaDetail;
+  formulaDetail?: FormulaDetail;
   formulaDetailState?: RunFormulaDetailState;
 }
 
@@ -30,7 +30,7 @@ export class UnsupportedRunError extends Error {
 }
 
 export function enrichFormulaRun(
-  raw: GcRunSnapshot,
+  raw: RunSnapshot,
   opts: EnrichOptions,
 ): FormulaRunDetail {
   if (!isGraphV2(raw)) {
@@ -110,23 +110,23 @@ export function formulaRunCompleteness(
     : { kind: 'partial', reasons: uniqueReasons };
 }
 
-function isGraphV2(raw: GcRunSnapshot): boolean {
+function isGraphV2(raw: RunSnapshot): boolean {
   const root = rootBead(Array.isArray(raw.beads) ? raw.beads : [], raw.root_bead_id);
   return meta(root, 'gc.formula_contract') === 'graph.v2';
 }
 
 function rootBead(
-  beads: GcRunBead[],
+  beads: RunSnapshotBead[],
   rootBeadId: string | undefined,
-): GcRunBead | undefined {
+): RunSnapshotBead | undefined {
   const rootId = nonEmpty(rootBeadId);
   if (!rootId) return undefined;
   return beads.find((bead) => nonEmpty(bead.id) === rootId);
 }
 
-function dedupeBeads(beads: GcRunBead[]): GcRunBead[] {
+function dedupeBeads(beads: RunSnapshotBead[]): RunSnapshotBead[] {
   const seen = new Set<string>();
-  const out: GcRunBead[] = [];
+  const out: RunSnapshotBead[] = [];
   for (const bead of beads) {
     const id = nonEmpty(bead.id);
     if (id) {

@@ -1,5 +1,5 @@
 import type {
-  GcRunBead,
+  RunSnapshotBead,
 } from '../run-snapshot.js';
 import type {
   RunAttempt,
@@ -34,7 +34,7 @@ export interface RunNodeGroup {
   constructKind: RunConstructKind;
   scopeRef?: string;
   loopControlNodeId?: string;
-  beads: GcRunBead[];
+  beads: RunSnapshotBead[];
 }
 
 export function buildRunDisplayNode(
@@ -124,7 +124,7 @@ export function latestIterationsByLoop(groups: RunNodeGroup[]): Map<string, numb
 
 function buildExecutionInstance(
   semanticNodeId: string,
-  bead: GcRunBead,
+  bead: RunSnapshotBead,
   index: number,
   sessionContext: RunSessionLinkContext,
 ): RunExecutionInstance {
@@ -170,7 +170,7 @@ function compareExecutionInstances(
 
 function attemptSummaryFor(
   instances: RunExecutionInstance[],
-  beads: GcRunBead[],
+  beads: RunSnapshotBead[],
 ): RunAttemptSummary {
   const attemptCount = attemptCountFor(instances);
   const activeAttempt = activeAttemptFor(instances);
@@ -190,7 +190,7 @@ function attemptSummaryFor(
   };
 }
 
-function attemptBadgeFor(beads: GcRunBead[]): string | undefined {
+function attemptBadgeFor(beads: RunSnapshotBead[]): string | undefined {
   const max = beads
     .map((bead) => positiveIntegerMeta(bead, 'gc.max_attempts'))
     .find((value) => value !== undefined);

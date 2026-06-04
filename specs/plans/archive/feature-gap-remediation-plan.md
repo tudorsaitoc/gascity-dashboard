@@ -1,8 +1,10 @@
 # Plan: Standalone Feature Gap Remediation
 
 Date: 2026-05-31
-Status: In progress; Phase 0 foundation, Phase 1 live attention wiring including stale agent/bead/mail thresholds and Maintainer triage facts, focused-route highlights, core Mail workspace writes/history-depth controls, Activity supervisor event-history viewing and filtered event deep links, Agents pending-interaction read/respond affordance, and Beads targeted dispatch/rig filtering implemented
-Source analysis: [`../feature-gap-analysis.md`](../feature-gap-analysis.md)
+Status: Archived; accepted standalone feature gaps have been remediated for this
+branch. Durable attention/domain architecture now lives in
+[`../../architecture/attention-and-domain-surfaces.md`](../../architecture/attention-and-domain-surfaces.md).
+Source analysis: [`../../feature-gap-analysis.md`](../../feature-gap-analysis.md)
 
 ## Goal
 

@@ -1,4 +1,4 @@
-import type { IsoTimestamp } from './gc-client-types.js';
+import type { IsoTimestamp } from './dashboard-sessions.js';
 
 /** One of the hardcoded git log "views". The backend enum is the auth boundary — strings outside this set are rejected. */
 export type GitView = 'recent-main' | 'recent-all' | 'today' | 'this-week';

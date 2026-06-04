@@ -9,7 +9,7 @@
 > apply to dashboard-local modules, but `CityContext.gc` and backend-mounted
 > GC data modules are transitional. GC-owned resources should move to the
 > generated browser supervisor client described in
-> [`../plans/direct-supervisor-client-migration.md`](../plans/direct-supervisor-client-migration.md).
+> [`../architecture/direct-supervisor-boundary.md`](../architecture/direct-supervisor-boundary.md).
 
 ## Pipeline resolutions applied
 

@@ -44,6 +44,8 @@ Use npm workspaces from the repo root:
 - `npm --workspace backend test`
 - `npm --workspace frontend test`
 - `npm --workspace frontend run build`
+- `npm --workspace shared test`
+- `npm run browser:test` when the dashboard is running locally and browser route coverage is relevant
 
 For GC supervisor OpenAPI work:
 

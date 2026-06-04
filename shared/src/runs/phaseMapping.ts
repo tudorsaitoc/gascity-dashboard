@@ -13,7 +13,7 @@
 
 import type {
   DashboardBead,
-} from '../gc-beads.js';
+} from '../dashboard-beads.js';
 import type {
   RunPhase as SharedRunPhase,
   RunStage,

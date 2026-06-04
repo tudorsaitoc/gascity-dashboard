@@ -39,18 +39,6 @@ function stubFetch() {
       body: await requestBody(input, init),
       gcRequest: requestHeader(input, init, 'X-GC-Request'),
     });
-    if (url === '/api/city/test-city/mail-send') {
-      return jsonResponse(
-        { error: 'old dashboard mail send mirror should not be called' },
-        500,
-      );
-    }
-    if (url.startsWith('/api/city/test-city/mail')) {
-      return jsonResponse(
-        { error: 'old dashboard mail read mirror should not be called' },
-        500,
-      );
-    }
     if (url === '/gc-supervisor/v0/city/test-city/mail?limit=100') {
       return jsonResponse({
         items: [

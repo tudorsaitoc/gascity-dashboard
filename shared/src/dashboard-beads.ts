@@ -1,5 +1,5 @@
-import type { IsoTimestamp } from './gc-client-types.js';
-import type { GcCountedList } from './lists.js';
+import type { IsoTimestamp } from './dashboard-sessions.js';
+import type { CountedList } from './lists.js';
 
 export type BeadId = string;
 
@@ -31,8 +31,8 @@ export interface DashboardBeadDependency {
 
 /**
  * Dashboard-owned bead projection used by pure run and relationship selectors.
- * Supervisor `Bead` values are narrowed into this shape at frontend/backend
- * edges; shared selectors do not import or own the generated supervisor type.
+ * Supervisor `Bead` values are narrowed into this shape at frontend edges;
+ * shared selectors do not import or own the generated supervisor type.
  */
 export interface DashboardBead {
   id: BeadId;
@@ -63,4 +63,4 @@ export interface DashboardBead {
   updated_at?: IsoTimestamp;
 }
 
-export type DashboardBeadList = GcCountedList<DashboardBead>;
+export type DashboardBeadList = CountedList<DashboardBead>;

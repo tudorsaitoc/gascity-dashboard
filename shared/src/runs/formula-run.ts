@@ -1,9 +1,9 @@
 import type {
-  GcFormulaDetail,
-  GcRunBead,
-  GcRunSnapshot,
+  FormulaDetail,
+  RunSnapshotBead,
+  RunSnapshot,
 } from '../run-snapshot.js';
-import type { DashboardSession } from '../gc-client-types.js';
+import type { DashboardSession } from '../dashboard-sessions.js';
 import type {
   RunControlBadge,
   RunDisplayEdge,
@@ -43,18 +43,18 @@ import {
 } from './session-link.js';
 
 export interface RunningFormulaRunInput {
-  raw: GcRunSnapshot;
+  raw: RunSnapshot;
   runId: string;
   rootBeadId: string;
   rootStoreRef: string;
   resolvedRootStore: string;
   scopeKind: RunScopeKind;
   scopeRef: string;
-  root?: GcRunBead;
-  beads: GcRunBead[];
+  root?: RunSnapshotBead;
+  beads: RunSnapshotBead[];
   rigRoot?: string;
   sessions?: readonly DashboardSession[];
-  formulaDetail?: GcFormulaDetail;
+  formulaDetail?: FormulaDetail;
   formulaDetailState?: RunFormulaDetailState;
 }
 
@@ -67,7 +67,7 @@ export interface RunningFormulaRunInput {
  * session summaries, loop instances, and display graph state.
  */
 export interface RunningFormulaRun {
-  raw: GcRunSnapshot;
+  raw: RunSnapshot;
   runId: string;
   rootBeadId: string;
   rootStoreRef: string;
@@ -78,8 +78,8 @@ export interface RunningFormulaRun {
   formula: RunFormula;
   formulaDetail: RunFormulaDetailState;
   executionPath: RunExecutionPath;
-  root?: GcRunBead;
-  beads: GcRunBead[];
+  root?: RunSnapshotBead;
+  beads: RunSnapshotBead[];
   nodeGroups: RunNodeGroup[];
   physicalToSemantic: Map<string, string>;
   badgesByTarget: Map<string, RunControlBadge[]>;
@@ -146,7 +146,7 @@ export function buildRunningFormulaRun(
   // from the lane's. mapRunPhase keys off bead status + title, which run
   // beads carry. The resolved formula name (when known) selects the
   // formula-specific stage set; otherwise the generic 5-stage ladder applies.
-  const issues = input.beads.map(fromGcRunBead);
+  const issues = input.beads.map(fromRunSnapshotBead);
   const phaseMapping = mapRunPhase(issues);
   const formulaName = formula.kind === 'known' ? formula.name : null;
   const stages = stageProgress(phaseMapping, formulaName, issues);
@@ -182,7 +182,7 @@ export function buildRunningFormulaRun(
 }
 
 /**
- * Adapt a supervisor run-snapshot bead (GcRunBead) to the phase classifier's
+ * Adapt a supervisor run-snapshot bead to the phase classifier's
  * RunIssue input. The phase pipeline's own fromDashboardBead adapter consumes the
  * city-wide DashboardBead shape (issue_type, created_at); the run-snapshot wire row
  * is a different shape (kind, no created_at). mapRunPhase only reads
@@ -191,7 +191,7 @@ export function buildRunningFormulaRun(
  * no per-bead timestamp — latestStepId's ordering degrades gracefully to
  * input order, which the phase classifier does not depend on).
  */
-function fromGcRunBead(bead: GcRunBead): RunIssue {
+function fromRunSnapshotBead(bead: RunSnapshotBead): RunIssue {
   const parent = meta(bead, 'gc.parent_bead_id');
   const issue: RunIssue = {
     id: bead.id,
@@ -207,8 +207,8 @@ function fromGcRunBead(bead: GcRunBead): RunIssue {
 }
 
 function runFormulaState(
-  root: GcRunBead | undefined,
-  formulaDetail: GcFormulaDetail | undefined,
+  root: RunSnapshotBead | undefined,
+  formulaDetail: FormulaDetail | undefined,
 ): RunFormula {
   // Provenance precedence (gascity-dashboard-e7hj + sadp). The supervisor's
   // canonical signals win over the graph.v2 bead-title heuristic; the title
@@ -237,8 +237,8 @@ function runFormulaState(
 }
 
 function runFormulaDetailState(
-  root: GcRunBead | undefined,
-  formulaDetail: GcFormulaDetail | undefined,
+  root: RunSnapshotBead | undefined,
+  formulaDetail: FormulaDetail | undefined,
 ): RunFormulaDetailState {
   const resolved = resolveRunFormulaIdentity('detail', { root, formulaDetail });
   const name = resolved.name;
@@ -256,7 +256,7 @@ function runFormulaDetailState(
 }
 
 function buildFormulaRunProgress(
-  raw: GcRunSnapshot,
+  raw: RunSnapshot,
   nodes: readonly RunDisplayNode[],
   edges: readonly RunDisplayEdge[],
 ): FormulaRunProgress {

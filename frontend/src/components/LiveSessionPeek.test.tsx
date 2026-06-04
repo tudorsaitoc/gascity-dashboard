@@ -170,9 +170,6 @@ describe('LiveSessionPeek (streaming)', () => {
         if (url === '/gc-supervisor/v0/city/test-city/session/s1/transcript?format=conversation') {
           return jsonResponse(snapshot);
         }
-        if (url === '/api/city/test-city/sessions/s1/peek') {
-          throw new Error('old dashboard session peek route should not be called');
-        }
         throw new Error(`unexpected fetch: ${url}`);
       }),
     );
