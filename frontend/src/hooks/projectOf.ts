@@ -1,4 +1,4 @@
-import type { GcSession } from 'gas-city-dashboard-shared';
+import type { DashboardSession } from 'gas-city-dashboard-shared';
 import type { AgentResponse } from '../generated/gc-supervisor-client/types.gen';
 import type { SupervisorBead } from '../supervisor/beadReads';
 import type { SupervisorMailItem } from '../supervisor/mailReads';
@@ -45,7 +45,7 @@ const ORCHESTRATION_TEMPLATES: ReadonlySet<string> = new Set([
   'oversight-rig.chief-of-staff',
 ]);
 
-export function isOrchestrationSession(s: GcSession): boolean {
+export function isOrchestrationSession(s: DashboardSession): boolean {
   if (s.rig && s.rig.length > 0) return false;
   return !!s.template && ORCHESTRATION_TEMPLATES.has(s.template);
 }
@@ -55,7 +55,7 @@ export function isOrchestrationSession(s: GcSession): boolean {
 // the operator can spot orchestration even inside rig groups.
 const PER_RIG_DISPATCHER_RX = /\/control-dispatcher$/;
 
-export function isPerRigDispatcher(s: GcSession): boolean {
+export function isPerRigDispatcher(s: DashboardSession): boolean {
   if (!s.rig || s.rig.length === 0) return false;
   return PER_RIG_DISPATCHER_RX.test(s.alias ?? '');
 }
@@ -71,7 +71,7 @@ export interface ProjectBucket {
   label: string;
 }
 
-export function sessionProject(session: GcSession): ProjectBucket {
+export function sessionProject(session: DashboardSession): ProjectBucket {
   if (isOrchestrationSession(session)) {
     return { key: ORCHESTRATION_PROJECT, label: ORCHESTRATION_PROJECT };
   }

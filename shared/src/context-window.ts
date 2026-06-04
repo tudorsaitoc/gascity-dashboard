@@ -1,4 +1,4 @@
-import type { GcSession } from './gc-client-types.js';
+import type { DashboardSession } from './gc-client-types.js';
 
 /**
  * Models known to run with the 1M-token extended-context beta header
@@ -21,7 +21,7 @@ export const TRUE_CONTEXT_WINDOWS: Readonly<Record<string, number>> = {
  * Always returns an integer in [0, 100].
  */
 export function effectiveContextPct(
-  session: Pick<GcSession, 'context_pct' | 'context_window' | 'model'>,
+  session: Pick<DashboardSession, 'context_pct' | 'context_window' | 'model'>,
 ): number | undefined {
   const pct = session.context_pct;
   if (typeof pct !== 'number' || !Number.isFinite(pct)) return undefined;

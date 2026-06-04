@@ -1,4 +1,4 @@
-import type { GcSession } from 'gas-city-dashboard-shared';
+import type { DashboardSession } from 'gas-city-dashboard-shared';
 import type { AgentResponse } from '../generated/gc-supervisor-client/types.gen';
 
 // Resolution order for the drilldown URL segment. session_name is gc's
@@ -10,7 +10,7 @@ import type { AgentResponse } from '../generated/gc-supervisor-client/types.gen'
 // would be type-dead. `||` is used so an empty-string session_name
 // (which `z.string()` still accepts) falls through to alias/id rather
 // than producing an unroutable `/agents/` URL.
-export function sessionSlug(s: GcSession): string {
+export function sessionSlug(s: DashboardSession): string {
   return s.session_name || s.alias || s.id;
 }
 

@@ -3,7 +3,7 @@ import type {
   GcRunBead,
   GcRunSnapshot,
 } from '../run-snapshot.js';
-import type { GcSession } from '../gc-client-types.js';
+import type { DashboardSession } from '../gc-client-types.js';
 import type {
   RunFormulaDetailState,
   FormulaRunCompleteness,
@@ -17,7 +17,7 @@ import { buildRunningFormulaRun } from './formula-run.js';
 
 interface EnrichOptions {
   rigRoot?: string;
-  sessions?: readonly GcSession[];
+  sessions?: readonly DashboardSession[];
   formulaDetail?: GcFormulaDetail;
   formulaDetailState?: RunFormulaDetailState;
 }

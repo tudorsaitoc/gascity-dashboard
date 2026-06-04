@@ -15,56 +15,52 @@ export type BeadIssueType =
   | 'feature'
   | 'bug'
   | 'task'
-  | 'docs'
+  | 'epic'
+  | 'chore'
+  | 'decision'
   | 'session'
   | 'message'
   | 'convoy'
   | string;
 
-/**
- * Dependency edge inside the OpenAPI `Bead.dependencies` list. Mirrors the
- * supervisor's `Dep` schema. Surfaced so formula-run graph collectors can read
- * dependencies without an `as any` cast.
- */
-export interface GcBeadDep {
+export interface DashboardBeadDependency {
   depends_on_id: string;
   issue_id: string;
   type: string;
 }
 
-export interface GcBead {
+/**
+ * Dashboard-owned bead projection used by pure run and relationship selectors.
+ * Supervisor `Bead` values are narrowed into this shape at frontend/backend
+ * edges; shared selectors do not import or own the generated supervisor type.
+ */
+export interface DashboardBead {
   id: BeadId;
   title: string;
   status: BeadStatus;
   issue_type: BeadIssueType;
-  /** Supervisor sends `priority: null` for non-engineering beads (messages,
-   *  sessions, …) and the OpenAPI spec declares the field optional. Treat
-   *  this as nullable on the wire; callers that need a sortable number must
-   *  coalesce. */
+  /** Normalized priority. Non-priority rows carry null. */
   priority: number | null;
   description?: string;
   assignee?: string;
   created_at: IsoTimestamp;
   labels?: string[];
-  /** OpenAPI Bead.metadata is declared as `{[key: string]: string}` — values
-   *  are strings only. Callers needing typed numbers/booleans must parse
-   *  explicitly. */
+  /** Selector metadata values are strings; callers parse typed values explicitly. */
   metadata?: Record<string, string>;
-  /** Supervisor-supplied reference handle. On formula templates this is
-   *  the formula name (e.g. "mol-focus-review"). Absent on most beads. */
+  /** Reference handle. On formula templates this is the formula name. */
   ref?: string;
-  /** Parent bead id (OpenAPI Bead.parent). */
+  /** Parent bead id. */
   parent?: string;
-  /** Originating actor / source id (OpenAPI Bead.from). */
+  /** Originating actor / source id. */
   from?: string;
-  /** True when the supervisor marks the bead as ephemeral. */
+  /** True when the bead is ephemeral. */
   ephemeral?: boolean;
-  /** Bead ids this bead needs before it can run (OpenAPI Bead.needs). */
+  /** Bead ids this bead needs before it can run. */
   needs?: string[] | null;
-  /** Structured dependency rows (OpenAPI Bead.dependencies). */
-  dependencies?: GcBeadDep[] | null;
-  /** Last supervisor update time when exposed. Older generated fixtures only carry created_at. */
+  /** Structured dependency rows. */
+  dependencies?: DashboardBeadDependency[] | null;
+  /** Last update time when exposed. Older fixtures only carry created_at. */
   updated_at?: IsoTimestamp;
 }
 
-export type GcBeadList = GcCountedList<GcBead>;
+export type DashboardBeadList = GcCountedList<DashboardBead>;

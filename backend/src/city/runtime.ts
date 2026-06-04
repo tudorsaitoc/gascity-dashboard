@@ -9,7 +9,6 @@ import type {
 import type { AdminConfig } from '../config.js';
 import { GcClient } from '../gc-client.js';
 import { csrfValidate } from '../middleware/csrf.js';
-import { agentsRouter } from '../routes/agents.js';
 import { runsRouter } from '../routes/runs.js';
 import { createDoltNomsSampler, doltRouter, type DoltNomsSampler } from '../routes/dolt.js';
 import { ALL_MODULES } from '../views/registry.js';
@@ -115,7 +114,6 @@ export function createCityRuntime(opts: CreateCityRuntimeOptions): CityRuntime {
   // prior shape-only validation. cityPath is deliberately NOT a member of this
   // allowlist (a9yi: it's the city config dir, not a run worktree).
   router.use('/runs', runsRouter({ runCwdAllowedRoots: config.runCwdAllowedRoots }));
-  router.use('/agents', agentsRouter({ cityPath }));
 
   const moduleWorkers: BackgroundWorker[] = [];
   for (const mod of mountedModules) {

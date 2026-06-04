@@ -121,7 +121,9 @@ Implementation status:
   and partial run lists.
 - Live Home/nav wiring uses the generated supervisor
   `/v0/city/{cityName}/formulas/feed` path. Focused-route lane highlighting
-  is implemented for matching run attention.
+  is implemented for matching run attention. The focused `/runs` route now uses
+  a bounded generated-client first summary that carries active and historical
+  lanes before the later session-health enrichment pass.
 
 ### Agents
 
@@ -173,6 +175,10 @@ Implementation status:
   Board/list highlighting is implemented for matching bead attention.
   Stale unclaimed and stale assigned attention facts are implemented from
   generated bead timestamps; threshold constants should be tuned with live use.
+  The default Beads workspace now includes queryable `decision`, `epic`, and
+  `chore` work beads in addition to feature/bug/task rows so nav attention
+  counts cannot surface decision work while the focused Beads page says the
+  queue is empty.
 
 ### Mail
 
@@ -234,7 +240,9 @@ Implementation status:
 - Live Home/nav wiring is implemented from dashboard-local host/process health,
   generated supervisor city health, and dolt-noms trend facts. Focused-route
   section highlighting is implemented for matching Supervisor, Host,
-  dashboard-process, and Dolt-noms attention/watch facts.
+  dashboard-process, and Dolt-noms attention/watch facts. Health supervisor
+  diagnostics use a short generated-client request budget so local host/process
+  sections render instead of waiting on the default long supervisor timeout.
 
 ### Maintainer
 
@@ -483,7 +491,11 @@ with attention.
   - backend route tests for new write/read endpoints
   - focused frontend tests for Mail, Activity, Agents, Beads
   - Playwright/snap coverage only where visual layout or multi-route behavior
-    needs browser verification
+    needs browser verification. The root browser smoke harness now visits the
+    city-scoped Home, Agents, Beads, Runs, Mail, Activity, Health, and enabled
+    first-party module surfaces; it fails on dashboard `/api/*` and supervisor
+    `/gc-supervisor/*` HTTP failures while ignoring browser-aborted transition
+    requests.
 
 ### Acceptance
 

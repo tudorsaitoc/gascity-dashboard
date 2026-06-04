@@ -43,8 +43,7 @@ Sources consolidated:
 - archived run-detail planning notes under `specs/plans/archive/`
 - current dashboard implementation constraints implied by generated supervisor
   client usage, direct browser use, and Formula Run Detail projection
-- former backend `gc` CLI subprocess wrappers in `backend/src/exec.ts` and
-  their routes (`backend/src/routes/beads.ts`, `backend/src/routes/agents.ts`)
+- former backend supervisor mirror routes and archived route plans
 
 Validation rules:
 
@@ -232,8 +231,9 @@ Current state:
 - The committed dashboard schema has been corrected enough for current
   validators to run, but the upstream Gas City Huma/OpenAPI source still needs
   source-of-truth fixes.
-- Temporary dashboard DTO normalization remains in `gc-supervisor-decoders.ts`
-  until direct browser use and generated types delete the mirror layer.
+- The former hand-Zod dashboard supervisor decoder layer has been deleted; the
+  dashboard now relies on generated supervisor response validators at the edge
+  and local view-model projection where it owns composed UI state.
 
 Needed upstream change:
 
@@ -477,9 +477,9 @@ These are intentionally not tracked as current GC supervisor API gaps:
 Once these upstream gaps are closed and this repo refreshes
 `backend/openapi/gc-supervisor.openapi.json`, the dashboard should:
 
-1. Delete temporary hand-Zod supervisor adapters, `GcClient` mirror methods,
-   and any `SchemaOutputFor` machinery that duplicates generated response
-   validation.
+1. Keep the deleted hand-Zod supervisor adapters and `GcClient` mirror methods
+   from returning; use generated response validation plus local view-model
+   projection instead.
 2. Move raw supervisor mirror types out of `shared`; keep `shared` for
    dashboard-owned local service DTOs, UI/module contracts, and local/composed
    view models only.

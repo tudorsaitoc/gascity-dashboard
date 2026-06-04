@@ -40,7 +40,7 @@ import {
 // fires onMatch when a bead.* event arrives. The hook coalesces its
 // own bursts to ~1 fire per 2.5s; we layer a 10s in-component debounce
 // floor on top because runs refresh triggers a full upstream
-// gc.listBeads({ limit: 1000 }) call (architect H2 — upstream-load
+// supervisor listBeads({ limit: 1000 }) call (architect H2 — upstream-load
 // protection during slung-pipeline bursts). The callback also no-ops
 // when the runs source is in fixture-fallback mode (gc down) so
 // the dashboard's own host doesn't get hammered with loadFixture calls
@@ -157,6 +157,7 @@ export function RunsPage() {
       <PageHeader
         title="Formula Runs"
         synopsis={synopsis}
+        className="md:items-start"
         meta={
           <>
             {error && (
@@ -173,7 +174,7 @@ export function RunsPage() {
                 {freshnessLabel}
               </span>
             )}
-            <div className="grid grid-cols-[10rem_7rem] items-center gap-x-4 gap-y-3 sm:grid-cols-[7rem_6.5rem_10rem_7rem]">
+            <div className="grid w-full min-w-[18rem] grid-cols-[7rem_minmax(6.5rem,1fr)] items-center gap-x-4 gap-y-3 sm:w-[34rem] sm:grid-cols-[7rem_6.5rem_10rem_7rem]">
               <SseIndicator state={sseState} />
               <span>
                 {lanesPartial ? (

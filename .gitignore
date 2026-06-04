@@ -43,3 +43,4 @@ credentials.*
 !.agents/**
 .scorecard/
 tmp/arch-best-practices-*.txt
+tmp/claude-feedback-*.txt

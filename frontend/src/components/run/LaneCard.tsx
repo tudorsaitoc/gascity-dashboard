@@ -19,11 +19,10 @@ interface LaneCardProps {
 }
 
 /**
- * gascity-dashboard-f4ps: historical (closed) lanes ship from the backend
- * with `health: { status: 'unavailable' }` because the workflow-health engine
- * runs only over the active subset (backend/src/snapshot/service.ts derives
- * over wf.data.lanes, never wf.data.historicalLanes). The health concepts
- * (thrashing, stalled-session) are meaningless for completed runs.
+ * gascity-dashboard-f4ps: historical (closed) lanes carry
+ * `health: { status: 'unavailable' }` because run health is derived only for
+ * the active subset. The health concepts (thrashing, stalled-session) are
+ * meaningless for completed runs.
  *
  * Single source for the historical predicate so any future UI that wants to
  * surface health-derived signal can gate on it without re-stating the rule.

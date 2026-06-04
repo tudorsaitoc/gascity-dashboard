@@ -1,25 +1,21 @@
 // Sender-role classification for operator-facing mail — the single owner of the
 // "which agent kind is this, and which mail actually needs the human" logic.
 //
-// This lived in tui/src/derive.ts first (the TUI ledger), but the dashboard
-// backend's operator-mail alert derivation (gascity-dashboard-mpfx, R4) needs
-// the EXACT same sender-role filter. The backend cannot import from the `tui`
-// workspace, so the logic lives here in `shared` (which both import) and a
-// drift between the two surfaces becomes a compile error, not a silent
-// divergence. The TUI re-exports these from derive.ts for back-compat.
+// The dashboard's operator-facing mail derivation needs one sender-role filter.
+// Keep it in `shared` so browser projections and dashboard-local helpers cannot
+// drift into different classifications.
 //
-// Pure over the shared wire types (GcSession + a minimal OperatorMailItem) — no IO, no React.
+// Pure over dashboard-owned projections (DashboardSession + a minimal
+// OperatorMailItem) — no IO, no React.
 
-import type { GcSession } from './gc-client-types.js';
+import type { DashboardSession } from './gc-client-types.js';
 
 /**
  * The mail fields the operator-mail sender-role filter reads — read state,
  * sender, and timestamp. Kept as a minimal structural shape rather than a
- * specific wire DTO so the filter stays portable across mail sources (the
- * backend snapshot alert path and the TUI ledger each pass their own wire
- * mail items, which are structurally compatible). The direct-supervisor
- * migration removed the shared GcMailItem DTO; this is the only mail surface
- * this module needs.
+ * specific wire DTO so the filter stays portable across generated supervisor
+ * mail reads. The direct-supervisor migration removed the shared GcMailItem
+ * DTO; this is the only mail surface this module needs.
  */
 export interface OperatorMailItem {
   readonly from: string;
@@ -76,7 +72,7 @@ export function rigLabel(rig: string | null | undefined): string {
  * bucket), then a pool worker (a multi-session "polecat", identified by the
  * `pool` field or the polecat template), else a named role agent.
  */
-export function agentKind(s: GcSession): AgentKind {
+export function agentKind(s: DashboardSession): AgentKind {
   const template = s.template ?? '';
   const isDispatcher =
     template === CONTROL_DISPATCHER || template.endsWith(`/${CONTROL_DISPATCHER}`) ||
@@ -99,7 +95,7 @@ export function agentKind(s: GcSession): AgentKind {
  */
 export function operatorMail<T extends OperatorMailItem>(
   mail: readonly T[],
-  sessions: readonly GcSession[],
+  sessions: readonly DashboardSession[],
 ): readonly T[] {
   const orchSenders = new Set<string>([MAYOR]);
   for (const s of sessions) {

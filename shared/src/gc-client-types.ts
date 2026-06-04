@@ -1,11 +1,13 @@
-// gc-supervisor wire shapes that BackendModule descriptors are contractually
-// allowed to consume via `CityContext.gc` (see `shared/src/views.ts`).
+// Dashboard-owned session projection used by pure selectors and view-model
+// helpers. Supervisor `SessionResponse` values are normalized into this shape
+// at frontend/backend edges; shared modules do not import or own the generated
+// supervisor type.
 //
 // 9yj.1.1: extracted from `shared/src/index.ts` to break a type-only cycle
 // (`views.ts` imports from `index.ts`, `index.ts` re-exports `views.ts`).
 // TypeScript and bundlers tolerate type-only cycles, but the architecture
 // is fragile — every new export added to the barrel risks a new edge.
-// This file holds the gc-client subset views.ts depends on; index.ts
+// This file holds timestamp/session primitives views.ts depends on; index.ts
 // re-exports them so external consumers (`gas-city-dashboard-shared`) see
 // no API change.
 //
@@ -18,7 +20,7 @@ import type { GcCountedList } from './lists.js';
 export type IsoTimestamp = string;
 export type SessionId = string;
 
-export type GcSessionState =
+export type DashboardSessionState =
   | 'creating'
   | 'active'
   | 'asleep'
@@ -27,16 +29,14 @@ export type GcSessionState =
   | 'closed'
   | string;
 
-export interface GcSession {
+export interface DashboardSession {
   id: SessionId;
   template: string;
-  /** Supervisor's tmux/screen session name on disk. Required per OpenAPI
-   *  SessionResponse; present in 73/73 live sessions. */
+  /** Supervisor's tmux/screen session name on disk. */
   session_name: string;
-  /** Required per OpenAPI SessionResponse; present in 73/73 live sessions. */
   title: string;
   alias?: string;
-  state: GcSessionState;
+  state: DashboardSessionState;
   /** Set when state transition has a structured reason (e.g. "city-stop"). */
   reason?: string;
   /** Human-readable display name from the provider (e.g. "Claude Code"). */
@@ -49,17 +49,15 @@ export interface GcSession {
   rig?: string;
   pool?: string;
   agent_kind?: 'pool' | 'role' | string;
-  /** Process-running state independent of session.state (which is gc-level).
-   *  Required per OpenAPI SessionResponse; present in 73/73 live sessions. */
+  /** Process-running state independent of session.state. */
   running: boolean;
   model?: string;
   context_pct?: number;
   context_window?: number;
   /** Coarse activity hint: 'idle' | 'thinking' | 'tool_use' | ... */
   activity?: string;
-  /** Session provider (e.g. 'codex', 'claude', 'gemini'). Required per
-   *  OpenAPI SessionResponse; present in 73/73 live sessions. */
+  /** Session provider (e.g. 'codex', 'claude', 'gemini'). */
   provider: string;
 }
 
-export type GcSessionList = GcCountedList<GcSession>;
+export type DashboardSessionList = GcCountedList<DashboardSession>;

@@ -1,4 +1,4 @@
-import type { GcSession } from 'gas-city-dashboard-shared';
+import type { DashboardSession } from 'gas-city-dashboard-shared';
 import type { AgentResponse } from '../generated/gc-supervisor-client/types.gen';
 import { formatRelative } from '../hooks/time';
 import {
@@ -108,7 +108,7 @@ export function streamBadge(
  * session the rest of the UI shows as running also streams: process
  * `running`, gc state `active`, OR gc state `running`.
  */
-export function isSessionStreamable(session: GcSession | null): boolean {
+export function isSessionStreamable(session: DashboardSession | null): boolean {
   if (session === null) return false;
   return (
     session.running === true ||

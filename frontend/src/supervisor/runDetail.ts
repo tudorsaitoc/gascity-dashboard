@@ -3,7 +3,7 @@ import type {
   FormulaRunPartialReason,
   GcFormulaDetail,
   GcRunSnapshot,
-  GcSession,
+  DashboardSession,
   RunFormulaDetailFetchFailure,
   RunFormulaDetailState,
   RunScopeKind,
@@ -55,8 +55,8 @@ export async function loadSupervisorFormulaRunDetail(
 }
 
 type RunSessionsLookup =
-  | { kind: 'available'; sessions: readonly GcSession[] }
-  | { kind: 'unavailable'; sessions: readonly GcSession[] };
+  | { kind: 'available'; sessions: readonly DashboardSession[] }
+  | { kind: 'unavailable'; sessions: readonly DashboardSession[] };
 
 type RunFormulaDetailLookup =
   | { kind: 'available'; detail: GcFormulaDetail; state: RunFormulaDetailState }
@@ -70,7 +70,7 @@ async function loadRunSessions(cityName: string): Promise<RunSessionsLookup> {
     const list = await supervisorApi().listSessions(cityName);
     return {
       kind: 'available',
-      sessions: (list.items ?? []) as GcSession[],
+      sessions: (list.items ?? []) as DashboardSession[],
     };
   } catch {
     return { kind: 'unavailable', sessions: [] };

@@ -13,7 +13,7 @@ const backendTestTsconfigUrl = new URL('../tsconfig.test.json', import.meta.url)
 const frontendPackageUrl = new URL('../../frontend/package.json', import.meta.url);
 const frontendTsconfigUrl = new URL('../../frontend/tsconfig.json', import.meta.url);
 const gcClientUrl = new URL('../src/gc-client.ts', import.meta.url);
-const gcSupervisorDecodersUrl = new URL('../src/gc-supervisor-decoders.ts', import.meta.url);
+const deletedGcSupervisorDecodersUrl = new URL('../src/gc-supervisor-decoders.ts', import.meta.url);
 const generatorUrl = new URL('../../scripts/generate-gc-supervisor-client.mjs', import.meta.url);
 const generatedClientUrl = new URL('../src/generated/gc-supervisor-client/', import.meta.url);
 const frontendGeneratedClientUrl = new URL(
@@ -21,6 +21,7 @@ const frontendGeneratedClientUrl = new URL(
   import.meta.url,
 );
 const sharedIndexUrl = new URL('../../shared/src/index.ts', import.meta.url);
+const sharedGcBeadsUrl = new URL('../../shared/src/gc-beads.ts', import.meta.url);
 const sharedGcClientTypesUrl = new URL('../../shared/src/gc-client-types.ts', import.meta.url);
 const sharedAgentsUrl = new URL('../../shared/src/gc-agents.ts', import.meta.url);
 const sharedRigsUrl = new URL('../../shared/src/gc-rigs.ts', import.meta.url);
@@ -235,52 +236,32 @@ test('GcClient does not mirror supervisor EVENT history, and uses no deleted mai
   // stream through the transport proxy, so the backend must NOT re-mirror it.
   assert.doesNotMatch(source, /\bgetV0CityByCityNameEvents\b/);
   assert.doesNotMatch(source, /\blistEvents\s*\(/);
-  assert.doesNotMatch(source, /gcSupervisorDecoders\.listEvents/);
-
-  // NOTE: mail is the deliberate exception (gascity-dashboard-mpfx, R4). The
-  // snapshot derives operator-mail alerts SERVER-SIDE (the sender-role filter
-  // can't run in the browser before the digest reaches Home), so gc.listMail +
-  // the listMail decoder exist for that internal read. This is NOT a
-  // browser-facing mail mirror — there is no /api mail route; the browser still
-  // reads mail directly through the supervisor transport proxy.
+  assert.doesNotMatch(source, /\bgetV0CityByCityNameMail\b/);
+  assert.doesNotMatch(source, /\blistMail\s*\(/);
 });
 
-test('GcClient does not mirror the supervisor agent roster through shared DTOs', async () => {
+test('GcClient is limited to dashboard host-local supervisor reads', async () => {
   const source = await readFile(gcClientUrl, 'utf8');
   const sharedIndex = await readFile(sharedIndexUrl, 'utf8');
 
   assert.equal(await exists(sharedAgentsUrl), false);
   assert.doesNotMatch(sharedIndex, /gc-agents/);
-  assert.doesNotMatch(source, /\bGcAgent\b/);
-  assert.doesNotMatch(source, /\bGcAgentList\b/);
-  assert.match(source, /\bListBodyAgentResponse\b/);
-  assert.doesNotMatch(source, /\bAgentResponse\b/);
-});
-
-test('GcClient does not mirror the supervisor rig roster through shared DTOs', async () => {
-  const source = await readFile(gcClientUrl, 'utf8');
-  const sharedIndex = await readFile(sharedIndexUrl, 'utf8');
-
   assert.equal(await exists(sharedRigsUrl), false);
   assert.doesNotMatch(sharedIndex, /gc-rigs/);
-  assert.doesNotMatch(source, /\bGcRig\b/);
-  assert.doesNotMatch(source, /\bGcRigList\b/);
-  assert.match(source, /\bListBodyRigResponse\b/);
-});
-
-test('GcClient does not mirror supervisor status through a shared GcStatus DTO', async () => {
-  const source = await readFile(gcClientUrl, 'utf8');
-
-  assert.doesNotMatch(source, /\bGcStatus\b/);
-  assert.match(source, /\bStatusBody\b/);
-});
-
-test('GcClient keeps only generated formula feed and no unused formula/order mirrors', async () => {
-  const source = await readFile(gcClientUrl, 'utf8');
-  const sharedIndex = await readFile(sharedIndexUrl, 'utf8');
-
   assert.equal(await exists(sharedFormulaRunsUrl), false);
   assert.doesNotMatch(sharedIndex, /formula-runs/);
+  assert.equal(await exists(deletedGcSupervisorDecodersUrl), false);
+
+  assert.match(source, /\bgetV0Cities\b/);
+  assert.match(source, /\bgetV0CityByCityNameStatus\b/);
+  assert.match(source, /\bStatusBody\b/);
+  assert.match(source, /\bSupervisorCity\b/);
+
+  assert.doesNotMatch(source, /\bGcAgent\b/);
+  assert.doesNotMatch(source, /\bGcAgentList\b/);
+  assert.doesNotMatch(source, /\bGcRig\b/);
+  assert.doesNotMatch(source, /\bGcRigList\b/);
+  assert.doesNotMatch(source, /\bGcStatus\b/);
   assert.doesNotMatch(source, /\bGcFormulaRun\b/);
   assert.doesNotMatch(source, /\bGcFormulaRunList\b/);
   assert.doesNotMatch(source, /\bGcFormulaRunsResponse\b/);
@@ -290,27 +271,45 @@ test('GcClient keeps only generated formula feed and no unused formula/order mir
   assert.doesNotMatch(source, /\blistOrdersFeed\s*\(/);
   assert.doesNotMatch(source, /\blistOrderHistory\s*\(/);
   assert.doesNotMatch(source, /\bgetOrderHistoryDetail\s*\(/);
-  assert.match(source, /\bFormulaFeedBody\b/);
+  assert.doesNotMatch(source, /\bFormulaFeedBody\b/);
+
+  for (const method of [
+    'listAgents',
+    'listBeads',
+    'listFormulaRuns',
+    'listMail',
+    'listRigs',
+    'listSessions',
+  ]) {
+    assert.doesNotMatch(source, new RegExp(`\\basync ${method}\\s*\\(`));
+  }
 });
 
 test('Maintainer sling does not reintroduce backend supervisor DTOs or GcClient writes', async () => {
   const clientSource = await readFile(gcClientUrl, 'utf8');
-  const decodersSource = await readFile(gcSupervisorDecodersUrl, 'utf8');
   const sharedClientTypes = await readFile(sharedGcClientTypesUrl, 'utf8');
   const sharedIndex = await readFile(sharedIndexUrl, 'utf8');
 
   assert.doesNotMatch(clientSource, /\bpostV0CityByCityNameSling\b/);
   assert.doesNotMatch(clientSource, /\basync\s+sling\s*\(/);
   assert.doesNotMatch(clientSource, /\bwriteSling\s*\(/);
-  assert.doesNotMatch(decodersSource, /\bdecodeSling\s*\(/);
   assert.doesNotMatch(sharedClientTypes, /\bSlingInput\b/);
   assert.doesNotMatch(sharedClientTypes, /\bSlingResponse\b/);
   assert.match(sharedIndex, /maintainer-sling/);
 });
 
+test('shared projection inputs do not use Gc-named supervisor mirror types', async () => {
+  const sharedBeads = await readFile(sharedGcBeadsUrl, 'utf8');
+  const sharedClientTypes = await readFile(sharedGcClientTypesUrl, 'utf8');
+
+  assert.doesNotMatch(sharedBeads, /\bGcBead\b/);
+  assert.doesNotMatch(sharedBeads, /\bGcBeadList\b/);
+  assert.doesNotMatch(sharedClientTypes, /\bGcSession\b/);
+  assert.doesNotMatch(sharedClientTypes, /\bGcSessionList\b/);
+});
+
 test('GcClient has no unused backend detail/transcript supervisor mirrors', async () => {
   const clientSource = await readFile(gcClientUrl, 'utf8');
-  const decodersSource = await readFile(gcSupervisorDecodersUrl, 'utf8');
 
   for (const method of [
     'getAgent',
@@ -320,7 +319,6 @@ test('GcClient has no unused backend detail/transcript supervisor mirrors', asyn
     'fetchTranscript',
   ]) {
     assert.doesNotMatch(clientSource, new RegExp(`\\basync ${method}\\s*\\(`));
-    assert.doesNotMatch(decodersSource, new RegExp(`\\b${method}\\s*\\(`));
   }
 
   assert.doesNotMatch(clientSource, /\bgetV0CityByCityNameAgentByBase\b/);

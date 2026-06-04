@@ -173,7 +173,7 @@ export interface FormulaRunDetail {
    * gascity-dashboard-ud6j: the dashboard-derived phase ladder
    * (intake → implementation → review → approval → finalization) — the SAME
    * stages the snapshot lane renders, computed from this run's OWN beads via
-   * the shared fromGcBead → mapRunPhase → stageProgress pipeline (no
+   * the shared fromDashboardBead → mapRunPhase → stageProgress pipeline (no
    * recompute drift). Lets a single-root run with no materialized step DAG
    * still show live phase progression instead of a dead "1 node" line.
    */

@@ -1,7 +1,7 @@
 import type {
   GcRunBead,
 } from '../run-snapshot.js';
-import type { GcSession } from '../gc-client-types.js';
+import type { DashboardSession } from '../gc-client-types.js';
 import type {
   RunNodeStatus,
   RunSessionLink,
@@ -10,9 +10,9 @@ import { SESSION_ID_RE } from '../session-id.js';
 import { meta, nonEmpty } from './bead-fields.js';
 
 export interface RunSessionIndex {
-  byId: Map<string, GcSession>;
-  byName: Map<string, GcSession>;
-  byTemplate: Map<string, GcSession[]>;
+  byId: Map<string, DashboardSession>;
+  byName: Map<string, DashboardSession>;
+  byTemplate: Map<string, DashboardSession[]>;
 }
 
 export interface RunSessionLinkContext {
@@ -21,11 +21,11 @@ export interface RunSessionLinkContext {
 }
 
 export function buildRunSessionIndex(
-  sessions: readonly GcSession[],
+  sessions: readonly DashboardSession[],
 ): RunSessionIndex {
-  const byId = new Map<string, GcSession>();
-  const byName = new Map<string, GcSession>();
-  const byTemplate = new Map<string, GcSession[]>();
+  const byId = new Map<string, DashboardSession>();
+  const byName = new Map<string, DashboardSession>();
+  const byTemplate = new Map<string, DashboardSession[]>();
 
   for (const session of sessions) {
     remember(byId, session.id, session);
@@ -96,7 +96,7 @@ function resolveRunSessionLink(
 function resolveRunSessionSummary(
   link: RunSessionLink,
   sessionIndex: RunSessionIndex,
-): GcSession | null {
+): DashboardSession | null {
   for (const candidate of [link.sessionId, link.sessionName, link.assignee]) {
     const key = nonEmpty(candidate);
     if (!key) continue;
@@ -110,7 +110,7 @@ function resolveRunSessionSummary(
 }
 
 function linkForSession(
-  session: GcSession,
+  session: DashboardSession,
   rawLink: RunSessionLink,
 ): RunSessionLink {
   return {
@@ -131,7 +131,7 @@ function linkForSession(
   };
 }
 
-function uniquePreferredSession(sessions: readonly GcSession[]): GcSession | null {
+function uniquePreferredSession(sessions: readonly DashboardSession[]): DashboardSession | null {
   if (sessions.length === 0) return null;
   const active = sessions.filter((session) => session.state === 'active' || session.running === true);
   if (active.length === 1) return active[0] ?? null;
@@ -140,9 +140,9 @@ function uniquePreferredSession(sessions: readonly GcSession[]): GcSession | nul
 }
 
 function remember(
-  store: Map<string, GcSession>,
+  store: Map<string, DashboardSession>,
   key: string | undefined,
-  session: GcSession,
+  session: DashboardSession,
 ): void {
   const clean = nonEmpty(key);
   if (!clean || store.has(clean)) return;

@@ -1,6 +1,6 @@
 import { cleanup, fireEvent, render, screen } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import type { GcBead, BeadStatus } from 'gas-city-dashboard-shared';
+import type { DashboardBead, BeadStatus } from 'gas-city-dashboard-shared';
 import { buildBeadGraph } from '../../lib/beadGraph';
 import { BeadDependencies } from './BeadDependencies';
 
@@ -13,8 +13,8 @@ afterEach(() => cleanup());
 function bead(
   id: string,
   status: BeadStatus,
-  extra: Partial<GcBead> = {},
-): GcBead {
+  extra: Partial<DashboardBead> = {},
+): DashboardBead {
   return {
     id,
     title: `bead ${id}`,
@@ -26,7 +26,7 @@ function bead(
   };
 }
 
-function nodeFor(id: string, beads: GcBead[]) {
+function nodeFor(id: string, beads: DashboardBead[]) {
   const graph = buildBeadGraph(beads);
   const node = graph.nodes.get(id);
   if (!node) throw new Error(`no node for ${id}`);

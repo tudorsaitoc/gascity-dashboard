@@ -1,7 +1,7 @@
 import type {
   EntityLinkView,
-  GcBead,
-  GcSession,
+  DashboardBead,
+  DashboardSession,
 } from 'gas-city-dashboard-shared';
 import {
   buildLinkView,
@@ -32,7 +32,7 @@ export async function loadSupervisorEntityLinks(ref: string): Promise<EntityLink
     partial = true;
   }
 
-  let sessions: GcSession[] = [];
+  let sessions: DashboardSession[] = [];
   try {
     const sessionList = await supervisorApi().listSessions(cityName);
     sessions = normalizeSessions(sessionList);
@@ -49,12 +49,12 @@ export async function loadSupervisorEntityLinks(ref: string): Promise<EntityLink
   });
 }
 
-function normalizeBeads(beads: readonly Bead[]): GcBead[] {
+function normalizeBeads(beads: readonly Bead[]): DashboardBead[] {
   return beads.map(normalizeBead);
 }
 
-function normalizeBead(bead: Bead): GcBead {
-  const normalized: GcBead = {
+function normalizeBead(bead: Bead): DashboardBead {
+  const normalized: DashboardBead = {
     id: bead.id,
     title: bead.title,
     status: bead.status,
@@ -76,12 +76,12 @@ function normalizeBead(bead: Bead): GcBead {
   return normalized;
 }
 
-function normalizeSessions(list: ListBodySessionResponse): GcSession[] {
+function normalizeSessions(list: ListBodySessionResponse): DashboardSession[] {
   return (list.items ?? []).map(normalizeSession);
 }
 
-function normalizeSession(session: SessionResponse): GcSession {
-  const normalized: GcSession = {
+function normalizeSession(session: SessionResponse): DashboardSession {
+  const normalized: DashboardSession = {
     id: session.id,
     template: session.template,
     session_name: session.session_name,

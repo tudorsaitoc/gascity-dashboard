@@ -7,6 +7,7 @@ import {
   resetSupervisorApiForTests,
   setSupervisorApiForTests,
   supervisorApi,
+  supervisorApiForRequestBudget,
 } from './client';
 
 describe('supervisor client wrapper', () => {
@@ -22,6 +23,19 @@ describe('supervisor client wrapper', () => {
 
   it('keeps the default request timeout long enough for slow workflow snapshots', () => {
     expect(SUPERVISOR_REQUEST_TIMEOUT_MS).toBe(60_000);
+  });
+
+  it('caches generated supervisor clients by explicit request budget', () => {
+    const fast = supervisorApiForRequestBudget(2_500);
+    expect(supervisorApiForRequestBudget(2_500)).toBe(fast);
+    expect(supervisorApiForRequestBudget(5_000)).not.toBe(fast);
+  });
+
+  it('honors the test supervisor override for explicit request budgets', () => {
+    const injected = createSupervisorApi({ baseUrl: 'http://gc-supervisor.test' });
+    setSupervisorApiForTests(injected);
+
+    expect(supervisorApiForRequestBudget(2_500)).toBe(injected);
   });
 
   it('calls supervisor health through the generated SDK', async () => {

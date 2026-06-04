@@ -1,7 +1,7 @@
 import {
   resolveSessionForTarget,
 } from '../session-resolve.js';
-import type { GcSession } from '../gc-client-types.js';
+import type { DashboardSession } from '../gc-client-types.js';
 import type {
   RunCensus,
   RunLane,
@@ -41,7 +41,7 @@ export type LaneProgressComparison =
 
 export interface DeriveRunHealthInput {
   lanes: readonly RunLane[];
-  sessions: readonly GcSession[];
+  sessions: readonly DashboardSession[];
   sessionsAvailable: boolean;
   marks: ReadonlyMap<string, LaneProgressMark>;
   thresholds?: Partial<HealthThresholds>;
@@ -121,8 +121,8 @@ export function deriveRunHealth(
 
 function resolveLaneSession(
   lane: RunLane,
-  sessions: readonly GcSession[],
-): { status: 'resolved'; session: GcSession } | { status: 'unresolved'; error: string } {
+  sessions: readonly DashboardSession[],
+): { status: 'resolved'; session: DashboardSession } | { status: 'unresolved'; error: string } {
   for (const assignee of lane.activeAssignees) {
     const session = resolveSessionForTarget(assignee, sessions);
     if (session !== null) return { status: 'resolved', session };
@@ -154,7 +154,7 @@ function stuckNode(lane: RunLane): RunLaneHealth['stuckNode'] {
     : { status: 'unavailable', error: 'active run step unavailable' };
 }
 
-function sessionFacts(session: GcSession): RunLaneHealth['session'] {
+function sessionFacts(session: DashboardSession): RunLaneHealth['session'] {
   return {
     status: 'resolved',
     lastActive:

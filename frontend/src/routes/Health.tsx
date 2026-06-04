@@ -25,7 +25,9 @@ import { useCachedData } from '../hooks/useCachedData';
 import { useVisibleRefresh } from '../hooks/useVisibleRefresh';
 import { formatHumanSize } from '../lib/format';
 import { formatShortDate } from '../hooks/time';
-import { supervisorApi } from '../supervisor/client';
+import { supervisorApiForRequestBudget } from '../supervisor/client';
+
+const HEALTH_SUPERVISOR_REQUEST_TIMEOUT_MS = 2_500;
 
 export function HealthPage() {
   const attention = useAttentionModel();
@@ -116,7 +118,7 @@ export function HealthPage() {
                 {error}
               </span>
             )}
-            <Button size="sm" onClick={() => void refresh()} disabled={sourceLoading}>
+            <Button size="sm" onClick={() => void refresh()}>
               {sourceLoading && !hasAnyData ? 'Loading' : 'Refresh'}
             </Button>
           </>
@@ -545,7 +547,9 @@ async function fetchSupervisorHealth(): Promise<SupervisorHealthState> {
   try {
     return {
       status: 'available',
-      data: await supervisorApi().cityHealth(cityName),
+      data: await supervisorApiForRequestBudget(
+        HEALTH_SUPERVISOR_REQUEST_TIMEOUT_MS,
+      ).cityHealth(cityName),
     };
   } catch {
     return {
@@ -563,7 +567,9 @@ async function fetchSupervisorStatus(): Promise<SupervisorStatusState> {
   try {
     return {
       status: 'available',
-      data: await supervisorApi().cityStatus(cityName),
+      data: await supervisorApiForRequestBudget(
+        HEALTH_SUPERVISOR_REQUEST_TIMEOUT_MS,
+      ).cityStatus(cityName),
     };
   } catch {
     return {

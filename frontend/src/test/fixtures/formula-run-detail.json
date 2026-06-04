@@ -561,7 +561,7 @@
     },
     "status": [
       " M frontend/src/routes/FormulaRunDetail.tsx",
-      " M backend/src/runs/enrich.ts",
+      " M shared/src/runs/enrich.ts",
       "?? docs/plan.md"
     ],
     "changedFiles": [
@@ -571,7 +571,7 @@
         "kind": "code"
       },
       {
-        "path": "backend/src/runs/enrich.ts",
+        "path": "shared/src/runs/enrich.ts",
         "status": "M",
         "kind": "code"
       },
@@ -581,7 +581,7 @@
         "kind": "docs"
       }
     ],
-    "patch": "diff --git a/backend/src/runs/enrich.ts b/backend/src/runs/enrich.ts\nindex 3a4e79a..b6c9d02 100644\n--- a/backend/src/runs/enrich.ts\n+++ b/backend/src/runs/enrich.ts\n@@ -1,4 +1,4 @@\n-old session guard\n+preserve failed attempt transcript links\n context line\n\ndiff --git a/frontend/src/routes/FormulaRunDetail.tsx b/frontend/src/routes/FormulaRunDetail.tsx\nindex 3a4e79a..b6c9d02 100644\n--- a/frontend/src/routes/FormulaRunDetail.tsx\n+++ b/frontend/src/routes/FormulaRunDetail.tsx\n@@ -10,3 +10,4 @@\n <FormulaRunDiagram />\n+<FormulaRunTabs />\n\ndiff --git a/docs/plan.md b/docs/plan.md\nnew file mode 100644\nindex 0000000..b6c9d02\n--- /dev/null\n+++ b/docs/plan.md\n@@ -0,0 +1,3 @@\n+# Plan\n+\n+Preserve failed attempt transcript links before final review.",
+    "patch": "diff --git a/shared/src/runs/enrich.ts b/shared/src/runs/enrich.ts\nindex 3a4e79a..b6c9d02 100644\n--- a/shared/src/runs/enrich.ts\n+++ b/shared/src/runs/enrich.ts\n@@ -1,4 +1,4 @@\n-old session guard\n+preserve failed attempt transcript links\n context line\n\ndiff --git a/frontend/src/routes/FormulaRunDetail.tsx b/frontend/src/routes/FormulaRunDetail.tsx\nindex 3a4e79a..b6c9d02 100644\n--- a/frontend/src/routes/FormulaRunDetail.tsx\n+++ b/frontend/src/routes/FormulaRunDetail.tsx\n@@ -10,3 +10,4 @@\n <FormulaRunDiagram />\n+<FormulaRunTabs />\n\ndiff --git a/docs/plan.md b/docs/plan.md\nnew file mode 100644\nindex 0000000..b6c9d02\n--- /dev/null\n+++ b/docs/plan.md\n@@ -0,0 +1,3 @@\n+# Plan\n+\n+Preserve failed attempt transcript links before final review.",
     "truncated": false
   },
   "transcripts": {

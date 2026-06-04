@@ -1,5 +1,5 @@
 import type {
-  GcBead,
+  DashboardBead,
 } from '../gc-beads.js';
 import type {
   GcRunBead,
@@ -32,13 +32,13 @@ const PRESENTATION_METADATA_KEYS = [
  */
 export function mergeRunRuntimeState(
   raw: GcRunSnapshot,
-  runtimeBeads: readonly GcBead[],
+  runtimeBeads: readonly DashboardBead[],
 ): GcRunSnapshot {
   if (!Array.isArray(raw.beads) || runtimeBeads.length === 0) return raw;
   const runtimeById = new Map(
     runtimeBeads
       .map((bead) => [nonEmpty(bead.id), bead] as const)
-      .filter((entry): entry is readonly [string, GcBead] => entry[0] !== undefined),
+      .filter((entry): entry is readonly [string, DashboardBead] => entry[0] !== undefined),
   );
 
   return {
@@ -49,7 +49,7 @@ export function mergeRunRuntimeState(
 
 function mergeRunBead(
   bead: GcRunBead,
-  runtime: GcBead | undefined,
+  runtime: DashboardBead | undefined,
 ): GcRunBead {
   if (!runtime) return bead;
   const status = nonEmpty(runtime.status) ?? bead.status;
@@ -66,7 +66,7 @@ function mergeRunBead(
   return merged;
 }
 
-function presentationMetadata(metadata: GcBead['metadata']): Record<string, string> {
+function presentationMetadata(metadata: DashboardBead['metadata']): Record<string, string> {
   if (!metadata) return {};
   const out: Record<string, string> = {};
   for (const key of PRESENTATION_METADATA_KEYS) {

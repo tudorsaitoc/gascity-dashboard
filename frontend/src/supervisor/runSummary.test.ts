@@ -69,7 +69,7 @@ describe('loadSupervisorRunSummaryPreviewSource', () => {
     vi.clearAllMocks();
   });
 
-  it('builds a first-paint summary from the active bead list only', async () => {
+  it('builds a first-paint summary from bounded active and recent run reads', async () => {
     const listBeads = vi.fn(async () => beadList([runRoot()]));
     const formulaFeed = vi.fn(async () => feed([feedRun()]));
     const listSessions = vi.fn(async () => sessionList());
@@ -87,9 +87,23 @@ describe('loadSupervisorRunSummaryPreviewSource', () => {
     expect(source.data.totalActive).toBe(1);
     expect(source.data.lanes[0]?.id).toBe('run-1');
     expect(source.data.lanes[0]?.health.status).toBe('unavailable');
-    expect(listBeads).toHaveBeenCalledTimes(1);
+    expect(listBeads).toHaveBeenCalledTimes(3);
     expect(listBeads).toHaveBeenCalledWith('test-city', { limit: 1_000 });
-    expect(formulaFeed).not.toHaveBeenCalled();
+    expect(listBeads).toHaveBeenCalledWith('test-city', {
+      limit: 80,
+      type: 'molecule',
+      all: true,
+    });
+    expect(listBeads).toHaveBeenCalledWith('test-city', {
+      limit: 80,
+      type: 'task',
+      rig: 'rig-a',
+      all: true,
+    });
+    expect(formulaFeed).toHaveBeenCalledWith('test-city', {
+      scope_kind: 'city',
+      scope_ref: 'test-city',
+    });
     expect(listSessions).not.toHaveBeenCalled();
   });
 });

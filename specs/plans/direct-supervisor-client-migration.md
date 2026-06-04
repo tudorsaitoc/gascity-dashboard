@@ -187,15 +187,12 @@ Order:
    and pending approve/deny writes call
    `/v0/city/{cityName}/session/{id}/respond` directly through the generated
    client with the dashboard mutation header. The dashboard
-   `/api/city/:cityName/sessions` mirror and `/peek` route were removed.
-   `GcClient.listSessions()` / `fetchTranscript()` remain transitional
-   backend-only dependencies for composed dashboard-local routes and
-   snapshot/run enrichment until those surfaces migrate.**
+   `/api/city/:cityName/sessions` mirror and `/peek` route were removed;
+   the backend no longer keeps session/transcript read mirrors.**
 3. agents. **Implemented for browser-facing reads: the Agents page now calls
    the generated supervisor client for `/v0/city/{cityName}/agents`, and the
-   dashboard `GET /api/city/:cityName/agents` roster mirror was removed.
-   `GcClient.listAgents()` remains a transitional backend-only dependency for
-   snapshot/city-status enrichment until that surface migrates.**
+   dashboard `GET /api/city/:cityName/agents` roster mirror and empty agents
+   router mount were removed.**
 4. beads list/detail. **Implemented for browser-facing reads: Beads and
    Agent Detail now call the generated supervisor client for
    `/v0/city/{cityName}/beads`, and bead detail fetches
@@ -208,10 +205,8 @@ Order:
    dashboard-owned filter route.
    Close now uses the generated supervisor endpoint with an optional reason
    body after `GC-10`; nudge now uses the generated supervisor agent action
-   endpoint after `GC-11`; the dashboard close and nudge routes were removed.
-   `GcClient.listBeads()` and `getBead()` remain transitional backend-only
-   dependencies for the backend-local snapshot/run collector tail until that
-   composed surface is removed or replaced by upstream supervisor facts.**
+   endpoint after `GC-11`; the dashboard close and nudge routes were removed;
+   the backend no longer keeps bead read/detail mirrors.**
 5. mail list/thread. **Implemented for browser-facing reads: Mail,
    Viewing-As alias prefetch, and Agent Detail chat now call the generated
    supervisor client for `/v0/city/{cityName}/mail` and
@@ -382,68 +377,60 @@ Deliverables:
 
 Implementation status:
 
-- Mail/event cleanup is implemented for the migrated surfaces:
-  `GcClient.listMail()`, `GcClient.listEvents()`,
-  `gcSupervisorDecoders.listMail()`, `gcSupervisorDecoders.listEvents()`,
-  the backend hand-rolled mail/event schemas, and shared `gc-mail` /
-  `gc-events` DTO leaves were deleted. Structure tests now prevent
-  reintroducing those dashboard-server mirrors.
-- Agent roster cleanup is implemented for the transitional backend reads:
-  `GcClient.listAgents()` and `getAgent()` now return generated supervisor
-  `ListBodyAgentResponse` / `AgentResponse` types, frontend agent helpers use
-  the generated browser `AgentResponse`, and the shared `gc-agents` DTO leaf
-  was deleted. Structure tests prevent reintroducing that shared mirror.
-- Rig roster cleanup is implemented for the transitional city-status read:
-  `GcClient.listRigs()` now returns generated supervisor
-  `ListBodyRigResponse`, the city-status collector projects generated
-  `RigResponse` to its dashboard-owned `CityRig` shape, and the shared
-  `gc-rigs` DTO leaf was deleted. Structure tests prevent reintroducing that
-  shared mirror.
-- Status cleanup is implemented for the transitional dolt-noms sampler:
-  `GcClient.getStatus()` now returns generated supervisor `StatusBody`, the
-  sampler depends on that generated type, and the shared `GcStatus` /
-  `StatusStoreHealth` mirror was deleted from `gc-health`. Structure tests
-  prevent reintroducing that shared mirror.
-- Formula/order cleanup is implemented for the transitional run discovery
-  path: `GcClient.listFormulaRuns()` now returns generated supervisor
-  `FormulaFeedBody`, run discovery consumes `workflow_id` directly, the shared
-  `formula-runs` DTO leaf was deleted, and the unused future-pinned
-  `listFormulaRunsByName`, `listOrdersFeed`, `listOrderHistory`, and
-  `getOrderHistoryDetail` wrappers were removed. Structure tests prevent
-  reintroducing those dashboard-server mirrors.
-- Run summary and related-entity cleanup is implemented for browser-facing
-  reads: `/runs`, Home, Formula Run Detail skeletons, and related entities now
-  compose from generated browser supervisor calls plus shared projection
-  helpers; `/api/city/:cityName/snapshot`, `/snapshot/refresh`,
-  `/links/:ref`, and `/home/pending/stream` route modules/mounts were removed.
-- Maintainer sling cleanup is implemented for browser-facing writes:
-  the browser calls generated supervisor sling directly, and the dashboard
-  service keeps only dashboard-local `/maintainer/sling-record` persistence.
-  `GcClient.sling`, `gcSupervisorDecoders.decodeSling`, backend sling request
-  decoding, and shared `SlingInput` / `SlingResponse` mirror DTOs were removed.
-- Remaining cleanup is intentionally transitional: `GcClient`,
-  `gc-supervisor-decoders`, and the remaining shared GC leaves still support
-  backend-local snapshot/run collector tests and local health enrichment until
-  the upstream gaps or final client-side composition work are finished. Agent
-  prime, links, and browser-facing run summaries are no longer part of that
-  backend tail.
+- Backend supervisor mirror deletion is implemented. The backend snapshot
+  subsystem, run projection layer, empty agents router, and
+  `gc-supervisor-decoders.ts` hand-Zod adapter were deleted. The remaining
+  backend `GcClient` surface is host-local only: generated
+  `/v0/cities` city-registry reads and per-city generated status reads for
+  dashboard-local health sampling.
+- Browser-facing supervisor reads and writes stay on
+  `frontend/src/supervisor/client.ts`, backed by generated supervisor SDK/types
+  through the `/gc-supervisor/*` transport-only proxy.
+- The dashboard service keeps local ownership of git/gh/build/dolt-noms reads,
+  maintainer record persistence, audit logging, client-error logging, and
+  Formula Run Detail's local diff route. None of those routes returns a
+  dashboard mirror of supervisor-owned entities.
+- Backend tests that mocked deleted supervisor mirrors were removed and
+  replaced with focused `GcClient` tests for the remaining host-local contract:
+  timeout classification, caller aborts, single-flight coalescing, non-2xx
+  redaction, empty-body rejection, generated validation, and city-registry
+  mapping.
+- The legacy `tui` workspace was removed. It still called deleted
+  `/api/city/:cityName/*` supervisor mirror routes and failed typecheck against
+  the current shared surface, so keeping it in the workspace would preserve a
+  stale architecture.
+- Remaining shared cleanup is explicit and browser/shared-only:
+  `DashboardBead`, `DashboardSession`, and related run/relationship projection
+  helpers support dashboard-owned composed view models. The old `GcBead` /
+  `GcSession` names were removed so these helpers are no longer described as
+  supervisor DTO mirrors. Generated supervisor entities are normalized into
+  these projection inputs at frontend/backend edges.
 
 Acceptance:
 
-- `rg "GcClient|gc-supervisor-decoders|/api/city/.*/(agents|beads|mail|sessions|events|snapshot)"` is clean except for archived docs or explicit migration notes.
-- `shared/` contains no supervisor wire mirror types. **Partially achieved:
-  mail/event/agent/rig/status/formula/order mirror leaves are gone; remaining
-  GC/shared leaves are tracked by the transitional cleanup item above.**
+- `backend/src/gc-client.ts` exposes only `getStatus()` and
+  `listSupervisorCities()` over the generated supervisor SDK.
+- `backend/src/gc-supervisor-decoders.ts`, `backend/src/snapshot/`,
+  `backend/src/routes/agents.ts`, and the backend run projection files are
+  gone.
+- Browser-facing supervisor entity routes under dashboard `/api/city/*` remain
+  deleted; `/gc-supervisor/*` is transport only.
+- `shared/` contains no backend-owned supervisor DTO leaves for the deleted
+  routes. Browser/shared run and relation helpers now expose dashboard-owned
+  projection inputs (`DashboardBead`, `DashboardSession`) instead of `Gc*`
+  supervisor-mirror names.
 - The LOC deletion target in this plan is materially achieved.
 
 ## Expected Simplification
 
 Measured from current `origin/main`, the production deletion pool is roughly:
 
-- `backend/src/gc-client.ts`: about 1,009 LOC.
-- `backend/src/gc-supervisor-decoders.ts`: about 920 LOC.
+- `backend/src/gc-client.ts`: reduced to the host-local status/city-registry
+  wrapper.
+- `backend/src/gc-supervisor-decoders.ts`: deleted.
 - GC mirror routes for agents, beads, mail, sessions, events, streams,
-  snapshot, and large parts of runs: about 1.4k-2.0k LOC.
+  snapshot, and large parts of runs: deleted or already absent, with only
+  dashboard-local run diff retained.
 - Supervisor mirror DTO leaves in `shared/src/gc-*.ts` and
   `shared/src/formula-runs.ts`: about 650 LOC.
 - GC-specific parts of `frontend/src/api/client.ts`: about 250-350 net LOC

@@ -6,16 +6,16 @@
 import { test, describe } from 'node:test';
 import assert from 'node:assert/strict';
 import { resolveSessionForTarget, lastSegment } from './session-resolve.js';
-import type { GcSession } from './gc-client-types.js';
+import type { DashboardSession } from './gc-client-types.js';
 
-function sess(partial: Partial<GcSession> & { id: string }): GcSession {
+function sess(partial: Partial<DashboardSession> & { id: string }): DashboardSession {
   return {
     template: 't',
     state: 'active',
     created_at: '2026-05-24T00:00:00Z',
     attached: false,
     ...partial,
-  } as GcSession;
+  } as DashboardSession;
 }
 
 describe('resolveSessionForTarget', () => {

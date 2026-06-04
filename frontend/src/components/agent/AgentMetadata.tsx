@@ -1,9 +1,9 @@
 import type { ReactNode } from 'react';
-import type { GcSession } from 'gas-city-dashboard-shared';
+import type { DashboardSession } from 'gas-city-dashboard-shared';
 import { effectiveContextPct } from 'gas-city-dashboard-shared';
 import { formatRelative } from '../../hooks/time';
 
-export function AgentMetadata({ session, now }: { session: GcSession; now: number }) {
+export function AgentMetadata({ session, now }: { session: DashboardSession; now: number }) {
   const pct = effectiveContextPct(session);
   const items: ReadonlyArray<{ label: string; value: ReactNode }> = [
     { label: 'Rig', value: session.rig ?? '·' },

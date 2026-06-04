@@ -84,11 +84,10 @@ describe('LaneCard navigation', () => {
 });
 
 // gascity-dashboard-f4ps: historical lanes ship from the backend with
-// `health: { status: 'unavailable' }` because deriveWorkflowHealth runs only
-// over the active subset (backend/src/snapshot/service.ts). The health
-// concepts (thrashing, stalled-session) are meaningless for completed runs,
-// so the lane render must not surface the unavailable health string as if
-// it were a degradation signal.
+// `health: { status: 'unavailable' }` because run health is derived only over
+// the active subset. The health concepts (thrashing, stalled-session) are
+// meaningless for completed runs, so the lane render must not surface the
+// unavailable health string as if it were a degradation signal.
 describe('LaneCard historical-lane render', () => {
   function makeHistoricalLane(overrides: Partial<RunLane> = {}): RunLane {
     return {

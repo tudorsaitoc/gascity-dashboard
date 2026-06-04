@@ -176,6 +176,7 @@ const SUPERVISOR_SCHEMA_VALIDATION_MESSAGE = 'gc supervisor response failed vali
 
 let testSupervisorApi: SupervisorApi | null = null;
 let defaultSupervisorApi: SupervisorApi | null = null;
+const requestBudgetSupervisorApis = new Map<number, SupervisorApi>();
 
 export class SupervisorApiError extends Error {
   override readonly name = 'SupervisorApiError';
@@ -532,6 +533,16 @@ export function supervisorApi(): SupervisorApi {
   return defaultSupervisorApi;
 }
 
+export function supervisorApiForRequestBudget(timeoutMs: number): SupervisorApi {
+  if (testSupervisorApi !== null) return testSupervisorApi;
+  const normalizedTimeoutMs = supervisorTimeoutMs(timeoutMs);
+  const cached = requestBudgetSupervisorApis.get(normalizedTimeoutMs);
+  if (cached !== undefined) return cached;
+  const api = createSupervisorApi({ timeoutMs: normalizedTimeoutMs });
+  requestBudgetSupervisorApis.set(normalizedTimeoutMs, api);
+  return api;
+}
+
 export function setSupervisorApiForTests(api: SupervisorApi): void {
   testSupervisorApi = api;
 }
@@ -539,6 +550,7 @@ export function setSupervisorApiForTests(api: SupervisorApi): void {
 export function resetSupervisorApiForTests(): void {
   testSupervisorApi = null;
   defaultSupervisorApi = null;
+  requestBudgetSupervisorApis.clear();
 }
 
 function resolveSupervisorBaseUrl(): string {

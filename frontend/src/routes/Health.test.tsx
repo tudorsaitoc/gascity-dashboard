@@ -1,6 +1,6 @@
 import { cleanup, render, screen } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi, type Mock } from 'vitest';
 import { HealthPage } from './Health';
 import { invalidate } from '../api/cache';
 import { AttentionProvider } from '../attention/context';
@@ -17,15 +17,17 @@ import type {
   LocalToolVersions,
   SystemHealth,
 } from 'gas-city-dashboard-shared';
+import { supervisorApiForRequestBudget } from '../supervisor/client';
 
 const mockCityHealth = vi.fn<(cityName: string) => Promise<HealthOutputBody>>();
 const mockCityStatus = vi.fn<(cityName: string) => Promise<StatusBody>>();
+const mockSupervisorApiForRequestBudget = supervisorApiForRequestBudget as unknown as Mock;
 
 vi.mock('../supervisor/client', () => ({
-  supervisorApi: () => ({
+  supervisorApiForRequestBudget: vi.fn(() => ({
     cityHealth: mockCityHealth,
     cityStatus: mockCityStatus,
-  }),
+  })),
 }));
 
 // gascity-dashboard-e0hh: coverage for the absent supervisor.city /
@@ -43,6 +45,7 @@ let trendMode: 'ok' | 'fail' = 'ok';
 
 beforeEach(() => {
   invalidate('health');
+  mockSupervisorApiForRequestBudget.mockClear();
   mockCityHealth.mockReset();
   mockCityStatus.mockReset();
   mockCityHealth.mockResolvedValue(presentLocator());
@@ -153,6 +156,7 @@ describe('HealthPage', () => {
 
     expect(mockCityHealth).toHaveBeenCalledWith('test-city');
     expect(mockCityStatus).toHaveBeenCalledWith('test-city');
+    expect(mockSupervisorApiForRequestBudget).toHaveBeenCalledWith(2500);
     expect(fetch).toHaveBeenCalledWith('/api/health/system', expect.any(Object));
     expect(fetch).toHaveBeenCalledWith('/api/health/local-tools', expect.any(Object));
     expect(fetch).not.toHaveBeenCalledWith('/api/city/test-city/health/system', expect.any(Object));

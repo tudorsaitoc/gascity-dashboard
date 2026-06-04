@@ -8,7 +8,10 @@ import { getActiveCity } from '../api/cityBase';
 import { useCachedData } from '../hooks/useCachedData';
 import { listAgentPendingInteractions } from '../supervisor/agentPending';
 import { listSupervisorBeads } from '../supervisor/beadReads';
-import { supervisorApi } from '../supervisor/client';
+import {
+  supervisorApi,
+  supervisorApiForRequestBudget,
+} from '../supervisor/client';
 import {
   DEFAULT_MAIL_HISTORY_LIMIT,
   listSupervisorMail,
@@ -31,6 +34,7 @@ const FORMULA_FEED_LIMIT = 100;
 const ATTENTION_LIST_LIMIT = 1000;
 const ACTIVITY_EVENT_FETCH_LIMIT = 100;
 const ACTIVITY_EVENT_WINDOW = '24h';
+const HEALTH_ATTENTION_SUPERVISOR_TIMEOUT_MS = 2_500;
 
 export function useLiveAttentionContributors(
   enabledModules: readonly string[] | null = null,
@@ -234,7 +238,7 @@ async function fetchHealthAttention(
   if (cityName === null) return {};
   const [system, supervisor, trend] = await Promise.allSettled([
     api.systemHealth(),
-    supervisorApi().cityHealth(cityName),
+    supervisorApiForRequestBudget(HEALTH_ATTENTION_SUPERVISOR_TIMEOUT_MS).cityHealth(cityName),
     api.doltTrend(),
   ]);
   const facts: HealthAttentionFacts = {};

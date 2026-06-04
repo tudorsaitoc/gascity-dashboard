@@ -1,4 +1,4 @@
-import type { GcBead, GcSession } from 'gas-city-dashboard-shared';
+import type { DashboardBead, DashboardSession } from 'gas-city-dashboard-shared';
 import { makeNodeKey } from 'gas-city-dashboard-shared';
 import assert from 'node:assert/strict';
 import { describe, test } from 'node:test';
@@ -6,7 +6,7 @@ import { buildRelationIndex } from '../src/links/relation-index.js';
 
 // R1 + RK1 unit tests for the backend relation index.
 
-function bead(id: string, metadata: Record<string, string> = {}, over: Partial<GcBead> = {}): GcBead {
+function bead(id: string, metadata: Record<string, string> = {}, over: Partial<DashboardBead> = {}): DashboardBead {
   return {
     id,
     title: `bead ${id}`,
@@ -19,7 +19,7 @@ function bead(id: string, metadata: Record<string, string> = {}, over: Partial<G
   };
 }
 
-function session(id: string, over: Partial<GcSession> = {}): GcSession {
+function session(id: string, over: Partial<DashboardSession> = {}): DashboardSession {
   return {
     id,
     template: 'tpl',
@@ -36,7 +36,7 @@ function session(id: string, over: Partial<GcSession> = {}): GcSession {
 
 describe('buildRelationIndex (R1)', () => {
   test('forward edge and its inverse both resolve', () => {
-    const beads: GcBead[] = [
+    const beads: DashboardBead[] = [
       bead('root-1'),
       bead('child-1', { 'gc.parent_bead_id': 'root-1' }),
       bead('mem-1', { molecule_id: 'mol-1' }),
@@ -59,7 +59,7 @@ describe('buildRelationIndex (R1)', () => {
   test('PR refs resolve from the deployed molecule evidence.* namespace', () => {
     // The real shapes the deployed molecule formulas write (mol-pr-from-issue,
     // mol-pr-iterate) — NOT pr_review.*, which is a different run family.
-    const beads: GcBead[] = [
+    const beads: DashboardBead[] = [
       // mol-pr-from-issue step 8: evidence.pr_url (+ artifact_path).
       bead('from-issue', {
         'evidence.pr_url': 'https://github.com/gastownhall/gascity/pull/742',
@@ -88,7 +88,7 @@ describe('buildRelationIndex (R1)', () => {
   });
 
   test('PR ref priority: evidence.* wins, pr_review.* is fallback', () => {
-    const beads: GcBead[] = [
+    const beads: DashboardBead[] = [
       // evidence.pr_number should win over a stale pr_review.pr_number.
       bead('evidence-wins', {
         'evidence.pr_number': '500',
@@ -115,7 +115,7 @@ describe('buildRelationIndex (R1)', () => {
   test('RK1: superseded retry beads are excluded from reverse lookups', () => {
     // Two attempts of the same step in the same molecule: attempt 1 is a
     // dead retry, attempt 2 is live. Both also reference the same PR.
-    const beads: GcBead[] = [
+    const beads: DashboardBead[] = [
       bead('retry-old', {
         molecule_id: 'mol-x',
         'gc.step_id': 'implement',
@@ -143,7 +143,7 @@ describe('buildRelationIndex (R1)', () => {
   });
 
   test('RK1: distinct-scope beads of the same molecule do not collide on scope', () => {
-    const beads: GcBead[] = [
+    const beads: DashboardBead[] = [
       bead('rig-a-bead', { molecule_id: 'mol-1', 'gc.scope_ref': 'rig-a' }),
       bead('rig-b-bead', { molecule_id: 'mol-2', 'gc.scope_ref': 'rig-b' }),
     ];
@@ -186,7 +186,7 @@ describe('buildRelationIndex (R1)', () => {
   });
 
   test('a bead with only one attempt is never superseded', () => {
-    const beads: GcBead[] = [
+    const beads: DashboardBead[] = [
       bead('solo', { molecule_id: 'm', 'gc.step_id': 's', 'gc.attempt': '1' }),
     ];
     const index = buildRelationIndex(beads, [], 'c');

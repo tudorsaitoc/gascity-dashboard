@@ -1,4 +1,4 @@
-import type { GcSession } from './gc-client-types.js';
+import type { DashboardSession } from './gc-client-types.js';
 
 // The lossy role/assignee → session resolution (gascity-dashboard-3ax).
 //
@@ -14,7 +14,7 @@ import type { GcSession } from './gc-client-types.js';
 // session list because gc does not expose the resolved id.
 
 /**
- * Resolves a role / assignee / target label to the concrete GcSession that
+ * Resolves a role / assignee / target label to the concrete DashboardSession that
  * carries it, or null when none match. `active` sessions outrank non-active
  * (the caller wants the live agent); within a tier, first match wins
  * (deterministic given gc's recency-sorted iteration order).
@@ -23,14 +23,14 @@ import type { GcSession } from './gc-client-types.js';
  */
 export function resolveSessionForTarget(
   target: string,
-  sessions: readonly GcSession[],
-): GcSession | null {
+  sessions: readonly DashboardSession[],
+): DashboardSession | null {
   if (target.length === 0 || sessions.length === 0) return null;
   const active = sessions.filter((s) => s.state === 'active');
   return matchFirst(target, active) ?? matchFirst(target, sessions);
 }
 
-function matchFirst(target: string, sessions: readonly GcSession[]): GcSession | null {
+function matchFirst(target: string, sessions: readonly DashboardSession[]): DashboardSession | null {
   for (const s of sessions) {
     if (matchesSessionTarget(s, target)) return s;
   }
@@ -42,7 +42,7 @@ function matchFirst(target: string, sessions: readonly GcSession[]): GcSession |
  * positions: exact alias, pool, last-segment of alias (split on '/' '.'),
  * or last-segment of session_name (split on '__' '--').
  */
-export function matchesSessionTarget(session: GcSession, target: string): boolean {
+export function matchesSessionTarget(session: DashboardSession, target: string): boolean {
   if (session.alias === target) return true;
   if (session.pool === target) return true;
   if (session.alias !== undefined && lastSegment(session.alias, ['/', '.']) === target) {

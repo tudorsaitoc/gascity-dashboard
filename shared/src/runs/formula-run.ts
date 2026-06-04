@@ -3,7 +3,7 @@ import type {
   GcRunBead,
   GcRunSnapshot,
 } from '../run-snapshot.js';
-import type { GcSession } from '../gc-client-types.js';
+import type { DashboardSession } from '../gc-client-types.js';
 import type {
   RunControlBadge,
   RunDisplayEdge,
@@ -53,7 +53,7 @@ export interface RunningFormulaRunInput {
   root?: GcRunBead;
   beads: GcRunBead[];
   rigRoot?: string;
-  sessions?: readonly GcSession[];
+  sessions?: readonly DashboardSession[];
   formulaDetail?: GcFormulaDetail;
   formulaDetailState?: RunFormulaDetailState;
 }
@@ -141,7 +141,7 @@ export function buildRunningFormulaRun(
   );
 
   // gascity-dashboard-ud6j: compute the dashboard phase ladder from this
-  // run's OWN beads through the SAME fromGcBead → mapRunPhase → stageProgress
+  // run's OWN beads through the SAME fromDashboardBead → mapRunPhase → stageProgress
   // pipeline the snapshot lane uses, so the run-detail ladder cannot drift
   // from the lane's. mapRunPhase keys off bead status + title, which run
   // beads carry. The resolved formula name (when known) selects the
@@ -183,8 +183,8 @@ export function buildRunningFormulaRun(
 
 /**
  * Adapt a supervisor run-snapshot bead (GcRunBead) to the phase classifier's
- * RunIssue input. The phase pipeline's own fromGcBead adapter consumes the
- * city-wide GcBead shape (issue_type, created_at); the run-snapshot wire row
+ * RunIssue input. The phase pipeline's own fromDashboardBead adapter consumes the
+ * city-wide DashboardBead shape (issue_type, created_at); the run-snapshot wire row
  * is a different shape (kind, no created_at). mapRunPhase only reads
  * status / title / metadata / issue_type / parent, so this maps the run-bead
  * `kind` onto `issue_type` and leaves updated_at empty (the snapshot carries

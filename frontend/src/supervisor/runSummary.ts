@@ -1,6 +1,6 @@
 import type {
-  GcBead,
-  GcSession,
+  DashboardBead,
+  DashboardSession,
   RunFeedScope,
   RunFeedScopeMap,
   RunSummary,
@@ -12,7 +12,7 @@ import {
   buildRunSummary,
   deriveRunHealth,
   fromFeedScope,
-  fromGcBead,
+  fromDashboardBead,
   fromRootMetadataScope,
   fromStoreRef,
   runBeadFilter,
@@ -26,26 +26,27 @@ import type {
   ListBodySessionResponse,
   SessionResponse,
 } from '../generated/gc-supervisor-client/types.gen';
-import { supervisorApi } from './client';
+import { supervisorApiForRequestBudget } from './client';
 
 const RUNS_FETCH_LIMIT = 1_000;
 const RECENT_RUN_FETCH_LIMIT = 80;
 const RUNS_STALE_AFTER_MS = 60 * 1000;
+const REQUIRED_RUN_SUMMARY_TIMEOUT_MS = 5_000;
 const OPTIONAL_ENRICHMENT_TIMEOUT_MS = 2_500;
 
 interface LoadedRunBeads {
-  beads: GcBead[];
+  beads: DashboardBead[];
   feedScopes: RunFeedScopeMap;
   partial: boolean;
 }
 
 type RecentFetchOutcome =
-  | { ok: true; items: GcBead[]; partial: boolean }
+  | { ok: true; items: DashboardBead[]; partial: boolean }
   | { ok: false };
 
 type RunSessionsLookup =
-  | { kind: 'available'; sessions: GcSession[] }
-  | { kind: 'unavailable'; sessions: GcSession[] };
+  | { kind: 'available'; sessions: DashboardSession[] }
+  | { kind: 'unavailable'; sessions: DashboardSession[] };
 
 interface ProgressState {
   marks: Map<string, LaneProgressMark>;
@@ -63,7 +64,7 @@ export async function loadSupervisorRunSummarySource(): Promise<SourceState<RunS
       loadRunSessions(cityName),
     ]);
     const summary = buildRunSummary(
-      loaded.beads.filter(runBeadFilter).map(fromGcBead),
+      loaded.beads.filter(runBeadFilter).map(fromDashboardBead),
       loaded.feedScopes,
       loaded.partial,
     );
@@ -92,13 +93,11 @@ export async function loadSupervisorRunSummaryPreviewSource(): Promise<SourceSta
   const cityName = activeCityOrThrow('load supervisor run summary preview');
   const fetchedAt = new Date().toISOString();
   try {
-    const activeList = await supervisorApi().listBeads(cityName, {
-      limit: RUNS_FETCH_LIMIT,
-    });
+    const loaded = await loadRunBeads(cityName, RUNS_FETCH_LIMIT);
     const summary = buildRunSummary(
-      normalizeBeads(activeList.items ?? []).filter(runBeadFilter).map(fromGcBead),
-      new Map(),
-      listIsPartial(activeList),
+      loaded.beads.filter(runBeadFilter).map(fromDashboardBead),
+      loaded.feedScopes,
+      loaded.partial,
     );
     return {
       source: 'runs',
@@ -121,6 +120,14 @@ export function resetSupervisorRunSummaryStateForTests(): void {
   progressStateByCity.clear();
 }
 
+function requiredRunSummaryApi() {
+  return supervisorApiForRequestBudget(REQUIRED_RUN_SUMMARY_TIMEOUT_MS);
+}
+
+function optionalRunSummaryApi() {
+  return supervisorApiForRequestBudget(OPTIONAL_ENRICHMENT_TIMEOUT_MS);
+}
+
 async function loadRunBeads(
   cityName: string,
   limit: number,
@@ -131,7 +138,7 @@ async function loadRunBeads(
     all: true,
   });
   const [activeList, feedDiscovery] = await Promise.all([
-    supervisorApi().listBeads(cityName, { limit }),
+    requiredRunSummaryApi().listBeads(cityName, { limit }),
     discoverFromFeed(cityName),
   ]);
   const active = normalizeBeads(activeList.items ?? []);
@@ -147,7 +154,7 @@ async function loadRunBeads(
   );
 
   const settled = await Promise.all([moleculeFetch, ...rigFetches]);
-  const recentItems: GcBead[] = [];
+  const recentItems: DashboardBead[] = [];
   let partial = feedDiscovery.partial || listIsPartial(activeList);
 
   for (const outcome of settled) {
@@ -172,7 +179,7 @@ async function settledRecentFetch(
 ): Promise<RecentFetchOutcome> {
   try {
     const list = await withOptionalReadBudget(
-      supervisorApi().listBeads(cityName, query),
+      optionalRunSummaryApi().listBeads(cityName, query),
       `recent ${query.type} beads`,
     );
     return {
@@ -194,7 +201,7 @@ interface FeedDiscovery {
 async function discoverFromFeed(cityName: string): Promise<FeedDiscovery> {
   try {
     const runs = await withOptionalReadBudget(
-      supervisorApi().formulaFeed(cityName, {
+      optionalRunSummaryApi().formulaFeed(cityName, {
         scope_kind: 'city',
         scope_ref: cityName,
       }),
@@ -227,7 +234,7 @@ async function discoverFromFeed(cityName: string): Promise<FeedDiscovery> {
 async function loadRunSessions(cityName: string): Promise<RunSessionsLookup> {
   try {
     const list = await withOptionalReadBudget(
-      supervisorApi().listSessions(cityName),
+      optionalRunSummaryApi().listSessions(cityName),
       'run sessions',
     );
     return {
@@ -266,7 +273,7 @@ function enrichRunSummary(
   };
 }
 
-function runRigNames(beads: readonly GcBead[]): string[] {
+function runRigNames(beads: readonly DashboardBead[]): string[] {
   const names = new Set<string>();
   for (const bead of beads) {
     const storeScope = fromStoreRef(bead.metadata?.['gc.root_store_ref']);
@@ -305,20 +312,20 @@ function withOptionalReadBudget<T>(promise: Promise<T>, label: string): Promise<
   ]);
 }
 
-function uniqueBeads(beads: readonly GcBead[]): GcBead[] {
-  const byId = new Map<string, GcBead>();
+function uniqueBeads(beads: readonly DashboardBead[]): DashboardBead[] {
+  const byId = new Map<string, DashboardBead>();
   for (const bead of beads) {
     if (!byId.has(bead.id)) byId.set(bead.id, bead);
   }
   return Array.from(byId.values());
 }
 
-function normalizeBeads(beads: readonly Bead[]): GcBead[] {
+function normalizeBeads(beads: readonly Bead[]): DashboardBead[] {
   return beads.map(normalizeBead);
 }
 
-function normalizeBead(bead: Bead): GcBead {
-  const normalized: GcBead = {
+function normalizeBead(bead: Bead): DashboardBead {
+  const normalized: DashboardBead = {
     id: bead.id,
     title: bead.title,
     status: bead.status,
@@ -340,12 +347,12 @@ function normalizeBead(bead: Bead): GcBead {
   return normalized;
 }
 
-function normalizeSessions(list: ListBodySessionResponse): GcSession[] {
+function normalizeSessions(list: ListBodySessionResponse): DashboardSession[] {
   return (list.items ?? []).map(normalizeSession);
 }
 
-function normalizeSession(session: SessionResponse): GcSession {
-  const normalized: GcSession = {
+function normalizeSession(session: SessionResponse): DashboardSession {
+  const normalized: DashboardSession = {
     id: session.id,
     template: session.template,
     session_name: session.session_name,

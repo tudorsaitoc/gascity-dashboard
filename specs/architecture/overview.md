@@ -21,8 +21,9 @@ back into `gastownhall/gascity` as the replacement for the existing
   mounted at `/gc-supervisor/*` and forwards supervisor `/health` plus `/v0/*`.
   It must not parse, validate, map, strip, cache, or rename supervisor DTOs.
 
-Current code still contains a dashboard-server GC mirror layer. The migration
-plan to delete it lives in
+The dashboard-server GC mirror layer has been deleted. Remaining shared
+projection helpers are browser/shared view-model code over generated supervisor
+inputs plus dashboard-local resources. The migration record lives in
 [`../plans/direct-supervisor-client-migration.md`](../plans/direct-supervisor-client-migration.md).
 
 ## Stack: TypeScript end-to-end
@@ -138,9 +139,9 @@ This dashboard is a single-node, loopback-only operator tool. Horizontal
 scaling is outside the current product model, but the stateful parts are
 deliberately isolated so a future multi-instance design has clear seams:
 
-- `backend/src/snapshot/cache.ts` owns `SourceCache` instances for the ambient
-  snapshot. Multi-instance deployment would move cache state to Redis or another
-  shared cache with per-source TTLs.
+- Browser data loaders own generated supervisor-client cache state for focused
+  views. The dashboard service no longer keeps an ambient supervisor snapshot
+  cache.
 - `backend/src/maintainer/sse.ts` owns the in-process `Set` of connected
   maintainer SSE clients. Multi-instance deployment would use a shared event
   broker so every browser sees refresh events regardless of which process holds

@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import type { GcSession } from 'gas-city-dashboard-shared';
+import type { DashboardSession } from 'gas-city-dashboard-shared';
 import { sessionSlug } from './sessionSlug';
 
 // gascity-dashboard-6bv7.1 — slug resolution for AgentDetail routing.
@@ -8,7 +8,7 @@ import { sessionSlug } from './sessionSlug';
 // fallback chain uses `||` so an empty session_name falls through to
 // alias/id rather than producing an unroutable /agents/ URL.
 
-function session(overrides: Partial<GcSession> & { id: string }): GcSession {
+function session(overrides: Partial<DashboardSession> & { id: string }): DashboardSession {
   return {
     template: 't',
     session_name: 'default-name',
@@ -19,7 +19,7 @@ function session(overrides: Partial<GcSession> & { id: string }): GcSession {
     running: true,
     provider: 'claude',
     ...overrides,
-  } as GcSession;
+  } as DashboardSession;
 }
 
 describe('sessionSlug', () => {

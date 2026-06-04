@@ -40,7 +40,7 @@ import type {
   GcCountedList,
   GcList,
   GcRequiredPartialList,
-  GcSession,
+  DashboardSession,
   SlingIntent,
   SlingKind,
   TriageItem,
@@ -72,7 +72,7 @@ import './transcript.js';
 import './api-error.js';
 import './maintainer-triage.js';
 
-function sess(partial: Partial<GcSession>): GcSession {
+function sess(partial: Partial<DashboardSession>): DashboardSession {
   return {
     id: 'gc-test',
     template: 'mayor',
@@ -80,7 +80,7 @@ function sess(partial: Partial<GcSession>): GcSession {
     created_at: '2026-05-19T00:00:00-04:00',
     attached: true,
     // 6bv7 F10: session_name/title/running/provider tightened to required
-    // in the shared GcSession contract, matching OpenAPI SessionResponse.
+    // in the shared DashboardSession projection contract.
     session_name: 'gc-test',
     title: 'gc-test',
     running: true,

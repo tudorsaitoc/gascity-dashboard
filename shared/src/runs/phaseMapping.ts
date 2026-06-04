@@ -7,14 +7,12 @@
 // classifier behavior so the React translation of RunMap inherits a
 // consistent phase grammar.
 //
-// GcBead has no first-class `parent` field, so `RunIssue.parent` is
-// populated by the adapter (in runs.ts) from metadata['gc.parent_bead_id']
-// when present. When that metadata key is absent, parent keyword scans simply
-// don't fire and classification falls back to title + description + metadata
-// text scans.
+// Parent keyword scans read DashboardBead.parent first and fall back to the
+// older metadata['gc.parent_bead_id'] marker when present. When neither exists,
+// classification falls back to title + description + metadata text scans.
 
 import type {
-  GcBead,
+  DashboardBead,
 } from '../gc-beads.js';
 import type {
   RunPhase as SharedRunPhase,
@@ -29,11 +27,8 @@ export interface RunIssue {
   issue_type: string;
   assignee?: string;
   updated_at: string;
-  /** Populated from metadata['gc.parent_bead_id'] by the GcBead adapter. */
+  /** Populated from DashboardBead.parent or metadata['gc.parent_bead_id']. */
   parent?: string;
-  // Mirrors GcBead.metadata after 6bv7 F11 (Record<string, string> per
-  // OpenAPI). Propagating the narrowing through the internal pipeline so
-  // consumers get the SSOT signal without redundant typeof guards.
   metadata?: Record<string, string>;
 }
 
@@ -202,24 +197,20 @@ function parsePositiveInteger(value: unknown): number | null {
   return Number.isInteger(parsed) && parsed > 0 ? parsed : null;
 }
 
-// ── GcBead adapter ─────────────────────────────────────────────────────────
+// ── DashboardBead adapter ─────────────────────────────────────────────────────────
 
 /**
- * Adapt the supervisor wire shape to the phase classifier's input. GcBead now
- * carries a first-class `parent` field (6bv7 F15); the metadata fallback
- * survives because formula scaffolding still writes the older
- * `gc.parent_bead_id` key on synthetic beads.
+ * Adapt the dashboard bead projection to the phase classifier's input. The
+ * metadata fallback survives because formula scaffolding can still write the
+ * older `gc.parent_bead_id` key on synthetic beads.
  */
-export function fromGcBead(bead: GcBead): RunIssue {
+export function fromDashboardBead(bead: DashboardBead): RunIssue {
   const parent = bead.parent ?? stringValue(bead.metadata?.['gc.parent_bead_id']);
   const issue: RunIssue = {
     id: bead.id,
     title: bead.title,
     status: bead.status,
     issue_type: bead.issue_type,
-    // 6bv7 F16: OpenAPI Bead exposes no updated_at / closed_at — created_at
-    // is the only timestamp the supervisor emits, so the fallback chain
-    // collapses to it.
     updated_at: bead.updated_at ?? bead.created_at,
   };
   if (bead.description !== undefined) issue.description = bead.description;

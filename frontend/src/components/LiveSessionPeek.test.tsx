@@ -1,6 +1,6 @@
 import { act, cleanup, render, screen } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import type { GcSession } from 'gas-city-dashboard-shared';
+import type { DashboardSession } from 'gas-city-dashboard-shared';
 import type {
   AgentResponse,
   SessionTranscriptGetResponse,
@@ -71,8 +71,8 @@ const snapshot: SessionTranscriptGetResponse = {
   turns: [{ role: 'assistant', text: 'snapshot turn body' }],
 };
 
-function session(overrides: Partial<GcSession>): GcSession {
-  return { id: 's1', state: 'active', ...overrides } as GcSession;
+function session(overrides: Partial<DashboardSession>): DashboardSession {
+  return { id: 's1', state: 'active', ...overrides } as DashboardSession;
 }
 
 // gascity-dashboard-ay6 / Phase-4 follow-up: minimal AgentResponse factory for

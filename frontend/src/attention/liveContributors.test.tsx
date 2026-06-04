@@ -31,6 +31,7 @@ vi.mock('../api/client', () => ({
 
 vi.mock('../supervisor/client', () => ({
   supervisorApi: () => mockSupervisorApi,
+  supervisorApiForRequestBudget: vi.fn(() => mockSupervisorApi),
 }));
 
 describe('useLiveAttentionContributors', () => {

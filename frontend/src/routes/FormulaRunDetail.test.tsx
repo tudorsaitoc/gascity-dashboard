@@ -593,7 +593,7 @@ describe('FormulaRunDetailPage', () => {
     const { container } = renderPage();
     await screen.findByRole('heading', { name: /adopt pr #42/i });
     expect(screen.getByRole('heading', { name: /local changes/i })).toBeTruthy();
-    expect(screen.getByText('backend/src/runs/enrich.ts')).toBeTruthy();
+    expect(screen.getByText('shared/src/runs/enrich.ts')).toBeTruthy();
     expect(screen.getByText('docs/plan.md')).toBeTruthy();
     await screen.findByText('preserve failed attempt transcript links');
     expect(container.querySelector('.diff-code-insert')?.textContent).toContain('preserve failed');

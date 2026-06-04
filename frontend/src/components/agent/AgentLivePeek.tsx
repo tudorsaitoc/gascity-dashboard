@@ -1,7 +1,7 @@
-import type { GcSession } from 'gas-city-dashboard-shared';
+import type { DashboardSession } from 'gas-city-dashboard-shared';
 import { isSessionStreamable, LiveSessionPeek } from '../LiveSessionPeek';
 
-export function AgentLivePeek({ session }: { session: GcSession }) {
+export function AgentLivePeek({ session }: { session: DashboardSession }) {
   return (
     <section>
       <header className="flex items-baseline justify-between mb-4">

@@ -1,4 +1,4 @@
-import type { GcBead, GcSession, LinkNode } from 'gas-city-dashboard-shared';
+import type { DashboardBead, DashboardSession, LinkNode } from 'gas-city-dashboard-shared';
 import assert from 'node:assert/strict';
 import { describe, test } from 'node:test';
 import { buildLinkView } from '../src/links/build-link-view.js';
@@ -6,7 +6,7 @@ import { ResolutionRollup } from '../src/links/instrumentation.js';
 import { parseRef } from '../src/links/node-ref.js';
 import { buildRelationIndex } from '../src/links/relation-index.js';
 
-function bead(id: string, metadata: Record<string, string> = {}): GcBead {
+function bead(id: string, metadata: Record<string, string> = {}): DashboardBead {
   return {
     id,
     title: `bead ${id}`,
@@ -18,7 +18,7 @@ function bead(id: string, metadata: Record<string, string> = {}): GcBead {
   };
 }
 
-function session(id: string, over: Partial<GcSession> = {}): GcSession {
+function session(id: string, over: Partial<DashboardSession> = {}): DashboardSession {
   return {
     id,
     template: 'tpl',

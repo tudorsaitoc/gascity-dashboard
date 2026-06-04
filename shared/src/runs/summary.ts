@@ -25,7 +25,9 @@ const ENGINEERING_TYPES = new Set([
   'feature',
   'bug',
   'task',
-  'docs',
+  'epic',
+  'chore',
+  'decision',
   'molecule',
 ]);
 
