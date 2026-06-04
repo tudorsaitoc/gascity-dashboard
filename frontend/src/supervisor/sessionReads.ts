@@ -4,7 +4,7 @@ import type {
   SessionResponse,
   SessionTranscriptGetResponse,
 } from '../generated/gc-supervisor-client/types.gen';
-import { getActiveCity } from '../api/cityBase';
+import { activeCityOrThrow } from '../api/cityBase';
 import { supervisorApi } from './client';
 
 export type SupervisorSession = SessionResponse;
@@ -43,12 +43,4 @@ export function sessionTranscriptView(
     captured_at: capturedAt,
     truncated: false,
   };
-}
-
-function activeCityOrThrow(operation: string): string {
-  const cityName = getActiveCity();
-  if (cityName === null) {
-    throw new Error(`${operation} called before an active city was resolved`);
-  }
-  return cityName;
 }

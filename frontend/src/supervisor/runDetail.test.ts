@@ -9,6 +9,7 @@ import { loadSupervisorFormulaRunDetail } from './runDetail';
 
 vi.mock('../api/cityBase', () => ({
   getActiveCity: () => 'test-city',
+  activeCityOrThrow: () => 'test-city',
 }));
 
 const baseApi: SupervisorApi = {

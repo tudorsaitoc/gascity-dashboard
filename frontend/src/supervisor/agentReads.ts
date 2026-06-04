@@ -1,4 +1,4 @@
-import { getActiveCity } from '../api/cityBase';
+import { activeCityOrThrow } from '../api/cityBase';
 import type {
   AgentPrimeBody,
   AgentResponse,
@@ -29,12 +29,4 @@ export async function fetchSupervisorAgentPrime(
     activeCityOrThrow('fetch supervisor agent prime'),
     trimmedAlias,
   );
-}
-
-function activeCityOrThrow(operation: string): string {
-  const cityName = getActiveCity();
-  if (cityName === null) {
-    throw new Error(`${operation} called before an active city was resolved`);
-  }
-  return cityName;
 }

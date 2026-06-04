@@ -32,9 +32,6 @@ export function hostHeaderAllowlistFactory(extraAllowedHosts: ReadonlyArray<stri
   };
 }
 
-// Back-compat: existing callers that don't pass extras get floor-only.
-export const hostHeaderAllowlist = hostHeaderAllowlistFactory();
-
 export function originCheck(port: number, extraAllowedHosts: ReadonlyArray<string> = []) {
   const allowedOrigins = new Set<string>([
     `http://127.0.0.1:${port}`,

@@ -18,7 +18,7 @@ import {
   runBeadFilter,
   type LaneProgressMark,
 } from 'gas-city-dashboard-shared';
-import { getActiveCity } from '../api/cityBase';
+import { activeCityOrThrow } from '../api/cityBase';
 import type {
   Bead,
   FormulaFeedBody,
@@ -387,12 +387,4 @@ function feedIsPartial(feed: FormulaFeedBody): boolean {
 
 function errorMessage(err: unknown, fallback: string): string {
   return err instanceof Error && err.message.trim().length > 0 ? err.message : fallback;
-}
-
-function activeCityOrThrow(operation: string): string {
-  const cityName = getActiveCity();
-  if (cityName === null) {
-    throw new Error(`${operation} called before an active city was resolved`);
-  }
-  return cityName;
 }

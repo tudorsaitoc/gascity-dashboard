@@ -3,7 +3,7 @@ import type {
   GetV0CityByCityNameBeadsData,
   ListBodyBead,
 } from '../generated/gc-supervisor-client/types.gen';
-import { getActiveCity } from '../api/cityBase';
+import { activeCityOrThrow } from '../api/cityBase';
 import { SupervisorApiError, supervisorApi } from './client';
 
 export type SupervisorBead = Bead;
@@ -131,15 +131,6 @@ function defaultBeadFilter(bead: SupervisorBead): boolean {
   }
   return true;
 }
-
-function activeCityOrThrow(operation: string): string {
-  const cityName = getActiveCity();
-  if (cityName === null) {
-    throw new Error(`${operation} called before an active city was resolved`);
-  }
-  return cityName;
-}
-
 function countAsNumber(value: ListBodyBead['total']): number | undefined {
   if (typeof value === 'number') return value;
   if (typeof value === 'bigint') return Number(value);

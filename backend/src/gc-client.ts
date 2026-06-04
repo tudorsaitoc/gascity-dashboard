@@ -33,7 +33,7 @@ type ZodErrorLike = {
   issues: readonly ZodIssueLike[];
 };
 
-export interface GcClientOptions {
+interface GcClientOptions {
   baseUrl: string;
   cityName: string;
   /** Per-request timeout for upstream supervisor calls. Defaults to GC_CLIENT_TIMEOUT_MS env, then 5000ms. */
@@ -41,7 +41,7 @@ export interface GcClientOptions {
 }
 
 /** Host-side city descriptor including the untrusted supervisor host path. */
-export interface SupervisorCity {
+interface SupervisorCity {
   name: string;
   path: string;
   running: boolean;

@@ -6,7 +6,7 @@ import type {
   MailListBody,
   Message,
 } from '../generated/gc-supervisor-client/types.gen';
-import { getActiveCity } from '../api/cityBase';
+import { activeCityOrThrow } from '../api/cityBase';
 import {
   SupervisorApiError,
   supervisorApi,
@@ -134,12 +134,4 @@ function sortNewestFirst(a: SupervisorMailItem, b: SupervisorMailItem): number {
 
 function sortOldestFirst(a: SupervisorMailItem, b: SupervisorMailItem): number {
   return a.created_at.localeCompare(b.created_at);
-}
-
-function activeCityOrThrow(operation: string): string {
-  const cityName = getActiveCity();
-  if (cityName === null) {
-    throw new Error(`${operation} called before an active city was resolved`);
-  }
-  return cityName;
 }

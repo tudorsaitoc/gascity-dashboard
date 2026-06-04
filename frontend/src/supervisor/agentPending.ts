@@ -5,7 +5,7 @@ import type {
   SessionRespondInputBody,
   SessionResponse,
 } from '../generated/gc-supervisor-client/types.gen';
-import { getActiveCity } from '../api/cityBase';
+import { activeCityOrThrow } from '../api/cityBase';
 import { supervisorApi } from './client';
 
 export interface AgentPendingInteraction {
@@ -58,15 +58,6 @@ function sessionIdByName(sessions: readonly SessionResponse[]): Map<string, stri
   }
   return out;
 }
-
-function activeCityOrThrow(operation: string): string {
-  const cityName = getActiveCity();
-  if (cityName === null) {
-    throw new Error(`${operation} called before an active city was resolved`);
-  }
-  return cityName;
-}
-
 function shellToken(value: string): string {
   if (/^[A-Za-z0-9_./:-]+$/.test(value)) return value;
   return `'${value.replaceAll("'", "'\\''")}'`;

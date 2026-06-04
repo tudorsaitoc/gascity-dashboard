@@ -7,6 +7,7 @@ import { useFormulaRunDetail } from "./useFormulaRunDetail";
 
 vi.mock("../api/cityBase", () => ({
   getActiveCity: () => "test-city",
+  activeCityOrThrow: () => "test-city",
 }));
 
 vi.mock("../lib/clientErrorReporting", () => ({

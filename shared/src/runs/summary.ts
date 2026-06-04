@@ -19,7 +19,7 @@ import {
   type RunIssue,
 } from './phaseMapping.js';
 
-export const MAX_VISIBLE_ACTIVE_LANES = 8;
+const MAX_VISIBLE_ACTIVE_LANES = 8;
 export const RECENT_CHANGES_CAP = 12;
 const ENGINEERING_TYPES = new Set([
   'feature',

@@ -13,7 +13,7 @@ import {
   formulaRunCompleteness,
   resolveRunFormulaIdentity,
 } from 'gas-city-dashboard-shared';
-import { getActiveCity } from '../api/cityBase';
+import { activeCityOrThrow } from '../api/cityBase';
 import type {
   FormulaDetailResponse,
   WorkflowSnapshotResponse,
@@ -194,12 +194,4 @@ function runScopeQuery(
   if (scopeKind !== undefined) query.scope_kind = scopeKind;
   if (scopeRef !== undefined) query.scope_ref = scopeRef;
   return query;
-}
-
-function activeCityOrThrow(operation: string): string {
-  const cityName = getActiveCity();
-  if (cityName === null) {
-    throw new Error(`${operation} called before an active city was resolved`);
-  }
-  return cityName;
 }

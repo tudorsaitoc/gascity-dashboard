@@ -38,6 +38,20 @@ export function getActiveCity(): string | null {
 }
 
 /**
+ * The active city name, or throw if the router has not resolved one yet. Used
+ * by the generated-supervisor call sites, where a city-scoped request with no
+ * active city is a bug, not a default-to-first fallback. `operation` names the
+ * caller so the failure is self-describing.
+ */
+export function activeCityOrThrow(operation: string): string {
+  const cityName = activeCity;
+  if (cityName === null) {
+    throw new Error(`${operation} called before an active city was resolved`);
+  }
+  return cityName;
+}
+
+/**
  * Build a city-scoped request path. `suffix` is the city-relative path
  * (e.g. '/sessions', '/beads/td-1'). Fails loud if called before a city is
  * active — a city-scoped fetch with no city is a bug, not a default-to-first

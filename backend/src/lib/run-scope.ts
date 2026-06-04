@@ -18,12 +18,12 @@ export interface RequestScopeFields {
   scope_ref?: unknown;
 }
 
-export interface SnapshotScopeFields {
+interface SnapshotScopeFields {
   scope_kind?: unknown;
   scope_ref?: unknown;
 }
 
-export interface FeedScopeFields extends SnapshotScopeFields {
+interface FeedScopeFields extends SnapshotScopeFields {
   root_store_ref?: unknown;
 }
 

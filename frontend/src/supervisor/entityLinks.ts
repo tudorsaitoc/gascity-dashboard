@@ -8,7 +8,7 @@ import {
   buildRelationIndex,
   parseRef,
 } from 'gas-city-dashboard-shared';
-import { getActiveCity } from '../api/cityBase';
+import { activeCityOrThrow } from '../api/cityBase';
 import type {
   Bead,
   ListBodyBead,
@@ -112,12 +112,4 @@ function listIsPartial(list: ListBodyBead): boolean {
 
 function sessionListIsPartial(list: ListBodySessionResponse): boolean {
   return list.partial === true || (list.partial_errors?.length ?? 0) > 0;
-}
-
-function activeCityOrThrow(operation: string): string {
-  const cityName = getActiveCity();
-  if (cityName === null) {
-    throw new Error(`${operation} called before an active city was resolved`);
-  }
-  return cityName;
 }

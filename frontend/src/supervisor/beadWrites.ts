@@ -1,5 +1,5 @@
 import { OPERATOR_DISPLAY_ALIAS } from 'gas-city-dashboard-shared';
-import { getActiveCity } from '../api/cityBase';
+import { activeCityOrThrow } from '../api/cityBase';
 import { supervisorApi } from './client';
 import type {
   Bead,
@@ -66,12 +66,4 @@ export async function createAndSlingSupervisorBead(
   const sling = await supervisorApi().sling(cityName, slingBody);
 
   return { bead, sling };
-}
-
-function activeCityOrThrow(operation: string): string {
-  const cityName = getActiveCity();
-  if (cityName === null) {
-    throw new Error(`${operation} called before an active city was resolved`);
-  }
-  return cityName;
 }
