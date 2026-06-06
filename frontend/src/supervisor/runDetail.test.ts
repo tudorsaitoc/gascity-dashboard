@@ -91,6 +91,19 @@ describe('loadSupervisorFormulaRunDetail', () => {
     });
   });
 
+  it('resolves formula detail when the supervisor omits the version field (3eo8, mol-focus-review)', async () => {
+    formulaDetail.mockResolvedValue(versionlessFormulaDetailResponse());
+
+    const detail = await loadSupervisorFormulaRunDetail('wf-1', 'city', 'test-city');
+
+    expect(detail.formulaDetail).toEqual({
+      kind: 'available',
+      name: 'mol-test',
+      target: 'test-city/codex',
+    });
+    expect(detail.completeness).toEqual({ kind: 'complete' });
+  });
+
   it('reports missing formula metadata without calling the formula endpoint', async () => {
     workflowRun.mockResolvedValue(
       workflowSnapshot({
@@ -249,4 +262,13 @@ function formulaDetailResponse() {
     deps: [],
     var_defs: [],
   };
+}
+
+// Inferred/title-based formulas (e.g. mol-focus-review) come back from the
+// supervisor with no `version` key — `{ name, description, var_defs, steps,
+// deps, preview }`. The dashboard must resolve these to `available`, not
+// degrade the Formula Detail panel (3eo8).
+function versionlessFormulaDetailResponse() {
+  const { version: _version, ...rest } = formulaDetailResponse();
+  return rest;
 }
