@@ -473,9 +473,7 @@ function RigStoreRow({ rig }: { rig: RigStoreHealth }) {
           ))}
         </ul>
       )}
-      {rig.note !== undefined && (
-        <p className="text-label text-fg-muted italic">{rig.note}</p>
-      )}
+      {rig.note !== undefined && <p className="text-label text-fg-muted italic">{rig.note}</p>}
     </div>
   );
 }

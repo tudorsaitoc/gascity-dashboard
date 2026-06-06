@@ -442,11 +442,7 @@ export async function execBdDoctor(beadsPath: string): Promise<ExecResult> {
   if (!isValidHostPath(beadsPath) || !beadsPath.endsWith('/.beads')) {
     throw new ExecError('invalid beads store path', 'validation');
   }
-  return runExec(
-    'bd',
-    ['doctor', '--readonly', '--db', beadsPath, '--json'],
-    BD_DOCTOR_TIMEOUT_MS,
-  );
+  return runExec('bd', ['doctor', '--readonly', '--db', beadsPath, '--json'], BD_DOCTOR_TIMEOUT_MS);
 }
 
 export { sanitiseTerminalOutput };

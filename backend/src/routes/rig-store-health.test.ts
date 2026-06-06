@@ -24,7 +24,12 @@ const HEALTHY_DOCTOR = JSON.stringify({
     { category: 'Core System', name: 'Dolt Connection', status: 'ok', message: 'Connected' },
     { category: 'Data & Config', name: 'Dolt Issue Count', status: 'ok', message: '129 issues' },
     { category: 'Git Integration', name: 'Git Hooks', status: 'warning', message: 'no hooks' },
-    { category: 'Integrations', name: 'Claude Plugin', status: 'warning', message: 'not installed' },
+    {
+      category: 'Integrations',
+      name: 'Claude Plugin',
+      status: 'warning',
+      message: 'not installed',
+    },
   ],
 });
 
@@ -38,7 +43,10 @@ describe('parseDoctorChecks', () => {
   });
 
   test('returns null on the embedded-mode fallback (non-JSON)', () => {
-    assert.equal(parseDoctorChecks("Note: 'bd doctor' is not yet supported in embedded mode."), null);
+    assert.equal(
+      parseDoctorChecks("Note: 'bd doctor' is not yet supported in embedded mode."),
+      null,
+    );
   });
 
   test('returns null on empty output', () => {
@@ -93,7 +101,11 @@ describe('issueCountFromChecks', () => {
 
   test('parses thousands separators', () => {
     const checks = parseDoctorChecks(
-      JSON.stringify({ checks: [{ category: 'X', name: 'Dolt Issue Count', status: 'ok', message: '1,204 issues' }] }),
+      JSON.stringify({
+        checks: [
+          { category: 'X', name: 'Dolt Issue Count', status: 'ok', message: '1,204 issues' },
+        ],
+      }),
     );
     assert.ok(checks);
     assert.equal(issueCountFromChecks(checks), 1204);
@@ -106,11 +118,17 @@ describe('issueCountFromChecks', () => {
 
 describe('rollupFor', () => {
   test('down when unreachable', () => {
-    assert.equal(rollupFor({ reachable: false, doltConnected: null, problems: [], incomplete: false }), 'down');
+    assert.equal(
+      rollupFor({ reachable: false, doltConnected: null, problems: [], incomplete: false }),
+      'down',
+    );
   });
 
   test('down when the dolt server is not connected', () => {
-    assert.equal(rollupFor({ reachable: true, doltConnected: false, problems: [], incomplete: false }), 'down');
+    assert.equal(
+      rollupFor({ reachable: true, doltConnected: false, problems: [], incomplete: false }),
+      'down',
+    );
   });
 
   test('down on an error-tier problem even if the server is up', () => {
@@ -138,11 +156,17 @@ describe('rollupFor', () => {
   });
 
   test('warn when the probe is incomplete', () => {
-    assert.equal(rollupFor({ reachable: true, doltConnected: true, problems: [], incomplete: true }), 'warn');
+    assert.equal(
+      rollupFor({ reachable: true, doltConnected: true, problems: [], incomplete: true }),
+      'warn',
+    );
   });
 
   test('ok when healthy and complete', () => {
-    assert.equal(rollupFor({ reachable: true, doltConnected: true, problems: [], incomplete: false }), 'ok');
+    assert.equal(
+      rollupFor({ reachable: true, doltConnected: true, problems: [], incomplete: false }),
+      'ok',
+    );
   });
 });
 
@@ -199,7 +223,7 @@ describe('probeRigStore', () => {
       RIG,
       depsFor({
         readPort: async () => null,
-        runDoctor: async () => execOk("Note: not supported in embedded mode."),
+        runDoctor: async () => execOk('Note: not supported in embedded mode.'),
       }),
     );
     assert.equal(health.doltEndpoint, null);

@@ -123,7 +123,12 @@ interface RollupInput {
 }
 
 /** One red/green-per-rig roll-up tone from the gathered signals. */
-export function rollupFor({ reachable, doltConnected, problems, incomplete }: RollupInput): RigStoreRollup {
+export function rollupFor({
+  reachable,
+  doltConnected,
+  problems,
+  incomplete,
+}: RollupInput): RigStoreRollup {
   if (!reachable) return 'down';
   if (doltConnected === false) return 'down';
   if (problems.some((p) => p.status === 'error')) return 'down';
