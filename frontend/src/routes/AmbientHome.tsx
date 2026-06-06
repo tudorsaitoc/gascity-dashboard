@@ -114,11 +114,18 @@ interface BodyProps {
 
 function AmbientBody({ fresh, cityName, cycleKey, workInProgress }: BodyProps) {
   const { summary } = fresh;
-  const staleness = useStaleness(summary.lanes);
-  const top = useMemo(() => pickTopConcern(summary.lanes, staleness), [summary.lanes, staleness]);
+  // gascity-dashboard-4xcv: blocked lanes moved out of summary.lanes into
+  // blockedLanes. They are no longer "Active", but a blocked run is still an
+  // operator concern, so the home attention math runs over both sets.
+  const inFlightLanes = useMemo(
+    () => [...summary.lanes, ...summary.blockedLanes],
+    [summary.lanes, summary.blockedLanes],
+  );
+  const staleness = useStaleness(inFlightLanes);
+  const top = useMemo(() => pickTopConcern(inFlightLanes, staleness), [inFlightLanes, staleness]);
   const rows = useMemo(
-    () => buildConcernRows(summary.lanes, staleness, top?.lane.id),
-    [summary.lanes, staleness, top],
+    () => buildConcernRows(inFlightLanes, staleness, top?.lane.id),
+    [inFlightLanes, staleness, top],
   );
 
   // The server's `thrashing` count already excludes inferred lanes;
@@ -168,7 +175,7 @@ function AmbientBody({ fresh, cityName, cycleKey, workInProgress }: BodyProps) {
         <div className="space-y-4">
           <PhaseCensus
             census={summary.census.data}
-            waitingCount={countWaiting(summary.lanes)}
+            waitingCount={countWaiting(inFlightLanes)}
             failingCount={failing}
           />
           {top !== undefined && <StatusSentence topConcern={top} />}

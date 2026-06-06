@@ -649,6 +649,7 @@ function runSummary(lanes: readonly RunLane[]): RunSummary {
   return {
     lanes: [...lanes],
     historicalLanes: [],
+    blockedLanes: [],
     totalActive: lanes.length,
     totalHistorical: 0,
     runCounts: {

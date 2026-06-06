@@ -245,7 +245,9 @@ function deriveRunsAttention(facts: RunsAttentionFacts | undefined): readonly At
     );
   }
 
-  for (const lane of summary.lanes) {
+  // gascity-dashboard-4xcv: blocked lanes moved out of summary.lanes into
+  // their own bucket; they still need the operator, so both sets contribute.
+  for (const lane of [...summary.lanes, ...summary.blockedLanes]) {
     const item = attentionForRunLane(lane);
     if (item !== null) items.push(item);
   }

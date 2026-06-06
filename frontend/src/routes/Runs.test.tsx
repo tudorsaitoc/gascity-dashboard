@@ -73,6 +73,7 @@ function buildRunSource(
       totalActive: 0,
       totalHistorical: 0,
       historicalLanes: [],
+      blockedLanes: [],
       runCounts: {
         total: 0,
         visible: 0,
@@ -564,6 +565,166 @@ describe('RunsPage — partial lane set (gascity-dashboard-n6f1)', () => {
     await waitForMount();
 
     expect(screen.queryByRole('status')).toBeNull();
+  });
+});
+
+describe('RunsPage — blocked lanes are not Active (gascity-dashboard-4xcv)', () => {
+  function blockedLane(): RunLane {
+    return activeLane({
+      id: 'gc-1920',
+      title: 'mol-focus-review latch',
+      phase: 'blocked',
+      phaseLabel: 'blocked',
+      statusCounts: { blocked: 1 },
+      health: {
+        status: 'available',
+        data: {
+          phaseConfidence: 'inferred',
+          needsOperator: true,
+          stuckNode: { status: 'unavailable', error: 'run stuck node unavailable' },
+          thrashingDetected: false,
+          session: { status: 'unresolved', error: 'run session unresolved' },
+        },
+      },
+    });
+  }
+
+  it('renders a blocked lane under the Blocked section, not among active rig groups', async () => {
+    const source = buildRunSource('fresh');
+    const runs = requireRunData(source);
+    runs.totalActive = 1;
+    runs.lanes = [
+      activeLane({
+        scope: { status: 'available', kind: 'rig', ref: 'gascity', rootStoreRef: 'rig:gascity' },
+      }),
+    ];
+    runs.blockedLanes = [blockedLane()];
+    runs.runCounts = { ...runs.runCounts, total: 1, visible: 1, blocked: 1 };
+    mockLoadRunSummary.mockResolvedValue(source);
+
+    mount();
+    await waitForMount();
+
+    const blockedSection = await screen.findByRole('region', { name: /blocked runs/i });
+    expect(blockedSection.textContent).toContain('mol-focus-review latch');
+    // The active rig group does not contain the blocked lane.
+    const activeGroupHeading = await screen.findByText('gascity');
+    expect(activeGroupHeading.parentElement?.textContent).not.toContain(
+      'mol-focus-review latch',
+    );
+  });
+
+  it('omits the Blocked section when nothing is blocked', async () => {
+    mount();
+    await waitForMount();
+    expect(screen.queryByRole('region', { name: /blocked runs/i })).toBeNull();
+  });
+});
+
+describe('RunsPage — run scope labels (gascity-dashboard-4xcv)', () => {
+  it('groups city-scoped and scope-unavailable lanes under a single "city" header, never "unknown rig"', async () => {
+    const source = buildRunSource('fresh');
+    const runs = requireRunData(source);
+    runs.totalActive = 2;
+    runs.lanes = [
+      activeLane({
+        id: 'gc-city-run',
+        scope: {
+          status: 'available',
+          kind: 'city',
+          ref: 'racoon-city',
+          rootStoreRef: 'city:racoon-city',
+        },
+      }),
+      activeLane({
+        id: 'gc-scopeless-run',
+        scope: { status: 'unavailable', error: 'run scope metadata unavailable' },
+      }),
+    ];
+    mockLoadRunSummary.mockResolvedValue(source);
+
+    mount();
+    await waitForMount();
+
+    expect(await screen.findByText('gc-city-run')).toBeTruthy();
+    expect(await screen.findByText('gc-scopeless-run')).toBeTruthy();
+    expect(screen.getAllByText('city')).toHaveLength(1);
+    expect(screen.queryByText(/unknown rig/i)).toBeNull();
+  });
+});
+
+describe('RunsPage — degraded first load recovery (gascity-dashboard-4xcv)', () => {
+  it('renders the partial notice, not the empty state, when a partial fetch yields zero lanes', async () => {
+    const source = buildRunSource('fresh');
+    requireRunData(source).lanesPartial = true;
+    mockLoadRunSummary.mockResolvedValue(source);
+
+    mount();
+    await waitForMount();
+
+    expect(
+      await screen.findByText(/Run sources were partially unavailable/i),
+    ).toBeTruthy();
+    expect(screen.queryByText(/No active formula runs/i)).toBeNull();
+  });
+
+  const errorSource = {
+    source: 'runs',
+    status: 'error',
+    error: 'supervisor warming up',
+  } satisfies SourceState<RunSummary>;
+
+  it('auto-retries a degraded load with backoff, bounded by the retry budget', async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    // Both fetchers keep failing so the degraded state persists and the
+    // retry chain is observable in isolation (a successful retry would
+    // also trigger the one-time full refresh, which is covered elsewhere).
+    // Fresh object per call: the real loaders construct a new source every
+    // load, and React's setState bails out on identical references.
+    mockLoadRunSummaryPreview.mockImplementation(async () => ({ ...errorSource }));
+    mockLoadRunSummary.mockImplementation(async () => ({ ...errorSource }));
+
+    mount();
+    await waitForMount();
+    expect(mockLoadRunSummary).not.toHaveBeenCalled();
+
+    // Retries fire on the 2s / 5s / 10s backoff ladder...
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(2_100);
+    });
+    expect(mockLoadRunSummary).toHaveBeenCalledTimes(1);
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(5_100);
+    });
+    expect(mockLoadRunSummary).toHaveBeenCalledTimes(2);
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(10_100);
+    });
+    expect(mockLoadRunSummary).toHaveBeenCalledTimes(3);
+
+    // ...and stop once the budget is spent (SSE / manual take over).
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(60_000);
+    });
+    expect(mockLoadRunSummary).toHaveBeenCalledTimes(3);
+  });
+
+  it('SSE callback refreshes when the runs source is in error state', async () => {
+    // The old guard skipped every non-fresh status, so an error first
+    // load latched the page dead until a manual refresh. A bead event is
+    // exactly the cue to try live data again.
+    mockLoadRunSummaryPreview.mockResolvedValue(errorSource);
+    mockLoadRunSummary.mockResolvedValue(errorSource);
+
+    mount();
+    await waitForMount();
+    mockLoadRunSummary.mockClear();
+
+    await act(async () => {
+      lastHookCall.onMatch?.();
+    });
+
+    expect(mockLoadRunSummary).toHaveBeenCalledTimes(1);
   });
 });
 

@@ -58,6 +58,11 @@ export function RunMap({ source, now, showHistory, attentionSeverity }: RunMapPr
         now={now}
         {...(attentionSeverity === undefined ? {} : { attentionSeverity })}
       />
+      <BlockedSection
+        summary={summary}
+        now={now}
+        {...(attentionSeverity === undefined ? {} : { attentionSeverity })}
+      />
       {showHistory && (
         <HistoricalSection
           summary={summary}
@@ -79,6 +84,16 @@ function ActiveSection({
   attentionSeverity?: (lane: RunLane) => AttentionSeverity | null;
 }) {
   if (summary.lanes.length === 0) {
+    // gascity-dashboard-4xcv: a partial fetch with zero lanes is "we could
+    // not see the runs", not "there are no runs". Never present a degraded
+    // read as an empty store; say so in words instead.
+    if (summary.lanesPartial === true) {
+      return (
+        <p className="mt-8 text-body text-fg-muted italic">
+          Run sources were partially unavailable; the lane set may be incomplete.
+        </p>
+      );
+    }
     // Distinguish "nothing at all" from "nothing active but N completed".
     const trailer = summary.totalHistorical > 0 ? ` (${summary.totalHistorical} completed.)` : '';
     return (
@@ -96,18 +111,11 @@ function ActiveSection({
       {groups.map(({ rig, lanes }) => (
         <div key={rig} className="mt-6">
           <h3 className="text-label uppercase tracking-wider text-fg-faint">{rigLabel(rig)}</h3>
-          <ol className="mt-3 divide-y divide-rule">
-            {lanes.map((lane) => (
-              <LaneCard
-                key={lane.id}
-                lane={lane}
-                now={now}
-                {...(attentionSeverity === undefined
-                  ? {}
-                  : { attentionSeverity: attentionSeverity(lane) })}
-              />
-            ))}
-          </ol>
+          <LaneList
+            lanes={lanes}
+            now={now}
+            {...(attentionSeverity === undefined ? {} : { attentionSeverity })}
+          />
         </div>
       ))}
       {summary.totalActive > summary.lanes.length && (
@@ -119,13 +127,50 @@ function ActiveSection({
   );
 }
 
+/** The hairline-separated lane list shared by the active rig groups, the
+ *  Blocked section, and the Historical section. */
+function LaneList({
+  lanes,
+  now,
+  attentionSeverity,
+  listId,
+}: {
+  lanes: readonly RunLane[];
+  now: number;
+  attentionSeverity?: (lane: RunLane) => AttentionSeverity | null;
+  listId?: string;
+}) {
+  return (
+    <ol {...(listId === undefined ? {} : { id: listId })} className="mt-3 divide-y divide-rule">
+      {lanes.map((lane) => (
+        <LaneCard
+          key={lane.id}
+          lane={lane}
+          now={now}
+          {...(attentionSeverity === undefined
+            ? {}
+            : { attentionSeverity: attentionSeverity(lane) })}
+        />
+      ))}
+    </ol>
+  );
+}
+
 /** Group lanes by their run-root rig, preserving first-seen (pre-sorted)
- *  order so the most-recently-active rig surfaces first. */
+ *  order so the most-recently-active rig surfaces first.
+ *
+ *  gascity-dashboard-4xcv: non-rig lanes group under 'city'. A city-scoped
+ *  run (control-dispatcher work) is not an "unknown rig" — and a lane whose
+ *  scope metadata is unavailable still came from the city's bead store, so
+ *  the city group is the honest default. */
 function groupLanesByRig(lanes: readonly RunLane[]): Array<{ rig: string; lanes: RunLane[] }> {
   const order: string[] = [];
   const byRig = new Map<string, RunLane[]>();
   for (const lane of lanes) {
-    const rig = lane.scope.status === 'available' ? lane.scope.rootStoreRef : 'unknown';
+    const rig =
+      lane.scope.status === 'available' && lane.scope.kind === 'rig'
+        ? lane.scope.rootStoreRef
+        : 'city';
     let bucket = byRig.get(rig);
     if (bucket === undefined) {
       bucket = [];
@@ -138,8 +183,33 @@ function groupLanesByRig(lanes: readonly RunLane[]): Array<{ rig: string; lanes:
 }
 
 function rigLabel(rig: string): string {
-  if (rig === 'unknown') return 'unknown rig';
   return rig.replace(/^rig:/, '');
+}
+
+/** Blocked runs (gascity-dashboard-4xcv). A blocked lane needs the operator,
+ *  so it stays on the page — but in its own labeled section, never mixed
+ *  into (or counted with) the Active set. Hidden entirely when nothing is
+ *  blocked: the calm room does not announce the absence of trouble. */
+function BlockedSection({
+  summary,
+  now,
+  attentionSeverity,
+}: {
+  summary: RunSummary;
+  now: number;
+  attentionSeverity?: (lane: RunLane) => AttentionSeverity | null;
+}) {
+  if (summary.blockedLanes.length === 0) return null;
+  return (
+    <section aria-label="Blocked runs" className="mt-12">
+      <h2 className="text-label uppercase tracking-wider text-fg-faint">Blocked</h2>
+      <LaneList
+        lanes={summary.blockedLanes}
+        now={now}
+        {...(attentionSeverity === undefined ? {} : { attentionSeverity })}
+      />
+    </section>
+  );
 }
 
 function HistoricalSection({
@@ -164,18 +234,12 @@ function HistoricalSection({
         </p>
       ) : (
         <>
-          <ol id={HISTORICAL_LIST_ID} className="mt-3 divide-y divide-rule">
-            {shown.map((lane) => (
-              <LaneCard
-                key={lane.id}
-                lane={lane}
-                now={now}
-                {...(attentionSeverity === undefined
-                  ? {}
-                  : { attentionSeverity: attentionSeverity(lane) })}
-              />
-            ))}
-          </ol>
+          <LaneList
+            lanes={shown}
+            now={now}
+            listId={HISTORICAL_LIST_ID}
+            {...(attentionSeverity === undefined ? {} : { attentionSeverity })}
+          />
           {lanes.length > HISTORICAL_PREVIEW && (
             <button
               type="button"

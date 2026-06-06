@@ -119,7 +119,12 @@ export function FormulaRunDetailPage() {
     if (!runId) return null;
     const runs = runSummary.data;
     const runsData = runs && runs.status !== 'error' ? runs.data : null;
-    return runsData?.lanes.find((lane) => lane.id === runId) ?? null;
+    if (runsData === null || runsData === undefined) return null;
+    // gascity-dashboard-4xcv: blocked lanes live in their own bucket now, and
+    // a blocked run is the most likely one the operator clicks into.
+    return (
+      [...runsData.lanes, ...runsData.blockedLanes].find((lane) => lane.id === runId) ?? null
+    );
   }, [runSummary.data, runId]);
 
   const synopsis = detail

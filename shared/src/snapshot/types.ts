@@ -268,11 +268,12 @@ export interface WorkSummary {
 // ── runs ─────────────────────────────────────────────────────────────
 
 export interface RunSummary {
-  /** Count of ACTIVE lanes (`phase !== 'complete'`). Blocked lanes ARE
-   *  included — a blocked lane still needs operator attention and is not
-   *  "done". Aligns with `RunCensus.totalInFlight`, which also
-   *  excludes only complete. The headline `activeRuns` metric
-   *  counts this set (via census when available, this field as fallback). */
+  /** Count of ACTIVE lanes (`phase` neither 'complete' nor 'blocked').
+   *  gascity-dashboard-4xcv: blocked lanes are EXCLUDED — a stale blocked
+   *  formula latch (gc-1920 repro) is not progressing and must not read as
+   *  Active. Blocked lanes live in `blockedLanes` and still surface for
+   *  operator attention; they are simply not part of the Active set or
+   *  the headline `activeRuns` metric. */
   totalActive: number;
   /** Count of HISTORICAL lanes (phase === 'complete'). gascity-dashboard-yh5i:
    *  /runs defaults to showing the active set; toggling `?history=1`
@@ -286,6 +287,13 @@ export interface RunSummary {
    *  MAX_VISIBLE_HISTORICAL_LANES. Frontend renders these only when the user
    *  toggles ?history=1; backend always returns the array. */
   historicalLanes: RunLane[];
+  /** Blocked (phase === 'blocked') lanes, sorted by compareLanes
+   *  (gascity-dashboard-4xcv). Rendered as their own section so a blocked
+   *  run stays visible for the operator without being misread as Active.
+   *  `runCounts.blocked` counts this array. Deliberately uncapped: every
+   *  blocked lane is an operator-attention item and must not be silently
+   *  truncated the way the active 8-cap window trims calm lanes. */
+  blockedLanes: RunLane[];
   recentChanges: RunChange[];
   /**
    * City-level health census (gascity-dashboard-3ax). Threshold-INDEPENDENT
@@ -407,6 +415,11 @@ export interface RunCounts {
   prReview: number;
   designReview: number;
   bugfix: number;
+  /** Count of blocked lanes (`phase === 'blocked'`, i.e. `blockedLanes.length`).
+   *  gascity-dashboard-4xcv: disjoint from `total`, which counts only the
+   *  Active set. A lane with a blocked member always classifies as
+   *  phase 'blocked' (mapRunPhase checks members first), so this is the
+   *  complete blocked count, not a subset. */
   blocked: number;
   other: number;
 }

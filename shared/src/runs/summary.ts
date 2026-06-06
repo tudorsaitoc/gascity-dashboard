@@ -55,16 +55,23 @@ export function buildRunSummary(
     .map(([rootId, groupIssues]) => runLane(rootId, groupIssues, feedScopes))
     .sort(compareLanes);
 
-  const activeLanes = sortedLanes.filter((lane) => lane.phase !== 'complete');
+  // gascity-dashboard-4xcv: blocked lanes are split out of Active. A stale
+  // blocked formula latch (gc-1920 repro) is not progressing; it surfaces in
+  // its own section instead of inflating the Active set.
+  const activeLanes = sortedLanes.filter(
+    (lane) => lane.phase !== 'complete' && lane.phase !== 'blocked',
+  );
   const historicalLanes = sortedLanes.filter((lane) => lane.phase === 'complete');
+  const blockedLanes = sortedLanes.filter((lane) => lane.phase === 'blocked');
   const visibleActive = activeLanes.slice(0, MAX_VISIBLE_ACTIVE_LANES);
 
   const summary: RunSummary = {
     totalActive: activeLanes.length,
     totalHistorical: historicalLanes.length,
-    runCounts: runCounts(activeLanes, visibleActive.length),
+    runCounts: runCounts(activeLanes, visibleActive.length, blockedLanes.length),
     lanes: visibleActive,
     historicalLanes,
+    blockedLanes,
     recentChanges: recentChanges(laneIssues),
     census: runCensusUnavailable(),
   };
@@ -76,21 +83,18 @@ function isGraphV2RunGroup(rootId: string, issues: RunIssue[]): boolean {
   return stringValue(root?.metadata?.['gc.formula_contract']) === 'graph.v2';
 }
 
-export function runCounts(lanes: RunLane[], visible: number): RunCounts {
+export function runCounts(lanes: RunLane[], visible: number, blocked: number): RunCounts {
   const counts: RunCounts = {
     total: lanes.length,
     visible,
     prReview: 0,
     designReview: 0,
     bugfix: 0,
-    blocked: 0,
+    blocked,
     other: 0,
   };
 
   for (const lane of lanes) {
-    if (lane.phase === 'blocked' || (lane.statusCounts.blocked ?? 0) > 0) {
-      counts.blocked += 1;
-    }
     switch (runKind(lane.formula)) {
       case 'prReview':
         counts.prReview += 1;
@@ -362,6 +366,7 @@ export function emptyRunSummary(): RunSummary {
     },
     lanes: [],
     historicalLanes: [],
+    blockedLanes: [],
     recentChanges: [],
     census: runCensusUnavailable(),
   };

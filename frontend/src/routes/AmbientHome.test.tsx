@@ -163,6 +163,7 @@ function runSource({
       totalActive: lanes.length,
       totalHistorical: 0,
       historicalLanes: [],
+      blockedLanes: [],
       runCounts: {
         total: lanes.length,
         visible: lanes.length,

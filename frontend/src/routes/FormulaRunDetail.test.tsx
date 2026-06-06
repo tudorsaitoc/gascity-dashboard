@@ -148,6 +148,33 @@ describe('FormulaRunDetailPage', () => {
     expect(screen.queryByRole('heading', { name: /local changes/i })).toBeNull();
   });
 
+  it('renders the optimistic skeleton for a BLOCKED run lane (gascity-dashboard-4xcv)', async () => {
+    // Blocked lanes moved out of summary.lanes into blockedLanes; a blocked
+    // run is the most likely one the operator clicks into, so the skeleton
+    // lookup must search both buckets.
+    invalidate('runs:summary:test-city');
+    const source = runSummarySourceWithActiveLane();
+    if (source.status === 'error') throw new Error(source.error);
+    source.data.blockedLanes = source.data.lanes;
+    source.data.lanes = [];
+    source.data.totalActive = 0;
+    loadSupervisorRunSummarySource.mockResolvedValue(source);
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(() => new Promise<Response>(() => {})),
+    );
+    loadSupervisorFormulaRunDetail.mockImplementationOnce(
+      () => new Promise<FormulaRunDetail>(() => {}),
+    );
+
+    renderPage();
+
+    expect(
+      await screen.findByRole('list', { name: /pending adoption run stages/i }),
+    ).toBeTruthy();
+    expect(screen.queryByText(/^Loading formula run\.$/i)).toBeNull();
+  });
+
   it('does not repeat missing formula metadata as formula detail and a partial banner', async () => {
     currentDetail = {
       ...detail,
@@ -706,6 +733,7 @@ function runSummarySource(lanes: RunLane[] = []): SourceState<RunSummary> {
       totalActive: lanes.length,
       totalHistorical: 0,
       historicalLanes: [],
+      blockedLanes: [],
       runCounts: {
         total: lanes.length,
         visible: lanes.length,

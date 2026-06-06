@@ -47,6 +47,12 @@ import {
 // SSE is the path for actual data updates.
 
 const REFRESH_DEBOUNCE_MS = 10_000;
+// gascity-dashboard-4xcv: bounded retry backoff for a degraded first load
+// (error source, or a partial fetch that produced zero lanes). The operator
+// saw an empty tab that needed 2-3 manual refreshes; these retries recover
+// transient supervisor warm-up failures without her. After the budget is
+// spent, SSE events and the manual Refresh button take over.
+const RETRY_DELAYS_MS = [2_000, 5_000, 10_000];
 const RUN_PHASE_GRAMMAR = 'Phase grammar: intake, implementation, review, approval, finalization.';
 const HISTORY_QUERY_PARAM = 'history';
 const HISTORY_QUERY_VALUE = '1';
@@ -109,10 +115,36 @@ export function RunsPage() {
     });
   }, [cityName, refresh, runs]);
 
+  // gascity-dashboard-4xcv: bounded auto-retry on a degraded load. An error
+  // source (or a partial fetch with zero lanes) used to latch the page dead:
+  // the SSE callback skipped non-fresh sources and the one-time full refresh
+  // bailed on error, so only a manual Refresh recovered. Retry a few times
+  // with backoff, and reset the budget once a healthy load lands.
+  const retryAttemptRef = useRef(0);
+  useEffect(() => {
+    if (runs === null) return;
+    const degraded =
+      runs.status === 'error'
+        ? true
+        : runs.data.lanesPartial === true && runs.data.lanes.length === 0;
+    if (!degraded) {
+      retryAttemptRef.current = 0;
+      return;
+    }
+    const delay = RETRY_DELAYS_MS[retryAttemptRef.current];
+    if (delay === undefined) return;
+    retryAttemptRef.current += 1;
+    const timer = setTimeout(() => void refresh(), delay);
+    return () => clearTimeout(timer);
+  }, [runs, refresh]);
+
   const onSseMatch = useCallback(() => {
-    // Skip when supervisor is unreachable — every forced refresh under
-    // fixture-fallback re-runs loadFixture(), which is wasted file IO.
-    if (runsStatusRef.current !== 'fresh') return;
+    // Skip when fixtures are serving (supervisor down) — every forced
+    // refresh under fixture-fallback re-runs loadFixture(), which is wasted
+    // file IO. An 'error' or 'stale' source is the opposite case: a bead
+    // event is exactly the cue to try loading live data again
+    // (gascity-dashboard-4xcv).
+    if (runsStatusRef.current === null || runsStatusRef.current === 'fixture') return;
     // Skip when an explicit refresh is already in flight. Without this
     // guard, a fast SSE event firing while a slow upstream call is
     // still resolving lets two requests race; older-completion can

@@ -24,7 +24,14 @@ import { supervisorApiForRequestBudget } from './client';
 import { normalizeSessions } from './sessionReads';
 
 const RUNS_FETCH_LIMIT = 1_000;
-const RECENT_RUN_FETCH_LIMIT = 80;
+// gascity-dashboard-4xcv: the supervisor's bead list has no sort/recency
+// guarantee, so a small `all=true` window can drop run roots and step beads
+// arbitrarily — observed live as an empty first paint and a history list
+// missing most completed runs (a busy rig store holds hundreds of closed
+// task beads). 500 covers the largest observed store with headroom; if a
+// store outgrows it the symptom returns as silently missing lanes, so a
+// real fix beyond raising the cap means cursor pagination.
+const RECENT_RUN_FETCH_LIMIT = 500;
 const RUNS_STALE_AFTER_MS = 60 * 1000;
 const REQUIRED_RUN_SUMMARY_TIMEOUT_MS = 5_000;
 const OPTIONAL_ENRICHMENT_TIMEOUT_MS = 2_500;
@@ -241,16 +248,20 @@ function enrichRunSummary(
   source: SourceAvailableState<RunSummary>,
   sessionsLookup: RunSessionsLookup,
 ): RunSummary {
+  // gascity-dashboard-4xcv: blocked lanes are enriched alongside active
+  // ones so they carry derived health (needsOperator) for the attention
+  // layer, then split back out — they are not part of the Active set.
+  const inFlight = [...source.data.lanes, ...source.data.blockedLanes];
   const state = progressStateByCity.get(cityName);
   const generationMs = Date.parse(source.fetchedAt);
   let marks = state?.marks ?? new Map<string, LaneProgressMark>();
   if (state === undefined || generationMs > Date.parse(state.fetchedAt)) {
-    marks = advanceProgressMarks(marks, source.data.lanes);
+    marks = advanceProgressMarks(marks, inFlight);
     progressStateByCity.set(cityName, { marks, fetchedAt: source.fetchedAt });
   }
 
   const { lanes, census } = deriveRunHealth({
-    lanes: source.data.lanes,
+    lanes: inFlight,
     sessions: sessionsLookup.sessions,
     sessionsAvailable: sessionsLookup.kind === 'available',
     marks,
@@ -258,7 +269,8 @@ function enrichRunSummary(
 
   return {
     ...source.data,
-    lanes,
+    lanes: lanes.filter((lane) => lane.phase !== 'blocked'),
+    blockedLanes: lanes.filter((lane) => lane.phase === 'blocked'),
     census: { status: 'available', data: census },
   };
 }
