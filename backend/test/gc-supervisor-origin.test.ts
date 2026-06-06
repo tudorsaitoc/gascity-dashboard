@@ -29,6 +29,7 @@ function makeConfig(supervisorUrl: string): AdminConfig {
     auditLogPath: '.gc/events.jsonl',
     frontendDistPath: '../frontend/dist-does-not-exist',
     disabled: false,
+    readOnly: false,
     modules: {
       maintainer: {
         githubRepo: 'gastownhall/gascity',

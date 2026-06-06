@@ -55,6 +55,20 @@ describe('loadConfig', () => {
     assert.equal(loadConfig({ SNAPSHOT_USE_FIXTURES: '' }).useFixtures, false);
   });
 
+  test('readOnly is true when DASHBOARD_READONLY=1', () => {
+    assert.equal(loadConfig({ DASHBOARD_READONLY: '1' }).readOnly, true);
+  });
+
+  test('readOnly defaults to false so the local operator keeps full read/write', () => {
+    assert.equal(loadConfig({}).readOnly, false);
+  });
+
+  test('readOnly is false for any value other than the exact string "1"', () => {
+    assert.equal(loadConfig({ DASHBOARD_READONLY: 'true' }).readOnly, false);
+    assert.equal(loadConfig({ DASHBOARD_READONLY: '0' }).readOnly, false);
+    assert.equal(loadConfig({ DASHBOARD_READONLY: '' }).readOnly, false);
+  });
+
   test('runCwdAllowedRoots defaults to empty (shape-only, no regression) when unset', () => {
     assert.deepEqual(loadConfig({}).runCwdAllowedRoots, []);
   });

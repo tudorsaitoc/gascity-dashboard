@@ -55,7 +55,7 @@ export function createDashboardApp(config: AdminConfig): DashboardApp {
     listCities: supervisorCityLister(supervisorGc),
   });
 
-  app.use('/gc-supervisor', supervisorTransportProxy(config.gcSupervisorUrl));
+  app.use('/gc-supervisor', supervisorTransportProxy(config.gcSupervisorUrl, config.readOnly));
   app.use(express.json({ limit: '64kb' }));
 
   // ── Top-level (non-city) routes ─────────────────────────────────────────

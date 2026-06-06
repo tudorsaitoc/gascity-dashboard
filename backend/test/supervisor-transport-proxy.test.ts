@@ -81,6 +81,158 @@ describe('supervisor transport proxy', () => {
   });
 });
 
+interface UpstreamCall {
+  method: string;
+  url: string;
+  headers: http.IncomingHttpHeaders;
+}
+
+describe('supervisor transport proxy — read-only mode (DASHBOARD_READONLY=1)', () => {
+  let calls: UpstreamCall[];
+  let upstream: RunningServer;
+
+  beforeEach(async () => {
+    calls = [];
+    upstream = await startServer((req, res) => {
+      calls.push({ method: req.method ?? '', url: req.url ?? '', headers: req.headers });
+      res.statusCode = 200;
+      res.setHeader('content-type', 'application/json');
+      res.end('{"ok":true}');
+    });
+  });
+
+  afterEach(async () => {
+    await upstream.close();
+  });
+
+  function readOnlyDashboard(): Promise<RunningServer> {
+    const app = express();
+    app.use('/gc-supervisor', supervisorTransportProxy(upstream.url, true));
+    return startExpress(app);
+  }
+
+  test('rejects a mutation (POST sling carrying X-GC-Request) with 405, never forwarding it', async () => {
+    const dashboard = await readOnlyDashboard();
+    try {
+      const res = await fetch(`${dashboard.url}/gc-supervisor/v0/city/test-city/sling`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json', 'x-gc-request': 'dashboard' },
+        body: '{"target":"mayor"}',
+      });
+
+      assert.equal(res.status, 405);
+      assert.deepEqual(calls, []);
+    } finally {
+      await dashboard.close();
+    }
+  });
+
+  test('forwards an allowlisted read but strips the write-authorizing headers', async () => {
+    const dashboard = await readOnlyDashboard();
+    try {
+      const res = await fetch(`${dashboard.url}/gc-supervisor/v0/city/test-city/beads`, {
+        headers: { accept: 'application/json', 'content-type': 'application/json', 'x-gc-request': 'dashboard' },
+      });
+
+      assert.equal(res.status, 200);
+      assert.equal(calls.length, 1);
+      const [call] = calls;
+      assert.ok(call);
+      assert.equal(call.method, 'GET');
+      assert.equal(call.url, '/v0/city/test-city/beads');
+      assert.equal(call.headers['x-gc-request'], undefined);
+      assert.equal(call.headers['content-type'], undefined);
+    } finally {
+      await dashboard.close();
+    }
+  });
+
+  test('default-denies a non-allowlisted read (the side-effecting agent prime GET) with 404', async () => {
+    const dashboard = await readOnlyDashboard();
+    try {
+      const res = await fetch(`${dashboard.url}/gc-supervisor/v0/city/test-city/agent/mayor/prime`);
+
+      assert.equal(res.status, 404);
+      assert.deepEqual(calls, []);
+    } finally {
+      await dashboard.close();
+    }
+  });
+
+  test('keeps both SSE streams (city events + session) on the read allowlist', async () => {
+    const dashboard = await readOnlyDashboard();
+    try {
+      const events = await fetch(`${dashboard.url}/gc-supervisor/v0/city/test-city/events/stream`);
+      const session = await fetch(
+        `${dashboard.url}/gc-supervisor/v0/city/test-city/session/s1/stream`,
+      );
+
+      assert.equal(events.status, 200);
+      assert.equal(session.status, 200);
+      assert.deepEqual(
+        calls.map((c) => c.url),
+        ['/v0/city/test-city/events/stream', '/v0/city/test-city/session/s1/stream'],
+      );
+    } finally {
+      await dashboard.close();
+    }
+  });
+
+  test('still preserves the read query string when forwarding', async () => {
+    const dashboard = await readOnlyDashboard();
+    try {
+      const res = await fetch(`${dashboard.url}/gc-supervisor/v0/city/test-city/beads?limit=5`);
+
+      assert.equal(res.status, 200);
+      const [call] = calls;
+      assert.ok(call);
+      assert.equal(call.url, '/v0/city/test-city/beads?limit=5');
+    } finally {
+      await dashboard.close();
+    }
+  });
+});
+
+describe('supervisor transport proxy — default (read/write) mode', () => {
+  let calls: UpstreamCall[];
+  let upstream: RunningServer;
+
+  beforeEach(async () => {
+    calls = [];
+    upstream = await startServer((req, res) => {
+      calls.push({ method: req.method ?? '', url: req.url ?? '', headers: req.headers });
+      res.statusCode = 200;
+      res.end('{"ok":true}');
+    });
+  });
+
+  afterEach(async () => {
+    await upstream.close();
+  });
+
+  test('forwards a mutation and preserves X-GC-Request so local writes still work', async () => {
+    const app = express();
+    app.use('/gc-supervisor', supervisorTransportProxy(upstream.url));
+    const dashboard = await startExpress(app);
+    try {
+      const res = await fetch(`${dashboard.url}/gc-supervisor/v0/city/test-city/sling`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json', 'x-gc-request': 'dashboard' },
+        body: '{"target":"mayor"}',
+      });
+
+      assert.equal(res.status, 200);
+      assert.equal(calls.length, 1);
+      const [call] = calls;
+      assert.ok(call);
+      assert.equal(call.method, 'POST');
+      assert.equal(call.headers['x-gc-request'], 'dashboard');
+    } finally {
+      await dashboard.close();
+    }
+  });
+});
+
 test('direct supervisor boundary keeps city discovery out of dashboard /api routes', async () => {
   const appSource = await readFile(new URL('../src/app.ts', import.meta.url), 'utf8');
 

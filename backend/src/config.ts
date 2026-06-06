@@ -71,6 +71,16 @@ export interface AdminConfig {
   /** Kill-switch: set to '1' to refuse to start. */
   disabled: boolean;
   /**
+   * Opt-in read-only mode for the `/gc-supervisor` transport proxy
+   * (exposure-hardening PRD M1). When true the proxy rejects every non-GET/HEAD
+   * with 405, default-denies to an explicit supervisor read allowlist, and
+   * strips the write-authorizing `x-gc-request` header before forwarding —
+   * so an externally fronted instance cannot mutate the city. Default false
+   * keeps the zero-friction local operator experience unchanged.
+   * Env: `DASHBOARD_READONLY` (set to '1' to enable).
+   */
+  readOnly: boolean;
+  /**
    * Per-module configuration slices. Modules read their own slice in
    * `needs(config)`. See `MaintainerModuleConfig` for the maintainer
    * envelope — env-driven via MAINTAINER_GITHUB_REPO, MAINTAINER_CACHE_PATH,
@@ -225,6 +235,7 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): AdminConfig {
     auditLogPath: env.ADMIN_AUDIT_LOG_PATH ?? defaultAuditLogPath(env),
     frontendDistPath: env.ADMIN_FRONTEND_DIST ?? '../frontend/dist',
     disabled: env.ADMIN_DASHBOARD_DISABLED === '1',
+    readOnly: env.DASHBOARD_READONLY === '1',
     modules: {
       maintainer: maintainerEnabled
         ? loadMaintainerModuleConfig(env)

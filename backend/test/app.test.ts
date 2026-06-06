@@ -19,6 +19,7 @@ function makeConfig(overrides: Partial<AdminConfig> = {}): AdminConfig {
     auditLogPath: '.gc/events.jsonl',
     frontendDistPath: '../frontend/dist-does-not-exist',
     disabled: false,
+    readOnly: false,
     modules: {
       maintainer: {
         githubRepo: 'gastownhall/gascity',

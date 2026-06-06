@@ -4,6 +4,7 @@ export const HTTP_STATUS = {
   badRequest: 400,
   forbidden: 403,
   notFound: 404,
+  methodNotAllowed: 405,
   misdirectedRequest: 421,
   unprocessableContent: 422,
   badGateway: 502,

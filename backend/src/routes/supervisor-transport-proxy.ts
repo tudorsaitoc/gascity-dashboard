@@ -5,6 +5,7 @@ import type { ReadableStream as NodeReadableStream } from 'node:stream/web';
 
 import { HTTP_STATUS } from '../lib/http-status.js';
 import { LOG_COMPONENT, errorMessage, logWarn } from '../logging.js';
+import { isAllowedReadPath } from './supervisor-read-allowlist.js';
 
 const HOP_BY_HOP_HEADERS = new Set([
   'connection',
@@ -25,19 +26,33 @@ const STRIPPED_REQUEST_HEADERS = new Set([
   'referer',
 ]);
 
-export function supervisorTransportProxy(supervisorBaseUrl: string): Router {
+// In read-only mode every forwarded request is a GET/HEAD read, so the
+// supervisor's write-authorizing `x-gc-request` header is removed unconditionally
+// (never depend on its absence) along with a body `content-type` that can no
+// longer apply.
+const READONLY_STRIPPED_REQUEST_HEADERS = new Set([
+  ...STRIPPED_REQUEST_HEADERS,
+  'x-gc-request',
+  'content-type',
+]);
+
+export function supervisorTransportProxy(supervisorBaseUrl: string, readOnly = false): Router {
   const router = Router();
   const baseUrl = new URL(supervisorBaseUrl);
 
   router.use(async (req, res) => {
-    if (!isAllowedSupervisorPath(req.path)) {
+    if (readOnly && req.method !== 'GET' && req.method !== 'HEAD') {
+      res.status(HTTP_STATUS.methodNotAllowed).type('text/plain').send('read-only');
+      return;
+    }
+    if (!isAllowedPath(req.path, readOnly)) {
       res.status(HTTP_STATUS.notFound).type('text/plain').send('not found');
       return;
     }
 
     const target = new URL(req.url, baseUrl);
     try {
-      const upstream = await fetch(target, requestInit(req));
+      const upstream = await fetch(target, requestInit(req, readOnly));
       await writeUpstreamResponse(upstream, res);
     } catch (err) {
       logWarn(LOG_COMPONENT.admin, `gc supervisor transport proxy failed: ${errorMessage(err)}`);
@@ -55,14 +70,15 @@ export function supervisorTransportProxy(supervisorBaseUrl: string): Router {
   return router;
 }
 
-function isAllowedSupervisorPath(path: string): boolean {
+function isAllowedPath(path: string, readOnly: boolean): boolean {
+  if (readOnly) return isAllowedReadPath(path);
   return path === '/health' || path.startsWith('/v0/');
 }
 
-function requestInit(req: Request): RequestInit & { duplex?: 'half' } {
+function requestInit(req: Request, readOnly: boolean): RequestInit & { duplex?: 'half' } {
   const init: RequestInit & { duplex?: 'half' } = {
     method: req.method,
-    headers: requestHeaders(req),
+    headers: requestHeaders(req, readOnly),
     redirect: 'manual',
   };
   if (req.method !== 'GET' && req.method !== 'HEAD') {
@@ -72,11 +88,12 @@ function requestInit(req: Request): RequestInit & { duplex?: 'half' } {
   return init;
 }
 
-function requestHeaders(req: Request): Headers {
+function requestHeaders(req: Request, readOnly: boolean): Headers {
+  const stripped = readOnly ? READONLY_STRIPPED_REQUEST_HEADERS : STRIPPED_REQUEST_HEADERS;
   const headers = new Headers();
   for (const [name, rawValue] of Object.entries(req.headers)) {
     const lower = name.toLowerCase();
-    if (STRIPPED_REQUEST_HEADERS.has(lower)) continue;
+    if (stripped.has(lower)) continue;
     if (rawValue === undefined) continue;
     headers.set(name, Array.isArray(rawValue) ? rawValue.join(', ') : rawValue);
   }
