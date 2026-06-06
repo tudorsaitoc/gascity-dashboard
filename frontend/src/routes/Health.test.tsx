@@ -278,17 +278,47 @@ describe('HealthPage', () => {
     expect(dolt?.textContent).toMatch(/below floor/i);
     expect(dolt?.querySelector('.text-warn')).not.toBeNull();
 
-    // beads sits at its floor: no warning.
+    // beads sits at its floor: no warning, and its cells read in neutral tone.
     const beads = toolRow(container, 'bd');
     expect(beads?.textContent).toContain('1.0.4');
     expect(beads?.textContent).not.toMatch(/below floor/i);
     expect(beads?.querySelector('.text-warn')).toBeNull();
+    expect(beads?.querySelector('.text-fg')).not.toBeNull();
 
     // gc has no published floor: installed dev build, "not pinned" recommended.
     const gc = toolRow(container, 'gc');
     expect(gc?.textContent).toContain('dev');
     expect(gc?.textContent).toContain('not pinned');
     expect(gc?.textContent).not.toMatch(/below floor/i);
+  });
+
+  it('renders only the first below-floor tool in warn tone (One Mark Rule)', async () => {
+    // The bead's own example: bd and dolt both pinned below floor at once. Only
+    // the first drift may carry the maroon mark; every later drifted row keeps
+    // the "below floor" word but reads neutral, so the viewport holds one mark.
+    currentLocalTools = {
+      ...baseLocalTools(),
+      beads: {
+        installed: { status: 'available', version: '1.0.3', source: 'local probe: bd version' },
+        recommendedFloor: '1.0.4',
+        drift: 'below_floor',
+      },
+      // dolt stays below_floor from baseLocalTools().
+    };
+
+    const { container } = renderPage();
+
+    await screen.findByRole('heading', { name: /tool versions/i });
+
+    // bd is the first below-floor row (gc carries no floor): single warn mark.
+    const beads = toolRow(container, 'bd');
+    expect(beads?.textContent).toMatch(/below floor/i);
+    expect(beads?.querySelector('.text-warn')).not.toBeNull();
+
+    // dolt is below floor too but later — word kept, tone neutral, no 2nd mark.
+    const dolt = toolRow(container, 'dolt');
+    expect(dolt?.textContent).toMatch(/below floor/i);
+    expect(dolt?.querySelector('.text-warn')).toBeNull();
   });
 
   it('surfaces a probe failure reason in the tool versions table', async () => {

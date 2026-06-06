@@ -29,6 +29,7 @@ describe('parseVersionTuple', () => {
     assert.equal(parseVersionTuple('dev'), null);
     assert.equal(parseVersionTuple('1.0'), null);
     assert.equal(parseVersionTuple('1.0.4-rc1'), null);
+    assert.equal(parseVersionTuple('1.2.3.4'), null);
   });
 });
 

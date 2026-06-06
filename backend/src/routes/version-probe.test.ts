@@ -18,10 +18,7 @@ describe('parseVersion', () => {
 
 describe('parseGcVersionJson', () => {
   test('reads the version field verbatim, including a bare `dev` build', () => {
-    assert.equal(
-      parseGcVersionJson('{"commit":"ee446af6b","ok":true,"version":"dev"}'),
-      'dev',
-    );
+    assert.equal(parseGcVersionJson('{"commit":"ee446af6b","ok":true,"version":"dev"}'), 'dev');
   });
 
   test('reads a release semver from the version field', () => {

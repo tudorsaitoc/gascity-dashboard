@@ -352,6 +352,12 @@ function ToolVersionsTable({ state }: { state: LocalToolVersionsState | null }) 
     { label: 'bd', tool: state.data.beads },
     { label: 'dolt', tool: state.data.dolt },
   ];
+  // One Mark Rule (Workers-Active precedent): several tools can sit below floor
+  // at once (the bead's own example: bd + dolt both pinned), but the maroon warn
+  // tone renders only on the first drift. Every other below-floor row keeps the
+  // "· below floor" word in neutral tone so the signal survives without a second
+  // mark competing for the viewport's single accent.
+  const accentIndex = rows.findIndex((row) => row.tool.drift === 'below_floor');
   return (
     <div className="grid grid-cols-[1fr_max-content_max-content] gap-x-8 gap-y-3 max-w-prose">
       <div className="text-label uppercase tracking-wider text-fg-muted">Tool</div>
@@ -359,16 +365,31 @@ function ToolVersionsTable({ state }: { state: LocalToolVersionsState | null }) 
       <div className="text-label uppercase tracking-wider text-fg-muted text-right">
         Recommended
       </div>
-      {rows.map((row) => (
-        <ToolVersionRow key={row.label} label={row.label} tool={row.tool} />
+      {rows.map((row, i) => (
+        <ToolVersionRow
+          key={row.label}
+          label={row.label}
+          tool={row.tool}
+          accent={i === accentIndex}
+        />
       ))}
     </div>
   );
 }
 
-function ToolVersionRow({ label, tool }: { label: string; tool: RecommendedToolVersion }) {
+function ToolVersionRow({
+  label,
+  tool,
+  accent,
+}: {
+  label: string;
+  tool: RecommendedToolVersion;
+  accent: boolean;
+}) {
   const belowFloor = tool.drift === 'below_floor';
-  const tone = belowFloor ? 'text-warn' : 'text-fg';
+  // Only the first below-floor tool (accent) carries the maroon warn tone; later
+  // drifted rows keep the word but read neutral, per the One Mark Rule.
+  const tone = accent ? 'text-warn' : 'text-fg';
   const recommended = tool.recommendedFloor ?? 'not pinned';
   // `contents` makes the row's cells participate directly in the parent grid.
   // Color can't inherit through a `display:contents` box, so each visible cell
@@ -378,7 +399,7 @@ function ToolVersionRow({ label, tool }: { label: string; tool: RecommendedToolV
       <div className={`text-body ${tone}`}>
         {label}
         {belowFloor && (
-          <span className="text-label uppercase tracking-wider text-warn"> · below floor</span>
+          <span className={`text-label uppercase tracking-wider ${tone}`}> · below floor</span>
         )}
       </div>
       <div className="text-right">
