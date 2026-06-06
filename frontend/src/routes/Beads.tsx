@@ -14,12 +14,14 @@ import { Modal } from '../components/Modal';
 import { PageHeader } from '../components/PageHeader';
 import { StatusBadge } from '../components/StatusBadge';
 import { buildBeadGraph } from '../lib/beadGraph';
+import { resolveRigName, rigNameOptions } from '../lib/rigNames';
 import { useCachedData } from '../hooks/useCachedData';
 import { useGcEventRefresh } from '../hooks/useGcEvents';
 import { useListFilters, type FilterChip } from '../hooks/useListFilters';
 import { beadProject } from '../hooks/projectOf';
-import { listSupervisorAgents } from '../supervisor/agentReads';
+import { listSupervisorAgents, type SupervisorAgent } from '../supervisor/agentReads';
 import { listSupervisorBeads, type SupervisorBead } from '../supervisor/beadReads';
+import { listSupervisorRigs } from '../supervisor/rigReads';
 import {
   claimSupervisorBead,
   closeSupervisorBead,
@@ -46,9 +48,6 @@ interface ActionMessage {
   tone: 'ok' | 'error';
   text: string;
 }
-
-const isNonEmptyString = (value: string | undefined | null): value is string =>
-  typeof value === 'string' && value.trim().length > 0;
 
 const BEAD_CHIPS: ReadonlyArray<FilterChip<SupervisorBead>> = [
   { id: 'open', label: 'open', match: (b) => b.status === 'open' },
@@ -120,17 +119,25 @@ export function BeadsPage() {
   const sessionItems = useMemo(() => sessions.data?.items ?? [], [sessions.data]);
   const agents = useCachedData(`agents:${cityCacheKey}`, listSupervisorAgents);
   const agentItems = useMemo(() => agents.data?.items ?? [], [agents.data]);
+  const rigs = useCachedData(`rigs:${cityCacheKey}`, listSupervisorRigs);
+  const rigItems = useMemo(() => rigs.data?.items ?? [], [rigs.data]);
 
-  const dispatchRigOptions = useMemo(
-    () =>
-      Array.from(new Set(agentItems.map((agent) => agent.rig).filter(isNonEmptyString))).sort(
-        (a, b) => a.localeCompare(b),
-      ),
-    [agentItems],
+  // The dropdown lists the supervisor's authoritative rig names, never the raw
+  // `agent.rig` values — those are sometimes filesystem paths and sometimes
+  // directories that belong to no registered rig at all. Agents are matched to
+  // a rig by canonicalizing their reported `rig` against the same list, so an
+  // agent reporting a path still groups under its real rig name.
+  const dispatchRigOptions = useMemo(() => rigNameOptions(rigItems), [rigItems]);
+  const agentRigName = useCallback(
+    (agent: SupervisorAgent) => resolveRigName(agent.rig, rigItems),
+    [rigItems],
   );
   const filteredDispatchAgents = useMemo(
-    () => (newRig.length === 0 ? agentItems : agentItems.filter((agent) => agent.rig === newRig)),
-    [agentItems, newRig],
+    () =>
+      newRig.length === 0
+        ? agentItems
+        : agentItems.filter((agent) => agentRigName(agent) === newRig),
+    [agentItems, agentRigName, newRig],
   );
 
   useEffect(() => {
@@ -219,7 +226,7 @@ export function BeadsPage() {
   const openCreateBead = useCallback(() => {
     const defaultRig = dispatchRigOptions[0] ?? '';
     const defaultAgent = agentItems.find(
-      (agent) => defaultRig.length === 0 || agent.rig === defaultRig,
+      (agent) => defaultRig.length === 0 || agentRigName(agent) === defaultRig,
     );
     setNewTitle('');
     setNewBody('');
@@ -228,20 +235,22 @@ export function BeadsPage() {
     setCreateError(null);
     setActionMessage(null);
     setCreating(true);
-  }, [agentItems, dispatchRigOptions]);
+  }, [agentItems, agentRigName, dispatchRigOptions]);
 
   const handleDispatchRigChange = useCallback(
     (rig: string) => {
       setNewRig(rig);
       const currentAgentStillVisible = agentItems.some(
-        (agent) => agent.name === newAgent && (rig.length === 0 || agent.rig === rig),
+        (agent) => agent.name === newAgent && (rig.length === 0 || agentRigName(agent) === rig),
       );
       if (!currentAgentStillVisible) {
-        const defaultAgent = agentItems.find((agent) => rig.length === 0 || agent.rig === rig);
+        const defaultAgent = agentItems.find(
+          (agent) => rig.length === 0 || agentRigName(agent) === rig,
+        );
         setNewAgent(defaultAgent?.name ?? '');
       }
     },
-    [agentItems, newAgent],
+    [agentItems, agentRigName, newAgent],
   );
 
   const createAndSling = useCallback(async () => {
@@ -368,6 +377,11 @@ export function BeadsPage() {
             {agents.error && (
               <span className="normal-case text-body text-accent" role="alert">
                 {agents.error}
+              </span>
+            )}
+            {rigs.error && (
+              <span className="normal-case text-body text-accent" role="alert">
+                {rigs.error}
               </span>
             )}
             <span className="text-label uppercase tracking-wider text-fg-faint">

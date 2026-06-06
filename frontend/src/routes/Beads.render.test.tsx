@@ -23,6 +23,7 @@ beforeEach(() => {
   invalidate('beads:board:');
   invalidate('sessions');
   invalidate('agents');
+  invalidate('rigs');
   stubFetch();
 });
 
@@ -170,10 +171,24 @@ function stubFetch() {
             {
               name: 'mayor',
               display_name: 'Mayor',
-              rig: 'east',
+              rig: '/home/ds/east',
               available: true,
               running: true,
               state: 'active',
+              suspended: false,
+            },
+          ],
+          total: 1,
+        });
+      }
+      if (url.pathname === '/gc-supervisor/v0/city/test-city/rigs') {
+        return jsonResponse({
+          items: [
+            {
+              name: 'east',
+              path: '/home/ds/east',
+              agent_count: 1,
+              running_count: 1,
               suspended: false,
             },
           ],

@@ -20,6 +20,7 @@ const baseApi: SupervisorApi = {
   cityStatus: vi.fn(),
   listCities: vi.fn(),
   listAgents: vi.fn(),
+  listRigs: vi.fn(),
   listBeads: vi.fn(),
   listEvents: vi.fn(),
   getBead: vi.fn(),

@@ -1237,6 +1237,7 @@ describe('supervisor client wrapper', () => {
       cityStatus: vi.fn(),
       health: vi.fn(),
       listAgents: vi.fn(),
+      listRigs: vi.fn(),
       listBeads: vi.fn(),
       listEvents: vi.fn(),
       listCities: vi.fn(),

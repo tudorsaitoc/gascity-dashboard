@@ -14,6 +14,7 @@ import {
   getV0CityByCityNameHealth,
   getV0CityByCityNameMail,
   getV0CityByCityNameMailThreadById,
+  getV0CityByCityNameRigs,
   getV0CityByCityNameSessionByIdPending,
   getV0CityByCityNameSessionByIdTranscript,
   getV0CityByCityNameSessions,
@@ -49,6 +50,7 @@ import type {
   GetV0CityByCityNameWorkflowByWorkflowIdData,
   ListBodyBead,
   ListBodyAgentResponse,
+  ListBodyRigResponse,
   ListBodyWireEvent,
   MailReplyInputBody,
   MailSendInputBody,
@@ -92,6 +94,7 @@ export interface SupervisorApi {
   cityStatus(cityName: string): Promise<GetV0CityByCityNameStatusResponse>;
   listCities(): Promise<SupervisorCitiesOutputBody>;
   listAgents(cityName: string): Promise<ListBodyAgentResponse>;
+  listRigs(cityName: string): Promise<ListBodyRigResponse>;
   listBeads(
     cityName: string,
     query?: NonNullable<GetV0CityByCityNameBeadsData['query']>,
@@ -230,6 +233,15 @@ export function createSupervisorApi(options: CreateSupervisorApiOptions = {}): S
           path: { cityName },
         }) as Promise<SupervisorResult<ListBodyAgentResponse>>,
         'gc supervisor agents response was empty',
+      );
+    },
+    listRigs(cityName) {
+      return unwrapSupervisorResult<ListBodyRigResponse>(
+        getV0CityByCityNameRigs({
+          client,
+          path: { cityName },
+        }) as Promise<SupervisorResult<ListBodyRigResponse>>,
+        'gc supervisor rigs response was empty',
       );
     },
     listBeads(cityName, query) {
