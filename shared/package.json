@@ -13,6 +13,10 @@
     "./gc-supervisor": {
       "types": "./dist/generated/gc-supervisor-client/index.d.ts",
       "default": "./dist/generated/gc-supervisor-client/index.js"
+    },
+    "./fixtures/test-city": {
+      "types": "./dist/fixtures/test-city/index.d.ts",
+      "default": "./dist/fixtures/test-city/index.js"
     }
   },
   "scripts": {
