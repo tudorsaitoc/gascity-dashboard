@@ -25,6 +25,7 @@ describe('logging component vocabulary', () => {
         LOG_COMPONENT.links,
         LOG_COMPONENT.maintainer,
         LOG_COMPONENT.metrics,
+        LOG_COMPONENT.rigStoreHealth,
         LOG_COMPONENT.runs,
       ].sort(),
     );

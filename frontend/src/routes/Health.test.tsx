@@ -6,7 +6,12 @@ import { invalidate } from '../api/cache';
 import { AttentionProvider } from '../attention/context';
 import { createAttentionContributors, type HealthAttentionFacts } from '../attention/registry';
 import type { HealthOutputBody, StatusBody } from 'gas-city-dashboard-shared/gc-supervisor';
-import type { DoltNomsTrend, LocalToolVersions, SystemHealth } from 'gas-city-dashboard-shared';
+import type {
+  DoltNomsTrend,
+  LocalToolVersions,
+  RigStoreHealthReport,
+  SystemHealth,
+} from 'gas-city-dashboard-shared';
 import { supervisorApiForRequestBudget } from '../supervisor/client';
 
 const mockCityHealth = vi.fn<(cityName: string) => Promise<HealthOutputBody>>();
@@ -30,8 +35,10 @@ vi.mock('../supervisor/client', () => ({
 let currentHealth: SystemHealth = baseHealth();
 let currentLocalTools: LocalToolVersions = baseLocalTools();
 let currentTrend: DoltNomsTrend = baseTrend();
+let currentRigStores: RigStoreHealthReport = baseRigStores();
 let systemHealthMode: 'ok' | 'fail' = 'ok';
 let trendMode: 'ok' | 'fail' = 'ok';
+let rigStoreMode: 'ok' | 'fail' = 'ok';
 
 beforeEach(() => {
   invalidate('health');
@@ -43,8 +50,10 @@ beforeEach(() => {
   currentHealth = baseHealth();
   currentLocalTools = baseLocalTools();
   currentTrend = baseTrend();
+  currentRigStores = baseRigStores();
   systemHealthMode = 'ok';
   trendMode = 'ok';
+  rigStoreMode = 'ok';
   vi.stubGlobal(
     'fetch',
     vi.fn(async (input: RequestInfo | URL) => {
@@ -63,6 +72,12 @@ beforeEach(() => {
           return errorResponse('dolt trend offline');
         }
         return jsonResponse(currentTrend);
+      }
+      if (url === '/api/city/test-city/rig-store-health') {
+        if (rigStoreMode === 'fail') {
+          return errorResponse('rig store health offline');
+        }
+        return jsonResponse(currentRigStores);
       }
       throw new Error(`unexpected fetch: ${url}`);
     }),
@@ -219,6 +234,36 @@ describe('HealthPage', () => {
     expect(screen.getByText('5')).toBeTruthy();
     expect(screen.getByText('Dolt MB-per-row ratio')).toBeTruthy();
     expect(screen.getByText('<= 1')).toBeTruthy();
+  });
+
+  it('surfaces per-rig bead-store health with a down rig flagged', async () => {
+    const { container } = renderPage();
+
+    await screen.findByRole('heading', { name: /bead stores · per rig/i });
+
+    // Both rigs render; the down rig surfaces its dolt-down state.
+    expect(screen.getByText('codeprobe')).toBeTruthy();
+    expect(screen.getByText('geo')).toBeTruthy();
+    expect(screen.getByText('dolt down')).toBeTruthy();
+    expect(screen.getByText(/DOWN · 127\.0\.0\.1:29620/)).toBeTruthy();
+    // The ok rig surfaces an up endpoint.
+    expect(screen.getByText(/up · 127\.0\.0\.1:29620/)).toBeTruthy();
+
+    // Worst-first ordering: the down rig (geo) renders before the ok rig.
+    const names = Array.from(container.querySelectorAll('span'))
+      .map((s) => s.textContent)
+      .filter((t) => t === 'codeprobe' || t === 'geo');
+    expect(names[0]).toBe('geo');
+  });
+
+  it('keeps other Health sections visible when rig-store health fails', async () => {
+    rigStoreMode = 'fail';
+
+    renderPage();
+
+    await screen.findByRole('heading', { name: /supervisor/i });
+    await screen.findByRole('heading', { name: /bead stores · per rig/i });
+    expect(screen.getByText(/per-rig store health unavailable/i)).toBeTruthy();
   });
 
   it('highlights Health sections that match composed attention facts', async () => {
@@ -415,5 +460,34 @@ function baseTrend(): DoltNomsTrend {
     available: true,
     samples: [],
     source: '/var/gc/.dolt/noms',
+  };
+}
+
+function baseRigStores(): RigStoreHealthReport {
+  return {
+    available: true,
+    sampledAt: '2026-06-06T00:00:00.000Z',
+    rigs: [
+      {
+        rig: 'codeprobe',
+        beadsPath: '/home/ds/projects/codeprobe/.beads',
+        rollup: 'ok',
+        reachable: true,
+        doltEndpoint: '127.0.0.1:29620',
+        doltConnected: true,
+        issueCount: 129,
+        problems: [],
+      },
+      {
+        rig: 'geo',
+        beadsPath: '/home/ds/projects/GEO/.beads',
+        rollup: 'down',
+        reachable: true,
+        doltEndpoint: '127.0.0.1:29620',
+        doltConnected: false,
+        issueCount: null,
+        problems: [],
+      },
+    ],
   };
 }

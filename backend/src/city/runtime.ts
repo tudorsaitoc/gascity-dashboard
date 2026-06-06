@@ -8,6 +8,11 @@ import { GcClient } from '../gc-client.js';
 import { csrfValidate } from '../middleware/csrf.js';
 import { runsRouter } from '../routes/runs.js';
 import { createDoltNomsSampler, doltRouter, type DoltNomsSampler } from '../routes/dolt.js';
+import {
+  createRigStoreHealthSampler,
+  rigStoreHealthRouter,
+  type RigStoreHealthSampler,
+} from '../routes/rig-store-health.js';
 import { ALL_MODULES } from '../views/registry.js';
 import { resolveEnabledFirstPartyIds } from '../views/enabled.js';
 import { bind, type CityContext } from '../views/types.js';
@@ -117,17 +122,33 @@ export function createCityRuntime(opts: CreateCityRuntimeOptions): CityRuntime {
   });
   router.use('/dolt-noms', doltRouter(doltNomsSampler));
 
+  // gascity-dashboard-u6d0: per-rig bead-store + dolt health. Rig name+path
+  // come from the sanctioned host-local status read (status.rig_details) — the
+  // backend GcClient deliberately does not list GC-owned rigs directly — then
+  // each rig's local `.beads` store is probed. Periodic sampler: the route
+  // serves the cached snapshot so a Health page load never forks one
+  // `bd doctor` per rig.
+  const rigStoreHealthSampler: RigStoreHealthSampler = createRigStoreHealthSampler({
+    listRigs: async () => {
+      const status = await gc.getStatus();
+      return (status.rig_details ?? []).map((rig) => ({ name: rig.name, path: rig.path }));
+    },
+  });
+  router.use('/rig-store-health', rigStoreHealthRouter(rigStoreHealthSampler));
+
   return {
     cityName,
     router,
     dashboardConfig,
     start() {
       doltNomsSampler.start();
+      rigStoreHealthSampler.start();
       for (const w of moduleWorkers) w.start();
     },
     async stop() {
       await Promise.all(moduleWorkers.map((w) => w.stop()));
       doltNomsSampler.stop();
+      rigStoreHealthSampler.stop();
     },
   };
 }

@@ -17,6 +17,7 @@ export const LOG_COMPONENT = {
   links: 'links',
   maintainer: 'maintainer',
   metrics: 'metrics',
+  rigStoreHealth: 'rig-store-health',
   runs: 'runs',
 } as const;
 

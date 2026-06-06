@@ -5,6 +5,7 @@ import type {
   SystemHealth,
   LocalToolVersions,
   DoltNomsTrend,
+  RigStoreHealthReport,
   MaintainerTriage,
   MaintainerSlingRecordRequest,
   ContributorStat,
@@ -268,6 +269,13 @@ const decodeDoltTrend = objectDecoder<DoltNomsTrend>('dolt trend', (record, url)
   requireBooleanField(record, url, 'dolt trend', 'available');
   requireArrayField(record, url, 'dolt trend', 'samples');
 });
+const decodeRigStoreHealth = objectDecoder<RigStoreHealthReport>(
+  'rig store health',
+  (record, url) => {
+    requireBooleanField(record, url, 'rig store health', 'available');
+    requireArrayField(record, url, 'rig store health', 'rigs');
+  },
+);
 const decodeRunDiff = objectDecoder<RunDiffResponse>('run diff', (record, url) => {
   requireStringField(record, url, 'run diff', 'kind');
   requireObjectField(record, url, 'run diff', 'rootPath');
@@ -342,6 +350,9 @@ export const api = {
   },
   doltTrend(): Promise<DoltNomsTrend> {
     return request('GET', cityPath('/dolt-noms/trend'), decodeDoltTrend);
+  },
+  rigStoreHealth(): Promise<RigStoreHealthReport> {
+    return request('GET', cityPath('/rig-store-health'), decodeRigStoreHealth);
   },
   runDiff(
     runId: string,

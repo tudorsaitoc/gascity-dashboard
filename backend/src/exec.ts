@@ -60,6 +60,9 @@ const GIT_LOG_TIMEOUT_MS = 10_000;
 const RUN_GIT_TIMEOUT_MS = 5_000;
 const GH_LIST_TIMEOUT_MS = 30_000;
 const GH_HISTORY_LIST_TIMEOUT_MS = 60_000;
+// `bd doctor` connects to the store's dolt server and runs ~30 checks; it is
+// heavier than a version probe but bounded. Read-only, no `--fix`.
+const BD_DOCTOR_TIMEOUT_MS = 15_000;
 function sanitiseTerminalOutput(raw: string): string {
   return raw
     .replace(OSC_RE, '')
@@ -419,6 +422,30 @@ export async function execGhPrList(repo: string, limit: number): Promise<ExecRes
     ],
     GH_LIST_TIMEOUT_MS,
     MAX_BYTES_LARGE,
+  );
+}
+
+// ── Per-rig bead-store health: `bd doctor` ───────────────────────────────
+//
+// gascity-dashboard-u6d0. Read-only health probe of a rig's embedded-dolt
+// `.beads` store. The store path originates from supervisor-reported rig
+// metadata (rig.path + '/.beads'), never from a browser parameter, but it is
+// still validated at this subprocess boundary like every other host path the
+// dashboard shells against (mirrors isValidRunCwd). `--readonly` blocks
+// writes; `--fix` is intentionally never passed, so doctor only inspects —
+// it never mutates the probed store. `--json` makes the output machine
+// parseable; a store whose server is unreachable makes bd fall back to
+// embedded mode and emit non-JSON text, which the caller treats as a
+// degraded signal rather than a parse error.
+
+export async function execBdDoctor(beadsPath: string): Promise<ExecResult> {
+  if (!isValidHostPath(beadsPath) || !beadsPath.endsWith('/.beads')) {
+    throw new ExecError('invalid beads store path', 'validation');
+  }
+  return runExec(
+    'bd',
+    ['doctor', '--readonly', '--db', beadsPath, '--json'],
+    BD_DOCTOR_TIMEOUT_MS,
   );
 }
 

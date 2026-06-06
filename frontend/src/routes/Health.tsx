@@ -3,6 +3,10 @@ import type {
   DoltNomsTrend,
   LocalToolVersion,
   LocalToolVersions,
+  RigStoreHealth,
+  RigStoreHealthReport,
+  RigStoreHealthUnavailableReason,
+  RigStoreRollup,
   SystemHealth,
 } from 'gas-city-dashboard-shared';
 import { api, formatApiError } from '../api/client';
@@ -43,17 +47,23 @@ export function HealthPage() {
     `health:dolt-noms-trend:${cityName ?? 'no-city'}`,
     fetchDoltNomsTrend,
   );
+  const rigStoreHealth = useCachedData(
+    `health:rig-store:${cityName ?? 'no-city'}`,
+    fetchRigStoreHealth,
+  );
   const refreshSystemHealth = systemHealth.refresh;
   const refreshSupervisorHealth = supervisorHealth.refresh;
   const refreshSupervisorStatus = supervisorStatusCache.refresh;
   const refreshLocalToolVersions = localToolVersions.refresh;
   const refreshDoltNomsTrend = doltNomsTrend.refresh;
+  const refreshRigStoreHealth = rigStoreHealth.refresh;
   const sourceLoading =
     systemHealth.loading ||
     supervisorHealth.loading ||
     supervisorStatusCache.loading ||
     localToolVersions.loading ||
-    doltNomsTrend.loading;
+    doltNomsTrend.loading ||
+    rigStoreHealth.loading;
   const error =
     [
       systemHealth.error,
@@ -61,6 +71,7 @@ export function HealthPage() {
       supervisorStatusCache.error,
       localToolVersions.error,
       doltNomsTrend.error,
+      rigStoreHealth.error,
     ]
       .filter((value): value is string => value !== null)
       .join('; ') || null;
@@ -71,10 +82,12 @@ export function HealthPage() {
       refreshSupervisorStatus(),
       refreshLocalToolVersions(),
       refreshDoltNomsTrend(),
+      refreshRigStoreHealth(),
     ]);
   }, [
     refreshDoltNomsTrend,
     refreshLocalToolVersions,
+    refreshRigStoreHealth,
     refreshSupervisorHealth,
     refreshSupervisorStatus,
     refreshSystemHealth,
@@ -86,12 +99,15 @@ export function HealthPage() {
   const status = supervisorStatusCache.data ?? null;
   const localTools = localToolVersions.data ?? null;
   const trend = doltNomsTrend.data ?? null;
+  const rigStores = rigStoreHealth.data ?? null;
+  const rigStoreSummary = rigStores ? rigStoreSummaryStatus(rigStores) : undefined;
   const hasAnyData =
     healthState !== null ||
     supervisor !== null ||
     status !== null ||
     localTools !== null ||
-    trend !== null;
+    trend !== null ||
+    rigStores !== null;
   const hostHealthStatus = health ? hostStatus(health) : undefined;
   const supervisorAttention = prefixedAttentionSeverity(attention, 'health', [
     'health:supervisor-',
@@ -237,6 +253,14 @@ export function HealthPage() {
               <DoltUsageBlock usage={doltUsageOf(status)} />
               <BeadsUsageBlock usage={beadsUsageOf(status)} />
             </div>
+          </Section>
+
+          <Section
+            title="Bead stores · per rig"
+            meta={rigStoreMeta(rigStores)}
+            {...(rigStoreSummary ? { status: rigStoreSummary } : {})}
+          >
+            <RigStoreHealthBlock report={rigStores} />
           </Section>
 
           <Section title="Recommended vs loaded">
@@ -390,6 +414,121 @@ function BeadsUsageBlock({ usage }: { usage: DiagnosticDatum<StatusWorkCounts> }
       </KvList>
     </div>
   );
+}
+
+function RigStoreHealthBlock({ report }: { report: RigStoreHealthReport | null }) {
+  if (report === null) {
+    return <p className="text-body text-fg-muted italic">Loading per-rig store health.</p>;
+  }
+  if (!report.available && report.rigs.length === 0) {
+    return (
+      <p className="text-body text-fg-muted italic">
+        Per-rig store health unavailable: {rigStoreUnavailableCopy(report.reason)}.
+      </p>
+    );
+  }
+  // Sort worst-first so a degraded store is never buried below healthy ones.
+  const rigs = [...report.rigs].sort((a, b) => rollupRank(b.rollup) - rollupRank(a.rollup));
+  return (
+    <div className="space-y-6 max-w-prose">
+      {!report.available && (
+        <p className="text-body text-warn italic">
+          Showing the last sample — refresh failed: {rigStoreUnavailableCopy(report.reason)}.
+        </p>
+      )}
+      {rigs.map((rig) => (
+        <RigStoreRow key={rig.rig} rig={rig} />
+      ))}
+    </div>
+  );
+}
+
+function RigStoreRow({ rig }: { rig: RigStoreHealth }) {
+  const status = rigRollupStatus(rig);
+  return (
+    <div className="space-y-2 border-b border-rule pb-4 last:border-b-0">
+      <div className="flex items-baseline justify-between gap-4">
+        <span className="text-body font-medium text-fg">{rig.rig}</span>
+        <StatusBadge tone={status.tone} label={status.label} />
+      </div>
+      <dl className="grid grid-cols-[max-content_1fr] gap-x-6 gap-y-1">
+        <Kv
+          label="Dolt server"
+          value={rigDoltServerValue(rig)}
+          {...(rig.doltConnected === false ? { tone: 'stuck' as const } : {})}
+        />
+        {rig.issueCount !== null && (
+          <Kv label="Live issues" value={rig.issueCount.toLocaleString()} />
+        )}
+      </dl>
+      {rig.problems.length > 0 && (
+        <ul className="space-y-1">
+          {rig.problems.map((p) => (
+            <li
+              key={`${p.category}/${p.name}`}
+              className={`text-label ${p.status === 'error' ? 'text-accent' : 'text-warn'}`}
+            >
+              {p.name}: {p.message}
+            </li>
+          ))}
+        </ul>
+      )}
+      {rig.note !== undefined && (
+        <p className="text-label text-fg-muted italic">{rig.note}</p>
+      )}
+    </div>
+  );
+}
+
+function rigDoltServerValue(rig: RigStoreHealth): string {
+  const endpoint = rig.doltEndpoint ?? 'no endpoint reported';
+  if (rig.doltConnected === true) return `up · ${endpoint}`;
+  if (rig.doltConnected === false) return `DOWN · ${endpoint}`;
+  return `unknown · ${endpoint}`;
+}
+
+function rigRollupStatus(rig: RigStoreHealth): { tone: StatusTone; label: string } {
+  switch (rig.rollup) {
+    case 'ok':
+      return { tone: 'ok', label: 'healthy' };
+    case 'warn':
+      return { tone: 'warn', label: 'warnings' };
+    case 'down':
+      if (!rig.reachable) return { tone: 'stuck', label: 'unreachable' };
+      if (rig.doltConnected === false) return { tone: 'stuck', label: 'dolt down' };
+      return { tone: 'stuck', label: 'errors' };
+  }
+}
+
+function rollupRank(rollup: RigStoreRollup): number {
+  return rollup === 'down' ? 2 : rollup === 'warn' ? 1 : 0;
+}
+
+function rigStoreMeta(report: RigStoreHealthReport | null): string | undefined {
+  if (report === null || report.rigs.length === 0) return undefined;
+  const counts = { ok: 0, warn: 0, down: 0 };
+  for (const rig of report.rigs) counts[rig.rollup] += 1;
+  return `${counts.ok} ok · ${counts.warn} warn · ${counts.down} down`;
+}
+
+function rigStoreSummaryStatus(
+  report: RigStoreHealthReport,
+): { tone: StatusTone; label: string } | undefined {
+  if (report.rigs.some((r) => r.rollup === 'down')) return { tone: 'stuck', label: 'attention' };
+  if (report.rigs.some((r) => r.rollup === 'warn')) return { tone: 'warn', label: 'warnings' };
+  if (report.rigs.length > 0) return { tone: 'ok', label: 'healthy' };
+  return undefined;
+}
+
+function rigStoreUnavailableCopy(reason: RigStoreHealthUnavailableReason): string {
+  switch (reason) {
+    case 'not_sampled_yet':
+      return 'backend just started; first sample is in flight';
+    case 'rig_list_failed':
+      return 'the supervisor rig list could not be read';
+    case 'fetch_failed':
+      return 'the dashboard backend could not be reached';
+  }
 }
 
 function ConfigComparison({ comparison }: { comparison: DiagnosticDatum<ConfigComparisonRow[]> }) {
@@ -580,6 +719,17 @@ async function fetchDoltNomsTrend(): Promise<DoltNomsTrend> {
       reason: 'sample_failed',
       samples: [],
     };
+  }
+}
+
+async function fetchRigStoreHealth(): Promise<RigStoreHealthReport> {
+  try {
+    return await api.rigStoreHealth();
+  } catch {
+    // Transport-level failure (backend unreachable / 5xx / decode) — a
+    // distinct root cause from the backend's own 'rig_list_failed', so it must
+    // not borrow that reason and point the operator at the supervisor.
+    return { available: false, reason: 'fetch_failed', rigs: [] };
   }
 }
 
