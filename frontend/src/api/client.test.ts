@@ -62,4 +62,33 @@ describe('api client error handling', () => {
       message: expect.stringContaining('config.cityRoot must be a string'),
     });
   });
+
+  it('rejects a local-tools body whose drift union is absent at the edge', async () => {
+    // The Health renderer branches on each tool's `drift`; a tool object that
+    // omits it would mis-render silently, so the decoder rejects it up front.
+    const tool = {
+      installed: { status: 'available' },
+      recommendedFloor: '2.1.2',
+      drift: 'below_floor',
+    };
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(
+        async () =>
+          new Response(
+            JSON.stringify({
+              gc: tool,
+              beads: tool,
+              dolt: { installed: { status: 'available' }, recommendedFloor: '2.1.2' },
+            }),
+            { status: 200, headers: { 'content-type': 'application/json' } },
+          ),
+      ),
+    );
+
+    await expect(api.localToolVersions()).rejects.toMatchObject({
+      name: 'ApiResponseDecodeError',
+      message: expect.stringContaining('dolt.drift must be a string'),
+    });
+  });
 });
