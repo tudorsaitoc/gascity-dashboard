@@ -69,7 +69,7 @@ describe('supervisor bead reads', () => {
 
     const result = await listSupervisorBeads();
 
-    expect(listBeads).toHaveBeenCalledWith('test-city', { limit: 2000 });
+    expect(listBeads).toHaveBeenCalledWith('test-city', { limit: 1000 });
     expect(result.items.map((item) => item.id)).toEqual(['rc-decision', 'td-task']);
     expect(result.total).toBe(2);
     expect(result.upstream_total).toBe(4);

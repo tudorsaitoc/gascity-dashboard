@@ -387,7 +387,10 @@ async function installApiFixtureRoutes(context) {
     const limit = url.searchParams.get('limit');
     const type = url.searchParams.get('type');
     const items =
-      limit === '5000' && type === null
+      // The entity-links loader is the one type-less list read at the
+      // LINKS_FETCH_LIMIT bound (1000 since gascity-dashboard-q89b); the run
+      // summary's primary read arrives at its own lower bound.
+      limit === '1000' && type === null
         ? highVolumeLinkBeads()
         : type === null
           ? [runRootBeadFixture()]

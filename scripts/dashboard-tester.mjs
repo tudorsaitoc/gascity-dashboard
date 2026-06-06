@@ -46,7 +46,14 @@ const VIEWPORT = { width: 1440, height: 900 };
 const SSE_TIMEOUT_MS = 12_000;
 const SETTLE_MS = 2_500;
 
-const isDataCall = (url) => url.includes('/api/') || url.includes('/gc-supervisor/');
+// Match on the URL path PREFIX, not a substring: against a Vite dev server
+// the app's own source modules live at /src/api/*, and a substring match
+// 503s the bundle itself during fail-safe injection, blanking every route
+// (gascity-dashboard-q89b). Production assets never collide either way.
+const isDataCall = (url) => {
+  const pathname = new URL(url).pathname;
+  return pathname.startsWith('/api/') || pathname.startsWith('/gc-supervisor/');
+};
 const short = (s, n = 110) => (s ?? '').toString().replace(/\s+/g, ' ').trim().slice(0, n);
 
 // An explicit "data is not live" signal in the route's own content: the

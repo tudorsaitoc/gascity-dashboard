@@ -85,7 +85,7 @@ describe('loadSupervisorRunSummaryPreviewSource', () => {
     expect(source.data.lanes[0]?.id).toBe('run-1');
     expect(source.data.lanes[0]?.health.status).toBe('unavailable');
     expect(listBeads).toHaveBeenCalledTimes(3);
-    expect(listBeads).toHaveBeenCalledWith('test-city', { limit: 1_000 });
+    expect(listBeads).toHaveBeenCalledWith('test-city', { limit: 500 });
     expect(listBeads).toHaveBeenCalledWith('test-city', {
       limit: 500,
       type: 'molecule',
@@ -172,7 +172,7 @@ describe('loadSupervisorRunSummarySource', () => {
       statusCounts: { open: 1, in_progress: 1 },
     });
     expect(source.data.census.status).toBe('available');
-    expect(listBeads).toHaveBeenCalledWith('test-city', { limit: 1_000 });
+    expect(listBeads).toHaveBeenCalledWith('test-city', { limit: 500 });
     expect(listBeads).toHaveBeenCalledWith('test-city', {
       limit: 500,
       type: 'molecule',
@@ -275,6 +275,29 @@ describe('loadSupervisorRunSummarySource', () => {
     expect(source.status).toBe('fresh');
     if (source.status === 'error') throw new Error(source.error);
     expect(source.data.totalActive).toBe(1);
+    expect(source.data.lanesPartial).toBe(true);
+  });
+
+  it('marks the summary partial when the active bead list is truncated at the fetch limit', async () => {
+    // gascity-dashboard-q89b: the primary fetch is bounded; when the upstream
+    // total exceeds what one page returned, active runs may be missing and the
+    // lanes must read as partial rather than complete.
+    const listBeads = vi.fn(async (_cityName: string, query?: Record<string, unknown>) => {
+      if (query?.type === 'molecule') return beadList([]);
+      if (query?.rig === 'rig-a') return beadList([]);
+      return { ...beadList([runRoot()]), total: 501 };
+    });
+    setSupervisorApiForTests({
+      ...baseApi,
+      listBeads,
+      formulaFeed: vi.fn(async () => feed([feedRun()])),
+      listSessions: vi.fn(async () => sessionList()),
+    });
+
+    const source = await loadSupervisorRunSummarySource();
+
+    expect(source.status).toBe('fresh');
+    if (source.status === 'error') throw new Error(source.error);
     expect(source.data.lanesPartial).toBe(true);
   });
 

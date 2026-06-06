@@ -155,7 +155,7 @@ describe('BeadsPage', () => {
 
     expect(beadQueries.length).toBe(1);
     const [query] = beadQueries;
-    expect(query?.get('limit')).toBe('2000');
+    expect(query?.get('limit')).toBe('1000');
     expect(query?.has('all')).toBe(false);
     expect(query?.has('type')).toBe(false);
     expect(query?.has('showAll')).toBe(false);

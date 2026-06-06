@@ -1,11 +1,16 @@
 import type { EntityLinkView, DashboardBead, DashboardSession } from 'gas-city-dashboard-shared';
 import { buildLinkView, buildRelationIndex, parseRef } from 'gas-city-dashboard-shared';
 import { activeCityOrThrow } from '../api/cityBase';
-import type { Bead, ListBodyBead } from 'gas-city-dashboard-shared/gc-supervisor';
+import type { Bead } from 'gas-city-dashboard-shared/gc-supervisor';
 import { supervisorApi } from './client';
+import { listIsIncomplete } from './listPartial';
 import { normalizeSessions, type SupervisorSessionList } from './sessionReads';
 
-const LINKS_FETCH_LIMIT = 5_000;
+// Pre-exposure load bound (gascity-dashboard-q89b): this fetch runs once per
+// focus ref per client, so the limit multiplies across viewers. Truncation is
+// safe: the partial flag below trips when upstream total exceeds what was
+// fetched, and RelatedEntities renders the partial notice.
+const LINKS_FETCH_LIMIT = 1_000;
 
 export async function loadSupervisorEntityLinks(ref: string): Promise<EntityLinkView> {
   const parsed = parseRef(ref);
@@ -15,10 +20,7 @@ export async function loadSupervisorEntityLinks(ref: string): Promise<EntityLink
   const supervisorFetchedAt = new Date().toISOString();
   const beadList = await supervisorApi().listBeads(cityName, { limit: LINKS_FETCH_LIMIT });
   const beads = normalizeBeads(beadList.items ?? []);
-  let partial = listIsPartial(beadList);
-  if (typeof beadList.total === 'number' && beadList.total > beads.length) {
-    partial = true;
-  }
+  let partial = listIsIncomplete(beadList, beads.length);
 
   let sessions: DashboardSession[] = [];
   try {
@@ -62,10 +64,6 @@ function normalizeBead(bead: Bead): DashboardBead {
   if (bead.dependencies !== undefined) normalized.dependencies = bead.dependencies;
   if (bead.updated_at !== undefined) normalized.updated_at = bead.updated_at;
   return normalized;
-}
-
-function listIsPartial(list: ListBodyBead): boolean {
-  return list.partial === true || (list.partial_errors?.length ?? 0) > 0;
 }
 
 function sessionListIsPartial(list: SupervisorSessionList): boolean {

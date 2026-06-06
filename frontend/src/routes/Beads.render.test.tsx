@@ -50,7 +50,7 @@ describe('BeadsPage supervisor reads', () => {
       items: [bead({ id: 'legacy-city-bead', title: 'legacy city bead' })],
       total: 1,
       upstream_fetched: 1,
-      fetch_limit: 2000,
+      fetch_limit: 1000,
     });
 
     renderPage();

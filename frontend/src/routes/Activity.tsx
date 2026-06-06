@@ -415,9 +415,10 @@ function EventsSection({
                     : 'No supervisor events in this window.'}
             </EmptyRow>
           ) : (
-            items.map((event) => (
+            items.map((event, index) => (
               <tr
-                key={`${event.seq}:${event.type}`}
+                // Audit-forwarded events all arrive at seq 0; index breaks ties.
+                key={`${event.seq}:${event.type}:${index}`}
                 {...attentionRowProps(attentionSeverity(event))}
                 className={`border-b border-rule ${
                   attentionRowProps(attentionSeverity(event)).className ?? ''

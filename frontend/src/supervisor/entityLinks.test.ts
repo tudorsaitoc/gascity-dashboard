@@ -105,7 +105,7 @@ describe('loadSupervisorEntityLinks', () => {
         resolved: true,
       },
     ]);
-    expect(listBeads).toHaveBeenCalledWith('test-city', { limit: 5_000 });
+    expect(listBeads).toHaveBeenCalledWith('test-city', { limit: 1_000 });
     expect(listSessions).toHaveBeenCalledWith('test-city');
     expect(fetchSpy).not.toHaveBeenCalled();
   });

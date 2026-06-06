@@ -19,11 +19,15 @@ import {
   type LaneProgressMark,
 } from 'gas-city-dashboard-shared';
 import { activeCityOrThrow } from '../api/cityBase';
-import type { Bead, FormulaFeedBody, ListBodyBead } from 'gas-city-dashboard-shared/gc-supervisor';
+import type { Bead, FormulaFeedBody } from 'gas-city-dashboard-shared/gc-supervisor';
 import { supervisorApiForRequestBudget } from './client';
+import { listIsIncomplete, listIsPartial } from './listPartial';
 import { normalizeSessions } from './sessionReads';
 
-const RUNS_FETCH_LIMIT = 1_000;
+// Pre-exposure load bound (gascity-dashboard-q89b): the primary in-flight
+// bead fetch refreshes on SSE bursts (10s debounce floor in Runs.tsx) per
+// client. listIsIncomplete keeps truncation visible in the lanes-partial signal.
+const RUNS_FETCH_LIMIT = 500;
 // gascity-dashboard-4xcv: the supervisor's bead list has no sort/recency
 // guarantee, so a small `all=true` window can drop run roots and step beads
 // arbitrarily — observed live as an empty first paint and a history list
@@ -152,7 +156,9 @@ async function loadRunBeads(cityName: string, limit: number): Promise<LoadedRunB
 
   const settled = await Promise.all([moleculeFetch, ...rigFetches]);
   const recentItems: DashboardBead[] = [];
-  let partial = feedDiscovery.partial || listIsPartial(activeList);
+  // Truncation at the bounded fetch reads as partial lanes, not complete
+  // (gascity-dashboard-q89b).
+  let partial = feedDiscovery.partial || listIsIncomplete(activeList, active.length);
 
   for (const outcome of settled) {
     if (outcome.ok) {
@@ -347,18 +353,6 @@ function normalizeBead(bead: Bead): DashboardBead {
   if (bead.dependencies !== undefined) normalized.dependencies = bead.dependencies;
   if (bead.updated_at !== undefined) normalized.updated_at = bead.updated_at;
   return normalized;
-}
-
-function listIsPartial(list: ListBodyBead): boolean {
-  // `partial`/`partial_errors` signal a backend-side failure, but the supervisor
-  // also truncates at the fetch limit and reports more via `next_cursor` without
-  // setting `partial`. Treat a present cursor as partial so saturation surfaces
-  // through the same partial-notice + retry paths instead of silently dropping lanes.
-  return (
-    list.partial === true ||
-    (list.partial_errors?.length ?? 0) > 0 ||
-    (list.next_cursor?.length ?? 0) > 0
-  );
 }
 
 function feedIsPartial(feed: FormulaFeedBody): boolean {

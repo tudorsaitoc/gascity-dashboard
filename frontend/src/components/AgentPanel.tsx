@@ -2,6 +2,12 @@ import { useMemo, useState } from 'react';
 import { OPERATOR_ALIAS, OPERATOR_WIRE_ALIAS } from '../contexts/ViewingAsContext';
 import { displayLabel, tierLabel, type AliasBucket } from '../hooks/aliasPriority';
 
+// Shared rail shell for both panel states: full-width with a bottom rule on
+// mobile, fixed-width with a right-edge rule from sm up; only the sm width
+// varies per state.
+const ASIDE_BASE_CLASS =
+  'border-rule pb-6 border-b sm:shrink-0 sm:pr-6 sm:pb-0 sm:border-b-0 sm:border-r';
+
 export function AgentPanel({
   buckets,
   loading,
@@ -55,7 +61,7 @@ export function AgentPanel({
 
   if (!expanded) {
     return (
-      <aside className="shrink-0 w-44 pr-6 border-r border-rule">
+      <aside className={`${ASIDE_BASE_CLASS} sm:w-44`}>
         <button
           type="button"
           onClick={() => setExpanded(true)}
@@ -92,7 +98,7 @@ export function AgentPanel({
   }
 
   return (
-    <aside className="shrink-0 w-64 pr-6 border-r border-rule">
+    <aside className={`${ASIDE_BASE_CLASS} sm:w-64`}>
       <button
         type="button"
         onClick={() => setExpanded(false)}

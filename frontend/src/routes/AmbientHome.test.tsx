@@ -54,6 +54,8 @@ afterEach(() => {
   cleanup();
   invalidateKey('runs:summary:racoon-city');
   invalidateKey('home:work:racoon-city');
+  // Keep the first-run note's dismissal from leaking across tests.
+  window.localStorage.removeItem('gascity:home-intro-dismissed');
   vi.useRealTimers();
 });
 
@@ -233,6 +235,12 @@ beforeEach(() => {
 });
 
 describe('AmbientHomePage', () => {
+  it('renders the first-run orientation note until dismissed (gascity-dashboard-q89b)', async () => {
+    mount();
+    await waitFor(() => expect(screen.getByTestId('phase-census')).toBeTruthy());
+    expect(screen.getByTestId('first-run-note')).toBeTruthy();
+  });
+
   it('renders the calm-city case with no concern rows and NO maroon (R10 + One Mark)', async () => {
     // Three known lanes, all fresh sessions, no thrashing, no
     // needsOperator. R10: no rows. R6: no fallback prose.

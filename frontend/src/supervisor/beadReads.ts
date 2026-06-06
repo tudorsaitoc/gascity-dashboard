@@ -23,9 +23,12 @@ export interface ListSupervisorBeadsOptions {
   limit?: number;
 }
 
-const BEADS_FETCH_LIMIT = 2000;
+// Pre-exposure load bounds (gascity-dashboard-q89b): board and detail-fallback
+// list fetches run per client, so keep them modest. Truncation degrades
+// visibly: upstream_total vs fetch_limit feeds the board's truncation notice.
+const BEADS_FETCH_LIMIT = 1000;
 const ASSIGNED_BEADS_FETCH_LIMIT = 200;
-const DETAIL_FALLBACK_FETCH_LIMIT = 2000;
+const DETAIL_FALLBACK_FETCH_LIMIT = 1000;
 // The "real work" bead types the board fans out (one typed query each),
 // then keeps via defaultBeadFilter — the bookkeeping types
 // (message/session/molecule/…) are dropped. Every entry MUST be a type the

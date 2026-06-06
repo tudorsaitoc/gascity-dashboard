@@ -14,7 +14,7 @@ interface FetchCall {
 }
 
 const fetchCalls: FetchCall[] = [];
-let eventFetchMode: 'ok' | 'partial' | 'fail' = 'ok';
+let eventFetchMode: 'ok' | 'partial' | 'fail' | 'duplicate-audit' = 'ok';
 
 beforeEach(() => {
   setActiveCity('test-city');
@@ -35,6 +35,31 @@ beforeEach(() => {
           return new Response(JSON.stringify({ error: 'event store offline' }), {
             status: 503,
             headers: { 'content-type': 'application/json' },
+          });
+        }
+        if (eventFetchMode === 'duplicate-audit') {
+          // Dashboard audit records forwarded into the supervisor event log
+          // carry no sequence number, so several arrive with seq 0
+          // (gascity-dashboard-q89b).
+          return jsonResponse({
+            items: [
+              supervisorEvent({
+                actor: 'dashboard',
+                message: 'audit fetch one',
+                seq: 0,
+                subject: 'GET /api/health/system',
+                type: 'dashboard.fetch',
+              }),
+              supervisorEvent({
+                actor: 'dashboard',
+                message: 'audit fetch two',
+                seq: 0,
+                subject: 'GET /api/health/local-tools',
+                type: 'dashboard.fetch',
+              }),
+            ],
+            partial: false,
+            total: 2,
           });
         }
         return jsonResponse({
@@ -121,6 +146,21 @@ describe('ActivityPage', () => {
     expect(eventFetch?.query.get('type')).toBe('session.crashed');
     expect(eventFetch?.query.get('since')).toBe('24h');
     expect(fetchCalls.some((call) => call.path === '/api/city/test-city/events')).toBe(false);
+  });
+
+  it('renders seq-less dashboard audit events without React key collisions (gascity-dashboard-q89b)', async () => {
+    eventFetchMode = 'duplicate-audit';
+    const consoleError = vi.spyOn(console, 'error');
+
+    renderPage('/activity?mode=events');
+
+    const table = await screen.findByRole('table', { name: /supervisor events/i });
+    expect(await within(table).findByText('audit fetch one')).toBeTruthy();
+    expect(within(table).getByText('audit fetch two')).toBeTruthy();
+    const keyWarnings = consoleError.mock.calls.filter((call) =>
+      String(call[0]).includes('same key'),
+    );
+    expect(keyWarnings).toHaveLength(0);
   });
 
   it('renders deploy and commit activity without using supervisor mirrors', async () => {

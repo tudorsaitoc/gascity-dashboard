@@ -306,7 +306,9 @@ export function MailPage() {
         }
       />
 
-      <div className="flex gap-8 items-start">
+      {/* Below sm the reading-as rail stacks above the list; its divider
+          rotates from right-edge rule to bottom rule in AgentPanel. */}
+      <div className="flex flex-col gap-8 sm:flex-row sm:items-start">
         <AgentPanel
           buckets={aliasBuckets}
           loading={aliasesLoading}
