@@ -569,7 +569,7 @@ export const zFormulaDetailResponse = z.object({
     preview: zFormulaPreviewResponse,
     steps: z.array(zFormulaStepResponse).nullable(),
     var_defs: z.array(zFormulaVarDefResponse).nullable(),
-    version: z.string()
+    version: z.string().optional()
 });
 
 export const zFormulaSummaryResponse = z.object({
@@ -578,7 +578,7 @@ export const zFormulaSummaryResponse = z.object({
     recent_runs: z.array(zFormulaRecentRunResponse).nullable(),
     run_count: z.coerce.bigint().min(BigInt('-9223372036854775808'), { error: 'Invalid value: Expected int64 to be >= -9223372036854775808' }).max(BigInt('9223372036854775807'), { error: 'Invalid value: Expected int64 to be <= 9223372036854775807' }),
     var_defs: z.array(zFormulaVarDefResponse).nullable(),
-    version: z.string()
+    version: z.string().optional()
 });
 
 export const zFormulaListBody = z.object({

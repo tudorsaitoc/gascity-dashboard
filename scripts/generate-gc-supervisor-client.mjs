@@ -34,6 +34,7 @@ async function generateHeyApiClient(toPath) {
     throw new Error(`@hey-api/openapi-ts failed with exit code ${result.status ?? 'unknown'}`);
   }
   await allowRfc3339OffsetDateTimes(toPath);
+  await allowVersionlessFormulaResponses(toPath);
 }
 
 async function allowRfc3339OffsetDateTimes(toPath) {
@@ -44,6 +45,36 @@ async function allowRfc3339OffsetDateTimes(toPath) {
     throw new Error(
       `${path.relative(process.cwd(), zodPath)} did not contain generated date-time validators`,
     );
+  }
+  await writeFile(zodPath, patched);
+}
+
+// The supervisor omits `version` from formula responses whose definition is
+// inferred from a bead title rather than a versioned recipe (e.g.
+// mol-focus-review). The OpenAPI snapshot still marks FormulaDetailResponse and
+// FormulaSummaryResponse `version` as required, so the generated zod validator
+// rejected those valid 200 payloads as `invalid_payload`, degrading the
+// run-detail Formula Detail panel (gascity-dashboard-3eo8). Relax `version` to
+// optional on the two formula response schemas only — every other schema keeps
+// its required `version`. The durable fix is upstream marking these optional in
+// the supervisor OpenAPI; remove this patch once the regenerated snapshot does.
+const FORMULA_VERSION_SCHEMAS = ['zFormulaDetailResponse', 'zFormulaSummaryResponse'];
+
+async function allowVersionlessFormulaResponses(toPath) {
+  const zodPath = path.join(toPath, 'zod.gen.ts');
+  const content = await readFile(zodPath, 'utf8');
+  let patched = content;
+  for (const schemaName of FORMULA_VERSION_SCHEMAS) {
+    const requiredVersion = new RegExp(
+      `(export const ${schemaName} = z\\.object\\(\\{[\\s\\S]*?\\bversion: z\\.string\\(\\))(?!\\.optional\\(\\))`,
+    );
+    const next = patched.replace(requiredVersion, '$1.optional()');
+    if (next === patched) {
+      throw new Error(
+        `${path.relative(process.cwd(), zodPath)} did not contain a required ${schemaName} version validator`,
+      );
+    }
+    patched = next;
   }
   await writeFile(zodPath, patched);
 }

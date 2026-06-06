@@ -153,7 +153,7 @@ test('gc supervisor generation enables generated Zod response validators', async
   assert.doesNotMatch(config, /validator:\s*false/);
 });
 
-test('gc supervisor generated client post-processing is limited to RFC3339 offset datetimes', async () => {
+test('gc supervisor generated client post-processing is limited to known schema relaxations', async () => {
   const generator = await readFile(generatorUrl, 'utf8');
 
   assert.doesNotMatch(generator, /ts-nocheck/);
@@ -161,6 +161,15 @@ test('gc supervisor generated client post-processing is limited to RFC3339 offse
   assert.doesNotMatch(generator, /source\.replace/);
   assert.match(generator, /allowRfc3339OffsetDateTimes/);
   assert.match(generator, /z\.iso\.datetime\(\{ offset: true \}\)/);
+  // The only other sanctioned post-process relaxes `version` to optional on the
+  // two formula response schemas (the supervisor omits it for title-inferred
+  // formulas — gascity-dashboard-3eo8). It must stay scoped to those schemas so
+  // every other required `version` keeps validating.
+  assert.match(generator, /allowVersionlessFormulaResponses/);
+  assert.match(
+    generator,
+    /FORMULA_VERSION_SCHEMAS = \['zFormulaDetailResponse', 'zFormulaSummaryResponse'\]/,
+  );
   for (const rootUrl of [generatedClientUrl, frontendGeneratedClientUrl]) {
     for (const { path, source } of await readTsFiles(rootUrl)) {
       assert.doesNotMatch(
@@ -169,6 +178,22 @@ test('gc supervisor generated client post-processing is limited to RFC3339 offse
         `${path} should be generator output without ts-nocheck`,
       );
     }
+  }
+});
+
+test('gc supervisor formula response schemas accept version-less payloads', async () => {
+  const generatedFiles = await readTsFiles(generatedClientUrl);
+  const zodFile = generatedFiles.find(({ path }) => path === 'zod.gen.ts');
+  assert.ok(zodFile, 'zod.gen.ts should be generated from the supervisor OpenAPI schema');
+
+  // The two formula schemas must declare `version` optional; no other schema
+  // should have been relaxed by the post-process (a stray match would loosen an
+  // unrelated required field).
+  for (const schemaName of ['zFormulaDetailResponse', 'zFormulaSummaryResponse']) {
+    const block = new RegExp(
+      `export const ${schemaName} = z\\.object\\(\\{[\\s\\S]*?version: z\\.string\\(\\)\\.optional\\(\\)[\\s\\S]*?\\}\\);`,
+    );
+    assert.match(zodFile.source, block, `${schemaName} should mark version optional`);
   }
 });
 
