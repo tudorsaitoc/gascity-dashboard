@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { getActiveCity, setActiveCity } from '../api/cityBase';
 import {
+  MAINTENANCE_PROJECT,
   ORCHESTRATION_PROJECT,
   agentProject,
   beadProject,
@@ -169,6 +170,43 @@ describe('agentProject', () => {
       label: 'gascity',
     });
   });
+
+  // gascity-dashboard-jj2z: a gascity builtin MAINTENANCE pool (e.g. `dog`)
+  // runs cross-rig agents whose `rig` is empty. The pool name is NOT a rig, so
+  // it must bucket into the pinned Maintenance group, never fall through to
+  // pool-as-rig (which mislabelled `dog` as a rig in the Rig column/filter).
+  it('buckets a maintenance-builtin pool (dog) into Maintenance, NOT a rig named "dog"', () => {
+    const bucket = agentProject({ name: 'dog-1', pool: 'dog' } as never);
+    expect(bucket).toEqual({ key: MAINTENANCE_PROJECT, label: MAINTENANCE_PROJECT });
+    // The exact symptom from the bug report: no rig bucket named 'dog'.
+    expect(bucket.key).not.toBe('dog');
+    expect(bucket.label).not.toBe('dog');
+  });
+
+  it('buckets a maintenance pool into Maintenance even with empty-string rig (cross-rig dog agents)', () => {
+    expect(agentProject({ name: 'dog-2', rig: '', pool: 'dog' } as never)).toEqual({
+      key: MAINTENANCE_PROJECT,
+      label: MAINTENANCE_PROJECT,
+    });
+  });
+
+  it('does NOT bucket a rig-scoped agent into Maintenance even if its pool is a maintenance pool (rig wins)', () => {
+    // Mirrors the orchestration rig-guard: a real rig association always wins
+    // over the pool-derived bucket.
+    expect(agentProject({ name: 'x', rig: '/home/ds/gascity', pool: 'dog' } as never)).toEqual({
+      key: 'gascity',
+      label: 'gascity',
+    });
+  });
+
+  it('leaves a non-maintenance pool as a rig synonym (only the named builtin pools are special-cased)', () => {
+    // Guards against over-broad matching: `research` is a legitimate
+    // pool-as-rig and must be unaffected by the maintenance carve-out.
+    expect(agentProject({ name: 'a1', pool: 'research' } as never)).toEqual({
+      key: 'research',
+      label: 'research',
+    });
+  });
 });
 
 describe('isPerRigDispatcherAgent', () => {
@@ -235,6 +273,13 @@ describe('isAgentOutsideRig', () => {
 
   it('is false for a pool-scoped agent (a pool stands in as the rig label)', () => {
     expect(isAgentOutsideRig({ name: 'a1', pool: 'research' } as never)).toBe(false);
+  });
+
+  it('is true for a maintenance-builtin pool agent (dog) — a maintenance pool is not a rig', () => {
+    // gascity-dashboard-jj2z: the Maintenance bucket is outside-rig, so the Rig
+    // column shows the clean alias (no `dog ·` prefix) and the agent is excluded
+    // from the rig filter dropdown.
+    expect(isAgentOutsideRig({ name: 'dog-1', pool: 'dog' } as never)).toBe(true);
   });
 });
 

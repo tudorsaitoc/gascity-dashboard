@@ -53,6 +53,14 @@ export function orchestrationLabel(): string {
 // Residual bucket for a row with no rig association and no orchestration role.
 export const NO_RIG_PROJECT = '(no rig)';
 
+// Pinned bucket for gascity builtin MAINTENANCE pools (e.g. `dog`). These pools
+// run cross-rig housekeeping agents whose `rig` is empty, so without this
+// carve-out the pool name falls through to pool-as-rig and is mislabelled as a
+// rig in the Agents Rig column/filter. Distinct from Orchestration (mayor /
+// dispatchers, which direct work) and from (no rig) (agents with no rig AND no
+// pool).
+export const MAINTENANCE_PROJECT = 'Maintenance';
+
 // Templates whose sessions are cross-rig orchestration (no specific
 // rig). Per-rig dispatchers (alias '<rig>/control-dispatcher') are
 // NOT in this set — they belong to their rig and are styled inline.
@@ -178,6 +186,15 @@ const ORCHESTRATION_AGENT_NAMES: ReadonlySet<string> = new Set([
   'oversight-rig.chief-of-staff',
 ]);
 
+// gascity builtin maintenance pool templates (the `dog` housekeeping pool;
+// gascity internal/config defines these as cross-rig builtins). Their agents
+// carry an empty `rig`, so they must be lifted into the Maintenance bucket
+// rather than fall through to pool-as-rig. A small named constant set — not a
+// regex or substring match (ZFC / anti-slop): the maintenance pools are a
+// closed, enumerable set, and a loose match could wrongly capture a legitimate
+// pool-as-rig (e.g. `research`) whose name merely contains a maintenance token.
+const MAINTENANCE_POOLS: ReadonlySet<string> = new Set(['dog']);
+
 export function isOrchestrationAgent(a: AgentResponse): boolean {
   if (a.rig && a.rig.length > 0) return false;
   return ORCHESTRATION_AGENT_NAMES.has(a.name);
@@ -202,6 +219,13 @@ export function agentProject(agent: AgentResponse): ProjectBucket {
   // (the supervisor uses '' for cross-rig agents that aren't in the
   // orchestration set).
   const rig = agent.rig && agent.rig.length > 0 ? agent.rig : undefined;
+  // A maintenance-builtin pool (e.g. `dog`) is cross-rig and is NOT a rig. Lift
+  // it into the pinned Maintenance bucket before the pool-as-rig fallback, so
+  // the pool name is never mislabelled as a rig. A real rig association still
+  // wins (the rig-guard semantics), so this only fires for rig-less agents.
+  if (!rig && agent.pool && MAINTENANCE_POOLS.has(agent.pool)) {
+    return { key: MAINTENANCE_PROJECT, label: MAINTENANCE_PROJECT };
+  }
   const candidate = rig ?? agent.pool;
   if (!candidate) {
     return { key: NO_RIG_PROJECT, label: NO_RIG_PROJECT };
@@ -250,12 +274,13 @@ export function cleanWorkerName(name: string): string {
 }
 
 /**
- * True when an agent has no rig association — either the pinned cross-rig
- * Orchestration bucket (mayor, control-dispatcher, oversight chief-of-staff)
- * or the residual (no rig) bucket. The Agents Rig column renders a neutral
- * dot for these rather than a pseudo-rig label, since neither is a real rig.
+ * True when an agent has no rig association — the pinned cross-rig
+ * Orchestration bucket (mayor, control-dispatcher, oversight chief-of-staff),
+ * the pinned Maintenance bucket (builtin housekeeping pools like `dog`), or the
+ * residual (no rig) bucket. The Agents Rig column shows the bare alias for
+ * these rather than a pseudo-rig label, since none is a real rig.
  */
 export function isAgentOutsideRig(agent: AgentResponse): boolean {
   const { key } = agentProject(agent);
-  return key === ORCHESTRATION_PROJECT || key === NO_RIG_PROJECT;
+  return key === ORCHESTRATION_PROJECT || key === MAINTENANCE_PROJECT || key === NO_RIG_PROJECT;
 }
