@@ -36,12 +36,25 @@ const READ_ENDPOINT_TEMPLATES = [
   '/v0/city/{cityName}/workflow/{workflow_id}',
 ] as const;
 
-const READ_ENDPOINT_PATTERNS: readonly RegExp[] =
-  READ_ENDPOINT_TEMPLATES.map(templateToPattern);
+const READ_ENDPOINT_PATTERNS: readonly RegExp[] = READ_ENDPOINT_TEMPLATES.map(templateToPattern);
 
 /** True when `path` (proxy-relative, query stripped) is an allowlisted read. */
 export function isAllowedReadPath(path: string): boolean {
+  if (hasTraversal(path)) return false;
   return READ_ENDPOINT_PATTERNS.some((pattern) => pattern.test(path));
+}
+
+// Express leaves `req.path` un-normalized, but the upstream URL is built with
+// `new URL(req.url, base)`, which resolves `..` segments (and treats `\` as `/`
+// for http URLs). Without this guard a path like `/v0/city/../events/stream`
+// would satisfy the per-city `{cityName}` template (`[^/]+` matches `..`) yet
+// forward to the GLOBAL `/v0/events/stream` cross-city stream — defeating
+// read-only mode in a multi-city deployment. No legitimate supervisor read path
+// contains a `..` segment or a backslash, so both fail closed and the checked
+// path always equals the forwarded path.
+function hasTraversal(path: string): boolean {
+  if (path.includes('\\')) return true;
+  return path.split('/').includes('..');
 }
 
 // `{param}` segments match a single path segment; literal segments match

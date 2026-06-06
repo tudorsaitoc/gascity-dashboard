@@ -121,6 +121,42 @@ describe('supervisor transport proxy — read-only mode (DASHBOARD_READONLY=1)',
       });
 
       assert.equal(res.status, 405);
+      // RFC 9110 §15.5.6: a 405 advertises the supported methods.
+      assert.equal(res.headers.get('allow'), 'GET, HEAD');
+      assert.deepEqual(calls, []);
+    } finally {
+      await dashboard.close();
+    }
+  });
+
+  test('forwards an allowlisted HEAD read as HEAD', async () => {
+    const dashboard = await readOnlyDashboard();
+    try {
+      const res = await fetch(`${dashboard.url}/gc-supervisor/v0/city/test-city/beads`, {
+        method: 'HEAD',
+      });
+
+      assert.equal(res.status, 200);
+      assert.equal(calls.length, 1);
+      const [call] = calls;
+      assert.ok(call);
+      assert.equal(call.method, 'HEAD');
+      assert.equal(call.url, '/v0/city/test-city/beads');
+    } finally {
+      await dashboard.close();
+    }
+  });
+
+  test('rejects a `..` traversal read with 404, never forwarding it upstream', async () => {
+    // Sent over a raw socket so the `..` survives to the server — fetch/new URL
+    // would collapse it client-side before the request leaves. The proxy must
+    // reject it (404) instead of forwarding the resolved GLOBAL cross-city
+    // stream `/v0/events/stream`.
+    const dashboard = await readOnlyDashboard();
+    try {
+      const res = await rawGet(dashboard.url, '/gc-supervisor/v0/city/../events/stream');
+
+      assert.equal(res.statusCode, 404);
       assert.deepEqual(calls, []);
     } finally {
       await dashboard.close();
@@ -131,7 +167,11 @@ describe('supervisor transport proxy — read-only mode (DASHBOARD_READONLY=1)',
     const dashboard = await readOnlyDashboard();
     try {
       const res = await fetch(`${dashboard.url}/gc-supervisor/v0/city/test-city/beads`, {
-        headers: { accept: 'application/json', 'content-type': 'application/json', 'x-gc-request': 'dashboard' },
+        headers: {
+          accept: 'application/json',
+          'content-type': 'application/json',
+          'x-gc-request': 'dashboard',
+        },
       });
 
       assert.equal(res.status, 200);
@@ -240,6 +280,22 @@ test('direct supervisor boundary keeps city discovery out of dashboard /api rout
   assert.match(appSource, /supervisorTransportProxy/);
   assert.match(appSource, /\/gc-supervisor/);
 });
+
+// Issue a GET with a literal, un-normalized request target (preserving `..`),
+// which fetch() / new URL() would otherwise collapse before sending.
+function rawGet(baseUrl: string, path: string): Promise<{ statusCode: number; body: string }> {
+  const { hostname, port } = new URL(baseUrl);
+  return new Promise((resolve, reject) => {
+    const req = http.request({ hostname, port, path, method: 'GET' }, (res) => {
+      let body = '';
+      res.setEncoding('utf8');
+      res.on('data', (chunk) => (body += chunk));
+      res.on('end', () => resolve({ statusCode: res.statusCode ?? 0, body }));
+    });
+    req.on('error', reject);
+    req.end();
+  });
+}
 
 function startServer(handler: Handler): Promise<RunningServer> {
   return new Promise((resolve) => {

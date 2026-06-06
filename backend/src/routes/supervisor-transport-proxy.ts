@@ -42,6 +42,9 @@ export function supervisorTransportProxy(supervisorBaseUrl: string, readOnly = f
 
   router.use(async (req, res) => {
     if (readOnly && req.method !== 'GET' && req.method !== 'HEAD') {
+      // RFC 9110 §15.5.6: a 405 MUST carry an Allow header advertising the
+      // methods the resource does support.
+      res.setHeader('Allow', 'GET, HEAD');
       res.status(HTTP_STATUS.methodNotAllowed).type('text/plain').send('read-only');
       return;
     }

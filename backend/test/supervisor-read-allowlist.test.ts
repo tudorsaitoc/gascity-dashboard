@@ -53,4 +53,24 @@ describe('supervisor read allowlist', () => {
     assert.equal(isAllowedReadPath('/v0/city/test-city/beads/extra'), false);
     assert.equal(isAllowedReadPath('/v0/city/test-city/status/now'), false);
   });
+
+  test('rejects `..` traversal that would resolve to a cross-city upstream', () => {
+    // `{cityName}` ([^/]+) matches `..`, so without the traversal guard these
+    // pass the allowlist, yet `new URL(req.url, base)` resolves them to the
+    // GLOBAL `/v0/events` + `/v0/events/stream` cross-city reads — the exact
+    // bypass read-only mode must prevent in a multi-city deployment.
+    assert.equal(isAllowedReadPath('/v0/city/../events/stream'), false);
+    assert.equal(isAllowedReadPath('/v0/city/../events'), false);
+    // Backslash is converted to `/` for http URLs, so `..\events` collapses the
+    // same way — fail closed on any backslash too.
+    assert.equal(isAllowedReadPath('/v0/city/..\\events/stream'), false);
+  });
+
+  test('fails closed on a trailing slash rather than normalizing it', () => {
+    // Supervisor read paths the SPA emits never carry a trailing slash; an
+    // unexpected one is denied (404 upstream) instead of being silently
+    // normalized into a match.
+    assert.equal(isAllowedReadPath('/v0/city/test-city/beads/'), false);
+    assert.equal(isAllowedReadPath('/v0/cities/'), false);
+  });
 });
