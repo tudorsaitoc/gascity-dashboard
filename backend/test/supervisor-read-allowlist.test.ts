@@ -66,6 +66,13 @@ describe('supervisor read allowlist', () => {
     // Backslash is converted to `/` for http URLs, so `..\events` collapses the
     // same way — fail closed on any backslash too.
     assert.equal(isAllowedReadPath('/v0/city/..\\events/stream'), false);
+    // Matrix-parameter notation: `..;` is inert against the current Express
+    // supervisor (it doesn't strip `;`-suffixes) but would resolve to a global
+    // traversal under a `;`-stripping framework — fail closed on the bare `..`
+    // prefix now rather than ship the latent gap.
+    assert.equal(isAllowedReadPath('/v0/city/..;/events/stream'), false);
+    assert.equal(isAllowedReadPath('/v0/city/..;param=1/events/stream'), false);
+    assert.equal(isAllowedReadPath('/v0/city/.;/events/stream'), false);
   });
 
   test('rejects percent-encoded `..` that `new URL` would decode into a traversal', () => {

@@ -205,6 +205,26 @@ describe('supervisor transport proxy — read-only mode (DASHBOARD_READONLY=1)',
     }
   });
 
+  test('rejects an absolute-URL request target (foreign origin) instead of proxying it', async () => {
+    // Absolute-form request target (`GET http://evil.example/gc-supervisor/... HTTP/1.1`):
+    // Express matches the mount on its pathname, so the router sees
+    // `req.url === 'http://evil.example/v0/city/test-city/beads'`, and
+    // `new URL(req.url, base)` resolves to the evil.example origin. The origin
+    // pin must 404 rather than forward to a foreign host. Locked in CI.
+    const dashboard = await readOnlyDashboard();
+    try {
+      const res = await rawGet(
+        dashboard.url,
+        'http://evil.example/gc-supervisor/v0/city/test-city/beads',
+      );
+
+      assert.equal(res.statusCode, 404);
+      assert.deepEqual(calls, []);
+    } finally {
+      await dashboard.close();
+    }
+  });
+
   test('forwards an allowlisted read but strips the write-authorizing headers', async () => {
     const dashboard = await readOnlyDashboard();
     try {

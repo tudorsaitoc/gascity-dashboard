@@ -53,11 +53,18 @@ export function isAllowedReadPath(path: string): boolean {
 // the GLOBAL `/v0/events/stream` cross-city stream, defeating read-only mode in
 // a multi-city deployment. No legitimate supervisor read path contains a `.`/`..`
 // segment, an encoded dot, or a backslash, so all fail closed — keeping the
-// checked path equal to the forwarded path regardless of how it was encoded.
+// checked path equal to the forwarded path regardless of how it was encoded. The
+// per-segment check compares each segment's matrix-parameter prefix (`..;x` →
+// `..`): a `..;`/`.;` segment is inert against the current Express supervisor
+// (it doesn't strip `;`-suffixes) but would resolve to a traversal if the
+// upstream framework ever did, so it fails closed now rather than latently.
 function hasTraversal(path: string): boolean {
   if (path.includes('\\')) return true;
   if (path.toLowerCase().includes('%2e')) return true;
-  return path.split('/').some((segment) => segment === '..' || segment === '.');
+  return path.split('/').some((segment) => {
+    const bare = segment.split(';')[0];
+    return bare === '..' || bare === '.';
+  });
 }
 
 // `{param}` segments match a single path segment; literal segments match
