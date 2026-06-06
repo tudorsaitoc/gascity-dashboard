@@ -22,6 +22,7 @@ beforeEach(() => {
   invalidate('beads:board:');
   invalidate('sessions');
   invalidate('agents');
+  invalidate('rigs');
   vi.stubGlobal(
     'fetch',
     vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
@@ -91,8 +92,36 @@ beforeEach(() => {
         return jsonResponse({ items: [], total: 0 });
       }
       if (url.pathname === '/gc-supervisor/v0/city/test-city/agents') {
+        // Agents report `rig` as filesystem PATHS (not names), and one runs in
+        // a directory (gascity-main) that is not a registered rig — exactly the
+        // shapes the dropdown must canonicalize away.
         return jsonResponse({
-          items: [agent('mayor', 'east'), agent('west/mechanic', 'west')],
+          items: [
+            agent('mayor', '/home/ds/east'),
+            agent('west/mechanic', '/home/ds/west'),
+            agent('janitor', '/home/ds/gascity-main'),
+          ],
+          total: 3,
+        });
+      }
+      if (url.pathname === '/gc-supervisor/v0/city/test-city/rigs') {
+        return jsonResponse({
+          items: [
+            {
+              name: 'east',
+              path: '/home/ds/east',
+              agent_count: 1,
+              running_count: 1,
+              suspended: false,
+            },
+            {
+              name: 'west',
+              path: '/home/ds/west',
+              agent_count: 1,
+              running_count: 1,
+              suspended: false,
+            },
+          ],
           total: 2,
         });
       }
@@ -173,6 +202,25 @@ describe('BeadsPage', () => {
     expect(latestQuery?.get('rig')).toBe('east');
     expect(latestQuery?.has('all')).toBe(false);
     expect(latestQuery?.has('type')).toBe(false);
+  });
+
+  it('lists only real rig names in the rig dropdown — no filesystem paths or non-rig dirs', async () => {
+    renderPage();
+
+    await screen.findByText('Sample bead');
+    const select = (await screen.findByLabelText(/rig filter/i)) as HTMLSelectElement;
+    const optionLabels = Array.from(select.options).map((option) => option.textContent ?? '');
+
+    expect(optionLabels).toEqual(['all rigs', 'east', 'west']);
+    for (const label of optionLabels) {
+      expect(label).not.toContain('/home/ds');
+      expect(label).not.toContain('gascity-main');
+    }
+    // The option *values* (what the supervisor query receives) are rig names too.
+    const optionValues = Array.from(select.options)
+      .map((option) => option.value)
+      .filter((value) => value.length > 0);
+    expect(optionValues).toEqual(['east', 'west']);
   });
 
   it('deep-links to and selects a bead from the bead query param', async () => {
