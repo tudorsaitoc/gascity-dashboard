@@ -135,7 +135,11 @@ Before you point an authenticated front at it:
    `x-gc-request` header is stripped unconditionally. It is the single
    load-bearing control that survives a blown-open network layer — see
    [`security.md` §Read-only transport-proxy mode](./security.md). Read-only is
-   opt-in; the local default stays read/write.
+   opt-in; the local default stays read/write. Note: this gates the
+   `/gc-supervisor` proxy only — the dashboard's own `/api/*` maintainer writes
+   (client-error telemetry, `gh` actions, sling-record) are CSRF+Origin
+   protected, not covered by `DASHBOARD_READONLY`, so "read-only" means the
+   _supervisor_ surface, not the entire service.
 2. **Keep the gc supervisor on loopback and patched.** The read-only gate sits
    _upstream_ of the supervisor, so it only protects requests that go through
    the dashboard. The supervisor's own port (`:8372` by default) must not be

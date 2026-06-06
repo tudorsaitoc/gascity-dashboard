@@ -46,14 +46,23 @@ export function supervisorTransportProxy(supervisorBaseUrl: string, readOnly = f
       // methods the resource does support.
       res.setHeader('Allow', 'GET, HEAD');
       res.status(HTTP_STATUS.methodNotAllowed).type('text/plain').send('read-only');
-      return;
-    }
-    if (!isAllowedPath(req.path, readOnly)) {
-      res.status(HTTP_STATUS.notFound).type('text/plain').send('not found');
+      logRejection(req, 'method not allowed');
       return;
     }
 
-    const target = new URL(req.url, baseUrl);
+    // Resolve the upstream target *first*, then gate on the resolved path. This
+    // is the normalize-and-compare invariant: the allowlist check and the
+    // forwarded request operate on the SAME string (`target.pathname`), so an
+    // encoded `..` (e.g. `%2e%2e`) cannot pass the gate as a `[^/]+` city
+    // segment yet resolve upstream to a different, global path — `new URL`
+    // decodes and collapses it before either the check or the forward sees it.
+    const target = resolveUpstreamTarget(req.url, baseUrl);
+    if (target === null || !isAllowedPath(target.pathname, readOnly)) {
+      res.status(HTTP_STATUS.notFound).type('text/plain').send('not found');
+      logRejection(req, 'not allowed');
+      return;
+    }
+
     try {
       const upstream = await fetch(target, requestInit(req, readOnly));
       await writeUpstreamResponse(upstream, res);
@@ -73,9 +82,32 @@ export function supervisorTransportProxy(supervisorBaseUrl: string, readOnly = f
   return router;
 }
 
+// Build the upstream URL the request will be forwarded to, failing closed
+// (`null`) on anything we will not proxy. `new URL` resolves `..`/encoded-dot
+// segments and decodes percent-escapes, so this is the canonical normalized
+// form to gate on. A malformed target throws, and an authority in `reqUrl`
+// (e.g. `//evil.example/v0/x`) retargets the proxy at a foreign host — both are
+// rejected so the proxy can only ever reach the configured supervisor origin.
+function resolveUpstreamTarget(reqUrl: string, baseUrl: URL): URL | null {
+  let target: URL;
+  try {
+    target = new URL(reqUrl, baseUrl);
+  } catch {
+    return null;
+  }
+  if (target.origin !== baseUrl.origin) return null;
+  return target;
+}
+
 function isAllowedPath(path: string, readOnly: boolean): boolean {
   if (readOnly) return isAllowedReadPath(path);
   return path === '/health' || path.startsWith('/v0/');
+}
+
+function logRejection(req: Request, reason: string): void {
+  // Surfaces method/path probes (traversal attempts, write attempts) so an
+  // externally-fronted instance leaves an audit trail of what it refused.
+  logWarn(LOG_COMPONENT.admin, `gc supervisor proxy rejected ${req.method} ${req.path}: ${reason}`);
 }
 
 function requestInit(req: Request, readOnly: boolean): RequestInit & { duplex?: 'half' } {

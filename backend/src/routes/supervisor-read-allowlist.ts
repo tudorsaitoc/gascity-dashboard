@@ -44,17 +44,20 @@ export function isAllowedReadPath(path: string): boolean {
   return READ_ENDPOINT_PATTERNS.some((pattern) => pattern.test(path));
 }
 
-// Express leaves `req.path` un-normalized, but the upstream URL is built with
-// `new URL(req.url, base)`, which resolves `..` segments (and treats `\` as `/`
-// for http URLs). Without this guard a path like `/v0/city/../events/stream`
-// would satisfy the per-city `{cityName}` template (`[^/]+` matches `..`) yet
-// forward to the GLOBAL `/v0/events/stream` cross-city stream — defeating
-// read-only mode in a multi-city deployment. No legitimate supervisor read path
-// contains a `..` segment or a backslash, so both fail closed and the checked
-// path always equals the forwarded path.
+// Reject anything that could resolve to a different upstream path than the one
+// being checked. `new URL(req.url, base)` (used to build the forwarded target)
+// resolves `..`/`.` segments, decodes percent-escapes (`%2e` → `.`), and treats
+// `\` as `/` for http URLs. A path like `/v0/city/../events/stream` — or its
+// encoded form `/v0/city/%2e%2e/events/stream` — would otherwise satisfy the
+// per-city `{cityName}` template (`[^/]+` matches `..`/`%2e%2e`) yet forward to
+// the GLOBAL `/v0/events/stream` cross-city stream, defeating read-only mode in
+// a multi-city deployment. No legitimate supervisor read path contains a `.`/`..`
+// segment, an encoded dot, or a backslash, so all fail closed — keeping the
+// checked path equal to the forwarded path regardless of how it was encoded.
 function hasTraversal(path: string): boolean {
   if (path.includes('\\')) return true;
-  return path.split('/').includes('..');
+  if (path.toLowerCase().includes('%2e')) return true;
+  return path.split('/').some((segment) => segment === '..' || segment === '.');
 }
 
 // `{param}` segments match a single path segment; literal segments match

@@ -61,9 +61,26 @@ describe('supervisor read allowlist', () => {
     // bypass read-only mode must prevent in a multi-city deployment.
     assert.equal(isAllowedReadPath('/v0/city/../events/stream'), false);
     assert.equal(isAllowedReadPath('/v0/city/../events'), false);
+    // A bare `.` segment is normalized away by `new URL` too — fail closed.
+    assert.equal(isAllowedReadPath('/v0/city/./events/stream'), false);
     // Backslash is converted to `/` for http URLs, so `..\events` collapses the
     // same way — fail closed on any backslash too.
     assert.equal(isAllowedReadPath('/v0/city/..\\events/stream'), false);
+  });
+
+  test('rejects percent-encoded `..` that `new URL` would decode into a traversal', () => {
+    // Express 4 leaves `%2e` undecoded in `req.path`, so a guard that only looks
+    // for a literal `..` misses these — yet `new URL` decodes `%2e` → `.` and
+    // resolves the same cross-city escape. Fail closed on any encoded dot,
+    // regardless of case.
+    for (const path of [
+      '/v0/city/%2e%2e/events/stream',
+      '/v0/city/%2E%2E/events/stream',
+      '/v0/city/.%2e/events/stream',
+      '/v0/city/%2e./events/stream',
+    ]) {
+      assert.equal(isAllowedReadPath(path), false, `expected deny: ${path}`);
+    }
   });
 
   test('fails closed on a trailing slash rather than normalizing it', () => {

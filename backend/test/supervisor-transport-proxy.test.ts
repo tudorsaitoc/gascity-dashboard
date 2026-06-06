@@ -163,6 +163,48 @@ describe('supervisor transport proxy — read-only mode (DASHBOARD_READONLY=1)',
     }
   });
 
+  // The literal `..` above was closed once, but the bypass survived in
+  // percent-encoded form: Express 4 leaves `%2e` undecoded in `req.path`, so a
+  // `req.path`-based guard misses it, while `new URL(req.url, base)` decodes
+  // `%2e` → `.` and resolves to the GLOBAL `/v0/events/stream`. These raw-socket
+  // cases drive the exact path where `new URL` runs and assert nothing reaches
+  // upstream. Each variant decodes to `/v0/city/../events/stream`.
+  for (const encoded of [
+    '%2e%2e', // lowercase
+    '%2E%2E', // uppercase
+    '.%2e', // mixed literal + encoded
+    '%2e.', // mixed encoded + literal
+  ]) {
+    test(`rejects encoded traversal (${encoded}) with 404, never forwarding upstream`, async () => {
+      const dashboard = await readOnlyDashboard();
+      try {
+        const res = await rawGet(dashboard.url, `/gc-supervisor/v0/city/${encoded}/events/stream`);
+
+        assert.equal(res.statusCode, 404, `expected 404 for ${encoded}`);
+        assert.deepEqual(calls, [], `expected zero upstream calls for ${encoded}`);
+      } finally {
+        await dashboard.close();
+      }
+    });
+  }
+
+  test('rejects an authority-bearing target (//host) instead of proxying a foreign origin', async () => {
+    // `new URL('//evil.example/...', base)` retargets at evil.example; the proxy
+    // must pin the supervisor origin and 404 rather than make the request.
+    const dashboard = await readOnlyDashboard();
+    try {
+      const res = await rawGet(
+        dashboard.url,
+        '/gc-supervisor//evil.example/v0/city/test-city/beads',
+      );
+
+      assert.equal(res.statusCode, 404);
+      assert.deepEqual(calls, []);
+    } finally {
+      await dashboard.close();
+    }
+  });
+
   test('forwards an allowlisted read but strips the write-authorizing headers', async () => {
     const dashboard = await readOnlyDashboard();
     try {
