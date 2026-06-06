@@ -238,6 +238,24 @@ describe('GcClient timeout and single-flight behavior', () => {
     assert.equal(GcClient.isTimeoutError(err), true);
   });
 
+  test('honors a per-call timeout override longer than the default', async () => {
+    // gascity-dashboard-nyln: the rig-store-health / dolt-noms samplers read a
+    // /status that turns slow on a bloated store. A latency-tolerant caller can
+    // raise its own ceiling above the default without abandoning the read.
+    fake.setHandler((_req, res) => {
+      setTimeout(() => json(res, validStatusBody('test')), 250);
+    });
+    const gc = new GcClient({
+      baseUrl: fake.baseUrl,
+      cityName: 'test',
+      defaultTimeoutMs: 100,
+    });
+
+    const out = await gc.getStatus(undefined, 1_000);
+
+    assert.equal(out.name, 'test');
+  });
+
   test('distinguishes caller aborts from upstream timeouts', async () => {
     fake.setHandler(() => {
       /* leave the request open */

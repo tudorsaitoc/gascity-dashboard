@@ -79,7 +79,7 @@ export class GcClient {
     return err instanceof Error && err.name === 'TimeoutError';
   }
 
-  async getStatus(signal?: AbortSignal): Promise<StatusBody> {
+  async getStatus(signal?: AbortSignal, timeoutMs?: number): Promise<StatusBody> {
     return this.getOperation(
       this.operationKey('getV0CityByCityNameStatus'),
       'getStatus',
@@ -92,6 +92,7 @@ export class GcClient {
         }),
       signal,
       zGetV0CityByCityNameStatusResponse,
+      timeoutMs,
     );
   }
 
@@ -121,6 +122,7 @@ export class GcClient {
     fetcher: (signal: AbortSignal) => Promise<SupervisorFetchResult<RawValue>>,
     signal?: AbortSignal,
     responseSchema?: SupervisorResponseSchema,
+    timeoutMs?: number,
   ): Promise<RawValue> {
     if (signal?.aborted) {
       throw abortError();
@@ -129,7 +131,7 @@ export class GcClient {
     if (existing !== undefined) {
       return await this.withCallerAbort(existing as Promise<RawValue>, signal);
     }
-    const promise = this.fetchOnce(payloadName, fetcher, responseSchema);
+    const promise = this.fetchOnce(payloadName, fetcher, responseSchema, timeoutMs);
     this.inflight.set(key, promise);
     try {
       return await this.withCallerAbort(promise, signal);
@@ -144,10 +146,14 @@ export class GcClient {
     payloadName: string,
     fetcher: (signal: AbortSignal) => Promise<SupervisorFetchResult<RawValue>>,
     responseSchema?: SupervisorResponseSchema,
+    timeoutMs?: number,
   ): Promise<RawValue> {
     const startedAt = Date.now();
     const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(timeoutError()), this.defaultTimeoutMs);
+    const timeout = setTimeout(
+      () => controller.abort(timeoutError()),
+      timeoutMs ?? this.defaultTimeoutMs,
+    );
     recordCounter('supervisor.request', { operation: payloadName });
     try {
       const result = await fetcher(controller.signal).catch((err: unknown) => {

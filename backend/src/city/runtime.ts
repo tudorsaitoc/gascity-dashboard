@@ -17,6 +17,20 @@ import { ALL_MODULES } from '../views/registry.js';
 import { resolveEnabledFirstPartyIds } from '../views/enabled.js';
 import { bind, type CityContext } from '../views/types.js';
 
+// gascity-dashboard-nyln: the dolt-noms and rig-store-health samplers read the
+// supervisor /status, which turns slow on a bloated city store (~247K beads on
+// ds-research) and trips the 5s default GcClient timeout — surfacing as
+// rig_list_failed even though the rig PATHs are valid. Both are periodic
+// background samplers serving cached snapshots, so they tolerate a higher
+// ceiling than the interactive default. Env-overridable so ops can tune the
+// live deployment without a code redeploy.
+const STATUS_SAMPLER_TIMEOUT_MS = (() => {
+  const raw = process.env.GC_STATUS_SAMPLER_TIMEOUT_MS;
+  if (typeof raw !== 'string') return 30_000;
+  const n = Number.parseInt(raw, 10);
+  return Number.isFinite(n) && n > 0 ? n : 30_000;
+})();
+
 /**
  * One city's worth of dashboard runtime (gascity-dashboard-ucc). Each
  * CityRuntime owns its OWN GcClient + CityContext + module
@@ -118,7 +132,7 @@ export function createCityRuntime(opts: CreateCityRuntimeOptions): CityRuntime {
   // gascity-dashboard-x82: dolt-noms trend sources the supervisor's
   // store_health.size_bytes (per-city GcClient.getStatus), not host-FS access.
   const doltNomsSampler: DoltNomsSampler = createDoltNomsSampler({
-    fetchStatus: () => gc.getStatus(),
+    fetchStatus: () => gc.getStatus(undefined, STATUS_SAMPLER_TIMEOUT_MS),
   });
   router.use('/dolt-noms', doltRouter(doltNomsSampler));
 
@@ -130,7 +144,7 @@ export function createCityRuntime(opts: CreateCityRuntimeOptions): CityRuntime {
   // `bd doctor` per rig.
   const rigStoreHealthSampler: RigStoreHealthSampler = createRigStoreHealthSampler({
     listRigs: async () => {
-      const status = await gc.getStatus();
+      const status = await gc.getStatus(undefined, STATUS_SAMPLER_TIMEOUT_MS);
       return (status.rig_details ?? []).map((rig) => ({ name: rig.name, path: rig.path }));
     },
   });
