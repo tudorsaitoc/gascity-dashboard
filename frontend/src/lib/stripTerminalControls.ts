@@ -1,6 +1,6 @@
 // Strip terminal control bytes from a session transcript turn before it is
 // rendered. This is the DISPLAY-ONLY sibling of the backend's
-// exec.ts::sanitiseTerminalOutput / lib/strip-non-printable — it does not
+// exec.ts::sanitiseTerminalOutput / shared stripNonPrintable — it does not
 // alter what the supervisor stores, it only cleans operator-facing text in
 // the peek/transcript path (gascity-dashboard-5e5v / xl07).
 //

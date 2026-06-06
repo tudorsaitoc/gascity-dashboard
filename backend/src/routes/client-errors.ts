@@ -1,7 +1,6 @@
 import { Router } from 'express';
-import type { ClientErrorReport } from 'gas-city-dashboard-shared';
+import { stripNonPrintable, type ClientErrorReport } from 'gas-city-dashboard-shared';
 import { HTTP_STATUS } from '../lib/http-status.js';
-import { stripNonPrintable } from '../lib/strip-non-printable.js';
 import type { LogComponent } from '../logging.js';
 import { LOG_COMPONENT, logWarn } from '../logging.js';
 import { routeInternalError, routeValidationError, writeRouteError } from '../route-errors.js';
