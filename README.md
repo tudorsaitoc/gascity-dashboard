@@ -98,7 +98,7 @@ All knobs are environment variables. See [`backend/src/config.ts`](backend/src/c
 | Variable                    | Default                  | Purpose                                                                                                                                  |
 | --------------------------- | ------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------- |
 | `PORT`                      | `8081`                   | TCP port the dashboard listens on                                                                                                        |
-| `HOST`                      | `127.0.0.1`              | Bind interface. Set `0.0.0.0` for LAN access on a trusted network.                                                                       |
+| `HOST`                      | `127.0.0.1`              | Ignored — the backend always binds loopback. Expose beyond localhost via your own auth proxy (see Security model).                       |
 | `ADMIN_EXTRA_ALLOWED_HOSTS` | (empty)                  | CSV of extra hostnames allowed in the `Host:` header (e.g. `my-vm,192.168.1.58`). The floor `127.0.0.1` / `localhost` is always allowed. |
 | `GC_SUPERVISOR_URL`         | `http://127.0.0.1:8372`  | gc supervisor API base URL.                                                                                                              |
 | `GC_CITY_NAME`              | `racoon-city`            | Name of the city this dashboard manages. One dashboard per city.                                                                         |
@@ -125,6 +125,8 @@ Built for **single-operator** use on a **trusted network**.
 - **Origin check** — POST/PATCH/DELETE require an `Origin` matching the allowed-host set.
 - **Content Security Policy** — `script-src 'self'` plus a hash for the static theme bootstrap, no arbitrary inline scripts, no `eval`.
 - **Exec whitelist** — every shell-out is enumerated explicitly in [`backend/src/exec.ts`](backend/src/exec.ts). There is no general-purpose command execution path.
+
+**Exposing beyond localhost is operator-owned.** The default needs zero config and ships no auth. To reach the dashboard remotely you front it with your **own** authenticated proxy (nginx/Caddy/Tailscale Serve/Cloudflare Access/etc.) — the dashboard stays on loopback. Optionally enable the server-enforced read-only gate (`DASHBOARD_READONLY=1`), keep the gc supervisor loopback-only and patched, and rate-limit at your proxy. Full runbook: [`specs/architecture/exposure.md`](specs/architecture/exposure.md).
 
 Full threat model: [`specs/architecture/security.md`](specs/architecture/security.md).
 

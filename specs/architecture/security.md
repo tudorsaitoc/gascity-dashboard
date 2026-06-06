@@ -35,6 +35,41 @@ curl -sH 'Host: evil.com' http://127.0.0.1:8081/api/health    # → 421
 curl -sX POST -H 'Origin: http://evil.com' http://127.0.0.1:8081/api/client-errors  # → 403
 ```
 
+## Read-only transport-proxy mode
+
+Opt-in via `DASHBOARD_READONLY=1` (default off). Hardens the `/gc-supervisor`
+transport proxy for an instance fronted by an external auth proxy, so a request
+that reaches the dashboard cannot mutate the city. Enforced server-side in
+`backend/src/routes/supervisor-transport-proxy.ts` against the explicit
+allowlist in `backend/src/routes/supervisor-read-allowlist.ts`. When enabled the
+proxy:
+
+- **Rejects any non-`GET`/`HEAD`** with `405` — the method gate is checked
+  _before_ the path gate, so a write like `POST .../sling` is `405`, never
+  forwarded.
+- **Default-denies reads** to the explicit read allowlist (the minimal set of
+  supervisor reads the SPA performs, plus both SSE streams). Anything else —
+  including the side-effecting agent `prime` GET flagged by the exposure
+  premortem — is `404`. A new read view fails closed until it is added to the
+  allowlist.
+- **Strips the write-authorizing `x-gc-request` header** (and `content-type`)
+  unconditionally before forwarding — it never depends on the header's absence.
+
+This is the single load-bearing exposure control: it sits upstream of the
+unauth supervisor and survives a blown-open network layer. The default
+(read/write) mode is unchanged, preserving the zero-friction local operator
+experience. The deployment side of this — when and how to expose at all — is
+the operator runbook in [`exposure.md`](./exposure.md).
+
+### Invariants
+
+```
+DASHBOARD_READONLY=1
+curl -sX POST -H 'x-gc-request: dashboard' http://127.0.0.1:8081/gc-supervisor/v0/city/$CITY/sling   # → 405, never forwarded
+curl -s  http://127.0.0.1:8081/gc-supervisor/v0/city/$CITY/agent/$AGENT/prime                        # → 404 (side-effecting GET, not allowlisted)
+curl -s  http://127.0.0.1:8081/gc-supervisor/v0/city/$CITY/beads                                     # → 200, x-gc-request stripped before forwarding
+```
+
 ## Frame / content type
 
 - `X-Frame-Options: DENY`
