@@ -254,6 +254,30 @@ describe('loadSupervisorRunSummarySource', () => {
     expect(source.data.lanesPartial).toBe(true);
   });
 
+  it('marks the summary partial when the active bead list is cursor-truncated', async () => {
+    // gascity-dashboard-4xcv: the supervisor truncates at the fetch limit and
+    // reports the rest via next_cursor WITHOUT setting partial. Treat a present
+    // cursor as partial so saturation surfaces the notice + retry instead of
+    // silently dropping lanes at 501+ beads.
+    const listBeads = vi.fn(async (_cityName: string, query?: Record<string, unknown>) => {
+      if (query?.type === 'molecule') return beadList([]);
+      return beadList([runRoot()], false, 'next-page-token');
+    });
+    setSupervisorApiForTests({
+      ...baseApi,
+      listBeads,
+      formulaFeed: vi.fn(async () => feed([feedRun()])),
+      listSessions: vi.fn(async () => sessionList()),
+    });
+
+    const source = await loadSupervisorRunSummarySource();
+
+    expect(source.status).toBe('fresh');
+    if (source.status === 'error') throw new Error(source.error);
+    expect(source.data.totalActive).toBe(1);
+    expect(source.data.lanesPartial).toBe(true);
+  });
+
   it('does not let optional enrichment reads hold the summary refresh indefinitely', async () => {
     const listBeads = vi.fn(async (_cityName: string, query?: Record<string, unknown>) => {
       if (query?.type === 'molecule') return new Promise<ListBodyBead>(() => {});
@@ -327,11 +351,12 @@ function bead(overrides: Partial<Bead> = {}): Bead {
   };
 }
 
-function beadList(items: Bead[], partial = false): ListBodyBead {
+function beadList(items: Bead[], partial = false, nextCursor?: string): ListBodyBead {
   return {
     items,
     partial,
     total: items.length,
+    ...(nextCursor !== undefined ? { next_cursor: nextCursor } : {}),
   };
 }
 

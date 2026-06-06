@@ -609,9 +609,7 @@ describe('RunsPage — blocked lanes are not Active (gascity-dashboard-4xcv)', (
     expect(blockedSection.textContent).toContain('mol-focus-review latch');
     // The active rig group does not contain the blocked lane.
     const activeGroupHeading = await screen.findByText('gascity');
-    expect(activeGroupHeading.parentElement?.textContent).not.toContain(
-      'mol-focus-review latch',
-    );
+    expect(activeGroupHeading.parentElement?.textContent).not.toContain('mol-focus-review latch');
   });
 
   it('omits the Blocked section when nothing is blocked', async () => {
@@ -662,9 +660,7 @@ describe('RunsPage — degraded first load recovery (gascity-dashboard-4xcv)', (
     mount();
     await waitForMount();
 
-    expect(
-      await screen.findByText(/Run sources were partially unavailable/i),
-    ).toBeTruthy();
+    expect(await screen.findByText(/Run sources were partially unavailable/i)).toBeTruthy();
     expect(screen.queryByText(/No active formula runs/i)).toBeNull();
   });
 

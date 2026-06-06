@@ -272,7 +272,7 @@ function CountsHeader({ summary }: { summary: RunSummary | null }) {
         {COUNT_LABELS.map(([key, label]) => (
           <CountTile key={key} label={label} value={summary?.runCounts[key] ?? 0} tone="muted" />
         ))}
-        {blocked > 0 && <CountTile label="Blocked" value={blocked} tone="accent" />}
+        {blocked > 0 && <CountTile label="Blocked" value={blocked} tone="muted" />}
       </div>
     </header>
   );
@@ -285,12 +285,11 @@ function CountTile({
 }: {
   label: string;
   value: number;
-  tone: 'strong' | 'muted' | 'accent';
+  tone: 'strong' | 'muted';
 }) {
   // tnum + tracked-uppercase label per the column-head register elsewhere on
   // the page; value sits below in body weight. No box around either.
-  const valueTone =
-    tone === 'strong' ? 'text-fg' : tone === 'accent' ? 'text-accent' : 'text-fg-muted';
+  const valueTone = tone === 'strong' ? 'text-fg' : 'text-fg-muted';
   return (
     <div className="flex flex-col">
       <span className="text-label uppercase tracking-wider text-fg-faint">{label}</span>

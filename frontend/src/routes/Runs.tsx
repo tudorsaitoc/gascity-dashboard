@@ -126,7 +126,9 @@ export function RunsPage() {
     const degraded =
       runs.status === 'error'
         ? true
-        : runs.data.lanesPartial === true && runs.data.lanes.length === 0;
+        : runs.data.lanesPartial === true &&
+          runs.data.lanes.length === 0 &&
+          runs.data.blockedLanes.length === 0;
     if (!degraded) {
       retryAttemptRef.current = 0;
       return;

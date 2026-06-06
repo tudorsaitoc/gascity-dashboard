@@ -169,9 +169,7 @@ describe('FormulaRunDetailPage', () => {
 
     renderPage();
 
-    expect(
-      await screen.findByRole('list', { name: /pending adoption run stages/i }),
-    ).toBeTruthy();
+    expect(await screen.findByRole('list', { name: /pending adoption run stages/i })).toBeTruthy();
     expect(screen.queryByText(/^Loading formula run\.$/i)).toBeNull();
   });
 

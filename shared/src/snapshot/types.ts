@@ -330,9 +330,11 @@ export type RunCensusState = Avail<{
  * adds the time-derived "failing / stalled" count on its 1s clock.
  */
 export interface RunCensus {
-  /** In-flight (non-complete, non-blocked) lane count per phase. */
+  /** Lane count per phase across the snapshot. Includes the `blocked` phase;
+   *  `complete` lanes are tallied here but excluded from `totalInFlight`. */
   byPhase: Record<RunPhase, number>;
-  /** Total in-flight lanes (the census denominator base). */
+  /** Total non-complete lanes (the census denominator base). Includes blocked
+   *  lanes — they are non-progressing but still in flight for census purposes. */
   totalInFlight: number;
   /**
    * In-flight lanes the engine cannot classify with confidence
