@@ -185,11 +185,14 @@ export function AgentsPage() {
 
   // Rig dropdown options: the normalized rig labels (basenames, not raw
   // paths) present in the current roster, sorted. Empty value = all rigs.
+  // Outside-rig agents (cross-rig Orchestration, builtin Maintenance pools like
+  // `dog`, and the residual no-rig bucket) are excluded — their bucket labels
+  // are not rigs and must not appear as rig filter options (gascity-dashboard-jj2z).
   const rigOptions = useMemo(
     () =>
-      Array.from(new Set(rows.map((a) => agentProject(a).label))).sort((x, y) =>
-        x.localeCompare(y),
-      ),
+      Array.from(
+        new Set(rows.filter((a) => !isAgentOutsideRig(a)).map((a) => agentProject(a).label)),
+      ).sort((x, y) => x.localeCompare(y)),
     [rows],
   );
   // If the selected rig leaves the roster, fall back to all rigs.
