@@ -5,13 +5,16 @@ import { recordAudit } from '../audit.js';
 import {
   probeBeadsVersion,
   probeDoltVersion,
+  probeGcVersion,
   type VersionProbe,
   type VersionProbeResult,
 } from './version-probe.js';
+import { RECOMMENDED_TOOL_FLOORS, recommendedToolVersion } from './recommended-versions.js';
 
 export interface HealthRouterOptions {
   doltProbe?: VersionProbe;
   beadsProbe?: VersionProbe;
+  gcProbe?: VersionProbe;
 }
 
 /** Dashboard-local admin process and host health. GC supervisor health is
@@ -20,6 +23,7 @@ export function healthRouter(options: HealthRouterOptions = {}): Router {
   const router = Router();
   const doltProbe = options.doltProbe ?? probeDoltVersion;
   const beadsProbe = options.beadsProbe ?? probeBeadsVersion;
+  const gcProbe = options.gcProbe ?? probeGcVersion;
 
   router.get('/system', async (_req, res) => {
     const mem = process.memoryUsage();
@@ -51,10 +55,20 @@ export function healthRouter(options: HealthRouterOptions = {}): Router {
   });
 
   router.get('/local-tools', async (_req, res) => {
-    const [dolt, beads] = await Promise.all([doltProbe(), beadsProbe()]);
+    const [dolt, beads, gc] = await Promise.all([doltProbe(), beadsProbe(), gcProbe()]);
     const payload: LocalToolVersions = {
-      dolt: localToolVersion(dolt, 'local probe: dolt version'),
-      beads: localToolVersion(beads, 'local probe: bd version'),
+      dolt: recommendedToolVersion(
+        localToolVersion(dolt, 'local probe: dolt version'),
+        RECOMMENDED_TOOL_FLOORS.dolt,
+      ),
+      beads: recommendedToolVersion(
+        localToolVersion(beads, 'local probe: bd version'),
+        RECOMMENDED_TOOL_FLOORS.beads,
+      ),
+      gc: recommendedToolVersion(
+        localToolVersion(gc, 'local probe: gc version'),
+        RECOMMENDED_TOOL_FLOORS.gc,
+      ),
     };
     await recordAudit({
       type: 'dashboard.fetch',

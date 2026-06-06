@@ -227,8 +227,6 @@ describe('HealthPage', () => {
 
     await screen.findByRole('heading', { name: /diagnostics/i });
 
-    expect(screen.getByText('2.0.7')).toBeTruthy();
-    expect(screen.getByText('1.0.4')).toBeTruthy();
     expect(screen.getByText('Dolt usage')).toBeTruthy();
     expect(screen.getByText('Beads usage')).toBeTruthy();
     expect(screen.getByText('5')).toBeTruthy();
@@ -264,6 +262,52 @@ describe('HealthPage', () => {
     await screen.findByRole('heading', { name: /supervisor/i });
     await screen.findByRole('heading', { name: /bead stores · per rig/i });
     expect(screen.getByText(/per-rig store health unavailable/i)).toBeTruthy();
+  });
+
+  it('shows installed vs recommended tool versions and warns on drift below the floor', async () => {
+    const { container } = renderPage();
+
+    await screen.findByRole('heading', { name: /tool versions/i });
+
+    // dolt is below its floor: installed + recommended both visible, and a
+    // visible cell carries the warning tone. (The row wrapper is
+    // `display:contents`, which can't carry color — the cells do.)
+    const dolt = toolRow(container, 'dolt');
+    expect(dolt?.textContent).toContain('2.0.7');
+    expect(dolt?.textContent).toContain('2.1.2');
+    expect(dolt?.textContent).toMatch(/below floor/i);
+    expect(dolt?.querySelector('.text-warn')).not.toBeNull();
+
+    // beads sits at its floor: no warning.
+    const beads = toolRow(container, 'bd');
+    expect(beads?.textContent).toContain('1.0.4');
+    expect(beads?.textContent).not.toMatch(/below floor/i);
+    expect(beads?.querySelector('.text-warn')).toBeNull();
+
+    // gc has no published floor: installed dev build, "not pinned" recommended.
+    const gc = toolRow(container, 'gc');
+    expect(gc?.textContent).toContain('dev');
+    expect(gc?.textContent).toContain('not pinned');
+    expect(gc?.textContent).not.toMatch(/below floor/i);
+  });
+
+  it('surfaces a probe failure reason in the tool versions table', async () => {
+    currentLocalTools = {
+      ...baseLocalTools(),
+      gc: {
+        installed: { status: 'unavailable', reason: 'gc version probe failed: ENOENT' },
+        recommendedFloor: null,
+        drift: 'unknown',
+      },
+    };
+
+    const { container } = renderPage();
+
+    await screen.findByRole('heading', { name: /tool versions/i });
+
+    const gc = toolRow(container, 'gc');
+    expect(gc?.textContent).toContain('unavailable');
+    expect(gc?.textContent).toContain('gc version probe failed: ENOENT');
   });
 
   it('highlights Health sections that match composed attention facts', async () => {
@@ -336,6 +380,10 @@ function valueFor(container: HTMLElement, label: string): HTMLElement | null {
   return terms[0]?.nextElementSibling as HTMLElement | null;
 }
 
+function toolRow(container: HTMLElement, label: string): HTMLElement | null {
+  return container.querySelector(`[data-tool-version-row="${label}"]`);
+}
+
 function synopsisFor(heading: HTMLElement): HTMLElement | null {
   // PageHeader renders the synopsis as a sibling of the heading inside
   // a shared header element. Walk up to the nearest <header>, then look
@@ -401,15 +449,22 @@ function baseHealth(): SystemHealth {
 
 function baseLocalTools(): LocalToolVersions {
   return {
+    // dolt below its floor (drift), beads at its floor (satisfied), gc a
+    // dev build with no published floor (unknown).
     dolt: {
-      status: 'available',
-      version: '2.0.7',
-      source: 'local probe: dolt version',
+      installed: { status: 'available', version: '2.0.7', source: 'local probe: dolt version' },
+      recommendedFloor: '2.1.2',
+      drift: 'below_floor',
     },
     beads: {
-      status: 'available',
-      version: '1.0.4',
-      source: 'local probe: bd version',
+      installed: { status: 'available', version: '1.0.4', source: 'local probe: bd version' },
+      recommendedFloor: '1.0.4',
+      drift: 'satisfied',
+    },
+    gc: {
+      installed: { status: 'available', version: 'dev', source: 'local probe: gc version' },
+      recommendedFloor: null,
+      drift: 'unknown',
     },
   };
 }

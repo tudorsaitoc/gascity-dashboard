@@ -263,6 +263,7 @@ const decodeLocalToolVersions = objectDecoder<LocalToolVersions>(
   (record, url) => {
     requireObjectField(record, url, 'local tool versions', 'dolt');
     requireObjectField(record, url, 'local tool versions', 'beads');
+    requireObjectField(record, url, 'local tool versions', 'gc');
   },
 );
 const decodeDoltTrend = objectDecoder<DoltNomsTrend>('dolt trend', (record, url) => {

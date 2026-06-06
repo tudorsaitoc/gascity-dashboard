@@ -1,8 +1,8 @@
 import { useCallback, type ReactNode } from 'react';
 import type {
   DoltNomsTrend,
-  LocalToolVersion,
   LocalToolVersions,
+  RecommendedToolVersion,
   RigStoreHealth,
   RigStoreHealthReport,
   RigStoreHealthUnavailableReason,
@@ -228,28 +228,12 @@ export function HealthPage() {
             )}
           </Section>
 
+          <Section title="Tool versions">
+            <ToolVersionsTable state={localTools} />
+          </Section>
+
           <Section title="Diagnostics">
             <div className="space-y-8">
-              <KvList>
-                <LocalToolKv
-                  label="Dolt version"
-                  datum={localTools?.status === 'available' ? localTools.data.dolt : null}
-                  fallbackReason={
-                    localTools?.status === 'unavailable'
-                      ? localTools.error
-                      : 'local tool versions still loading'
-                  }
-                />
-                <LocalToolKv
-                  label="Beads version"
-                  datum={localTools?.status === 'available' ? localTools.data.beads : null}
-                  fallbackReason={
-                    localTools?.status === 'unavailable'
-                      ? localTools.error
-                      : 'local tool versions still loading'
-                  }
-                />
-              </KvList>
               <DoltUsageBlock usage={doltUsageOf(status)} />
               <BeadsUsageBlock usage={beadsUsageOf(status)} />
             </div>
@@ -263,7 +247,7 @@ export function HealthPage() {
             <RigStoreHealthBlock report={rigStores} />
           </Section>
 
-          <Section title="Recommended vs loaded">
+          <Section title="Store thresholds">
             <ConfigComparison comparison={configComparisonOf(status)} />
           </Section>
 
@@ -352,22 +336,63 @@ interface ConfigComparisonRow {
   withinRecommendation: boolean;
 }
 
-function LocalToolKv({
-  label,
-  datum,
-  fallbackReason,
-}: {
-  label: string;
-  datum: LocalToolVersion | null;
-  fallbackReason: string;
-}) {
-  if (datum === null) {
-    return <Kv label={label} value={`unavailable - ${fallbackReason}`} tone="warn" />;
+function ToolVersionsTable({ state }: { state: LocalToolVersionsState | null }) {
+  if (state === null) {
+    return <p className="text-body text-fg-muted italic">Loading tool versions.</p>;
   }
-  return datum.status === 'available' ? (
-    <Kv label={label} value={datum.version} />
-  ) : (
-    <Kv label={label} value={`unavailable - ${datum.reason}`} tone="warn" />
+  if (state.status === 'unavailable') {
+    return (
+      <p className="text-body text-fg-muted italic">Tool versions unavailable: {state.error}.</p>
+    );
+  }
+  // gc first (it carries no floor and frames the section), then the pinned
+  // tools the operator most often drifts on.
+  const rows: { label: string; tool: RecommendedToolVersion }[] = [
+    { label: 'gc', tool: state.data.gc },
+    { label: 'bd', tool: state.data.beads },
+    { label: 'dolt', tool: state.data.dolt },
+  ];
+  return (
+    <div className="grid grid-cols-[1fr_max-content_max-content] gap-x-8 gap-y-3 max-w-prose">
+      <div className="text-label uppercase tracking-wider text-fg-muted">Tool</div>
+      <div className="text-label uppercase tracking-wider text-fg-muted text-right">Installed</div>
+      <div className="text-label uppercase tracking-wider text-fg-muted text-right">
+        Recommended
+      </div>
+      {rows.map((row) => (
+        <ToolVersionRow key={row.label} label={row.label} tool={row.tool} />
+      ))}
+    </div>
+  );
+}
+
+function ToolVersionRow({ label, tool }: { label: string; tool: RecommendedToolVersion }) {
+  const belowFloor = tool.drift === 'below_floor';
+  const tone = belowFloor ? 'text-warn' : 'text-fg';
+  const recommended = tool.recommendedFloor ?? 'not pinned';
+  // `contents` makes the row's cells participate directly in the parent grid.
+  // Color can't inherit through a `display:contents` box, so each visible cell
+  // carries its own `tone` rather than relying on the wrapper.
+  return (
+    <div className="contents" data-tool-version-row={label}>
+      <div className={`text-body ${tone}`}>
+        {label}
+        {belowFloor && (
+          <span className="text-label uppercase tracking-wider text-warn"> · below floor</span>
+        )}
+      </div>
+      <div className="text-right">
+        {tool.installed.status === 'available' ? (
+          <span className={`text-body tnum font-medium ${tone}`}>{tool.installed.version}</span>
+        ) : (
+          <div className="space-y-1">
+            <div className="text-body tnum font-medium text-warn">unavailable</div>
+            <div className="text-label text-fg-muted normal-case">{tool.installed.reason}</div>
+          </div>
+        )}
+      </div>
+      <div className="text-body tnum text-fg-muted text-right">{recommended}</div>
+    </div>
   );
 }
 
