@@ -21,7 +21,7 @@ systemctl --user daemon-reload
 systemctl --user enable --now gas-city-dashboard.service
 ```
 
-Browse to <http://127.0.0.1:8081>.
+Browse to <http://127.0.0.1:8082>.
 
 ## Updating
 
@@ -38,8 +38,8 @@ systemctl --user restart gas-city-dashboard.service
 ```bash
 systemctl --user status gas-city-dashboard.service
 journalctl --user -u gas-city-dashboard.service -f
-ss -tln 'sport = :8081'                       # port-in-use check
-curl -fsS http://127.0.0.1:8081/api/health    # smoke test
+ss -tln 'sport = :8082'                       # port-in-use check
+curl -fsS http://127.0.0.1:8082/api/health    # smoke test
 ```
 
 ## Kill switch
@@ -53,6 +53,6 @@ For permanent disable: `systemctl --user disable --now gas-city-dashboard.servic
 
 ## Notes
 
-- Bound to `127.0.0.1:8081` only (not `0.0.0.0`); see [`../specs/architecture/security.md`](../specs/architecture/security.md) for the DNS-rebinding posture.
+- Bound to `127.0.0.1:8082` only (not `0.0.0.0`); see [`../specs/architecture/security.md`](../specs/architecture/security.md) for the DNS-rebinding posture.
 - A `gc-supervisor` outage takes the dashboard's live data with it; the dashboard SHELL stays up (renders the cached / empty state) until supervisor returns.
 - Audit log is appended to `~/.gc/events.jsonl` by default — durable channel that survives dolt-hq corruption. Override with `ADMIN_AUDIT_LOG_PATH`.

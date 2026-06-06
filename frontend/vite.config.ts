@@ -90,6 +90,8 @@ export default defineConfig({
   },
   build: {
     outDir: 'dist',
+    // No prod source maps — an externally-fronted dist must not ship readable
+    // source. Keep false; see specs/architecture/exposure.md.
     sourcemap: false,
     emptyOutDir: true,
   },

@@ -45,10 +45,13 @@ Then open `http://127.0.0.1:5174`. The dashboard expects a Gas City `gc supervis
 ```bash
 npm install
 npm run build
-node backend/dist/server.js     # serves API + frontend on :8081
+PORT=8082 node backend/dist/server.js     # serves API + frontend on :8082
 ```
 
-For systemd-managed install: [`deploy/README.md`](deploy/README.md).
+Production runs on `:8082` (the systemd unit and the `dashboard:test` gate both
+target it), leaving `:8081` to the dev backend so the two coexist on one host.
+With no `PORT` the listener falls back to the `8081` default. For
+systemd-managed install: [`deploy/README.md`](deploy/README.md).
 
 ## Quality gates
 

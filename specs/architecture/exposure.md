@@ -45,6 +45,85 @@ Tailscale **Funnel** of the raw port — Funnel publishes to the public internet
 with no auth in front. Tailscale **Serve** (tailnet-only) is fine; Funnel is
 not.
 
+## Recipes
+
+Four concrete fronts, one per common environment. All assume the dashboard is
+the systemd-managed production listener on `127.0.0.1:8082` (see
+[`deploy/`](../../deploy/README.md)); swap the port if you run it elsewhere.
+Each terminates TLS and authenticates at the front, then proxies over loopback.
+Pair every one of them with `DASHBOARD_READONLY=1` and the
+[hardening checklist](#hardening-checklist-when-exposing) below.
+
+Forwarding `Host: 127.0.0.1` keeps the backend host-allowlist satisfied without
+touching `ADMIN_EXTRA_ALLOWED_HOSTS`; the SSE streams (`/gc-supervisor/**`
+events, `/api` event stream) need response buffering off or they stall.
+
+### nginx — basic-auth reverse proxy
+
+```nginx
+# htpasswd -c /etc/nginx/.gcd-htpasswd <user>   # create the credential first
+server {
+    listen 443 ssl;
+    server_name dash.example.com;
+
+    ssl_certificate     /etc/letsencrypt/live/dash.example.com/fullchain.pem;
+    ssl_certificate_key /etc/letsencrypt/live/dash.example.com/privkey.pem;
+
+    location / {
+        auth_basic           "gas-city-dashboard";
+        auth_basic_user_file /etc/nginx/.gcd-htpasswd;   # fails closed: no file → 403
+
+        proxy_pass         http://127.0.0.1:8082;
+        proxy_set_header   Host 127.0.0.1;               # satisfy the host-allowlist
+        proxy_http_version 1.1;
+        proxy_set_header   Connection "";                # keep SSE connections open
+        proxy_buffering    off;                          # stream events un-buffered
+    }
+}
+```
+
+### Caddy — forward-auth
+
+```caddy
+# Caddyfile — delegate auth to your own service (Authelia, tinyauth, …).
+# Caddy auto-provisions TLS; forward_auth fails closed if the auth service
+# is unreachable, so a blown auth backend denies rather than passes through.
+dash.example.com {
+    forward_auth 127.0.0.1:9091 {
+        uri /api/verify?rd=https://auth.example.com
+        copy_headers Remote-User Remote-Email Remote-Groups
+    }
+
+    reverse_proxy 127.0.0.1:8082 {
+        header_up Host 127.0.0.1     # satisfy the host-allowlist
+        flush_interval -1            # never buffer SSE
+    }
+}
+```
+
+### Tailscale Serve — tailnet-only
+
+```bash
+# Publish to your tailnet ONLY; Tailscale identity is the auth. Never Funnel.
+tailscale serve --bg --https=443 http://127.0.0.1:8082
+
+# Verify it is Serve (tailnet-scoped) and NOT Funnel (public internet):
+tailscale serve status      # must list the :8082 mapping
+tailscale funnel status     # must show NOTHING for this port
+```
+
+### Cloudflare Access — zero-trust gateway
+
+```bash
+# 1. Outbound-only tunnel from the host — no inbound port is opened:
+cloudflared tunnel --hostname dash.example.com --url http://127.0.0.1:8082
+
+# 2. In Cloudflare Zero Trust, add an Access application for dash.example.com
+#    with an allow policy (email / SSO / group). Access enforces identity at
+#    Cloudflare's edge BEFORE traffic reaches the tunnel; an unauthenticated
+#    request never reaches the host.
+```
+
 ## Hardening checklist when exposing
 
 Before you point an authenticated front at it:

@@ -1,5 +1,5 @@
 [Unit]
-Description=gas-city-dashboard — editorial ambient dashboard for a single gc operator (localhost-only, port 8081)
+Description=gas-city-dashboard — editorial ambient dashboard for a single gc operator (localhost-only, port 8082)
 Documentation=file://%h/gas-city-dashboard/specs/architecture/overview.md
 After=network-online.target
 Wants=network-online.target
@@ -12,7 +12,7 @@ Wants=network-online.target
 Type=simple
 WorkingDirectory=%h/gas-city-dashboard
 Environment=NODE_ENV=production
-Environment=PORT=8081
+Environment=PORT=8082
 Environment=GC_SUPERVISOR_URL=http://127.0.0.1:8372
 Environment=GC_CITY_NAME=gas-city
 # GC_CITY_PATH pins the city root so the `gc bd` CLI write path
@@ -24,7 +24,7 @@ Environment=ADMIN_AUDIT_LOG_PATH=%h/.gc/events.jsonl
 Environment=ADMIN_FRONTEND_DIST=%h/gas-city-dashboard/frontend/dist
 # Refuse to start if a stale process holds the port. Bound to 127.0.0.1 only,
 # so the ss check is sufficient — no public-interface race.
-ExecStartPre=/bin/sh -c '! ss -tln "sport = :8081" | grep -q LISTEN || (echo "port 8081 already bound" >&2; exit 1)'
+ExecStartPre=/bin/sh -c '! ss -tln "sport = :8082" | grep -q LISTEN || (echo "port 8082 already bound" >&2; exit 1)'
 ExecStart=/usr/bin/node %h/gas-city-dashboard/backend/dist/server.js
 Restart=on-failure
 RestartSec=3
