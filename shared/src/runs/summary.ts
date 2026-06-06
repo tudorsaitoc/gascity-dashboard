@@ -1,5 +1,6 @@
 import type { RunChange, RunCounts, RunLane, RunSummary, RunStage } from '../snapshot/types.js';
 import { fromRootMetadataScope } from '../run-scope.js';
+import { stripNonPrintable } from '../strip-non-printable.js';
 import { resolveRunFormulaIdentity } from './formula-name.js';
 import {
   isPrimaryStepIssue,
@@ -203,27 +204,41 @@ function runScope(
   });
 
   if (metadataScope !== null) {
-    return {
-      status: 'available',
-      kind: metadataScope.scopeKind,
-      ref: metadataScope.scopeRef,
-      rootStoreRef: metadataScope.rootStoreRef,
-    };
+    return availableScope(
+      metadataScope.scopeKind,
+      metadataScope.scopeRef,
+      metadataScope.rootStoreRef,
+    );
   }
 
   const feedScope = feedScopes.get(rootId);
   if (feedScope !== undefined) {
-    return {
-      status: 'available',
-      kind: feedScope.scopeKind,
-      ref: feedScope.scopeRef,
-      rootStoreRef: rootStoreRef || feedScope.rootStoreRef,
-    };
+    return availableScope(
+      feedScope.scopeKind,
+      feedScope.scopeRef,
+      rootStoreRef || feedScope.rootStoreRef,
+    );
   }
 
   return {
     status: 'unavailable',
     error: 'run scope metadata unavailable',
+  };
+}
+
+// gascity-dashboard-5e5v: the single edge where supervisor-controlled rig/scope
+// refs enter the DTO. Strip ANSI/OSC/control/bidi here so every consumer of the
+// run summary (web frontend, any terminal client that renders DTO strings
+// verbatim) is covered at one choke point — a hostile or malformed
+// `gc.root_store_ref` reaches here unvalidated (scopeRef itself is already
+// constrained by SCOPE_REF_RE upstream, but the feed-scope map is not
+// re-validated, so both fields are sanitised for a uniform guarantee).
+function availableScope(kind: 'city' | 'rig', ref: string, rootStoreRef: string): RunLane['scope'] {
+  return {
+    status: 'available',
+    kind,
+    ref: stripNonPrintable(ref),
+    rootStoreRef: stripNonPrintable(rootStoreRef),
   };
 }
 

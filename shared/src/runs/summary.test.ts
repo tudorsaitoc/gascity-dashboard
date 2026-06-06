@@ -1,7 +1,8 @@
 import { test, describe } from 'node:test';
 import assert from 'node:assert/strict';
 
-import { buildRunSummary, emptyRunSummary } from './summary.js';
+import { buildRunSummary, emptyRunSummary, runLane } from './summary.js';
+import type { RunFeedScope } from './summary.js';
 import type { RunIssue } from './phaseMapping.js';
 
 // Active-classification regression coverage (gascity-dashboard-4xcv §2).
@@ -107,5 +108,62 @@ describe('buildRunSummary — blocked lanes are not Active (gascity-dashboard-4x
 
   test('emptyRunSummary carries an empty blockedLanes array', () => {
     assert.deepEqual(emptyRunSummary().blockedLanes, []);
+  });
+});
+
+// gascity-dashboard-5e5v: supervisor-controlled rig/scope refs are rendered
+// verbatim by run-summary consumers (the web frontend, and any terminal client
+// that emits DTO strings into the operator's terminal — Ink tokenises ANSI but
+// does not strip escape/OSC). A hostile or malformed `gc.root_store_ref` or a
+// feed-scope ref carrying ANSI/OSC/bidi must be stripped at the DTO edge.
+
+function runIssue(overrides: Partial<RunIssue> & Pick<RunIssue, 'id'>): RunIssue {
+  return {
+    title: 'run',
+    status: 'in_progress',
+    issue_type: 'task',
+    updated_at: '2026-06-06T00:00:00.000Z',
+    ...overrides,
+  };
+}
+
+describe('runLane scope sanitisation — gascity-dashboard-5e5v', () => {
+  test('strips ANSI/OSC from rootStoreRef on the metadata path', () => {
+    const lane = runLane(
+      'root-1',
+      [
+        runIssue({
+          id: 'root-1',
+          metadata: {
+            'gc.scope_kind': 'rig',
+            'gc.scope_ref': 'demo-app',
+            'gc.root_store_ref': 'rig:demo-app\x1b]0;evil-title\x07\x1b[31m',
+          },
+        }),
+      ],
+      new Map(),
+    );
+
+    assert.equal(lane.scope.status, 'available');
+    if (lane.scope.status !== 'available') return;
+    assert.equal(lane.scope.rootStoreRef, 'rig:demo-app');
+    assert.ok(!lane.scope.rootStoreRef.includes('\x1b'), 'no ESC byte may survive');
+    assert.equal(lane.scope.ref, 'demo-app');
+  });
+
+  test('strips ANSI/bidi from both ref and rootStoreRef on the feed-scope path', () => {
+    const feedScope: RunFeedScope = {
+      scopeKind: 'rig',
+      scopeRef: 'demo\x1b[1m‮app',
+      rootStoreRef: 'rig:demo\x1b[1mapp',
+    };
+    const lane = runLane('root-2', [runIssue({ id: 'root-2' })], new Map([['root-2', feedScope]]));
+
+    assert.equal(lane.scope.status, 'available');
+    if (lane.scope.status !== 'available') return;
+    assert.equal(lane.scope.ref, 'demoapp');
+    assert.equal(lane.scope.rootStoreRef, 'rig:demoapp');
+    assert.ok(!lane.scope.ref.includes('\x1b'), 'no ESC byte may survive in ref');
+    assert.ok(!lane.scope.rootStoreRef.includes('\x1b'), 'no ESC byte may survive in rootStoreRef');
   });
 });
