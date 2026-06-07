@@ -37,15 +37,19 @@ vi.mock('../api/client', () => ({
     err instanceof Error ? err.message : fallback,
 }));
 
+const mockSupervisorApiForRequestBudget = vi.hoisted(() => vi.fn());
+
 vi.mock('../supervisor/client', () => ({
   supervisorApi: () => mockSupervisorApi,
-  supervisorApiForRequestBudget: vi.fn(() => mockSupervisorApi),
+  supervisorApiForRequestBudget: mockSupervisorApiForRequestBudget,
 }));
 
 describe('useLiveAttentionContributors', () => {
   beforeEach(() => {
     setActiveCity('test-city');
     invalidate('attention:');
+    mockSupervisorApiForRequestBudget.mockReset();
+    mockSupervisorApiForRequestBudget.mockReturnValue(mockSupervisorApi);
     for (const fn of [
       mockApi.doltTrend,
       mockApi.listBuilds,
@@ -325,6 +329,25 @@ describe('useLiveAttentionContributors', () => {
     expect(mockApi.maintainerTriage).toHaveBeenCalledTimes(1);
     expect(mockApi.systemHealth).toHaveBeenCalledTimes(1);
     expect(mockApi.doltTrend).toHaveBeenCalledTimes(1);
+  });
+
+  it('drives the runs badge from the full run-summary snapshot, not the cheap preview (gascity-dashboard-2j8e.6)', async () => {
+    const { result } = renderHook(() => useLiveAttentionContributors(['maintainer'], testOperator));
+
+    await waitFor(() => {
+      // The runs contributor has resolved (no blocked graph.v2 runs in this
+      // fixture, so 0 — the count itself is exercised in registry.test.ts).
+      expect(composeAttention(result.current).byDomain.runs.attention).toBe(0);
+    });
+
+    // The badge must read the SAME complete snapshot the /runs page renders.
+    // The page upgrades to the full source (REFRESH_ENRICHMENT_TIMEOUT_MS = 30s,
+    // session-enriched) on its first refresh; the badge previously stayed on the
+    // 2.5s preview budget and persistently undercounted blocked runs
+    // (gascity-dashboard-2j8e.6). The 30s enrichment budget is unique to the full
+    // run-summary source, so its presence proves the badge is on the full path
+    // (the old preview path only ever used the 2.5s / 5s budgets).
+    expect(mockSupervisorApiForRequestBudget).toHaveBeenCalledWith(30_000);
   });
 
   it('does not fetch maintainer triage before the enabled module config is loaded', async () => {
