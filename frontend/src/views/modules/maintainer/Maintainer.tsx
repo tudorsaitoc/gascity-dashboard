@@ -14,11 +14,13 @@ import {
   filterTierByNeedsPr,
 } from './triageFilters';
 import { useNow } from '../../../contexts/NowContext';
+import { READ_ONLY_CONTROL_TITLE, useReadOnly } from '../../../contexts/ReadOnlyContext';
 import { api } from '../../../api/client';
 import { cityPath, getActiveCity } from '../../../api/cityBase';
 import { setCached } from '../../../api/cache';
 import { Button } from '../../../components/Button';
 import { PageHeader } from '../../../components/PageHeader';
+import { StatusBadge } from '../../../components/StatusBadge';
 import { SlungSection, TierSection } from './TriageSections';
 import { useCachedData } from '../../../hooks/useCachedData';
 import { useViewingAs } from '../../../contexts/ViewingAsContext';
@@ -74,6 +76,7 @@ export function MaintainerPage() {
     api.maintainerTriage(),
   );
   const { viewingAs } = useViewingAs();
+  const readOnly = useReadOnly();
   // dw8 — `?view=needs-you` activates the Needs-You composite filter
   // mode. The query param is the activation surface (R13: no new
   // route); the mode itself short-circuits some chip rendering and
@@ -204,6 +207,9 @@ export function MaintainerPage() {
   // endpoint directly; the dashboard service records only local slung state.
   const handleSend = useCallback(
     async (intent: MaintainerSlingIntent) => {
+      // Defense-in-depth: the disabled sling buttons already block this, but a
+      // keyboard/programmatic path must never reach a write the server 405s.
+      if (readOnly) return;
       const successLabel = intent === 'triage' ? TRIAGE_TARGET_LABEL : DRAFT_TARGET_LABEL;
       setSlinging(intent);
       setSlingError(null);
@@ -254,7 +260,7 @@ export function MaintainerPage() {
         setSlinging(null);
       }
     },
-    [selection, allItems, setSlingSuccess, clearSlingSuccess],
+    [selection, allItems, readOnly, setSlingSuccess, clearSlingSuccess],
   );
 
   return (
@@ -268,6 +274,9 @@ export function MaintainerPage() {
               <span className="normal-case text-body text-accent" role="alert">
                 {refreshError ?? error}
               </span>
+            )}
+            {readOnly && (
+              <StatusBadge tone="warn" label="Read-only" title={READ_ONLY_CONTROL_TITLE} />
             )}
             <Button size="sm" onClick={toggleFocus}>
               {focusBreaking ? 'Show all tiers' : 'Breaking only'}
@@ -385,6 +394,7 @@ export function MaintainerPage() {
                 sending={slinging}
                 error={slingError}
                 success={slingSuccess}
+                readOnly={readOnly}
               />
             )}
         </>

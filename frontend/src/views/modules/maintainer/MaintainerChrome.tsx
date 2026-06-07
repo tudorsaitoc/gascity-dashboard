@@ -1,5 +1,7 @@
 import { Link } from 'react-router-dom';
 import { Button } from '../../../components/Button';
+import { READ_ONLY_CONTROL_TITLE } from '../../../contexts/ReadOnlyContext';
+import { StatusBadge } from '../../../components/StatusBadge';
 import { formatRelative } from '../../../hooks/time';
 import { formatDateTime } from '../../../lib/format';
 import type { MaintainerSlingIntent, SlingSuccess } from './maintainerSelection';
@@ -20,6 +22,7 @@ export function SelectionActionBar({
   sending,
   error,
   success,
+  readOnly = false,
 }: {
   count: number;
   /** Selected keys that vanished from the current envelope before send. */
@@ -33,8 +36,11 @@ export function SelectionActionBar({
   sending: MaintainerSlingIntent | null;
   error: string | null;
   success: SlingSuccess | null;
+  /** When true the supervisor proxy 405s slings; disable both dispatch buttons. */
+  readOnly?: boolean;
 }) {
   const isSending = sending !== null;
+  const slingTitle = readOnly ? READ_ONLY_CONTROL_TITLE : undefined;
   return (
     <div
       className="fixed inset-x-0 bottom-0 border-t border-rule bg-surface"
@@ -82,10 +88,24 @@ export function SelectionActionBar({
           )}
         </div>
         <div className="flex items-baseline gap-3">
-          <Button size="sm" onClick={onSend} disabled={isSending || count === 0}>
+          {readOnly && (
+            <StatusBadge tone="warn" label="Read-only" title={READ_ONLY_CONTROL_TITLE} />
+          )}
+          <Button
+            size="sm"
+            onClick={onSend}
+            disabled={readOnly || isSending || count === 0}
+            title={slingTitle}
+          >
             {sending === 'triage' ? 'Sending' : 'Send to triage agent'}
           </Button>
-          <Button size="sm" tone="quiet" onClick={onSendDraft} disabled={isSending || count === 0}>
+          <Button
+            size="sm"
+            tone="quiet"
+            onClick={onSendDraft}
+            disabled={readOnly || isSending || count === 0}
+            title={slingTitle}
+          >
             {sending === 'draft' ? 'Sending' : 'Send to draft agent'}
           </Button>
           <Button size="sm" tone="quiet" onClick={onClear} disabled={isSending}>

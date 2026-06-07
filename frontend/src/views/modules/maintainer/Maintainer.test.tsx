@@ -42,6 +42,7 @@ function renderBar(props: Partial<React.ComponentProps<typeof SelectionActionBar
     sending: props.sending ?? null,
     error: props.error ?? null,
     success: props.success ?? null,
+    readOnly: props.readOnly ?? false,
   };
   return render(
     <MemoryRouter future={{ v7_relativeSplatPath: true, v7_startTransition: true }}>
@@ -122,6 +123,42 @@ describe('SelectionActionBar — error path regression', () => {
     });
     expect(screen.getByRole('alert')).toBeTruthy();
     expect(screen.getByRole('status')).toBeTruthy();
+  });
+});
+
+describe('SelectionActionBar — read-only mode (gascity-dashboard-uzhr)', () => {
+  afterEach(() => {
+    cleanup();
+  });
+
+  it('disables both sling dispatch buttons and surfaces a read-only affordance', () => {
+    renderBar({ count: 3, readOnly: true });
+    const triage = screen.getByRole('button', {
+      name: 'Send to triage agent',
+    }) as HTMLButtonElement;
+    const draft = screen.getByRole('button', {
+      name: 'Send to draft agent',
+    }) as HTMLButtonElement;
+    expect(triage.disabled).toBe(true);
+    expect(draft.disabled).toBe(true);
+    expect(triage.getAttribute('title')).toBe('Read-only mode — mutations are disabled');
+    // The affordance carries words, not just a dimmed control (DESIGN.md §States).
+    expect(screen.getByText('Read-only')).toBeTruthy();
+  });
+
+  it('keeps Clear active in read-only mode so a stale selection can still be dropped', () => {
+    renderBar({ count: 3, readOnly: true });
+    expect((screen.getByRole('button', { name: 'Clear' }) as HTMLButtonElement).disabled).toBe(
+      false,
+    );
+  });
+
+  it('leaves the sling buttons active when the dashboard is writable', () => {
+    renderBar({ count: 3 });
+    expect(
+      (screen.getByRole('button', { name: 'Send to triage agent' }) as HTMLButtonElement).disabled,
+    ).toBe(false);
+    expect(screen.queryByText('Read-only')).toBeNull();
   });
 });
 

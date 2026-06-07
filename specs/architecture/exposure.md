@@ -139,7 +139,19 @@ Before you point an authenticated front at it:
    `/gc-supervisor` proxy only — the dashboard's own `/api/*` maintainer writes
    (client-error telemetry, `gh` actions, sling-record) are CSRF+Origin
    protected, not covered by `DASHBOARD_READONLY`, so "read-only" means the
-   _supervisor_ surface, not the entire service.
+   _supervisor_ surface, not the entire service. The posture is projected onto
+   the wire as `DashboardRuntimeConfig.readOnly` (gascity-dashboard-uzhr) so the
+   SPA disables (not hides) every supervisor-mutating control — Beads
+   create/sling, claim, close, nudge; Mail compose, reply, archive, mark
+   read/unread; and Maintainer bulk sling — with a read-only affordance, rather
+   than letting a click `405` into an unhandled error. Each disabled control
+   carries an explanatory title plus a "Read-only" badge (DESIGN.md §States have
+   words), and the click handlers guard the write directly as defense-in-depth
+   against keyboard/Enter-submit paths. The server gate stays the enforcement;
+   the SPA flag is only the affordance. (Dashboard-local `/api/*` writes such as
+   the Maintainer "Refresh from gh" and sling-record stay enabled — they are
+   CSRF+Origin protected and not behind `DASHBOARD_READONLY`, so they do not
+   `405`.)
 2. **Keep the gc supervisor on loopback and patched.** The read-only gate sits
    _upstream_ of the supervisor, so it only protects requests that go through
    the dashboard. The supervisor's own port (`:8372` by default) must not be

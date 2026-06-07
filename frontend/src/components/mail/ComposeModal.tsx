@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
 import { formatApiError } from '../../api/client';
+import { READ_ONLY_CONTROL_TITLE, useReadOnly } from '../../contexts/ReadOnlyContext';
 import { OPERATOR_ALIAS, useViewingAs } from '../../contexts/ViewingAsContext';
 import { displayLabel } from '../../hooks/aliasPriority';
 import { sendSupervisorMail } from '../../supervisor/mailWrites';
@@ -16,6 +17,7 @@ interface ComposeModalProps {
 
 export function ComposeModal({ open, onClose, onSent }: ComposeModalProps) {
   const { viewingAs } = useViewingAs();
+  const readOnly = useReadOnly();
   const [to, setTo] = useState('');
   const [subject, setSubject] = useState('');
   const [body, setBody] = useState('');
@@ -32,6 +34,9 @@ export function ComposeModal({ open, onClose, onSent }: ComposeModalProps) {
   }, [open]);
 
   const onSend = useCallback(async () => {
+    // Defense-in-depth: the disabled Send button already blocks this, but a
+    // keyboard/programmatic path must never reach a write the server 405s.
+    if (readOnly) return;
     setSending(true);
     setError(null);
     try {
@@ -42,10 +47,15 @@ export function ComposeModal({ open, onClose, onSent }: ComposeModalProps) {
     } finally {
       setSending(false);
     }
-  }, [body, onSent, subject, to]);
+  }, [body, onSent, readOnly, subject, to]);
 
   const canSend =
-    viewingAs.isOperator && to.length > 0 && subject.length > 0 && body.length > 0 && !sending;
+    !readOnly &&
+    viewingAs.isOperator &&
+    to.length > 0 &&
+    subject.length > 0 &&
+    body.length > 0 &&
+    !sending;
 
   return (
     <Modal
@@ -59,7 +69,13 @@ export function ComposeModal({ open, onClose, onSent }: ComposeModalProps) {
           <Button tone="quiet" size="sm" onClick={onClose}>
             Cancel
           </Button>
-          <Button tone="accent" size="sm" disabled={!canSend} onClick={() => void onSend()}>
+          <Button
+            tone="accent"
+            size="sm"
+            disabled={!canSend}
+            title={readOnly ? READ_ONLY_CONTROL_TITLE : undefined}
+            onClick={() => void onSend()}
+          >
             {sending ? 'Sending' : 'Send'}
           </Button>
         </>
@@ -106,6 +122,7 @@ export function ComposeModal({ open, onClose, onSent }: ComposeModalProps) {
             className="w-full bg-surface-tint border border-rule rounded-sm px-3 py-2 text-body text-fg focus:border-accent focus:outline-none focus:ring-1 focus:ring-accent/40 resize-y"
           />
         </Field>
+        {readOnly && <StatusBadge tone="warn" label="Read-only" title={READ_ONLY_CONTROL_TITLE} />}
         {!viewingAs.isOperator && (
           <StatusBadge
             tone="warn"

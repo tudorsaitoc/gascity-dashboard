@@ -5,6 +5,7 @@ import { invalidate } from '../api/cache';
 import { AttentionProvider } from '../attention/context';
 import type { AttentionContributor } from '../attention/compose';
 import { NowProvider } from '../contexts/NowContext';
+import { ReadOnlyProvider } from '../contexts/ReadOnlyContext';
 import { MailPage } from './Mail';
 
 interface FetchCall {
@@ -440,6 +441,45 @@ describe('MailPage supervisor reads', () => {
     });
   });
 
+  it('disables Compose and surfaces a read-only affordance under DASHBOARD_READONLY', async () => {
+    renderMailPage('/mail', { readOnly: true });
+
+    await screen.findByText('direct supervisor inbox');
+
+    const compose = screen.getByRole('button', { name: 'Compose' }) as HTMLButtonElement;
+    expect(compose.disabled).toBe(true);
+    expect(compose.getAttribute('title')).toBe('Read-only mode — mutations are disabled');
+    // The affordance carries words, not just a dimmed control (DESIGN.md §States).
+    expect(screen.getByText('Read-only')).toBeTruthy();
+  });
+
+  it('disables the thread mark/archive/reply actions in read-only mode', async () => {
+    renderMailPage('/mail', { readOnly: true });
+
+    fireEvent.click(await screen.findByText('direct supervisor inbox'));
+
+    expect(
+      (await screen.findByRole('button', { name: 'Mark read' })) as HTMLButtonElement,
+    ).toHaveProperty('disabled', true);
+    expect((screen.getByRole('button', { name: 'Archive' }) as HTMLButtonElement).disabled).toBe(
+      true,
+    );
+    expect((screen.getByRole('button', { name: 'Reply' }) as HTMLButtonElement).disabled).toBe(
+      true,
+    );
+  });
+
+  it('keeps Compose active when the dashboard is writable', async () => {
+    renderMailPage();
+
+    await screen.findByText('direct supervisor inbox');
+
+    expect((screen.getByRole('button', { name: 'Compose' }) as HTMLButtonElement).disabled).toBe(
+      false,
+    );
+    expect(screen.queryByText('Read-only')).toBeNull();
+  });
+
   it('marks attention mail rows without filtering out non-attention mail', async () => {
     render(
       <MemoryRouter future={{ v7_relativeSplatPath: true, v7_startTransition: true }}>
@@ -496,14 +536,16 @@ describe('MailPage supervisor reads', () => {
   });
 });
 
-function renderMailPage(initialEntry = '/mail') {
+function renderMailPage(initialEntry = '/mail', options: { readOnly?: boolean } = {}) {
   render(
     <MemoryRouter
       initialEntries={[initialEntry]}
       future={{ v7_relativeSplatPath: true, v7_startTransition: true }}
     >
       <NowProvider intervalMs={1_000_000}>
-        <MailPage />
+        <ReadOnlyProvider readOnly={options.readOnly ?? false}>
+          <MailPage />
+        </ReadOnlyProvider>
       </NowProvider>
     </MemoryRouter>,
   );
