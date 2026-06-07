@@ -41,9 +41,10 @@ let rigStoreMode: 'ok' | 'fail' = 'ok';
 // gascity-dashboard-4bol: the Health status widgets read the dashboard
 // backend's cached /supervisor-status snapshot, not the supervisor directly.
 // 'available' = fresh sample, 'degraded' = last-good served while the latest
-// read failed (must still render data), 'blank' = never sampled (unavailable),
-// 'pending' = the local fetch has not resolved yet.
-let statusMode: 'available' | 'degraded' | 'blank' = 'available';
+// read failed (must still render data), 'warming' = never sampled yet,
+// 'blank' = a read failed with no prior sample. A null status under 'pending'
+// is modelled via pendingStatusResponse (the local fetch has not resolved yet).
+let statusMode: 'available' | 'degraded' | 'warming' | 'blank' = 'available';
 let pendingStatusResponse: Promise<Response> | null = null;
 
 beforeEach(() => {
@@ -89,6 +90,9 @@ beforeEach(() => {
       if (url === '/api/city/test-city/supervisor-status') {
         if (pendingStatusResponse !== null) {
           return pendingStatusResponse;
+        }
+        if (statusMode === 'warming') {
+          return jsonResponse({ available: false, reason: 'not_sampled_yet', status: null });
         }
         if (statusMode === 'blank') {
           return jsonResponse({ available: false, reason: 'status_read_failed', status: null });
@@ -281,7 +285,19 @@ describe('HealthPage', () => {
     expect(screen.queryAllByText(/supervisor status unavailable/i)).toHaveLength(0);
   });
 
-  it('surfaces the unavailable copy only when the backend has never sampled status', async () => {
+  it('surfaces the warming-up copy when the backend has not sampled status yet', async () => {
+    statusMode = 'warming';
+
+    renderPage();
+
+    await screen.findByRole('heading', { name: /diagnostics/i });
+
+    expect(screen.getAllByText(/supervisor status sample is warming up/i).length).toBeGreaterThan(
+      0,
+    );
+  });
+
+  it('surfaces the read-failed copy when a sample failed with no prior snapshot', async () => {
     statusMode = 'blank';
 
     renderPage();

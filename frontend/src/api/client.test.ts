@@ -135,4 +135,24 @@ describe('api client error handling', () => {
       message: expect.stringContaining('supervisor status.available must be a boolean'),
     });
   });
+
+  it('rejects an available supervisor-status report whose status payload is missing', async () => {
+    // The Health widgets dereference status fields; an available report with no
+    // status object must fail at the edge rather than crash at render.
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(
+        async () =>
+          new Response(JSON.stringify({ available: true, sampledAt: '2026-06-07T00:00:00.000Z' }), {
+            status: 200,
+            headers: { 'content-type': 'application/json' },
+          }),
+      ),
+    );
+
+    await expect(api.supervisorStatus()).rejects.toMatchObject({
+      name: 'ApiResponseDecodeError',
+      message: expect.stringContaining('supervisor status.status must be an object'),
+    });
+  });
 });

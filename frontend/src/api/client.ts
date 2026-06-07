@@ -299,6 +299,16 @@ const decodeSupervisorStatus = objectDecoder<SupervisorStatusReport>(
   'supervisor status',
   (record, url) => {
     requireBooleanField(record, url, 'supervisor status', 'available');
+    if (record['available'] === true) {
+      // The Health widgets dereference status.store_health / status.work, so a
+      // present-but-malformed status must fail at the edge, not at render.
+      requireObjectField(record, url, 'supervisor status', 'status');
+    } else {
+      requireStringField(record, url, 'supervisor status', 'reason');
+      if (record['status'] !== null) {
+        requireObjectField(record, url, 'supervisor status', 'status');
+      }
+    }
   },
 );
 const decodeRunDiff = objectDecoder<RunDiffResponse>('run diff', (record, url) => {
