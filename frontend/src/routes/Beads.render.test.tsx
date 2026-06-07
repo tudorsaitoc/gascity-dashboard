@@ -6,6 +6,7 @@ import { invalidate, setCached } from '../api/cache';
 import { AttentionProvider } from '../attention/context';
 import type { AttentionContributor } from '../attention/compose';
 import { NowProvider } from '../contexts/NowContext';
+import { ReadOnlyProvider } from '../contexts/ReadOnlyContext';
 import type { SupervisorBead } from '../supervisor/beadReads';
 import { BeadsPage } from './Beads';
 
@@ -84,6 +85,46 @@ describe('BeadsPage supervisor reads', () => {
     expect(within(dialog).getByRole('button', { name: /view live run/i })).toBeTruthy();
   });
 
+  it('disables the New bead control and surfaces a read-only affordance under DASHBOARD_READONLY', async () => {
+    renderPage('/beads', [], { readOnly: true });
+
+    await screen.findByText('direct supervisor bead');
+
+    const newBead = screen.getByRole('button', { name: 'New bead' }) as HTMLButtonElement;
+    expect(newBead.disabled).toBe(true);
+    expect(newBead.getAttribute('title')).toBe('Read-only mode — mutations are disabled');
+    // The affordance carries words, not just a dimmed control (DESIGN.md §States).
+    expect(screen.getByText('Read-only')).toBeTruthy();
+  });
+
+  it('disables the per-bead claim/close/nudge actions in read-only mode', async () => {
+    renderPage('/beads?bead=td-bead-abc123', [], { readOnly: true });
+
+    const dialog = await screen.findByRole('dialog');
+    // Scope to the bead-action group: the modal's own dismiss control also
+    // carries aria-label "Close", so query the actions row Claim sits in.
+    const actions = (within(dialog).getByRole('button', { name: 'Claim' }) as HTMLButtonElement)
+      .parentElement;
+    expect(actions).not.toBeNull();
+    for (const name of ['Claim', 'Close', 'Nudge']) {
+      const button = within(actions as HTMLElement).getByRole('button', {
+        name,
+      }) as HTMLButtonElement;
+      expect(button.disabled).toBe(true);
+    }
+  });
+
+  it('keeps the New bead control active when the dashboard is writable', async () => {
+    renderPage('/beads');
+
+    await screen.findByText('direct supervisor bead');
+
+    expect((screen.getByRole('button', { name: 'New bead' }) as HTMLButtonElement).disabled).toBe(
+      false,
+    );
+    expect(screen.queryByText('Read-only')).toBeNull();
+  });
+
   it('marks attention beads on the board while preserving non-attention rows', async () => {
     renderPage('/beads', [
       contributor('beads', [
@@ -101,16 +142,22 @@ describe('BeadsPage supervisor reads', () => {
   });
 });
 
-function renderPage(path = '/beads', contributors: readonly AttentionContributor[] = []) {
+function renderPage(
+  path = '/beads',
+  contributors: readonly AttentionContributor[] = [],
+  options: { readOnly?: boolean } = {},
+) {
   return render(
     <MemoryRouter
       initialEntries={[path]}
       future={{ v7_relativeSplatPath: true, v7_startTransition: true }}
     >
       <NowProvider intervalMs={1_000_000}>
-        <AttentionProvider contributors={contributors}>
-          <BeadsPage />
-        </AttentionProvider>
+        <ReadOnlyProvider readOnly={options.readOnly ?? false}>
+          <AttentionProvider contributors={contributors}>
+            <BeadsPage />
+          </AttentionProvider>
+        </ReadOnlyProvider>
       </NowProvider>
     </MemoryRouter>,
   );

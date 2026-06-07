@@ -50,6 +50,7 @@ function fakeRuntime(cityName: string): CityRuntime & { started: number; stopped
       cityName,
       cityRoot: '',
       useFixtures: false,
+      readOnly: false,
       enabledModules: null,
       defaultView: null,
     },

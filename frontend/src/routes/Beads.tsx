@@ -13,6 +13,7 @@ import { ListSearchBar } from '../components/ListSearchBar';
 import { Modal } from '../components/Modal';
 import { PageHeader } from '../components/PageHeader';
 import { StatusBadge } from '../components/StatusBadge';
+import { READ_ONLY_CONTROL_TITLE, useReadOnly } from '../contexts/ReadOnlyContext';
 import { buildBeadGraph } from '../lib/beadGraph';
 import { resolveRigName, rigNameOptions } from '../lib/rigNames';
 import { useCachedData } from '../hooks/useCachedData';
@@ -65,6 +66,7 @@ const BEAD_SEARCH_FIELDS = (b: SupervisorBead): ReadonlyArray<string | undefined
 
 export function BeadsPage() {
   const attention = useAttentionModel();
+  const readOnly = useReadOnly();
   const cityName = getActiveCity();
   const cityCacheKey = cityName ?? 'no-city';
   const [searchParams] = useSearchParams();
@@ -194,6 +196,9 @@ export function BeadsPage() {
 
   const runAction = useCallback(
     async (bead: SupervisorBead, action: BeadAction, reason?: string) => {
+      // Defense-in-depth: the disabled buttons already block this, but a
+      // keyboard/programmatic path must never reach a write the server 405s.
+      if (readOnly) return;
       setActionInFlight({ id: bead.id, action });
       setActionMessage(null);
       try {
@@ -220,7 +225,7 @@ export function BeadsPage() {
         setActionInFlight(null);
       }
     },
-    [refresh],
+    [readOnly, refresh],
   );
 
   const openCreateBead = useCallback(() => {
@@ -254,6 +259,9 @@ export function BeadsPage() {
   );
 
   const createAndSling = useCallback(async () => {
+    // Defense-in-depth: a form Enter-submit can fire even with the submit
+    // button disabled, so guard the write itself in read-only mode.
+    if (readOnly) return;
     setCreateInFlight(true);
     setCreateError(null);
     try {
@@ -274,7 +282,7 @@ export function BeadsPage() {
     } finally {
       setCreateInFlight(false);
     }
-  }, [newAgent, newBody, newRig, newTitle, refresh]);
+  }, [newAgent, newBody, newRig, newTitle, readOnly, refresh]);
 
   const matched = useMemo(() => filters.groups.flatMap((group) => group.rows), [filters.groups]);
   const graph = useMemo(() => buildBeadGraph(matched), [matched]);
@@ -305,8 +313,13 @@ export function BeadsPage() {
       const actionLabel =
         actionInFlight?.id === bead.id ? actionInFlight.action.replace('_', ' ') : null;
 
+      const roTitle = readOnly ? READ_ONLY_CONTROL_TITLE : undefined;
+
       return (
         <div className="flex flex-wrap items-center justify-end gap-2">
+          {readOnly && (
+            <span className="text-label uppercase tracking-wider text-fg-faint">read-only</span>
+          )}
           {actionLabel && (
             <span className="text-label uppercase tracking-wider text-fg-faint">{actionLabel}</span>
           )}
@@ -314,7 +327,8 @@ export function BeadsPage() {
             type="button"
             size="sm"
             tone="quiet"
-            disabled={busy || bead.status === 'in_progress' || bead.status === 'closed'}
+            title={roTitle}
+            disabled={readOnly || busy || bead.status === 'in_progress' || bead.status === 'closed'}
             onClick={() => void runAction(bead, 'claim')}
           >
             Claim
@@ -323,7 +337,8 @@ export function BeadsPage() {
             type="button"
             size="sm"
             tone="quiet"
-            disabled={busy || bead.status === 'closed'}
+            title={roTitle}
+            disabled={readOnly || busy || bead.status === 'closed'}
             onClick={() => {
               setCloseReason('');
               setActionMessage(null);
@@ -336,7 +351,8 @@ export function BeadsPage() {
             type="button"
             size="sm"
             tone="quiet"
-            disabled={busy || assignee.length === 0}
+            title={roTitle}
+            disabled={readOnly || busy || assignee.length === 0}
             onClick={() => void runAction(bead, 'nudge')}
           >
             Nudge
@@ -344,7 +360,7 @@ export function BeadsPage() {
         </div>
       );
     },
-    [actionInFlight, runAction],
+    [actionInFlight, readOnly, runAction],
   );
 
   const synopsis = useMemo(
@@ -387,11 +403,15 @@ export function BeadsPage() {
             <span className="text-label uppercase tracking-wider text-fg-faint">
               {showClosed ? 'All statuses' : 'Open work'}
             </span>
+            {readOnly && (
+              <StatusBadge tone="warn" label="Read-only" title={READ_ONLY_CONTROL_TITLE} />
+            )}
             <Button
               type="button"
               size="sm"
+              title={readOnly ? READ_ONLY_CONTROL_TITLE : undefined}
               onClick={openCreateBead}
-              disabled={agents.loading || agentItems.length === 0}
+              disabled={readOnly || agents.loading || agentItems.length === 0}
             >
               New bead
             </Button>
@@ -535,7 +555,8 @@ export function BeadsPage() {
               type="button"
               size="sm"
               tone="accent"
-              disabled={closing === null || actionInFlight !== null}
+              title={readOnly ? READ_ONLY_CONTROL_TITLE : undefined}
+              disabled={readOnly || closing === null || actionInFlight !== null}
               onClick={() => {
                 if (closing) void runAction(closing, 'close', closeReason);
               }}
@@ -580,8 +601,12 @@ export function BeadsPage() {
               type="submit"
               form="new-bead-form"
               size="sm"
+              title={readOnly ? READ_ONLY_CONTROL_TITLE : undefined}
               disabled={
-                createInFlight || newTitle.trim().length === 0 || newAgent.trim().length === 0
+                readOnly ||
+                createInFlight ||
+                newTitle.trim().length === 0 ||
+                newAgent.trim().length === 0
               }
             >
               {createInFlight ? 'Creating' : 'Create and sling'}

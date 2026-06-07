@@ -86,6 +86,10 @@ export function createCityRuntime(opts: CreateCityRuntimeOptions): CityRuntime {
     cityName,
     cityRoot: cityPath,
     useFixtures: config.useFixtures,
+    // Project the server's read-only posture (DASHBOARD_READONLY) onto the
+    // wire so the SPA can disable mutating controls (gascity-dashboard-uzhr).
+    // The proxy gate (z8n7) is the enforcement; this is the affordance.
+    readOnly: config.readOnly,
     // Always emit the explicit resolved firstParty id list (possibly empty)
     // so the wire is unambiguous and the frontend filter never has to guess
     // what an unset env meant. Core-only default surfaces as `[]`.

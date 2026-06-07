@@ -247,6 +247,7 @@ const decodeRuntimeConfig = objectDecoder<DashboardRuntimeConfig>('config', (rec
   requireStringField(record, url, 'config', 'cityName');
   requireStringField(record, url, 'config', 'cityRoot');
   requireBooleanField(record, url, 'config', 'useFixtures');
+  requireBooleanField(record, url, 'config', 'readOnly');
   requireStringArrayOrNullField(record, url, 'config', 'enabledModules');
   requireNullableStringField(record, url, 'config', 'defaultView');
   if (record.maintainer !== undefined) {

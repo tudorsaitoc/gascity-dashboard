@@ -63,6 +63,61 @@ describe('api client error handling', () => {
     });
   });
 
+  it('rejects a config body missing the read-only posture at the edge', async () => {
+    // readOnly drives whether the SPA disables its mutating controls
+    // (gascity-dashboard-uzhr). A body that omits it must fail at the edge
+    // rather than default-coerce a missing flag to a writable dashboard.
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(
+        async () =>
+          new Response(
+            JSON.stringify({
+              cityName: 'demo-city',
+              cityRoot: '/srv/gc/demo',
+              useFixtures: false,
+              enabledModules: null,
+              defaultView: null,
+            }),
+            {
+              status: 200,
+              headers: { 'content-type': 'application/json' },
+            },
+          ),
+      ),
+    );
+
+    await expect(api.config()).rejects.toMatchObject({
+      name: 'ApiResponseDecodeError',
+      message: expect.stringContaining('config.readOnly must be a boolean'),
+    });
+  });
+
+  it('decodes a well-formed config body carrying the read-only posture', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(
+        async () =>
+          new Response(
+            JSON.stringify({
+              cityName: 'demo-city',
+              cityRoot: '/srv/gc/demo',
+              useFixtures: false,
+              readOnly: true,
+              enabledModules: null,
+              defaultView: null,
+            }),
+            {
+              status: 200,
+              headers: { 'content-type': 'application/json' },
+            },
+          ),
+      ),
+    );
+
+    await expect(api.config()).resolves.toMatchObject({ readOnly: true });
+  });
+
   it('rejects a local-tools body whose drift union is absent at the edge', async () => {
     // The Health renderer branches on each tool's `drift`; a tool object that
     // omits it would mis-render silently, so the decoder rejects it up front.
