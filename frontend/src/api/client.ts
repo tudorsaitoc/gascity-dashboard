@@ -6,6 +6,7 @@ import type {
   LocalToolVersions,
   DoltNomsTrend,
   RigStoreHealthReport,
+  SupervisorStatusReport,
   MaintainerTriage,
   MaintainerSlingRecordRequest,
   ContributorStat,
@@ -294,6 +295,12 @@ const decodeRigStoreHealth = objectDecoder<RigStoreHealthReport>(
     requireArrayField(record, url, 'rig store health', 'rigs');
   },
 );
+const decodeSupervisorStatus = objectDecoder<SupervisorStatusReport>(
+  'supervisor status',
+  (record, url) => {
+    requireBooleanField(record, url, 'supervisor status', 'available');
+  },
+);
 const decodeRunDiff = objectDecoder<RunDiffResponse>('run diff', (record, url) => {
   requireStringField(record, url, 'run diff', 'kind');
   requireObjectField(record, url, 'run diff', 'rootPath');
@@ -371,6 +378,9 @@ export const api = {
   },
   rigStoreHealth(): Promise<RigStoreHealthReport> {
     return request('GET', cityPath('/rig-store-health'), decodeRigStoreHealth);
+  },
+  supervisorStatus(): Promise<SupervisorStatusReport> {
+    return request('GET', cityPath('/supervisor-status'), decodeSupervisorStatus);
   },
   runDiff(
     runId: string,

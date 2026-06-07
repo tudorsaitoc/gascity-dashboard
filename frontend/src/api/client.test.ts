@@ -91,4 +91,48 @@ describe('api client error handling', () => {
       message: expect.stringContaining('dolt.drift must be a string'),
     });
   });
+
+  it('decodes a cached supervisor-status report at the edge', async () => {
+    // gascity-dashboard-4bol: the Health status widgets read the dashboard
+    // backend's cached /supervisor-status snapshot; the report envelope is
+    // validated at the API edge before the page consumes it.
+    const report = {
+      available: true,
+      sampledAt: '2026-06-07T00:00:00.000Z',
+      status: { name: 'demo-city', work: { open: 1, ready: 2, in_progress: 3 } },
+    };
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(
+        async () =>
+          new Response(JSON.stringify(report), {
+            status: 200,
+            headers: { 'content-type': 'application/json' },
+          }),
+      ),
+    );
+
+    await expect(api.supervisorStatus()).resolves.toMatchObject({
+      available: true,
+      sampledAt: '2026-06-07T00:00:00.000Z',
+    });
+  });
+
+  it('rejects a supervisor-status body missing the availability discriminant', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(
+        async () =>
+          new Response(JSON.stringify({ status: null }), {
+            status: 200,
+            headers: { 'content-type': 'application/json' },
+          }),
+      ),
+    );
+
+    await expect(api.supervisorStatus()).rejects.toMatchObject({
+      name: 'ApiResponseDecodeError',
+      message: expect.stringContaining('supervisor status.available must be a boolean'),
+    });
+  });
 });

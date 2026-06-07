@@ -13,6 +13,11 @@ import {
   rigStoreHealthRouter,
   type RigStoreHealthSampler,
 } from '../routes/rig-store-health.js';
+import {
+  createSupervisorStatusSampler,
+  supervisorStatusRouter,
+  type SupervisorStatusSampler,
+} from '../routes/supervisor-status.js';
 import { ALL_MODULES } from '../views/registry.js';
 import { resolveEnabledFirstPartyIds } from '../views/enabled.js';
 import { bind, type CityContext } from '../views/types.js';
@@ -150,6 +155,16 @@ export function createCityRuntime(opts: CreateCityRuntimeOptions): CityRuntime {
   });
   router.use('/rig-store-health', rigStoreHealthRouter(rigStoreHealthSampler));
 
+  // gascity-dashboard-4bol: the interactive Health store-thresholds / dolt-usage
+  // / beads-usage widgets used a short browser-side /status read that fails fast
+  // on a slow supervisor. Sample /status on the background ceiling and serve the
+  // cached snapshot so those widgets show real (possibly cached) data instead of
+  // "supervisor status unavailable".
+  const supervisorStatusSampler: SupervisorStatusSampler = createSupervisorStatusSampler({
+    fetchStatus: () => gc.getStatus(undefined, STATUS_SAMPLER_TIMEOUT_MS),
+  });
+  router.use('/supervisor-status', supervisorStatusRouter(supervisorStatusSampler));
+
   return {
     cityName,
     router,
@@ -157,12 +172,14 @@ export function createCityRuntime(opts: CreateCityRuntimeOptions): CityRuntime {
     start() {
       doltNomsSampler.start();
       rigStoreHealthSampler.start();
+      supervisorStatusSampler.start();
       for (const w of moduleWorkers) w.start();
     },
     async stop() {
       await Promise.all(moduleWorkers.map((w) => w.stop()));
       doltNomsSampler.stop();
       rigStoreHealthSampler.stop();
+      supervisorStatusSampler.stop();
     },
   };
 }

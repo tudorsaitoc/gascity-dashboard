@@ -15,13 +15,11 @@ import type {
 import { supervisorApiForRequestBudget } from '../supervisor/client';
 
 const mockCityHealth = vi.fn<(cityName: string) => Promise<HealthOutputBody>>();
-const mockCityStatus = vi.fn<(cityName: string) => Promise<StatusBody>>();
 const mockSupervisorApiForRequestBudget = supervisorApiForRequestBudget as unknown as Mock;
 
 vi.mock('../supervisor/client', () => ({
   supervisorApiForRequestBudget: vi.fn(() => ({
     cityHealth: mockCityHealth,
-    cityStatus: mockCityStatus,
   })),
 }));
 
@@ -36,24 +34,33 @@ let currentHealth: SystemHealth = baseHealth();
 let currentLocalTools: LocalToolVersions = baseLocalTools();
 let currentTrend: DoltNomsTrend = baseTrend();
 let currentRigStores: RigStoreHealthReport = baseRigStores();
+let currentStatus: StatusBody = baseStatus();
 let systemHealthMode: 'ok' | 'fail' = 'ok';
 let trendMode: 'ok' | 'fail' = 'ok';
 let rigStoreMode: 'ok' | 'fail' = 'ok';
+// gascity-dashboard-4bol: the Health status widgets read the dashboard
+// backend's cached /supervisor-status snapshot, not the supervisor directly.
+// 'available' = fresh sample, 'degraded' = last-good served while the latest
+// read failed (must still render data), 'blank' = never sampled (unavailable),
+// 'pending' = the local fetch has not resolved yet.
+let statusMode: 'available' | 'degraded' | 'blank' = 'available';
+let pendingStatusResponse: Promise<Response> | null = null;
 
 beforeEach(() => {
   invalidate('health');
   mockSupervisorApiForRequestBudget.mockClear();
   mockCityHealth.mockReset();
-  mockCityStatus.mockReset();
   mockCityHealth.mockResolvedValue(presentLocator());
-  mockCityStatus.mockResolvedValue(baseStatus());
   currentHealth = baseHealth();
   currentLocalTools = baseLocalTools();
   currentTrend = baseTrend();
   currentRigStores = baseRigStores();
+  currentStatus = baseStatus();
   systemHealthMode = 'ok';
   trendMode = 'ok';
   rigStoreMode = 'ok';
+  statusMode = 'available';
+  pendingStatusResponse = null;
   vi.stubGlobal(
     'fetch',
     vi.fn(async (input: RequestInfo | URL) => {
@@ -78,6 +85,26 @@ beforeEach(() => {
           return errorResponse('rig store health offline');
         }
         return jsonResponse(currentRigStores);
+      }
+      if (url === '/api/city/test-city/supervisor-status') {
+        if (pendingStatusResponse !== null) {
+          return pendingStatusResponse;
+        }
+        if (statusMode === 'blank') {
+          return jsonResponse({ available: false, reason: 'status_read_failed', status: null });
+        }
+        if (statusMode === 'degraded') {
+          return jsonResponse({
+            available: false,
+            reason: 'status_read_failed',
+            status: currentStatus,
+          });
+        }
+        return jsonResponse({
+          available: true,
+          sampledAt: '2026-06-07T00:00:00.000Z',
+          status: currentStatus,
+        });
       }
       throw new Error(`unexpected fetch: ${url}`);
     }),
@@ -157,14 +184,18 @@ describe('HealthPage', () => {
     expect(synopsis?.textContent ?? '').toMatch(/Supervisor healthy on demo-city, uptime /);
   });
 
-  it('uses the generated supervisor client for city health/status and not dashboard city mirrors', async () => {
+  it('reads city health via the generated supervisor client and status via the dashboard cached-status route', async () => {
+    // gascity-dashboard-4bol: health stays on the direct (fast) supervisor
+    // client, but the slow /status read moves behind the dashboard backend's
+    // cached sampler at /supervisor-status. The page must NOT hit the supervisor
+    // /status directly, and must NOT reintroduce a dashboard city-health mirror.
     renderPage();
 
     await screen.findByRole('heading', { name: /supervisor/i });
 
     expect(mockCityHealth).toHaveBeenCalledWith('test-city');
-    expect(mockCityStatus).toHaveBeenCalledWith('test-city');
     expect(mockSupervisorApiForRequestBudget).toHaveBeenCalledWith(2500);
+    expect(fetch).toHaveBeenCalledWith('/api/city/test-city/supervisor-status', expect.any(Object));
     expect(fetch).toHaveBeenCalledWith('/api/health/system', expect.any(Object));
     expect(fetch).toHaveBeenCalledWith('/api/health/local-tools', expect.any(Object));
     expect(fetch).not.toHaveBeenCalledWith('/api/city/test-city/health/system', expect.any(Object));
@@ -172,8 +203,8 @@ describe('HealthPage', () => {
   });
 
   it('renders fast sections while supervisor status is still pending', async () => {
-    const pendingStatus = deferred<StatusBody>();
-    mockCityStatus.mockReturnValue(pendingStatus.promise);
+    const pendingStatus = deferred<Response>();
+    pendingStatusResponse = pendingStatus.promise;
 
     renderPage();
 
@@ -222,7 +253,7 @@ describe('HealthPage', () => {
     expect(screen.getByRole('heading', { name: /diagnostics/i })).toBeTruthy();
   });
 
-  it('restores diagnostics from local probes plus direct supervisor status', async () => {
+  it('restores diagnostics from local probes plus the cached supervisor status', async () => {
     renderPage();
 
     await screen.findByRole('heading', { name: /diagnostics/i });
@@ -232,6 +263,32 @@ describe('HealthPage', () => {
     expect(screen.getByText('5')).toBeTruthy();
     expect(screen.getByText('Dolt MB-per-row ratio')).toBeTruthy();
     expect(screen.getByText('<= 1')).toBeTruthy();
+  });
+
+  it('shows cached status data (Dolt/Beads/thresholds) when the latest sample failed but a prior one exists', async () => {
+    // gascity-dashboard-4bol: a degraded report (latest /status read failed on a
+    // slow supervisor) still carries the last good snapshot, so the widgets must
+    // render real data, NOT "supervisor status unavailable".
+    statusMode = 'degraded';
+
+    renderPage();
+
+    await screen.findByRole('heading', { name: /diagnostics/i });
+
+    expect(screen.getByText('Dolt usage')).toBeTruthy();
+    expect(screen.getByText('Beads usage')).toBeTruthy();
+    expect(screen.getByText('Dolt MB-per-row ratio')).toBeTruthy();
+    expect(screen.queryAllByText(/supervisor status unavailable/i)).toHaveLength(0);
+  });
+
+  it('surfaces the unavailable copy only when the backend has never sampled status', async () => {
+    statusMode = 'blank';
+
+    renderPage();
+
+    await screen.findByRole('heading', { name: /diagnostics/i });
+
+    expect(screen.getAllByText(/latest supervisor status read failed/i).length).toBeGreaterThan(0);
   });
 
   it('surfaces per-rig bead-store health with a down rig flagged', async () => {

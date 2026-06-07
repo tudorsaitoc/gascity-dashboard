@@ -19,6 +19,7 @@ export const LOG_COMPONENT = {
   metrics: 'metrics',
   rigStoreHealth: 'rig-store-health',
   runs: 'runs',
+  supervisorStatus: 'supervisor-status',
 } as const;
 
 export const LOG_COMPONENTS = Object.values(LOG_COMPONENT);

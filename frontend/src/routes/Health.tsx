@@ -7,6 +7,7 @@ import type {
   RigStoreHealthReport,
   RigStoreHealthUnavailableReason,
   RigStoreRollup,
+  SupervisorStatusReport,
   SystemHealth,
 } from 'gas-city-dashboard-shared';
 import { api, formatApiError } from '../api/client';
@@ -720,22 +721,39 @@ async function fetchSupervisorHealth(): Promise<SupervisorHealthState> {
   }
 }
 
-async function fetchSupervisorStatus(): Promise<SupervisorStatusState> {
-  const cityName = getActiveCity();
-  if (cityName === null) {
-    throw new Error('Health page loaded before an active city was resolved');
+function supervisorStatusUnavailableCopy(
+  reason: Extract<SupervisorStatusReport, { available: false }>['reason'],
+): string {
+  switch (reason) {
+    case 'not_sampled_yet':
+      return 'supervisor status sample is warming up; data appears after the next backend sample';
+    case 'status_read_failed':
+      return 'latest supervisor status read failed; check the backend log';
   }
+}
+
+// gascity-dashboard-4bol: read the dashboard backend's cached /status snapshot
+// (sampled on the background ceiling) instead of racing the slow supervisor on a
+// short interactive budget. A degraded report still carries the last good
+// status, so the store-thresholds / dolt-usage / beads-usage widgets show real
+// (possibly cached) data rather than "supervisor status unavailable".
+async function fetchSupervisorStatus(): Promise<SupervisorStatusState> {
   try {
-    return {
-      status: 'available',
-      data: await supervisorApiForRequestBudget(HEALTH_SUPERVISOR_REQUEST_TIMEOUT_MS).cityStatus(
-        cityName,
-      ),
-    };
-  } catch {
+    const report = await api.supervisorStatus();
+    if (report.available) {
+      return { status: 'available', data: report.status };
+    }
+    if (report.status !== null) {
+      return { status: 'available', data: report.status };
+    }
     return {
       status: 'unavailable',
-      error: 'supervisor status unavailable',
+      error: supervisorStatusUnavailableCopy(report.reason),
+    };
+  } catch (err) {
+    return {
+      status: 'unavailable',
+      error: formatApiError(err, 'supervisor status unavailable'),
     };
   }
 }
