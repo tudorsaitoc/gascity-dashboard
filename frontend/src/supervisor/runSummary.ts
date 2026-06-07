@@ -42,7 +42,19 @@ const RUNS_FETCH_LIMIT = 500;
 const RECENT_RUN_FETCH_LIMIT = 500;
 const RUNS_STALE_AFTER_MS = 60 * 1000;
 const REQUIRED_RUN_SUMMARY_TIMEOUT_MS = 5_000;
-const OPTIONAL_ENRICHMENT_TIMEOUT_MS = 2_500;
+// Optional run-summary enrichment (recent-bead / formula-feed / session reads)
+// is best-effort: a miss degrades the lanes to "partial" rather than failing the
+// load. The budget is split by call site (gascity-dashboard-4bol). The preview
+// runs on first paint and blocks it, so it keeps a tight bound and the tab paints
+// fast even when the supervisor is slow. The full source runs only as Runs.tsx's
+// background refreshFetcher, so it can afford a far wider budget matching the 30s
+// background status samplers: on the bloated store the supervisor's list/feed
+// reads run ~10-38s (upstream gascity-dashboard#88), so a 2.5s interactive bound
+// always times out and latches a spurious "runs partial" badge. The wider refresh
+// budget lets those slow-but-available reads land and clear it, without the
+// first-paint spinner a single global raise would cause.
+const PREVIEW_ENRICHMENT_TIMEOUT_MS = 2_500;
+const REFRESH_ENRICHMENT_TIMEOUT_MS = 30_000;
 
 interface LoadedRunBeads {
   beads: DashboardBead[];
@@ -63,13 +75,30 @@ interface ProgressState {
 
 const progressStateByCity = new Map<string, ProgressState>();
 
+// Runs.tsx background refresh ONLY (gascity-dashboard-4bol): the wide enrichment
+// budget lets slow-but-available list/feed reads land and clear the spurious
+// "runs partial" badge (upstream gascity-dashboard#88). Do NOT use as a
+// mount/first-paint fetcher — it can block up to REFRESH_ENRICHMENT_TIMEOUT_MS;
+// mount consumers (Home, Formula Run Detail) use loadSupervisorRunSummaryMountSource.
 export async function loadSupervisorRunSummarySource(): Promise<SourceState<RunSummary>> {
+  return loadRunSummarySource(REFRESH_ENRICHMENT_TIMEOUT_MS);
+}
+
+// Mount / first-paint full source for Home and Formula Run Detail: the same data
+// as the refresh source (lanes + sessions) but on the tight first-paint budget,
+// so a cold navigation to those routes never blocks on slow optional enrichment
+// reads (gascity-dashboard-4bol).
+export async function loadSupervisorRunSummaryMountSource(): Promise<SourceState<RunSummary>> {
+  return loadRunSummarySource(PREVIEW_ENRICHMENT_TIMEOUT_MS);
+}
+
+async function loadRunSummarySource(enrichmentBudgetMs: number): Promise<SourceState<RunSummary>> {
   const cityName = activeCityOrThrow('load supervisor run summary');
   const fetchedAt = new Date().toISOString();
   try {
     const [loaded, sessions] = await Promise.all([
-      loadRunBeads(cityName, RUNS_FETCH_LIMIT),
-      loadRunSessions(cityName),
+      loadRunBeads(cityName, RUNS_FETCH_LIMIT, enrichmentBudgetMs),
+      loadRunSessions(cityName, enrichmentBudgetMs),
     ]);
     const summary = buildRunSummary(
       loaded.beads.filter(runBeadFilter).map(fromDashboardBead),
@@ -101,7 +130,7 @@ export async function loadSupervisorRunSummaryPreviewSource(): Promise<SourceSta
   const cityName = activeCityOrThrow('load supervisor run summary preview');
   const fetchedAt = new Date().toISOString();
   try {
-    const loaded = await loadRunBeads(cityName, RUNS_FETCH_LIMIT);
+    const loaded = await loadRunBeads(cityName, RUNS_FETCH_LIMIT, PREVIEW_ENRICHMENT_TIMEOUT_MS);
     const summary = buildRunSummary(
       loaded.beads.filter(runBeadFilter).map(fromDashboardBead),
       loaded.feedScopes,
@@ -134,30 +163,42 @@ function requiredRunSummaryApi() {
   return supervisorApiForRequestBudget(REQUIRED_RUN_SUMMARY_TIMEOUT_MS);
 }
 
-function optionalRunSummaryApi() {
-  return supervisorApiForRequestBudget(OPTIONAL_ENRICHMENT_TIMEOUT_MS);
+function optionalRunSummaryApi(budgetMs: number) {
+  return supervisorApiForRequestBudget(budgetMs);
 }
 
-async function loadRunBeads(cityName: string, limit: number): Promise<LoadedRunBeads> {
-  const moleculeFetch = settledRecentFetch(cityName, {
-    limit: RECENT_RUN_FETCH_LIMIT,
-    type: 'molecule',
-    all: true,
-  });
+async function loadRunBeads(
+  cityName: string,
+  limit: number,
+  enrichmentBudgetMs: number,
+): Promise<LoadedRunBeads> {
+  const moleculeFetch = settledRecentFetch(
+    cityName,
+    {
+      limit: RECENT_RUN_FETCH_LIMIT,
+      type: 'molecule',
+      all: true,
+    },
+    enrichmentBudgetMs,
+  );
   const [activeList, feedDiscovery] = await Promise.all([
     requiredRunSummaryApi().listBeads(cityName, { limit }),
-    discoverFromFeed(cityName),
+    discoverFromFeed(cityName, enrichmentBudgetMs),
   ]);
   const active = normalizeBeads(activeList.items ?? []);
   const rigNames = unionRigNames(runRigNames(active), feedDiscovery.rigNames);
 
   const rigFetches = rigNames.map((rig) =>
-    settledRecentFetch(cityName, {
-      limit: RECENT_RUN_FETCH_LIMIT,
-      type: 'task',
-      rig,
-      all: true,
-    }),
+    settledRecentFetch(
+      cityName,
+      {
+        limit: RECENT_RUN_FETCH_LIMIT,
+        type: 'task',
+        rig,
+        all: true,
+      },
+      enrichmentBudgetMs,
+    ),
   );
 
   const settled = await Promise.all([moleculeFetch, ...rigFetches]);
@@ -185,11 +226,13 @@ async function loadRunBeads(cityName: string, limit: number): Promise<LoadedRunB
 async function settledRecentFetch(
   cityName: string,
   query: { limit: number; type: string; all: true; rig?: string },
+  budgetMs: number,
 ): Promise<RecentFetchOutcome> {
   try {
     const list = await withOptionalReadBudget(
-      optionalRunSummaryApi().listBeads(cityName, query),
+      optionalRunSummaryApi(budgetMs).listBeads(cityName, query),
       `recent ${query.type} beads`,
+      budgetMs,
     );
     return {
       ok: true,
@@ -207,14 +250,15 @@ interface FeedDiscovery {
   partial: boolean;
 }
 
-async function discoverFromFeed(cityName: string): Promise<FeedDiscovery> {
+async function discoverFromFeed(cityName: string, budgetMs: number): Promise<FeedDiscovery> {
   try {
     const runs = await withOptionalReadBudget(
-      optionalRunSummaryApi().formulaFeed(cityName, {
+      optionalRunSummaryApi(budgetMs).formulaFeed(cityName, {
         scope_kind: 'city',
         scope_ref: cityName,
       }),
       'formula feed',
+      budgetMs,
     );
     const rigNames = new Set<string>();
     const scopes = new Map<string, RunFeedScope>();
@@ -240,11 +284,12 @@ async function discoverFromFeed(cityName: string): Promise<FeedDiscovery> {
   }
 }
 
-async function loadRunSessions(cityName: string): Promise<RunSessionsLookup> {
+async function loadRunSessions(cityName: string, budgetMs: number): Promise<RunSessionsLookup> {
   try {
     const list = await withOptionalReadBudget(
-      optionalRunSummaryApi().listSessions(cityName),
+      optionalRunSummaryApi(budgetMs).listSessions(cityName),
       'run sessions',
+      budgetMs,
     );
     return {
       kind: 'available',
@@ -331,12 +376,16 @@ function unionRigNames(a: readonly string[], b: readonly string[]): string[] {
   return [...all];
 }
 
-function withOptionalReadBudget<T>(promise: Promise<T>, label: string): Promise<T> {
+function withOptionalReadBudget<T>(
+  promise: Promise<T>,
+  label: string,
+  budgetMs: number,
+): Promise<T> {
   let timeout: ReturnType<typeof setTimeout> | null = null;
   const budget = new Promise<T>((_, reject) => {
     timeout = setTimeout(() => {
-      reject(new Error(`${label} timed out after ${OPTIONAL_ENRICHMENT_TIMEOUT_MS}ms`));
-    }, OPTIONAL_ENRICHMENT_TIMEOUT_MS);
+      reject(new Error(`${label} timed out after ${budgetMs}ms`));
+    }, budgetMs);
   });
   return Promise.race([
     promise.finally(() => {

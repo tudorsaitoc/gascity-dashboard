@@ -13,22 +13,30 @@ import {
   rigStoreHealthRouter,
   type RigStoreHealthSampler,
 } from '../routes/rig-store-health.js';
+import {
+  createSupervisorStatusSampler,
+  supervisorStatusRouter,
+  type SupervisorStatusSampler,
+} from '../routes/supervisor-status.js';
 import { ALL_MODULES } from '../views/registry.js';
 import { resolveEnabledFirstPartyIds } from '../views/enabled.js';
 import { bind, type CityContext } from '../views/types.js';
 
-// gascity-dashboard-nyln: the dolt-noms and rig-store-health samplers read the
-// supervisor /status, which turns slow on a bloated city store (~247K beads on
-// ds-research) and trips the 5s default GcClient timeout — surfacing as
-// rig_list_failed even though the rig PATHs are valid. Both are periodic
-// background samplers serving cached snapshots, so they tolerate a higher
-// ceiling than the interactive default. Env-overridable so ops can tune the
-// live deployment without a code redeploy.
+// gascity-dashboard-nyln / -4bol: the dolt-noms, rig-store-health, and
+// supervisor-status samplers read the supervisor /status, which turns slow on a
+// bloated city store (~247K beads on ds-research) and trips the 5s default
+// GcClient timeout — surfacing as rig_list_failed / "status unavailable" even
+// though the data is valid. Live /status timings (gastownhall/gascity-dashboard#88)
+// run 10–38s with a ~38s tail that exceeds a 30s ceiling, so the default sits at
+// 45s of headroom above that tail. All three are periodic background samplers
+// serving cached snapshots, so they tolerate this ceiling; the deeper /status
+// perf fix is upstream (#88). Env-overridable so ops can tune the live
+// deployment without a code redeploy.
 const STATUS_SAMPLER_TIMEOUT_MS = (() => {
   const raw = process.env.GC_STATUS_SAMPLER_TIMEOUT_MS;
-  if (typeof raw !== 'string') return 30_000;
+  if (typeof raw !== 'string') return 45_000;
   const n = Number.parseInt(raw, 10);
-  return Number.isFinite(n) && n > 0 ? n : 30_000;
+  return Number.isFinite(n) && n > 0 ? n : 45_000;
 })();
 
 /**
@@ -150,6 +158,16 @@ export function createCityRuntime(opts: CreateCityRuntimeOptions): CityRuntime {
   });
   router.use('/rig-store-health', rigStoreHealthRouter(rigStoreHealthSampler));
 
+  // gascity-dashboard-4bol: the interactive Health store-thresholds / dolt-usage
+  // / beads-usage widgets used a short browser-side /status read that fails fast
+  // on a slow supervisor. Sample /status on the background ceiling and serve the
+  // cached snapshot so those widgets show real (possibly cached) data instead of
+  // "supervisor status unavailable".
+  const supervisorStatusSampler: SupervisorStatusSampler = createSupervisorStatusSampler({
+    fetchStatus: () => gc.getStatus(undefined, STATUS_SAMPLER_TIMEOUT_MS),
+  });
+  router.use('/supervisor-status', supervisorStatusRouter(supervisorStatusSampler));
+
   return {
     cityName,
     router,
@@ -157,12 +175,14 @@ export function createCityRuntime(opts: CreateCityRuntimeOptions): CityRuntime {
     start() {
       doltNomsSampler.start();
       rigStoreHealthSampler.start();
+      supervisorStatusSampler.start();
       for (const w of moduleWorkers) w.start();
     },
     async stop() {
       await Promise.all(moduleWorkers.map((w) => w.stop()));
       doltNomsSampler.stop();
       rigStoreHealthSampler.stop();
+      supervisorStatusSampler.stop();
     },
   };
 }

@@ -20,14 +20,14 @@ import {
 import rawFormulaRunDetailFixture from '../test/fixtures/formula-run-detail.json';
 
 const loadSupervisorFormulaRunDetail = vi.hoisted(() => vi.fn());
-const loadSupervisorRunSummarySource = vi.hoisted(() => vi.fn());
+const loadSupervisorRunSummaryMountSource = vi.hoisted(() => vi.fn());
 
 vi.mock('../supervisor/runDetail', () => ({
   loadSupervisorFormulaRunDetail,
 }));
 
 vi.mock('../supervisor/runSummary', () => ({
-  loadSupervisorRunSummarySource,
+  loadSupervisorRunSummaryMountSource,
 }));
 
 vi.mock('../hooks/useEntityLinks', () => ({
@@ -61,9 +61,9 @@ beforeEach(() => {
   invalidate('formula-run');
   invalidate('runs:summary:test-city');
   loadSupervisorFormulaRunDetail.mockReset();
-  loadSupervisorRunSummarySource.mockReset();
+  loadSupervisorRunSummaryMountSource.mockReset();
   loadSupervisorFormulaRunDetail.mockImplementation(async () => currentDetail);
-  loadSupervisorRunSummarySource.mockResolvedValue(runSummarySource());
+  loadSupervisorRunSummaryMountSource.mockResolvedValue(runSummarySource());
   currentDetail = detail;
   currentDiff = diff;
   vi.stubGlobal('EventSource', FakeEventSource);
@@ -125,7 +125,7 @@ describe('FormulaRunDetailPage', () => {
     // title + phase stages instantly instead of a blank spinner. Here the
     // detail (and diff) fetch hangs while the summary resolves with a lane.
     invalidate('runs:summary:test-city');
-    loadSupervisorRunSummarySource.mockResolvedValue(runSummarySourceWithActiveLane());
+    loadSupervisorRunSummaryMountSource.mockResolvedValue(runSummarySourceWithActiveLane());
     vi.stubGlobal(
       'fetch',
       vi.fn(() => new Promise<Response>(() => {})),
@@ -158,7 +158,7 @@ describe('FormulaRunDetailPage', () => {
     source.data.blockedLanes = source.data.lanes;
     source.data.lanes = [];
     source.data.totalActive = 0;
-    loadSupervisorRunSummarySource.mockResolvedValue(source);
+    loadSupervisorRunSummaryMountSource.mockResolvedValue(source);
     vi.stubGlobal(
       'fetch',
       vi.fn(() => new Promise<Response>(() => {})),

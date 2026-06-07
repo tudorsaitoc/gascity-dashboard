@@ -6,6 +6,7 @@ import type {
   LocalToolVersions,
   DoltNomsTrend,
   RigStoreHealthReport,
+  SupervisorStatusReport,
   MaintainerTriage,
   MaintainerSlingRecordRequest,
   ContributorStat,
@@ -294,6 +295,30 @@ const decodeRigStoreHealth = objectDecoder<RigStoreHealthReport>(
     requireArrayField(record, url, 'rig store health', 'rigs');
   },
 );
+// The Health Dolt/Beads/threshold widgets dereference status.work.{open,ready,
+// in_progress} unconditionally (store_health is optional and the widget guards
+// its absence), so validate the nested shape the widgets actually read at the
+// edge, not at render. Both the fresh and the degraded-with-last-good paths
+// surface status to those widgets, so both validate it.
+function requireStatusBody(value: unknown, url: string): void {
+  const status = requireRecord(value, url, 'supervisor status.status');
+  requireObjectField(status, url, 'supervisor status.status', 'work');
+}
+const decodeSupervisorStatus = objectDecoder<SupervisorStatusReport>(
+  'supervisor status',
+  (record, url) => {
+    requireBooleanField(record, url, 'supervisor status', 'available');
+    if (record['available'] === true) {
+      requireStringField(record, url, 'supervisor status', 'sampledAt');
+      requireStatusBody(record['status'], url);
+    } else {
+      requireStringField(record, url, 'supervisor status', 'reason');
+      if (record['status'] !== null) {
+        requireStatusBody(record['status'], url);
+      }
+    }
+  },
+);
 const decodeRunDiff = objectDecoder<RunDiffResponse>('run diff', (record, url) => {
   requireStringField(record, url, 'run diff', 'kind');
   requireObjectField(record, url, 'run diff', 'rootPath');
@@ -371,6 +396,9 @@ export const api = {
   },
   rigStoreHealth(): Promise<RigStoreHealthReport> {
     return request('GET', cityPath('/rig-store-health'), decodeRigStoreHealth);
+  },
+  supervisorStatus(): Promise<SupervisorStatusReport> {
+    return request('GET', cityPath('/supervisor-status'), decodeSupervisorStatus);
   },
   runDiff(
     runId: string,

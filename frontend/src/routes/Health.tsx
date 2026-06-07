@@ -7,6 +7,7 @@ import type {
   RigStoreHealthReport,
   RigStoreHealthUnavailableReason,
   RigStoreRollup,
+  SupervisorStatusReport,
   SystemHealth,
 } from 'gas-city-dashboard-shared';
 import { api, formatApiError } from '../api/client';
@@ -326,7 +327,7 @@ function Kv({ label, value, tone }: { label: string; value: string; tone?: 'warn
 }
 
 type DiagnosticDatum<T> =
-  | { status: 'available'; value: T; source: string }
+  | { status: 'available'; value: T; source: string; stale?: string }
   | { status: 'unavailable'; reason: string };
 
 interface ConfigComparisonRow {
@@ -425,6 +426,7 @@ function DoltUsageBlock({ usage }: { usage: DiagnosticDatum<StatusStoreHealth> }
   return (
     <div className="space-y-2">
       <h3 className="text-label uppercase tracking-wider text-fg-muted">Dolt usage</h3>
+      {usage.stale !== undefined && <StaleNote message={usage.stale} />}
       <KvList>
         <Kv label="On-disk size" value={formatHumanSize(statusNumber(u.size_bytes))} />
         <Kv label="Live rows" value={u.live_rows.toLocaleString()} />
@@ -453,6 +455,7 @@ function BeadsUsageBlock({ usage }: { usage: DiagnosticDatum<StatusWorkCounts> }
   return (
     <div className="space-y-2">
       <h3 className="text-label uppercase tracking-wider text-fg-muted">Beads usage</h3>
+      {usage.stale !== undefined && <StaleNote message={usage.stale} />}
       <KvList>
         <Kv label="Open" value={u.open.toString()} />
         <Kv label="Ready" value={u.ready.toString()} />
@@ -479,7 +482,7 @@ function RigStoreHealthBlock({ report }: { report: RigStoreHealthReport | null }
     <div className="space-y-6 max-w-prose">
       {!report.available && (
         <p className="text-body text-warn italic">
-          Showing the last sample — refresh failed: {rigStoreUnavailableCopy(report.reason)}.
+          Showing the last sample; refresh failed: {rigStoreUnavailableCopy(report.reason)}.
         </p>
       )}
       {rigs.map((rig) => (
@@ -582,15 +585,18 @@ function ConfigComparison({ comparison }: { comparison: DiagnosticDatum<ConfigCo
     );
   }
   return (
-    <div className="grid grid-cols-[1fr_max-content_max-content] gap-x-8 gap-y-3 max-w-prose">
-      <div className="text-label uppercase tracking-wider text-fg-muted">Setting</div>
-      <div className="text-label uppercase tracking-wider text-fg-muted text-right">
-        Recommended
+    <div className="space-y-2">
+      {comparison.stale !== undefined && <StaleNote message={comparison.stale} />}
+      <div className="grid grid-cols-[1fr_max-content_max-content] gap-x-8 gap-y-3 max-w-prose">
+        <div className="text-label uppercase tracking-wider text-fg-muted">Setting</div>
+        <div className="text-label uppercase tracking-wider text-fg-muted text-right">
+          Recommended
+        </div>
+        <div className="text-label uppercase tracking-wider text-fg-muted text-right">Loaded</div>
+        {comparison.value.map((row) => (
+          <ComparisonRow key={row.label} row={row} />
+        ))}
       </div>
-      <div className="text-label uppercase tracking-wider text-fg-muted text-right">Loaded</div>
-      {comparison.value.map((row) => (
-        <ComparisonRow key={row.label} row={row} />
-      ))}
     </div>
   );
 }
@@ -618,6 +624,12 @@ function UnavailableNote({ heading, reason }: { heading: string; reason: string 
       <p className="text-body text-fg-muted italic">Unavailable: {reason}.</p>
     </div>
   );
+}
+
+// Warn-toned "showing last sample" line for cached diagnostics whose latest read
+// failed, matching the rig-store-health stale affordance.
+function StaleNote({ message }: { message: string }) {
+  return <p className="text-body text-warn italic">{message}</p>;
 }
 
 function Sparkline({ samples }: { samples: { ts: string; bytes: number }[] }) {
@@ -679,7 +691,14 @@ type SystemHealthState =
   | { status: 'unavailable'; error: string };
 
 type SupervisorStatusState =
-  | { status: 'available'; data: StatusBody }
+  // `staleReason` is set when the data is the last good snapshot served after a
+  // later sample failed (degraded, not blank) — drives the "showing last sample"
+  // marker on the diagnostics widgets. null means the data is fresh.
+  | {
+      status: 'available';
+      data: StatusBody;
+      staleReason: Extract<SupervisorStatusReport, { available: false }>['reason'] | null;
+    }
   | { status: 'unavailable'; error: string };
 
 type LocalToolVersionsState =
@@ -720,22 +739,49 @@ async function fetchSupervisorHealth(): Promise<SupervisorHealthState> {
   }
 }
 
-async function fetchSupervisorStatus(): Promise<SupervisorStatusState> {
-  const cityName = getActiveCity();
-  if (cityName === null) {
-    throw new Error('Health page loaded before an active city was resolved');
+function supervisorStatusUnavailableCopy(
+  reason: Extract<SupervisorStatusReport, { available: false }>['reason'],
+): string {
+  switch (reason) {
+    case 'not_sampled_yet':
+      return 'supervisor status sample is warming up; data appears after the next backend sample';
+    case 'status_read_failed':
+      return 'latest supervisor status read failed; check the backend log';
   }
+}
+
+// Stale marker shown above cached diagnostics, mirroring the rig-store-health
+// "Showing the last sample" affordance so a degraded snapshot is never mistaken
+// for a fresh read.
+function supervisorStatusStaleCopy(
+  reason: Extract<SupervisorStatusReport, { available: false }>['reason'],
+): string {
+  return `Showing the last sample; refresh failed: ${supervisorStatusUnavailableCopy(reason)}.`;
+}
+
+// gascity-dashboard-4bol: read the dashboard backend's cached /status snapshot
+// (sampled on the background ceiling) instead of racing the slow supervisor on a
+// short interactive budget — live /status runs 10–38s (gastownhall/gascity-dashboard#88).
+// A degraded report still carries the last good status, so the store-thresholds /
+// dolt-usage / beads-usage widgets show real (cached) data with a "stale" marker
+// rather than "supervisor status unavailable".
+async function fetchSupervisorStatus(): Promise<SupervisorStatusState> {
   try {
-    return {
-      status: 'available',
-      data: await supervisorApiForRequestBudget(HEALTH_SUPERVISOR_REQUEST_TIMEOUT_MS).cityStatus(
-        cityName,
-      ),
-    };
-  } catch {
+    const report = await api.supervisorStatus();
+    if (report.available) {
+      return { status: 'available', data: report.status, staleReason: null };
+    }
+    if (report.status !== null) {
+      return { status: 'available', data: report.status, staleReason: report.reason };
+    }
     return {
       status: 'unavailable',
-      error: 'supervisor status unavailable',
+      error: supervisorStatusUnavailableCopy(report.reason),
+    };
+  } catch (err) {
+    return {
+      status: 'unavailable',
+      error: formatApiError(err, 'supervisor status unavailable'),
     };
   }
 }
@@ -848,6 +894,9 @@ function doltUsageOf(
     status: 'available',
     value: storeHealth,
     source: 'supervisor status.store_health',
+    ...(statusState.staleReason !== null
+      ? { stale: supervisorStatusStaleCopy(statusState.staleReason) }
+      : {}),
   };
 }
 
@@ -864,6 +913,9 @@ function beadsUsageOf(
     status: 'available',
     value: statusState.data.work,
     source: 'supervisor status.work',
+    ...(statusState.staleReason !== null
+      ? { stale: supervisorStatusStaleCopy(statusState.staleReason) }
+      : {}),
   };
 }
 
@@ -878,6 +930,7 @@ function configComparisonOf(
   return {
     status: 'available',
     source: 'supervisor status.store_health (threshold vs actual)',
+    ...(usage.stale !== undefined ? { stale: usage.stale } : {}),
     value: [
       {
         label: 'Dolt MB-per-row ratio',

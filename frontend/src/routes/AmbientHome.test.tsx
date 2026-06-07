@@ -13,7 +13,7 @@ import { invalidateKey } from '../api/cache';
 import { NowProvider } from '../contexts/NowContext';
 import { assertAtMostOneMark } from '../test/assertions/oneMarkRule';
 import { supervisorApi } from '../supervisor/client';
-import { loadSupervisorRunSummarySource } from '../supervisor/runSummary';
+import { loadSupervisorRunSummaryMountSource } from '../supervisor/runSummary';
 import { AmbientHomePage } from './AmbientHome';
 
 // gascity-dashboard-kb3 — AmbientHome integration coverage.
@@ -32,7 +32,7 @@ import { AmbientHomePage } from './AmbientHome';
 //   • R6 no-negative-reassurance — calm sentence is absent, not "all clear".
 
 vi.mock('../supervisor/runSummary', () => ({
-  loadSupervisorRunSummarySource: vi.fn(),
+  loadSupervisorRunSummaryMountSource: vi.fn(),
 }));
 
 vi.mock('../supervisor/client', () => ({
@@ -59,7 +59,7 @@ afterEach(() => {
   vi.useRealTimers();
 });
 
-const mockLoadRunSummary = loadSupervisorRunSummarySource as Mock;
+const mockLoadRunSummary = loadSupervisorRunSummaryMountSource as Mock;
 const mockSupervisorApi = supervisorApi as Mock;
 
 function knownHealth(overrides: Partial<RunLaneHealth> = {}): RunLaneHealth {

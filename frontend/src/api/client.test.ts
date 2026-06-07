@@ -91,4 +91,115 @@ describe('api client error handling', () => {
       message: expect.stringContaining('dolt.drift must be a string'),
     });
   });
+
+  it('decodes a cached supervisor-status report at the edge', async () => {
+    // gascity-dashboard-4bol: the Health status widgets read the dashboard
+    // backend's cached /supervisor-status snapshot; the report envelope is
+    // validated at the API edge before the page consumes it.
+    const report = {
+      available: true,
+      sampledAt: '2026-06-07T00:00:00.000Z',
+      status: { name: 'demo-city', work: { open: 1, ready: 2, in_progress: 3 } },
+    };
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(
+        async () =>
+          new Response(JSON.stringify(report), {
+            status: 200,
+            headers: { 'content-type': 'application/json' },
+          }),
+      ),
+    );
+
+    await expect(api.supervisorStatus()).resolves.toMatchObject({
+      available: true,
+      sampledAt: '2026-06-07T00:00:00.000Z',
+    });
+  });
+
+  it('rejects a supervisor-status body missing the availability discriminant', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(
+        async () =>
+          new Response(JSON.stringify({ status: null }), {
+            status: 200,
+            headers: { 'content-type': 'application/json' },
+          }),
+      ),
+    );
+
+    await expect(api.supervisorStatus()).rejects.toMatchObject({
+      name: 'ApiResponseDecodeError',
+      message: expect.stringContaining('supervisor status.available must be a boolean'),
+    });
+  });
+
+  it('rejects an available supervisor-status report whose status payload is missing', async () => {
+    // The Health widgets dereference status fields; an available report with no
+    // status object must fail at the edge rather than crash at render.
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(
+        async () =>
+          new Response(JSON.stringify({ available: true, sampledAt: '2026-06-07T00:00:00.000Z' }), {
+            status: 200,
+            headers: { 'content-type': 'application/json' },
+          }),
+      ),
+    );
+
+    await expect(api.supervisorStatus()).rejects.toMatchObject({
+      name: 'ApiResponseDecodeError',
+      message: expect.stringContaining('supervisor status.status must be an object'),
+    });
+  });
+
+  it('rejects an available supervisor-status report missing sampledAt', async () => {
+    // The available branch's contract requires sampledAt; absence must fail at
+    // the edge so the decoded value does not lie about its type.
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(
+        async () =>
+          new Response(
+            JSON.stringify({
+              available: true,
+              status: { name: 'demo-city', work: { open: 1, ready: 2, in_progress: 3 } },
+            }),
+            { status: 200, headers: { 'content-type': 'application/json' } },
+          ),
+      ),
+    );
+
+    await expect(api.supervisorStatus()).rejects.toMatchObject({
+      name: 'ApiResponseDecodeError',
+      message: expect.stringContaining('supervisor status.sampledAt must be a string'),
+    });
+  });
+
+  it('rejects a supervisor-status report whose status.work is missing', async () => {
+    // The Beads usage widget dereferences status.work.{open,ready,in_progress};
+    // a status object without work must fail at the edge, not crash at render.
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(
+        async () =>
+          new Response(
+            JSON.stringify({
+              available: true,
+              sampledAt: '2026-06-07T00:00:00.000Z',
+              status: { name: 'demo-city' },
+            }),
+            { status: 200, headers: { 'content-type': 'application/json' } },
+          ),
+      ),
+    );
+
+    await expect(api.supervisorStatus()).rejects.toMatchObject({
+      name: 'ApiResponseDecodeError',
+      message: expect.stringContaining('supervisor status.status.work must be an object'),
+    });
+  });
 });
