@@ -6,6 +6,7 @@ import { AttentionProvider } from '../attention/context';
 import type { AttentionContributor } from '../attention/compose';
 import { invalidate } from '../api/cache';
 import { NowProvider } from '../contexts/NowContext';
+import { ReadOnlyProvider } from '../contexts/ReadOnlyContext';
 import { resetSupervisorApiForTests } from '../supervisor/client';
 
 // Regression tests for two bugs that shipped with the ay6 Agents-view rewrite
@@ -402,6 +403,32 @@ describe('AgentsPage (post-ay6 regressions)', () => {
       },
     });
     expect(fetchUrls()).not.toContain('/api/city/test-city/sessions/gc-2568/respond');
+  });
+
+  it('disables the pending Approve/Deny controls under DASHBOARD_READONLY (gascity-dashboard-uzhr)', async () => {
+    render(
+      <MemoryRouter future={{ v7_relativeSplatPath: true, v7_startTransition: true }}>
+        <NowProvider intervalMs={1_000_000}>
+          <ReadOnlyProvider readOnly={true}>
+            <AgentsPage />
+          </ReadOnlyProvider>
+        </NowProvider>
+      </MemoryRouter>,
+    );
+
+    expect(await screen.findByText('Approve deployment?')).toBeTruthy();
+
+    const approve = screen.getByRole('button', { name: /approve/i }) as HTMLButtonElement;
+    const deny = screen.getByRole('button', { name: /deny/i }) as HTMLButtonElement;
+    expect(approve.disabled).toBe(true);
+    expect(deny.disabled).toBe(true);
+    expect(approve.getAttribute('title')).toBe('Read-only mode: mutations are disabled');
+    // The affordance carries words, not just a dimmed control (DESIGN.md §States).
+    expect(screen.getByText('Read-only')).toBeTruthy();
+
+    // The disabled control must not reach the supervisor respond mutation.
+    fireEvent.click(deny);
+    expect(fetchUrls()).not.toContain('/gc-supervisor/v0/city/test-city/session/gc-2568/respond');
   });
 
   it('orphan agent name-link carries a different title tooltip than a session-bound one (ay6.2)', async () => {

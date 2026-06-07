@@ -143,7 +143,8 @@ Before you point an authenticated front at it:
    the wire as `DashboardRuntimeConfig.readOnly` (gascity-dashboard-uzhr) so the
    SPA disables (not hides) every supervisor-mutating control — Beads
    create/sling, claim, close, nudge; Mail compose, reply, archive, mark
-   read/unread; and Maintainer bulk sling — with a read-only affordance, rather
+   read/unread; Agents approve/deny of a pending interaction (session-respond);
+   and Maintainer bulk sling — with a read-only affordance, rather
    than letting a click `405` into an unhandled error. Each disabled control
    carries an explanatory title plus a "Read-only" badge (DESIGN.md §States have
    words), and the click handlers guard the write directly as defense-in-depth

@@ -448,7 +448,7 @@ describe('MailPage supervisor reads', () => {
 
     const compose = screen.getByRole('button', { name: 'Compose' }) as HTMLButtonElement;
     expect(compose.disabled).toBe(true);
-    expect(compose.getAttribute('title')).toBe('Read-only mode — mutations are disabled');
+    expect(compose.getAttribute('title')).toBe('Read-only mode: mutations are disabled');
     // The affordance carries words, not just a dimmed control (DESIGN.md §States).
     expect(screen.getByText('Read-only')).toBeTruthy();
   });

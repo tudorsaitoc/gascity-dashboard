@@ -32,8 +32,11 @@ export function useReadOnly(): boolean {
   return useContext(ReadOnlyContext);
 }
 
-/** Shared title/affordance copy for a control disabled by read-only mode. */
-export const READ_ONLY_CONTROL_TITLE = 'Read-only mode — mutations are disabled';
+/**
+ * Shared title/affordance copy for a control disabled by read-only mode.
+ * Uses a colon, not an em dash, per DESIGN.md §"Don't use em dashes in UI copy".
+ */
+export const READ_ONLY_CONTROL_TITLE = 'Read-only mode: mutations are disabled';
 
 /**
  * The single "Read-only" affordance badge, shared by every surface that

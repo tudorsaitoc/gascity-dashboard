@@ -10,6 +10,7 @@ vi.mock('./api/client', () => ({
       cityName: 'test-city',
       defaultView: null,
       enabledModules: [],
+      readOnly: false,
     })),
   },
 }));

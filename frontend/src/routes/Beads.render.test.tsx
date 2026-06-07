@@ -92,7 +92,7 @@ describe('BeadsPage supervisor reads', () => {
 
     const newBead = screen.getByRole('button', { name: 'New bead' }) as HTMLButtonElement;
     expect(newBead.disabled).toBe(true);
-    expect(newBead.getAttribute('title')).toBe('Read-only mode — mutations are disabled');
+    expect(newBead.getAttribute('title')).toBe('Read-only mode: mutations are disabled');
     // The affordance carries words, not just a dimmed control (DESIGN.md §States).
     expect(screen.getByText('Read-only')).toBeTruthy();
   });
@@ -112,6 +112,9 @@ describe('BeadsPage supervisor reads', () => {
       }) as HTMLButtonElement;
       expect(button.disabled).toBe(true);
     }
+    // The action row carries the shared glyph+word affordance, not a bare
+    // dimmed button (DESIGN.md §States have words).
+    expect(within(actions as HTMLElement).getByText('Read-only')).toBeTruthy();
   });
 
   it('keeps the New bead control active when the dashboard is writable', async () => {

@@ -157,6 +157,7 @@ beforeEach(() => {
     cityName: 'test-city',
     cityRoot: '/tmp/test-city',
     useFixtures: false,
+    readOnly: false,
     enabledModules: ['maintainer'],
     defaultView: null,
     maintainer: {

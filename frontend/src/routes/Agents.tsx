@@ -14,6 +14,7 @@ import { SseIndicator } from '../components/SseIndicator';
 import { StatusBadge, stateTone } from '../components/StatusBadge';
 import { Table, type TableColumn } from '../components/Table';
 import { useNow } from '../contexts/NowContext';
+import { READ_ONLY_CONTROL_TITLE, ReadOnlyBadge, useReadOnly } from '../contexts/ReadOnlyContext';
 import { useCachedData } from '../hooks/useCachedData';
 import { useGcEventRefresh } from '../hooks/useGcEvents';
 import { formatRelative } from '../hooks/time';
@@ -162,8 +163,12 @@ export function AgentsPage() {
   );
 
   const synopsis = useMemo(() => buildAgentSynopsis(rows), [rows]);
+  const readOnly = useReadOnly();
   const handlePendingResponse = useCallback(
     async (pending: AgentPendingInteraction, action: 'approve' | 'deny') => {
+      // Defense-in-depth: the disabled buttons already block this, but a
+      // keyboard/programmatic path must never reach a write the server 405s.
+      if (readOnly) return;
       setResponding({ sessionId: pending.sessionId, action });
       setResponseMessage(null);
       setResponseError(null);
@@ -180,7 +185,7 @@ export function AgentsPage() {
         setResponding(null);
       }
     },
-    [pendingCache],
+    [pendingCache, readOnly],
   );
 
   // Rig dropdown options: the normalized rig labels (basenames, not raw
@@ -376,10 +381,12 @@ export function AgentsPage() {
             <div className="flex justify-end gap-2">
               {pending !== undefined && (
                 <>
+                  {readOnly && <ReadOnlyBadge />}
                   <Button
                     size="sm"
                     tone="quiet"
-                    disabled={responding?.sessionId === pending.sessionId}
+                    title={readOnly ? READ_ONLY_CONTROL_TITLE : undefined}
+                    disabled={readOnly || responding?.sessionId === pending.sessionId}
                     onClick={() => void handlePendingResponse(pending, 'approve')}
                   >
                     {responding?.sessionId === pending.sessionId && responding.action === 'approve'
@@ -389,7 +396,8 @@ export function AgentsPage() {
                   <Button
                     size="sm"
                     tone="quiet"
-                    disabled={responding?.sessionId === pending.sessionId}
+                    title={readOnly ? READ_ONLY_CONTROL_TITLE : undefined}
+                    disabled={readOnly || responding?.sessionId === pending.sessionId}
                     onClick={() => void handlePendingResponse(pending, 'deny')}
                   >
                     {responding?.sessionId === pending.sessionId && responding.action === 'deny'
@@ -409,7 +417,7 @@ export function AgentsPage() {
         className: 'w-80',
       },
     ],
-    [handlePendingResponse, now, pendingByAgent, responding],
+    [handlePendingResponse, now, pendingByAgent, readOnly, responding],
   );
 
   return (

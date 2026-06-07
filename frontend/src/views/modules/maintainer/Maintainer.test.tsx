@@ -141,7 +141,7 @@ describe('SelectionActionBar — read-only mode (gascity-dashboard-uzhr)', () =>
     }) as HTMLButtonElement;
     expect(triage.disabled).toBe(true);
     expect(draft.disabled).toBe(true);
-    expect(triage.getAttribute('title')).toBe('Read-only mode — mutations are disabled');
+    expect(triage.getAttribute('title')).toBe('Read-only mode: mutations are disabled');
     // The affordance carries words, not just a dimmed control (DESIGN.md §States).
     expect(screen.getByText('Read-only')).toBeTruthy();
   });

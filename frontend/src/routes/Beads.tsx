@@ -317,9 +317,7 @@ export function BeadsPage() {
 
       return (
         <div className="flex flex-wrap items-center justify-end gap-2">
-          {readOnly && (
-            <span className="text-label uppercase tracking-wider text-fg-faint">read-only</span>
-          )}
+          {readOnly && <ReadOnlyBadge />}
           {actionLabel && (
             <span className="text-label uppercase tracking-wider text-fg-faint">{actionLabel}</span>
           )}
