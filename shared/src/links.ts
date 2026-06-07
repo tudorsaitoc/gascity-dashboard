@@ -140,7 +140,7 @@ export interface EntityLinkView {
  * The PRD specifies `scope_kind:scope_ref:id` to avoid cross-scope
  * collisions. `scope` MUST therefore already encode the bead's scope KIND
  * as well as its ref (the backend passes `<scope_kind>:<scope_ref>`, e.g.
- * `rig:rig-a` or `city:ds-research`). A bare `scope_ref` is insufficient:
+ * `rig:rig-a` or `city:my-city`). A bare `scope_ref` is insufficient:
  * a city-scoped and a rig-scoped bead can share a `scope_ref` value and
  * would otherwise collide.
  */

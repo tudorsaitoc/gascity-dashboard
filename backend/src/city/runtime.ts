@@ -24,7 +24,7 @@ import { bind, type CityContext } from '../views/types.js';
 
 // gascity-dashboard-nyln / -4bol: the dolt-noms, rig-store-health, and
 // supervisor-status samplers read the supervisor /status, which turns slow on a
-// bloated city store (~247K beads on ds-research) and trips the 5s default
+// bloated city store (~247K beads on a large production city) and trips the 5s default
 // GcClient timeout — surfacing as rig_list_failed / "status unavailable" even
 // though the data is valid. Live /status timings (gastownhall/gascity-dashboard#88)
 // run 10–38s with a ~38s tail that exceeds a 30s ceiling, so the default sits at
@@ -90,6 +90,12 @@ export function createCityRuntime(opts: CreateCityRuntimeOptions): CityRuntime {
     // wire so the SPA can disable mutating controls (gascity-dashboard-uzhr).
     // The proxy gate (z8n7) is the enforcement; this is the affordance.
     readOnly: config.readOnly,
+    // Project the operator identity + decision label onto the wire so the SPA
+    // derives them from /config instead of importing hardcoded literals
+    // (gascity-dashboard-bhvn / zero-hardcoded-roles).
+    operatorAlias: config.operatorAlias,
+    operatorWireAlias: config.operatorWireAlias,
+    decisionLabel: config.decisionLabel,
     // Always emit the explicit resolved firstParty id list (possibly empty)
     // so the wire is unambiguous and the frontend filter never has to guess
     // what an unset env meant. Core-only default surfaces as `[]`.

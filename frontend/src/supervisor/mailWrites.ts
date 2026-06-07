@@ -1,4 +1,3 @@
-import { OPERATOR_WIRE_ALIAS } from 'gas-city-dashboard-shared';
 import { activeCityOrThrow } from '../api/cityBase';
 import { supervisorApi } from './client';
 
@@ -17,10 +16,13 @@ export interface MailActionTarget {
   rig?: string;
 }
 
-export async function sendSupervisorMail(draft: MailComposeDraft): Promise<void> {
+export async function sendSupervisorMail(
+  draft: MailComposeDraft,
+  operatorWireAlias: string,
+): Promise<void> {
   await supervisorApi().sendMail(activeCityOrThrow('send supervisor mail'), {
     ...draft,
-    from: OPERATOR_WIRE_ALIAS,
+    from: operatorWireAlias,
   });
 }
 
@@ -51,13 +53,14 @@ export async function archiveSupervisorMail(message: MailActionTarget): Promise<
 export async function replySupervisorMail(
   message: MailActionTarget,
   draft: MailReplyDraft,
+  operatorWireAlias: string,
 ): Promise<void> {
   await supervisorApi().replyMail(
     activeCityOrThrow('reply supervisor mail'),
     message.id,
     {
       ...draft,
-      from: OPERATOR_WIRE_ALIAS,
+      from: operatorWireAlias,
     },
     mailActionQuery(message),
   );

@@ -17,8 +17,9 @@ import { ComposeModal } from '../components/mail/ComposeModal';
 import { ThreadMessage } from '../components/mail/ThreadMessage';
 import { Field } from '../components/Field';
 import { useNow } from '../contexts/NowContext';
+import { useOperatorConfig } from '../contexts/OperatorConfigContext';
 import { READ_ONLY_CONTROL_TITLE, ReadOnlyBadge, useReadOnly } from '../contexts/ReadOnlyContext';
-import { useViewingAs, OPERATOR_ALIAS } from '../contexts/ViewingAsContext';
+import { useViewingAs } from '../contexts/ViewingAsContext';
 import { displayLabel } from '../hooks/aliasPriority';
 import { useListFilters, type FilterChip } from '../hooks/useListFilters';
 import { mailProject } from '../hooks/projectOf';
@@ -66,6 +67,7 @@ const DEEP_LINK_MAIL_HISTORY_LIMIT: MailHistoryLimit = 1000;
 export function MailPage() {
   const attention = useAttentionModel();
   const readOnly = useReadOnly();
+  const operator = useOperatorConfig();
   const [searchParams] = useSearchParams();
   const selectedMessageParam = normalizeSelectedMessageParam(searchParams.get('message'));
   const {
@@ -98,8 +100,9 @@ export function MailPage() {
     loading,
     error: mailError,
     refresh,
-  } = useCachedData(`mail:${box}:${viewingAs.alias}:${historyLimit}:${historyWindow}`, () =>
-    listSupervisorMail(box, viewingAs.alias, historyLimit, historyWindow, now),
+  } = useCachedData(
+    `mail:${box}:${viewingAs.alias}:${operator.operatorWireAlias}:${historyLimit}:${historyWindow}`,
+    () => listSupervisorMail(box, viewingAs.alias, operator, historyLimit, historyWindow, now),
   );
   const items = useMemo(() => mailData?.items ?? [], [mailData]);
   const [error, setError] = useState<string | null>(null);
@@ -127,7 +130,12 @@ export function MailPage() {
       if (!mail.thread_id) return;
       setThreadLoading(true);
       try {
-        const data = await fetchSupervisorMailThread(mail.thread_id, viewingAs.alias, historyLimit);
+        const data = await fetchSupervisorMailThread(
+          mail.thread_id,
+          viewingAs.alias,
+          operator,
+          historyLimit,
+        );
         setThreadItems(data.items);
       } catch (err) {
         setError(err instanceof Error ? err.message : 'thread failed');
@@ -135,7 +143,7 @@ export function MailPage() {
         setThreadLoading(false);
       }
     },
-    [historyLimit, viewingAs.alias],
+    [historyLimit, viewingAs.alias, operator],
   );
 
   useEffect(() => {
@@ -173,12 +181,13 @@ export function MailPage() {
         } else {
           const body = replyBody.trim();
           if (body.length === 0) return;
-          await replySupervisorMail(message, { body });
+          await replySupervisorMail(message, { body }, operator.operatorWireAlias);
           setReplyBody('');
           if (message.thread_id) {
             const data = await fetchSupervisorMailThread(
               message.thread_id,
               viewingAs.alias,
+              operator,
               historyLimit,
             );
             setThreadItems(data.items);
@@ -191,7 +200,7 @@ export function MailPage() {
         setActionInFlight(null);
       }
     },
-    [historyLimit, readOnly, refresh, replyBody, threadFor, viewingAs.alias],
+    [historyLimit, readOnly, refresh, replyBody, threadFor, viewingAs.alias, operator],
   );
 
   const columns = useMemo<ReadonlyArray<TableColumn<SupervisorMailItem>>>(
@@ -236,8 +245,8 @@ export function MailPage() {
   );
 
   const aliasLabel = useMemo(
-    () => displayLabel(viewingAs.alias, OPERATOR_ALIAS),
-    [viewingAs.alias],
+    () => displayLabel(viewingAs.alias, operator.operatorAlias),
+    [viewingAs.alias, operator.operatorAlias],
   );
 
   const synopsis = useMemo(() => {

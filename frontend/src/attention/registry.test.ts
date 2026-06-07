@@ -17,11 +17,11 @@ import type {
 } from 'gas-city-dashboard-shared/gc-supervisor';
 import { selectAgentsNeedingYou } from 'gas-city-dashboard-shared';
 import { ATTENTION_DOMAINS, composeAttention } from './compose';
-import {
-  createAttentionContributors,
-  NEEDS_STEPHANIE_LABEL,
-  type AgentsAttentionFacts,
-} from './registry';
+import { createAttentionContributors, type AgentsAttentionFacts } from './registry';
+
+// The mayor-decision marker label now flows through BeadsAttentionFacts from
+// runtime config (gascity-dashboard-bhvn) instead of a shared constant.
+const NEEDS_STEPHANIE_LABEL = 'needs/stephanie';
 
 describe('createAttentionContributors', () => {
   it('registers an explicit contributor for every first-class attention domain', () => {
@@ -142,6 +142,7 @@ describe('createAttentionContributors', () => {
           ],
         },
         beads: {
+          decisionLabel: NEEDS_STEPHANIE_LABEL,
           escalations: [
             bead({
               id: 'B-1',
@@ -378,6 +379,7 @@ describe('createAttentionContributors', () => {
     const model = composeAttention(
       createAttentionContributors({
         beads: {
+          decisionLabel: NEEDS_STEPHANIE_LABEL,
           nowMs,
           items: [
             bead({
@@ -522,6 +524,7 @@ describe('createAttentionContributors', () => {
     const model = composeAttention(
       createAttentionContributors({
         beads: {
+          decisionLabel: NEEDS_STEPHANIE_LABEL,
           nowMs,
           items: [
             // ready-unclaimed: open, no assignee, aged past the watch window.
@@ -567,6 +570,7 @@ describe('createAttentionContributors', () => {
     const model = composeAttention(
       createAttentionContributors({
         beads: {
+          decisionLabel: NEEDS_STEPHANIE_LABEL,
           decisions: [
             bead({
               id: 'dec-nqy',
@@ -598,6 +602,7 @@ describe('createAttentionContributors', () => {
     const model = composeAttention(
       createAttentionContributors({
         beads: {
+          decisionLabel: NEEDS_STEPHANIE_LABEL,
           decisions: [
             bead({
               id: 'dec-rwr',
@@ -618,6 +623,7 @@ describe('createAttentionContributors', () => {
     const model = composeAttention(
       createAttentionContributors({
         beads: {
+          decisionLabel: NEEDS_STEPHANIE_LABEL,
           // Same bead in both the dedicated queue and the capped general list:
           // the isMayorDecision filter in the generic loop is what keeps it from
           // surfacing twice.
@@ -650,6 +656,7 @@ describe('createAttentionContributors', () => {
     const model = composeAttention(
       createAttentionContributors({
         beads: {
+          decisionLabel: NEEDS_STEPHANIE_LABEL,
           decisionsError: 'decision queue unavailable: ECONNREFUSED',
           escalations: [
             bead({

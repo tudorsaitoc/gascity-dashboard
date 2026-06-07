@@ -1,11 +1,8 @@
 import { useMemo } from 'react';
-import {
-  OPERATOR_DISPLAY_ALIAS,
-  OPERATOR_WIRE_ALIAS,
-  type SourceStatus,
-} from 'gas-city-dashboard-shared';
+import { type SourceStatus } from 'gas-city-dashboard-shared';
 import { api, formatApiError } from '../api/client';
 import { getActiveCity } from '../api/cityBase';
+import { type OperatorConfig } from '../contexts/OperatorConfigContext';
 import { useCachedData } from '../hooks/useCachedData';
 import { listAgentPendingInteractions } from '../supervisor/agentPending';
 import { listSupervisorBeads } from '../supervisor/beadReads';
@@ -16,7 +13,6 @@ import type { AttentionContributor } from './compose';
 import {
   createAttentionContributors,
   GC_ESCALATION_LABEL,
-  NEEDS_STEPHANIE_LABEL,
   type ActivityAttentionFacts,
   type AgentsAttentionFacts,
   type AttentionContributorFacts,
@@ -33,22 +29,30 @@ const ACTIVITY_EVENT_WINDOW = '24h';
 const HEALTH_ATTENTION_SUPERVISOR_TIMEOUT_MS = 2_500;
 
 export function useLiveAttentionContributors(
-  enabledModules: readonly string[] | null = null,
+  enabledModules: readonly string[] | null,
+  operator: OperatorConfig,
 ): readonly AttentionContributor[] {
   const cityName = getActiveCity();
   const cacheSuffix = cityName ?? 'no-city';
   const maintainerEnabled = enabledModules?.includes('maintainer') ?? false;
+  // The decision label + operator wire alias come from /config
+  // (gascity-dashboard-bhvn). Encode them into the relevant cache keys so a
+  // pre-config fallback → real-config transition refetches with the resolved
+  // identity (useCachedData only refetches on key change).
+  const { decisionLabel, operatorWireAlias } = operator;
   const runs = useCachedData<RunsAttentionFacts>(`attention:runs:${cacheSuffix}`, () =>
     fetchRunsAttention(cityName),
   );
   const agents = useCachedData<AgentsAttentionFacts>(`attention:agents:${cacheSuffix}`, () =>
     fetchAgentsAttention(cityName),
   );
-  const beads = useCachedData<BeadsAttentionFacts>(`attention:beads:${cacheSuffix}`, () =>
-    fetchBeadsAttention(cityName),
+  const beads = useCachedData<BeadsAttentionFacts>(
+    `attention:beads:${cacheSuffix}:${decisionLabel}`,
+    () => fetchBeadsAttention(cityName, decisionLabel),
   );
-  const mail = useCachedData<MailAttentionFacts>(`attention:mail:${cacheSuffix}`, () =>
-    fetchMailAttention(cityName),
+  const mail = useCachedData<MailAttentionFacts>(
+    `attention:mail:${cacheSuffix}:${operatorWireAlias}`,
+    () => fetchMailAttention(cityName, operator),
   );
   const activity = useCachedData<ActivityAttentionFacts>(`attention:activity:${cacheSuffix}`, () =>
     fetchActivityAttention(cityName),
@@ -153,8 +157,11 @@ async function fetchAgentsAttention(cityName: string | null): Promise<AgentsAtte
   }
 }
 
-async function fetchBeadsAttention(cityName: string | null): Promise<BeadsAttentionFacts> {
-  if (cityName === null) return {};
+async function fetchBeadsAttention(
+  cityName: string | null,
+  decisionLabel: string,
+): Promise<BeadsAttentionFacts> {
+  if (cityName === null) return { decisionLabel };
   // Three independent reads: the general bead list (capped) and two dedicated
   // label+status-filtered queues — the mayor-decision queue and the escalation
   // queue. Both queues bypass the general list's gc:-label filter and are always
@@ -163,10 +170,10 @@ async function fetchBeadsAttention(cityName: string | null): Promise<BeadsAttent
   // signals (gascity-dashboard-2j8e.3).
   const [list, decisions, escalations] = await Promise.allSettled([
     listSupervisorBeads({ limit: ATTENTION_LIST_LIMIT }),
-    listDecisionBeads(cityName),
+    listDecisionBeads(cityName, decisionLabel),
     listEscalationBeads(cityName),
   ]);
-  const facts: BeadsAttentionFacts = { nowMs: Date.now() };
+  const facts: BeadsAttentionFacts = { nowMs: Date.now(), decisionLabel };
   if (list.status === 'fulfilled') {
     facts.items = list.value.items;
     facts.partial = list.value.partial === true;
@@ -186,9 +193,9 @@ async function fetchBeadsAttention(cityName: string | null): Promise<BeadsAttent
   return facts;
 }
 
-async function listDecisionBeads(cityName: string) {
+async function listDecisionBeads(cityName: string, decisionLabel: string) {
   return supervisorApi().listBeads(cityName, {
-    label: NEEDS_STEPHANIE_LABEL,
+    label: decisionLabel,
     status: 'open',
   });
 }
@@ -200,23 +207,27 @@ async function listEscalationBeads(cityName: string) {
   });
 }
 
-async function fetchMailAttention(cityName: string | null): Promise<MailAttentionFacts> {
-  if (cityName === null) return { operatorAlias: OPERATOR_WIRE_ALIAS };
+async function fetchMailAttention(
+  cityName: string | null,
+  operator: OperatorConfig,
+): Promise<MailAttentionFacts> {
+  if (cityName === null) return { operatorAlias: operator.operatorWireAlias };
   try {
     const list = await listSupervisorMail(
       'inbox',
-      OPERATOR_DISPLAY_ALIAS,
+      operator.operatorAlias,
+      operator,
       DEFAULT_MAIL_HISTORY_LIMIT,
     );
     return {
       items: list.items ?? [],
       nowMs: Date.now(),
-      operatorAlias: OPERATOR_WIRE_ALIAS,
+      operatorAlias: operator.operatorWireAlias,
       partial: list.partial === true,
     };
   } catch (err) {
     return {
-      operatorAlias: OPERATOR_WIRE_ALIAS,
+      operatorAlias: operator.operatorWireAlias,
       error: formatApiError(err, 'mail list unavailable'),
     };
   }

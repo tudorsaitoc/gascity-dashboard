@@ -8,12 +8,7 @@ import {
   useState,
   type ReactNode,
 } from 'react';
-import {
-  errorMessage,
-  OPERATOR_DISPLAY_ALIAS,
-  OPERATOR_WIRE_ALIAS as SHARED_OPERATOR_WIRE_ALIAS,
-  type ViewingAs,
-} from 'gas-city-dashboard-shared';
+import { errorMessage, type ViewingAs } from 'gas-city-dashboard-shared';
 import { prioritizeAliases, type AliasBucket } from '../hooks/aliasPriority';
 import {
   readBrowserStorage,
@@ -23,6 +18,7 @@ import {
 import { reportClientError } from '../lib/clientErrorReporting';
 import { listSupervisorMail } from '../supervisor/mailReads';
 import { listSupervisorSessions } from '../supervisor/sessionReads';
+import { useOperatorConfig } from './OperatorConfigContext';
 
 // Identity-switching for mail:
 //
@@ -47,12 +43,6 @@ import { listSupervisorSessions } from '../supervisor/sessionReads';
 
 const STORAGE_KEY = 'gascity.dashboard.viewingAs';
 const COMPONENT = 'ViewingAsContext';
-const OPERATOR = OPERATOR_DISPLAY_ALIAS;
-// gc's wire identity for the operator (mail is addressed to/from `human`,
-// not `stephanie` — see supervisor mail reads/writes). The agent
-// panel hides this from the switchable list so it doesn't read as a second
-// inbox distinct from the operator's own.
-const OPERATOR_WIRE = SHARED_OPERATOR_WIRE_ALIAS;
 const ALIAS_RE = /^[a-z][a-z0-9_./-]{1,63}$/i;
 
 // Bounded retry schedule for supervisor sessions (gascity-dashboard-5gg).
@@ -127,17 +117,17 @@ interface ViewingAsContextValue {
 
 const Context = createContext<ViewingAsContextValue | null>(null);
 
-function readStored(): string {
+function readStored(operator: string): string {
   const stored = readBrowserStorage('sessionStorage', STORAGE_KEY, COMPONENT);
   if (stored.status === 'found') {
     const raw = stored.value;
     if (raw.length > 0 && raw.length <= 64) return raw;
   }
-  return OPERATOR;
+  return operator;
 }
 
-function writeStored(alias: string): void {
-  if (alias === OPERATOR) {
+function writeStored(alias: string, operator: string): void {
+  if (alias === operator) {
     removeBrowserStorage('sessionStorage', STORAGE_KEY, COMPONENT);
   } else {
     writeBrowserStorage('sessionStorage', STORAGE_KEY, alias, COMPONENT);
@@ -145,7 +135,20 @@ function writeStored(alias: string): void {
 }
 
 export function ViewingAsProvider({ children }: { children: ReactNode }) {
-  const [alias, setAliasState] = useState<string>(() => readStored());
+  // Operator identity from /config (gascity-dashboard-bhvn). OPERATOR is the
+  // display identity; the full config (incl. the gc mail-wire alias) is threaded
+  // into the mail read below, which maps the operator's display alias to the
+  // wire alias the supervisor addresses mail to/from.
+  const operatorConfig = useOperatorConfig();
+  const { operatorAlias: OPERATOR } = operatorConfig;
+  const [alias, setAliasState] = useState<string>(() => readStored(OPERATOR));
+  // OPERATOR is the neutral fallback ('operator') until /config resolves, then
+  // flips to the real operator alias. The lazy `alias` initializer ran with the
+  // fallback, so re-sync it when OPERATOR transitions — but only if the user
+  // hasn't picked a different identity in the meantime (gascity-dashboard-bhvn).
+  // Without this, isOperator (alias === OPERATOR) would latch false after config
+  // lands, mis-showing the "reading as" banner and gating compose controls.
+  const prevOperatorRef = useRef<string>(OPERATOR);
   const [sessionAliases, setSessionAliases] = useState<string[]>([]);
   const [mailFromOrTo, setMailFromOrTo] = useState<string[]>([]);
   const [aliasesLoading, setAliasesLoading] = useState<boolean>(false);
@@ -163,15 +166,18 @@ export function ViewingAsProvider({ children }: { children: ReactNode }) {
   // each scheduled retry so we never have more than one in flight.
   const sessionsRetryTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  const setAlias = useCallback((next: string) => {
-    setAliasState(next);
-    writeStored(next);
-  }, []);
+  const setAlias = useCallback(
+    (next: string) => {
+      setAliasState(next);
+      writeStored(next, OPERATOR);
+    },
+    [OPERATOR],
+  );
 
   const resetToOperator = useCallback(() => {
     setAliasState(OPERATOR);
-    writeStored(OPERATOR);
-  }, []);
+    writeStored(OPERATOR, OPERATOR);
+  }, [OPERATOR]);
 
   // One attempt at supervisor sessions. Returns a promise that resolves
   // to `true` on success (state updated) or `false` on failure. Extracted
@@ -275,7 +281,7 @@ export function ViewingAsProvider({ children }: { children: ReactNode }) {
       })
       .finally(settleOne);
 
-    void listSupervisorMail('all', OPERATOR)
+    void listSupervisorMail('all', OPERATOR, operatorConfig)
       .then((mail) => {
         if (!mountedRef.current) return;
         const seen = new Set<string>();
@@ -300,7 +306,7 @@ export function ViewingAsProvider({ children }: { children: ReactNode }) {
         });
       })
       .finally(settleOne);
-  }, [attemptSessionsFetch, scheduleSessionsRetry]);
+  }, [attemptSessionsFetch, scheduleSessionsRetry, OPERATOR, operatorConfig]);
 
   // Re-mount-aware mounted flag. The effect body sets mountedRef.current
   // = true on every mount (covering StrictMode's mount → cleanup → re-mount
@@ -319,6 +325,18 @@ export function ViewingAsProvider({ children }: { children: ReactNode }) {
     };
   }, []);
 
+  // Re-sync `alias` to the operator identity when OPERATOR resolves from the
+  // pre-config fallback to the real value. Guarded on `alias === prev` so a
+  // user who already switched identity in the fallback window is not yanked
+  // back; readStored() still honours a stored impersonation alias.
+  useEffect(() => {
+    const prev = prevOperatorRef.current;
+    prevOperatorRef.current = OPERATOR;
+    if (prev !== OPERATOR && alias === prev) {
+      setAliasState(readStored(OPERATOR));
+    }
+  }, [OPERATOR, alias]);
+
   const aliasBuckets = useMemo(
     () =>
       prioritizeAliases({
@@ -331,7 +349,7 @@ export function ViewingAsProvider({ children }: { children: ReactNode }) {
           : [...sessionAliases, alias],
         mailFromOrTo,
       }),
-    [sessionAliases, mailFromOrTo, alias],
+    [sessionAliases, mailFromOrTo, alias, OPERATOR],
   );
 
   const value = useMemo<ViewingAsContextValue>(
@@ -346,6 +364,7 @@ export function ViewingAsProvider({ children }: { children: ReactNode }) {
     }),
     [
       alias,
+      OPERATOR,
       setAlias,
       resetToOperator,
       aliasBuckets,
@@ -362,12 +381,12 @@ export function ViewingAsProvider({ children }: { children: ReactNode }) {
     const onVisibilityChange = () => {
       if (document.hidden && alias !== OPERATOR) {
         setAliasState(OPERATOR);
-        writeStored(OPERATOR);
+        writeStored(OPERATOR, OPERATOR);
       }
     };
     document.addEventListener('visibilitychange', onVisibilityChange);
     return () => document.removeEventListener('visibilitychange', onVisibilityChange);
-  }, [alias]);
+  }, [alias, OPERATOR]);
 
   return <Context.Provider value={value}>{children}</Context.Provider>;
 }
@@ -379,6 +398,3 @@ export function useViewingAs(): ViewingAsContextValue {
   }
   return value;
 }
-
-export const OPERATOR_ALIAS = OPERATOR;
-export const OPERATOR_WIRE_ALIAS = OPERATOR_WIRE;

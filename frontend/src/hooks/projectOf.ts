@@ -22,7 +22,7 @@ import type { SupervisorMailItem } from '../supervisor/mailReads';
 //   template; they get lifted into a pinned 'Orchestration' bucket
 //   so they don't fall through to (no rig).
 //
-// - Mail: `rig` is already a project name (e.g. "ds-research"); use
+// - Mail: `rig` is already a project name (e.g. "my-city"); use
 //   directly. When absent, fall back to "(no rig)".
 
 const BEAD_ID_RX = /^(.+?)-[a-z0-9]+(?:\.\d+)?$/i;
@@ -42,7 +42,7 @@ export const ORCHESTRATION_PROJECT = 'Orchestration';
 /**
  * Display label for the cross-rig orchestration bucket. The operator thinks of
  * mayor / dispatchers / PLs as "the city", not as an abstract "Orchestration"
- * group, so we render the active city name (e.g. `ds-research`). Falls back to
+ * group, so we render the active city name (e.g. `my-city`). Falls back to
  * the constant before the router has resolved a city — a degraded label is
  * better than an empty one.
  */

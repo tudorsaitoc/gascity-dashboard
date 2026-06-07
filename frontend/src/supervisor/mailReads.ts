@@ -1,7 +1,18 @@
-import { OPERATOR_DISPLAY_ALIAS, OPERATOR_WIRE_ALIAS } from 'gas-city-dashboard-shared';
 import type { MailListBody, Message } from 'gas-city-dashboard-shared/gc-supervisor';
 import { activeCityOrThrow } from '../api/cityBase';
 import { SupervisorApiError, supervisorApi } from './client';
+
+/**
+ * Operator identity needed to resolve which mailbox a viewing alias maps to
+ * (gascity-dashboard-bhvn). The operator's mail is addressed to/from the WIRE
+ * alias, not the display name, so the inbox/sent filter swaps the display alias
+ * for the wire alias. `OperatorConfig` from OperatorConfigContext is structurally
+ * compatible, so callers pass it directly without a downward UI-layer import.
+ */
+export interface MailOperatorIdentity {
+  readonly operatorAlias: string;
+  readonly operatorWireAlias: string;
+}
 
 export const MAIL_HISTORY_LIMITS = [100, 500, 1000] as const;
 export type MailHistoryLimit = (typeof MAIL_HISTORY_LIMITS)[number];
@@ -28,6 +39,7 @@ export type SupervisorMailList = Omit<MailListBody, 'items'> & {
 export async function listSupervisorMail(
   box: SupervisorMailBox,
   alias: string,
+  operator: MailOperatorIdentity,
   limit: MailHistoryLimit = DEFAULT_MAIL_HISTORY_LIMIT,
   window: MailHistoryWindow = DEFAULT_MAIL_HISTORY_WINDOW,
   nowMs: number = Date.now(),
@@ -35,7 +47,7 @@ export async function listSupervisorMail(
   const cityName = activeCityOrThrow('list supervisor mail');
   const mailList = await supervisorApi().listMail(cityName, { limit });
   const rawItems = mailList.items ?? [];
-  const filtered = filterByClockWindow(filterByBox(rawItems, box, alias), window, nowMs);
+  const filtered = filterByClockWindow(filterByBox(rawItems, box, alias, operator), window, nowMs);
   filtered.sort(sortNewestFirst);
   return {
     ...mailList,
@@ -50,6 +62,7 @@ export async function listSupervisorMail(
 export async function fetchSupervisorMailThread(
   threadId: string,
   alias: string,
+  operator: MailOperatorIdentity,
   limit: MailHistoryLimit = DEFAULT_MAIL_HISTORY_LIMIT,
 ): Promise<SupervisorMailList> {
   const cityName = activeCityOrThrow('fetch supervisor mail thread');
@@ -58,7 +71,7 @@ export async function fetchSupervisorMailThread(
     return normalizeThread(thread);
   } catch (err) {
     if (!(err instanceof SupervisorApiError) || err.status !== 404) throw err;
-    const mailList = await listSupervisorMail('all', alias, limit);
+    const mailList = await listSupervisorMail('all', alias, operator, limit);
     const items = mailList.items.filter((mail) => mail.thread_id === threadId);
     return normalizeThread({
       ...mailList,
@@ -81,8 +94,9 @@ function filterByBox(
   items: ReadonlyArray<SupervisorMailItem>,
   box: SupervisorMailBox,
   alias: string,
+  operator: MailOperatorIdentity,
 ): SupervisorMailItem[] {
-  const resolvedAlias = supervisorMailAlias(alias);
+  const resolvedAlias = supervisorMailAlias(alias, operator);
   if (box === 'all') return [...items];
   if (box === 'inbox') {
     return items.filter((mail) => mail.to.toLowerCase() === resolvedAlias);
@@ -103,9 +117,9 @@ function filterByClockWindow(
   });
 }
 
-function supervisorMailAlias(alias: string): string {
+function supervisorMailAlias(alias: string, operator: MailOperatorIdentity): string {
   const lower = alias.toLowerCase();
-  return lower === OPERATOR_DISPLAY_ALIAS ? OPERATOR_WIRE_ALIAS : lower;
+  return lower === operator.operatorAlias.toLowerCase() ? operator.operatorWireAlias : lower;
 }
 
 function dedupeById(items: ReadonlyArray<SupervisorMailItem>): SupervisorMailItem[] {

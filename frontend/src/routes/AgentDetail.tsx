@@ -12,6 +12,7 @@ import { AgentChatThread } from '../components/agent/AgentChatThread';
 import { AgentDirectives, type AgentDirectivesError } from '../components/agent/AgentDirectives';
 import { AgentLivePeek } from '../components/agent/AgentLivePeek';
 import { AgentMetadata } from '../components/agent/AgentMetadata';
+import { useOperatorConfig } from '../contexts/OperatorConfigContext';
 import { useViewingAs } from '../contexts/ViewingAsContext';
 import { useNow } from '../contexts/NowContext';
 import { useAbortableVisibleRefresh } from '../hooks/useAbortableVisibleRefresh';
@@ -41,6 +42,7 @@ export function AgentDetailPage() {
   const { slug = '' } = useParams<{ slug: string }>();
   const navigate = useNavigate();
   const { viewingAs } = useViewingAs();
+  const operator = useOperatorConfig();
 
   const [sessions, setSessions] = useState<SupervisorSession[] | null>(null);
   const [beads, setBeads] = useState<SupervisorBead[] | null>(null);
@@ -170,14 +172,14 @@ export function AgentDetailPage() {
   }, [session]);
 
   const operatorAliases = useMemo<ReadonlyArray<string>>(
-    () => [viewingAs.alias.toLowerCase(), 'human'],
-    [viewingAs.alias],
+    () => [viewingAs.alias.toLowerCase(), operator.operatorWireAlias.toLowerCase()],
+    [viewingAs.alias, operator.operatorWireAlias],
   );
 
   const loadChatItems = useCallback(async (): Promise<SupervisorMailItem[]> => {
-    const { items } = await listSupervisorMail('all', viewingAs.alias);
+    const { items } = await listSupervisorMail('all', viewingAs.alias, operator);
     return items;
-  }, [viewingAs.alias]);
+  }, [viewingAs.alias, operator]);
 
   const chatState = useAbortableVisibleRefresh({
     enabled: session !== null,

@@ -5,6 +5,7 @@ import { AttentionProvider } from './attention/context';
 import { useLiveAttentionContributors } from './attention/liveContributors';
 import { Layout } from './components/Layout';
 import { NowProvider } from './contexts/NowContext';
+import { OperatorConfigProvider, resolveOperatorConfig } from './contexts/OperatorConfigContext';
 import { ReadOnlyProvider, resolveReadOnly } from './contexts/ReadOnlyContext';
 import { ViewingAsProvider } from './contexts/ViewingAsContext';
 import { useCachedData } from './hooks/useCachedData';
@@ -43,7 +44,11 @@ export function App() {
   // while the first fetch is in flight — see resolveReadOnly. The server proxy
   // gate stays the real enforcement throughout.
   const readOnly = resolveReadOnly(config, configError);
-  const attentionContributors = useLiveAttentionContributors(enabledModules);
+  // Operator identity from /config (gascity-dashboard-bhvn). Resolved once and
+  // shared by the attention hook (which runs in App's body, outside the
+  // provider tree) and the OperatorConfigProvider below.
+  const operator = resolveOperatorConfig(config);
+  const attentionContributors = useLiveAttentionContributors(enabledModules, operator);
 
   const enabledViews = useMemo(
     () => filterEnabledViews(ALL_VIEWS, enabledModules),
@@ -63,52 +68,54 @@ export function App() {
   const defaultRedirectTo = defaultResolution.redirectTo ?? null;
 
   return (
-    <ViewingAsProvider>
-      <NowProvider>
-        <ReadOnlyProvider readOnly={readOnly}>
-          <AttentionProvider contributors={attentionContributors}>
-            <Layout>
-              <Suspense fallback={null}>
-                <Routes>
-                  {/* `/` resolution (PRD §6 / bead 9yj.5):
+    <OperatorConfigProvider operator={operator}>
+      <ViewingAsProvider>
+        <NowProvider>
+          <ReadOnlyProvider readOnly={readOnly}>
+            <AttentionProvider contributors={attentionContributors}>
+              <Layout>
+                <Suspense fallback={null}>
+                  <Routes>
+                    {/* `/` resolution (PRD §6 / bead 9yj.5):
                   DEFAULT_VIEW env → descriptor `defaultRoute: true` →
                   kb3 ambient home fallback. The resolver runs once per
                   enabled-set / env change; warnings surface in the
                   browser console for premortem #5 visibility. */}
-                  <Route
-                    path="/"
-                    element={
-                      defaultRedirectTo !== null ? (
-                        <Navigate to={defaultRedirectTo} replace />
-                      ) : DefaultViewElement !== null ? (
-                        <DefaultViewElement />
-                      ) : (
-                        <AmbientHomePage />
-                      )
-                    }
-                  />
-                  <Route path="/agents" element={<AgentsPage />} />
-                  <Route path="/agents/:slug" element={<AgentDetailPage />} />
-                  <Route path="/beads" element={<BeadsPage />} />
-                  <Route path="/runs" element={<RunsPage />} />
-                  <Route path="/runs/:runId" element={<FormulaRunDetailPage />} />
-                  <Route path="/mail" element={<MailPage />} />
-                  {/* Modular-dashboard registry routes, filtered by the
+                    <Route
+                      path="/"
+                      element={
+                        defaultRedirectTo !== null ? (
+                          <Navigate to={defaultRedirectTo} replace />
+                        ) : DefaultViewElement !== null ? (
+                          <DefaultViewElement />
+                        ) : (
+                          <AmbientHomePage />
+                        )
+                      }
+                    />
+                    <Route path="/agents" element={<AgentsPage />} />
+                    <Route path="/agents/:slug" element={<AgentDetailPage />} />
+                    <Route path="/beads" element={<BeadsPage />} />
+                    <Route path="/runs" element={<RunsPage />} />
+                    <Route path="/runs/:runId" element={<FormulaRunDetailPage />} />
+                    <Route path="/mail" element={<MailPage />} />
+                    {/* Modular-dashboard registry routes, filtered by the
                   backend's enabledModules set. A disabled module's path
                   is absent so deep-link bookmarks surface the operator's
                   MODULES_ENABLED change as the explicit catch-all route. */}
-                  {enabledViews.map((v) => {
-                    const Element = v.element;
-                    return <Route key={v.id} path={v.path} element={<Element />} />;
-                  })}
-                  <Route path="*" element={<NotFoundPage />} />
-                </Routes>
-              </Suspense>
-            </Layout>
-          </AttentionProvider>
-        </ReadOnlyProvider>
-      </NowProvider>
-    </ViewingAsProvider>
+                    {enabledViews.map((v) => {
+                      const Element = v.element;
+                      return <Route key={v.id} path={v.path} element={<Element />} />;
+                    })}
+                    <Route path="*" element={<NotFoundPage />} />
+                  </Routes>
+                </Suspense>
+              </Layout>
+            </AttentionProvider>
+          </ReadOnlyProvider>
+        </NowProvider>
+      </ViewingAsProvider>
+    </OperatorConfigProvider>
   );
 }
 

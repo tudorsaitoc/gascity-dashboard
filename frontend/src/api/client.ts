@@ -248,6 +248,9 @@ const decodeRuntimeConfig = objectDecoder<DashboardRuntimeConfig>('config', (rec
   requireStringField(record, url, 'config', 'cityRoot');
   requireBooleanField(record, url, 'config', 'useFixtures');
   requireBooleanField(record, url, 'config', 'readOnly');
+  requireStringField(record, url, 'config', 'operatorAlias');
+  requireStringField(record, url, 'config', 'operatorWireAlias');
+  requireStringField(record, url, 'config', 'decisionLabel');
   requireStringArrayOrNullField(record, url, 'config', 'enabledModules');
   requireNullableStringField(record, url, 'config', 'defaultView');
   if (record.maintainer !== undefined) {

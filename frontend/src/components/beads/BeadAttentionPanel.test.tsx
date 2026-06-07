@@ -88,6 +88,7 @@ describe('BeadAttentionPanel (gascity-dashboard-2j8e.3)', () => {
     const model = composeAttention(
       createAttentionContributors({
         beads: {
+          decisionLabel: 'needs/stephanie',
           nowMs: Date.parse('2026-06-07T12:00:00.000Z'),
           items: [
             bead({ id: 'B-ready', status: 'open', created_at: '2026-06-04T11:00:00.000Z' }),

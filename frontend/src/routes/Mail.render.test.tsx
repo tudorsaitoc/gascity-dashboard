@@ -18,7 +18,6 @@ interface FetchCall {
 const fetchCalls: FetchCall[] = [];
 
 vi.mock('../contexts/ViewingAsContext', () => ({
-  OPERATOR_ALIAS: 'stephanie',
   useViewingAs: () => ({
     viewingAs: { alias: 'stephanie', isOperator: true },
     setAlias: vi.fn(),
@@ -27,6 +26,16 @@ vi.mock('../contexts/ViewingAsContext', () => ({
     aliasesLoading: false,
     sessionsUnavailable: false,
     loadAliases: vi.fn(),
+  }),
+}));
+
+// Operator identity from /config (gascity-dashboard-bhvn): display alias
+// `stephanie` maps to the gc wire alias `human` for mailbox filtering.
+vi.mock('../contexts/OperatorConfigContext', () => ({
+  useOperatorConfig: () => ({
+    operatorAlias: 'stephanie',
+    operatorWireAlias: 'human',
+    decisionLabel: 'needs/stephanie',
   }),
 }));
 

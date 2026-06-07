@@ -5,6 +5,7 @@ import { BeadsPage } from './Beads';
 import { setActiveCity } from '../api/cityBase';
 import { invalidate } from '../api/cache';
 import { NowProvider } from '../contexts/NowContext';
+import { OperatorConfigProvider } from '../contexts/OperatorConfigContext';
 import type { SupervisorBead } from '../supervisor/beadReads';
 
 const PROJECT = 'gascity';
@@ -329,7 +330,15 @@ function renderPage(path = '/beads') {
       future={{ v7_relativeSplatPath: true, v7_startTransition: true }}
     >
       <NowProvider intervalMs={1_000_000}>
-        <BeadsPage />
+        <OperatorConfigProvider
+          operator={{
+            operatorAlias: 'stephanie',
+            operatorWireAlias: 'human',
+            decisionLabel: 'needs/stephanie',
+          }}
+        >
+          <BeadsPage />
+        </OperatorConfigProvider>
       </NowProvider>
     </MemoryRouter>,
   );

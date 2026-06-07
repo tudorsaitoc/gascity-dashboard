@@ -298,7 +298,12 @@ export interface MaintainerTriage {
 export interface AdminAuditEvent {
   type: 'dashboard.exec' | 'dashboard.fetch' | 'dashboard.send_mail' | 'dashboard.sling' | string;
   endpoint: string;
-  actor: 'stephanie';
+  /**
+   * The operator identity recorded as the actor. Resolved from the backend's
+   * runtime config (`DASHBOARD_OPERATOR_ALIAS`), not a baked-in literal
+   * (gascity-dashboard-bhvn / zero-hardcoded-roles).
+   */
+  actor: string;
   /** Identity the parent was viewing AS at the time. NEVER affects sender. */
   viewing_as?: string;
   parsed_args?: Record<string, string>;

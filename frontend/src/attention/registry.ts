@@ -73,7 +73,15 @@ export interface AgentsAttentionFacts {
 export interface BeadsAttentionFacts {
   items?: readonly Bead[];
   /**
-   * The mayor-decision queue: open beads carrying the `needs/stephanie`
+   * The label marking a bead as a mayor-decision (DASHBOARD_DECISION_LABEL,
+   * gascity-dashboard-bhvn). Carried in the facts — like `MailAttentionFacts`
+   * carries `operatorAlias` — so the registry derives the decision skip from
+   * runtime config instead of a hardcoded literal. The live producer
+   * (liveContributors) sets it from the operator config.
+   */
+  decisionLabel: string;
+  /**
+   * The mayor-decision queue: open beads carrying the `decisionLabel`
    * marker, fetched with the dedicated label+status filter
    * (specs/architecture/mayor-decision-ledger.md §6). Kept separate from the
    * general `items` list because that list is capped and can paginate the
@@ -138,14 +146,6 @@ const DASHBOARD_PROCESS_RSS_HIGH_BYTES = 2_000_000_000;
 const DASHBOARD_PROCESS_RSS_ELEVATED_BYTES = 1_000_000_000;
 const DASHBOARD_PROCESS_HEAP_HIGH_BYTES = 1_000_000_000;
 const DASHBOARD_PROCESS_HEAP_ELEVATED_BYTES = 512_000_000;
-
-/**
- * The mayor-decision marker label (specs/architecture/mayor-decision-ledger.md
- * §2). An open bead carrying it is a curated decision awaiting Stephanie's
- * direction. Exported so the dedicated fetch filter (liveContributors) and the
- * generic-loop skip below resolve the same marker — a rename touches one line.
- */
-export const NEEDS_STEPHANIE_LABEL = 'needs/stephanie';
 
 /**
  * The gc-native escalation marker (gascity-dashboard-2j8e.3). An open bead
@@ -442,7 +442,7 @@ function deriveBeadsAttention(facts: BeadsAttentionFacts | undefined): readonly 
   // skip them in the general list (no double-surfacing). selectBeadsNeedingAttention
   // is the membership SSOT the /beads page also reads, so the nav badge count
   // and the page count cannot disagree.
-  const generic = (facts.items ?? []).filter((bead) => !isMayorDecision(bead));
+  const generic = (facts.items ?? []).filter((bead) => !isMayorDecision(bead, facts.decisionLabel));
   for (const row of selectBeadsNeedingAttention(
     { beads: generic, escalations: facts.escalations ?? [] },
     nowMs,
@@ -477,8 +477,8 @@ function beadHref(beadId: string): string {
  * also appears in the general list from double-surfacing as a generic bead
  * alert (the decision-queue fetch already restricts to open).
  */
-function isMayorDecision(bead: Bead): boolean {
-  return (bead.labels ?? []).includes(NEEDS_STEPHANIE_LABEL);
+function isMayorDecision(bead: Bead, decisionLabel: string): boolean {
+  return (bead.labels ?? []).includes(decisionLabel);
 }
 
 /**

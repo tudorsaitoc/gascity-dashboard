@@ -81,6 +81,25 @@ export interface AdminConfig {
    */
   readOnly: boolean;
   /**
+   * Identity of the human operator this dashboard serves
+   * (gascity-dashboard-bhvn / zero-hardcoded-roles). The dashboard is a SHARED
+   * tool, so the operator must never be baked into source — it is supplied at
+   * the config boot edge and projected onto the wire (DashboardRuntimeConfig)
+   * for the frontend.
+   *
+   * `operatorAlias` — display + bead-assignee identity. Env
+   * `DASHBOARD_OPERATOR_ALIAS`, default the neutral `operator`.
+   * `operatorWireAlias` — gc mail-wire identity (mail is addressed to/from this,
+   * not the display name). Env `DASHBOARD_OPERATOR_WIRE_ALIAS`, default gc's
+   * `human` convention.
+   * `decisionLabel` — the mayor-decision-queue marker label. Env
+   * `DASHBOARD_DECISION_LABEL`, default `needs/<operatorAlias>` so it tracks a
+   * renamed operator.
+   */
+  operatorAlias: string;
+  operatorWireAlias: string;
+  decisionLabel: string;
+  /**
    * Per-module configuration slices. Modules read their own slice in
    * `needs(config)`. See `MaintainerModuleConfig` for the maintainer
    * envelope — env-driven via MAINTAINER_GITHUB_REPO, MAINTAINER_CACHE_PATH,
@@ -194,6 +213,17 @@ export function parseRunCwdAllowedRoots(raw: string | undefined): readonly strin
   return roots;
 }
 
+/**
+ * Resolve an operator-identity token from env (gascity-dashboard-bhvn).
+ * Trims surrounding whitespace; an unset or blank value falls back to the
+ * provided neutral default. The default is the ONE sanctioned place an
+ * identity literal lives — everywhere else derives from runtime config.
+ */
+export function parseOperatorToken(raw: string | undefined, fallback: string): string {
+  const trimmed = raw?.trim() ?? '';
+  return trimmed.length > 0 ? trimmed : fallback;
+}
+
 export function loadConfig(env: NodeJS.ProcessEnv = process.env): AdminConfig {
   const portRaw = env.PORT ?? '8081';
   const port = Number.parseInt(portRaw, 10);
@@ -224,6 +254,13 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): AdminConfig {
   // names it.
   const enabledModules = parseModulesEnabled(env.MODULES_ENABLED);
   const maintainerEnabled = enabledModules?.has('maintainer') ?? false;
+  // Operator identity (gascity-dashboard-bhvn / zero-hardcoded-roles). Neutral,
+  // non-identifying defaults so an unconfigured install never assumes a
+  // specific human; our deployment supplies the real values via env. The
+  // decision label tracks the operator alias unless overridden explicitly.
+  const operatorAlias = parseOperatorToken(env.DASHBOARD_OPERATOR_ALIAS, 'operator');
+  const operatorWireAlias = parseOperatorToken(env.DASHBOARD_OPERATOR_WIRE_ALIAS, 'human');
+  const decisionLabel = parseOperatorToken(env.DASHBOARD_DECISION_LABEL, `needs/${operatorAlias}`);
   return {
     port,
     bindHost: parseBindHost(env.HOST),
@@ -236,6 +273,9 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): AdminConfig {
     frontendDistPath: env.ADMIN_FRONTEND_DIST ?? '../frontend/dist',
     disabled: env.ADMIN_DASHBOARD_DISABLED === '1',
     readOnly: env.DASHBOARD_READONLY === '1',
+    operatorAlias,
+    operatorWireAlias,
+    decisionLabel,
     modules: {
       maintainer: maintainerEnabled
         ? loadMaintainerModuleConfig(env)

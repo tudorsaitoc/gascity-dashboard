@@ -11,6 +11,9 @@ vi.mock('./api/client', () => ({
       defaultView: null,
       enabledModules: [],
       readOnly: false,
+      operatorAlias: 'stephanie',
+      operatorWireAlias: 'human',
+      decisionLabel: 'needs/stephanie',
     })),
   },
 }));

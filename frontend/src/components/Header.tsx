@@ -6,7 +6,8 @@ import { NavAttentionIndicator } from '../attention/NavAttentionIndicator';
 import { useAttentionModel } from '../attention/context';
 import type { AttentionDomain } from '../attention/compose';
 import { useTheme } from '../contexts/ThemeContext';
-import { useViewingAs, OPERATOR_ALIAS } from '../contexts/ViewingAsContext';
+import { useOperatorConfig } from '../contexts/OperatorConfigContext';
+import { useViewingAs } from '../contexts/ViewingAsContext';
 import { displayLabel } from '../hooks/aliasPriority';
 import { useCachedData } from '../hooks/useCachedData';
 import { supervisorApi } from '../supervisor/client';
@@ -53,6 +54,7 @@ const NAV_ATTENTION_DOMAINS: Readonly<Record<string, AttentionDomain>> = {
 export function Header() {
   const { resolved, toggle } = useTheme();
   const { viewingAs } = useViewingAs();
+  const { operatorAlias } = useOperatorConfig();
   const attention = useAttentionModel();
   const { data: config } = useCachedData('config', () => api.config());
   // City switcher source (gascity-dashboard-ucc). Lists every managed city;
@@ -124,7 +126,7 @@ export function Header() {
           )}
           {showReadingAs && (
             <span className="text-label uppercase tracking-wider text-accent ml-3">
-              · reading as {displayLabel(viewingAs.alias, OPERATOR_ALIAS)}
+              · reading as {displayLabel(viewingAs.alias, operatorAlias)}
             </span>
           )}
         </div>

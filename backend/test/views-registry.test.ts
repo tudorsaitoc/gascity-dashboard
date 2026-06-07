@@ -25,6 +25,9 @@ function makeConfig(overrides: Partial<AdminConfig> = {}): AdminConfig {
     frontendDistPath: '../frontend/dist-does-not-exist',
     disabled: false,
     readOnly: false,
+    operatorAlias: 'operator',
+    operatorWireAlias: 'human',
+    decisionLabel: 'needs/operator',
     modules: {
       maintainer: {
         githubRepo: 'gastownhall/gascity',

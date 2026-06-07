@@ -69,6 +69,45 @@ describe('loadConfig', () => {
     assert.equal(loadConfig({ DASHBOARD_READONLY: '' }).readOnly, false);
   });
 
+  // Operator identity (gascity-dashboard-bhvn / zero-hardcoded-roles): never a
+  // specific human by default; supplied per-deployment via env.
+  test('operator identity defaults to neutral, non-identifying values', () => {
+    const cfg = loadConfig({});
+    assert.equal(cfg.operatorAlias, 'operator');
+    assert.equal(cfg.operatorWireAlias, 'human');
+    assert.equal(cfg.decisionLabel, 'needs/operator');
+  });
+
+  test('operator identity is overridden by env, and the decision label tracks the alias', () => {
+    const cfg = loadConfig({ DASHBOARD_OPERATOR_ALIAS: 'stephanie' });
+    assert.equal(cfg.operatorAlias, 'stephanie');
+    // decisionLabel derives from the resolved operatorAlias when not set.
+    assert.equal(cfg.decisionLabel, 'needs/stephanie');
+  });
+
+  test('operator wire alias and decision label accept explicit env overrides', () => {
+    const cfg = loadConfig({
+      DASHBOARD_OPERATOR_ALIAS: 'sam',
+      DASHBOARD_OPERATOR_WIRE_ALIAS: 'user',
+      DASHBOARD_DECISION_LABEL: 'needs/decision',
+    });
+    assert.equal(cfg.operatorAlias, 'sam');
+    assert.equal(cfg.operatorWireAlias, 'user');
+    // An explicit decision label wins over the alias-derived default.
+    assert.equal(cfg.decisionLabel, 'needs/decision');
+  });
+
+  test('blank operator env values fall back to the neutral defaults (not empty strings)', () => {
+    const cfg = loadConfig({
+      DASHBOARD_OPERATOR_ALIAS: '   ',
+      DASHBOARD_OPERATOR_WIRE_ALIAS: '',
+      DASHBOARD_DECISION_LABEL: '  ',
+    });
+    assert.equal(cfg.operatorAlias, 'operator');
+    assert.equal(cfg.operatorWireAlias, 'human');
+    assert.equal(cfg.decisionLabel, 'needs/operator');
+  });
+
   test('runCwdAllowedRoots defaults to empty (shape-only, no regression) when unset', () => {
     assert.deepEqual(loadConfig({}).runCwdAllowedRoots, []);
   });

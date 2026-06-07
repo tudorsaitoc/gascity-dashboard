@@ -90,6 +90,28 @@ export interface DashboardRuntimeConfig {
    */
   readOnly: boolean;
   /**
+   * Identity of the human operator this dashboard serves, projected from the
+   * backend's env-driven config (gascity-dashboard-bhvn / zero-hardcoded-roles).
+   * The dashboard is a SHARED tool — it must not bake our operator into source,
+   * so the frontend reads these from `/config` rather than importing a literal.
+   *
+   * `operatorAlias` is the display/bead-assignee identity (env
+   * `DASHBOARD_OPERATOR_ALIAS`). `operatorWireAlias` is the gc mail-wire
+   * identity the supervisor addresses operator mail to/from (env
+   * `DASHBOARD_OPERATOR_WIRE_ALIAS`, gc convention `human`). They differ
+   * because gc mail is addressed to the wire alias, not the display name.
+   */
+  operatorAlias: string;
+  operatorWireAlias: string;
+  /**
+   * The label marking a bead as awaiting the operator's decision — the
+   * mayor-decision queue marker (specs/architecture/mayor-decision-ledger.md).
+   * Projected from env `DASHBOARD_DECISION_LABEL`, defaulting to
+   * `needs/<operatorAlias>` so a rename of the operator carries the label with
+   * it. Read by the attention decision-queue fetch + the generic-bead skip.
+   */
+  decisionLabel: string;
+  /**
    * Resolved `firstParty` module ids that are mounted (PRD §2 / bead 9yj.5).
    * The backend always emits an explicit array — `[]` for a core-only
    * default install (PR-D), or e.g. `['maintainer']` when opted in via

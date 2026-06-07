@@ -1,5 +1,4 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { OPERATOR_DISPLAY_ALIAS } from 'gas-city-dashboard-shared';
 import {
   GC_MUTATION_HEADERS,
   resetSupervisorApiForTests,
@@ -12,6 +11,12 @@ import {
   createAndSlingSupervisorBead,
   nudgeSupervisorAgent,
 } from './beadWrites';
+
+// The operator display alias is now runtime config (OperatorConfigContext),
+// no longer a shared constant (gascity-dashboard-bhvn). A bead write must still
+// NEVER post it as assignee; this sample stands in for whatever the configured
+// alias resolves to. Test/fixture data may carry a concrete identity.
+const SAMPLE_OPERATOR_ALIAS = 'stephanie';
 
 const baseApi: SupervisorApi = {
   baseUrl: '/gc-supervisor',
@@ -208,7 +213,7 @@ describe('supervisor bead writes', () => {
     for (const writeSpy of [createBead, sling, closeBead]) {
       for (const call of writeSpy.mock.calls) {
         const body = call[call.length - 1] as { assignee?: unknown } | undefined;
-        expect(body?.assignee).not.toBe(OPERATOR_DISPLAY_ALIAS);
+        expect(body?.assignee).not.toBe(SAMPLE_OPERATOR_ALIAS);
       }
     }
   });

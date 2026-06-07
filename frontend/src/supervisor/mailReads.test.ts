@@ -8,8 +8,16 @@ import {
 import {
   fetchSupervisorMailThread,
   listSupervisorMail,
+  type MailOperatorIdentity,
   type SupervisorMailItem,
 } from './mailReads';
+
+// Test operator identity: display alias maps to the gc wire alias for mailbox
+// filtering (gascity-dashboard-bhvn). Mirrors the production operator config.
+const operator: MailOperatorIdentity = {
+  operatorAlias: 'stephanie',
+  operatorWireAlias: 'human',
+};
 
 const baseApi: SupervisorApi = {
   baseUrl: '/gc-supervisor',
@@ -63,7 +71,7 @@ describe('supervisor mail reads', () => {
     }));
     setSupervisorApiForTests({ ...baseApi, listMail });
 
-    const result = await listSupervisorMail('inbox', 'stephanie');
+    const result = await listSupervisorMail('inbox', 'stephanie', operator);
 
     expect(listMail).toHaveBeenCalledWith('test-city', { limit: 100 });
     expect(result.items.map((m) => m.id)).toEqual(['a']);
@@ -78,7 +86,7 @@ describe('supervisor mail reads', () => {
     }));
     setSupervisorApiForTests({ ...baseApi, listMail });
 
-    await listSupervisorMail('inbox', 'stephanie', 1000);
+    await listSupervisorMail('inbox', 'stephanie', operator, 1000);
 
     expect(listMail).toHaveBeenCalledWith('test-city', { limit: 1000 });
   });
@@ -112,6 +120,7 @@ describe('supervisor mail reads', () => {
     const result = await listSupervisorMail(
       'inbox',
       'stephanie',
+      operator,
       1000,
       '24h',
       Date.parse('2026-06-01T12:00:00.000Z'),
@@ -133,7 +142,7 @@ describe('supervisor mail reads', () => {
     }));
     setSupervisorApiForTests({ ...baseApi, mailThread });
 
-    const result = await fetchSupervisorMailThread('thread-1', 'stephanie');
+    const result = await fetchSupervisorMailThread('thread-1', 'stephanie', operator);
 
     expect(mailThread).toHaveBeenCalledWith('test-city', 'thread-1');
     expect(result.items.map((m) => m.id)).toEqual(['old', 'new']);
@@ -152,7 +161,7 @@ describe('supervisor mail reads', () => {
     }));
     setSupervisorApiForTests({ ...baseApi, listMail, mailThread });
 
-    const result = await fetchSupervisorMailThread('thread-1', 'stephanie');
+    const result = await fetchSupervisorMailThread('thread-1', 'stephanie', operator);
 
     expect(mailThread).toHaveBeenCalledWith('test-city', 'thread-1');
     expect(listMail).toHaveBeenCalledWith('test-city', { limit: 100 });

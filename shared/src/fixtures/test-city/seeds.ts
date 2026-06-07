@@ -4,12 +4,12 @@
 // shapes. Kept separate so the data table and the assembly logic each stay
 // focused and small.
 
-import { OPERATOR_WIRE_ALIAS } from '../../operator.js';
-
 // The dashboard's operator mailbox filters on the operator WIRE alias, so mail
 // to/from the operator must use it (not a display name like "mayor") to land in
-// the default Inbox/Sent views.
-const OP = OPERATOR_WIRE_ALIAS;
+// the default Inbox/Sent views. This fixture simulates a gc city, so it uses
+// gc's wire convention (`human`) directly — fixture data is not production
+// source and is exempt from the runtime-config identity rule.
+const OP = 'human';
 
 export type BeadStatus = 'open' | 'in_progress' | 'blocked' | 'closed';
 export type IssueType = 'feature' | 'bug' | 'task' | 'epic' | 'chore' | 'decision';

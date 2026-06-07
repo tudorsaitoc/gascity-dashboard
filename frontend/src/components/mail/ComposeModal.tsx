@@ -5,7 +5,8 @@ import {
   ReadOnlyBadge,
   useReadOnly,
 } from '../../contexts/ReadOnlyContext';
-import { OPERATOR_ALIAS, useViewingAs } from '../../contexts/ViewingAsContext';
+import { useOperatorConfig } from '../../contexts/OperatorConfigContext';
+import { useViewingAs } from '../../contexts/ViewingAsContext';
 import { displayLabel } from '../../hooks/aliasPriority';
 import { sendSupervisorMail } from '../../supervisor/mailWrites';
 import { Button } from '../Button';
@@ -22,6 +23,7 @@ interface ComposeModalProps {
 export function ComposeModal({ open, onClose, onSent }: ComposeModalProps) {
   const { viewingAs } = useViewingAs();
   const readOnly = useReadOnly();
+  const { operatorAlias: OPERATOR_ALIAS, operatorWireAlias } = useOperatorConfig();
   const [to, setTo] = useState('');
   const [subject, setSubject] = useState('');
   const [body, setBody] = useState('');
@@ -44,14 +46,14 @@ export function ComposeModal({ open, onClose, onSent }: ComposeModalProps) {
     setSending(true);
     setError(null);
     try {
-      await sendSupervisorMail({ to, subject, body });
+      await sendSupervisorMail({ to, subject, body }, operatorWireAlias);
       onSent();
     } catch (err) {
       setError(formatApiError(err, 'send failed'));
     } finally {
       setSending(false);
     }
-  }, [body, onSent, readOnly, subject, to]);
+  }, [body, onSent, readOnly, subject, to, operatorWireAlias]);
 
   const canSend =
     !readOnly &&

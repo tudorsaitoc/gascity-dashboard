@@ -4,7 +4,7 @@
 // alter what the supervisor stores, it only cleans operator-facing text in
 // the peek/transcript path (gascity-dashboard-5e5v / xl07).
 //
-// Stephanie saw raw bytes leak into peeks — e.g. `... then proceed.^[`
+// The operator saw raw bytes leak into peeks — e.g. `... then proceed.^[`
 // (a trailing lone ESC), OSC title sequences, and a bare `\x9c` (the 8-bit
 // C1 OSC string terminator). `ansi_up.ansi_to_html` colorizes SGR (`\x1b[…m`)
 // but passes every other control sequence through as visible text, so those
@@ -32,13 +32,13 @@ const CSI_NON_SGR_RE = /\x1b\[[?0-9;]*[a-ln-zA-Z]/g;
 // keeping is a valid SGR (`\x1b[ params m`); the negative lookahead preserves
 // exactly that and removes everything else — stray ST (ESC \\), charset
 // selects (ESC ( ), ESC = / ESC >, an unterminated OSC's leading ESC, and the
-// bare trailing ESC (`^[`) Stephanie saw. The optional final byte consumes a
+// bare trailing ESC (`^[`) the operator saw. The optional final byte consumes a
 // single ESC-Fe/Fp byte (e.g. the `\\` of ESC \\) when present.
 const LONE_ESC_RE = /\x1b(?!\[[?0-9;]*m)[@-Z\\-_]?/g;
 // Residual control bytes after the ESC-based passes: C0 below 0x20 except \t
 // (\x09) \n (\x0a) \r (\x0d) and ESC (\x1b, already handled above and possibly
 // part of a kept SGR), DEL (\x7f), and the C1 range (\x80-\x9f) — including
-// the bare \x9c that leaked into Stephanie's peek. SGR digits/semicolons and
+// the bare \x9c that leaked into the operator's peek. SGR digits/semicolons and
 // ordinary printable text are all >= 0x20, so this never touches kept content.
 const RESIDUAL_CTRL_RE = /[\x00-\x08\x0b\x0c\x0e-\x1a\x1c-\x1f\x7f-\x9f]/g;
 

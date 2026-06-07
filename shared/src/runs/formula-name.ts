@@ -46,7 +46,7 @@ export interface ResolvedRunFormulaName {
  *
  * gascity-dashboard-sadp: the live supervisor does NOT set `gc.formula` on
  * graph.v2 workflow roots — the formula name lives in the bead title by
- * convention (verified against live ds-research data: title equals the
+ * convention (verified against live city data: title equals the
  * registered formula name for every observed graph.v2 root, including
  * `mol-focus-review`, `mol-dashboard-graphv2-smoke`). Without this
  * fallback, both the formula-detail fetch in routes/runs.ts and the

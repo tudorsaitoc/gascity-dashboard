@@ -2,8 +2,16 @@ import { renderHook, waitFor } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { invalidate } from '../api/cache';
 import { setActiveCity } from '../api/cityBase';
+import type { OperatorConfig } from '../contexts/OperatorConfigContext';
 import { composeAttention } from './compose';
 import { useLiveAttentionContributors } from './liveContributors';
+
+// Operator identity the live hook reads from /config (gascity-dashboard-bhvn).
+const testOperator: OperatorConfig = {
+  operatorAlias: 'stephanie',
+  operatorWireAlias: 'human',
+  decisionLabel: 'needs/stephanie',
+};
 
 const mockApi = vi.hoisted(() => ({
   doltTrend: vi.fn(),
@@ -267,7 +275,7 @@ describe('useLiveAttentionContributors', () => {
   });
 
   it('composes Home/nav attention from direct supervisor facts and enabled dashboard-local module facts', async () => {
-    const { result } = renderHook(() => useLiveAttentionContributors(['maintainer']));
+    const { result } = renderHook(() => useLiveAttentionContributors(['maintainer'], testOperator));
 
     await waitFor(() => {
       const model = composeAttention(result.current);
@@ -320,7 +328,7 @@ describe('useLiveAttentionContributors', () => {
   });
 
   it('does not fetch maintainer triage before the enabled module config is loaded', async () => {
-    const { result } = renderHook(() => useLiveAttentionContributors(null));
+    const { result } = renderHook(() => useLiveAttentionContributors(null, testOperator));
 
     await waitFor(() => {
       const model = composeAttention(result.current);
@@ -332,7 +340,7 @@ describe('useLiveAttentionContributors', () => {
   });
 
   it('does not fetch maintainer triage when the maintainer module is disabled', async () => {
-    const { result } = renderHook(() => useLiveAttentionContributors([]));
+    const { result } = renderHook(() => useLiveAttentionContributors([], testOperator));
 
     await waitFor(() => {
       const model = composeAttention(result.current);

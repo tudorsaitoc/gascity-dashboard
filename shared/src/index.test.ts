@@ -16,8 +16,6 @@ import {
   errorMessage,
   GC_EVENT_PREFIX,
   makeNodeKey,
-  OPERATOR_DISPLAY_ALIAS,
-  OPERATOR_WIRE_ALIAS,
   SCOPE_REF_RE,
   TRUE_CONTEXT_WINDOWS,
 } from './index.js';
@@ -30,8 +28,6 @@ import { makeNodeKey as leafMakeNodeKey } from './links.js';
 import {
   errorMessage as leafErrorMessage,
   GC_EVENT_PREFIX as leafGcEventPrefix,
-  OPERATOR_DISPLAY_ALIAS as leafOperatorDisplayAlias,
-  OPERATOR_WIRE_ALIAS as leafOperatorWireAlias,
 } from './operator.js';
 import { SCOPE_REF_RE as leafScopeRefRe } from './run-detail.js';
 import type {
@@ -206,8 +202,6 @@ test('TRUE_CONTEXT_WINDOWS includes the deployed Claude models', () => {
 });
 
 test('runtime helpers live in domain leaves and remain re-exported by the barrel', () => {
-  assert.equal(leafOperatorDisplayAlias, OPERATOR_DISPLAY_ALIAS);
-  assert.equal(leafOperatorWireAlias, OPERATOR_WIRE_ALIAS);
   assert.equal(leafGcEventPrefix, GC_EVENT_PREFIX);
   assert.equal(leafErrorMessage, errorMessage);
   assert.equal(leafTrueContextWindows, TRUE_CONTEXT_WINDOWS);

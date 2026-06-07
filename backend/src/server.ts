@@ -1,5 +1,5 @@
 import { loadConfig } from './config.js';
-import { setAuditLogPath } from './audit.js';
+import { setAuditActor, setAuditLogPath } from './audit.js';
 import { createDashboardApp } from './app.js';
 import { LOG_COMPONENT, logError, logInfo } from './logging.js';
 
@@ -12,6 +12,7 @@ function main(): void {
   }
 
   setAuditLogPath(config.auditLogPath);
+  setAuditActor(config.operatorAlias);
 
   const { app, runtime } = createDashboardApp(config);
   runtime.start();

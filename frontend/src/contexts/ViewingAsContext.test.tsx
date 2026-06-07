@@ -3,6 +3,7 @@ import { afterEach, beforeEach, describe, expect, it, vi, type Mock } from 'vite
 import { useEffect } from 'react';
 import { reportClientError } from '../lib/clientErrorReporting';
 import { listSupervisorMail } from '../supervisor/mailReads';
+import { OperatorConfigProvider, type OperatorConfig } from './OperatorConfigContext';
 import { ViewingAsProvider, useViewingAs, getSessionsRetryDelay } from './ViewingAsContext';
 
 // gascity-dashboard-5gg: bounded retry for supervisor sessions in the alias
@@ -320,5 +321,75 @@ describe('getSessionsRetryDelay — out-of-bounds guard', () => {
 
   it('returns null for NaN', () => {
     expect(getSessionsRetryDelay(Number.NaN)).toBeNull();
+  });
+});
+
+describe('ViewingAsProvider — operator identity from runtime config (gascity-dashboard-bhvn)', () => {
+  const FALLBACK: OperatorConfig = {
+    operatorAlias: 'operator',
+    operatorWireAlias: 'human',
+    decisionLabel: 'needs/operator',
+  };
+  const RESOLVED: OperatorConfig = {
+    operatorAlias: 'stephanie',
+    operatorWireAlias: 'human',
+    decisionLabel: 'needs/stephanie',
+  };
+
+  function IdentityProbe({
+    onState,
+  }: {
+    onState: (s: { alias: string; isOperator: boolean }) => void;
+  }) {
+    const { viewingAs } = useViewingAs();
+    useEffect(() => {
+      onState({ alias: viewingAs.alias, isOperator: viewingAs.isOperator });
+    }, [viewingAs.alias, viewingAs.isOperator, onState]);
+    return null;
+  }
+
+  it('re-syncs the viewing alias when /config flips OPERATOR from the fallback to the real alias', async () => {
+    sessionStorage.clear();
+    const states: Array<{ alias: string; isOperator: boolean }> = [];
+    const tree = (operator: OperatorConfig) => (
+      <OperatorConfigProvider operator={operator}>
+        <ViewingAsProvider>
+          <IdentityProbe onState={(s) => states.push(s)} />
+        </ViewingAsProvider>
+      </OperatorConfigProvider>
+    );
+
+    const { rerender } = render(tree(FALLBACK));
+    await flushPromises();
+    // Pre-config: alias tracks the fallback operator, so the operator is "self".
+    expect(states.at(-1)).toEqual({ alias: 'operator', isOperator: true });
+
+    // /config resolves: OPERATOR flips to the real alias. Without the re-sync,
+    // alias would latch 'operator' and isOperator would read false.
+    rerender(tree(RESOLVED));
+    await flushPromises();
+    expect(states.at(-1)).toEqual({ alias: 'stephanie', isOperator: true });
+  });
+
+  it('does not yank back an explicit impersonation chosen before /config resolves', async () => {
+    sessionStorage.clear();
+    sessionStorage.setItem('gascity.dashboard.viewingAs', 'mechanic');
+    const states: Array<{ alias: string; isOperator: boolean }> = [];
+    const tree = (operator: OperatorConfig) => (
+      <OperatorConfigProvider operator={operator}>
+        <ViewingAsProvider>
+          <IdentityProbe onState={(s) => states.push(s)} />
+        </ViewingAsProvider>
+      </OperatorConfigProvider>
+    );
+
+    const { rerender } = render(tree(FALLBACK));
+    await flushPromises();
+    expect(states.at(-1)).toEqual({ alias: 'mechanic', isOperator: false });
+
+    rerender(tree(RESOLVED));
+    await flushPromises();
+    // A stored impersonation survives the OPERATOR transition unchanged.
+    expect(states.at(-1)).toEqual({ alias: 'mechanic', isOperator: false });
   });
 });

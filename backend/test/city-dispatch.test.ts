@@ -22,6 +22,9 @@ function makeConfig(overrides: Partial<AdminConfig> = {}): AdminConfig {
     frontendDistPath: '../frontend/dist-does-not-exist',
     disabled: false,
     readOnly: false,
+    operatorAlias: 'operator',
+    operatorWireAlias: 'human',
+    decisionLabel: 'needs/operator',
     modules: {
       maintainer: {
         githubRepo: 'gastownhall/gascity',
@@ -51,6 +54,9 @@ function fakeRuntime(cityName: string): CityRuntime & { started: number; stopped
       cityRoot: '',
       useFixtures: false,
       readOnly: false,
+      operatorAlias: 'operator',
+      operatorWireAlias: 'human',
+      decisionLabel: 'needs/operator',
       enabledModules: null,
       defaultView: null,
     },

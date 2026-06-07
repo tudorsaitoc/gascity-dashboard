@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react';
-import { OPERATOR_ALIAS, OPERATOR_WIRE_ALIAS } from '../contexts/ViewingAsContext';
+import { useOperatorConfig } from '../contexts/OperatorConfigContext';
 import { displayLabel, tierLabel, type AliasBucket } from '../hooks/aliasPriority';
 
 // Shared rail shell for both panel states: full-width with a bottom rule on
@@ -33,6 +33,8 @@ export function AgentPanel({
   // the page only owns the load-bearing `value`/`onChange` identity state.
   const [expanded, setExpanded] = useState(false);
   const [query, setQuery] = useState('');
+  const { operatorAlias: OPERATOR_ALIAS, operatorWireAlias: OPERATOR_WIRE_ALIAS } =
+    useOperatorConfig();
   const valueLabel = displayLabel(value, OPERATOR_ALIAS);
 
   // Filter the tier buckets by the panel's own search box, and drop the
@@ -51,7 +53,7 @@ export function AgentPanel({
         }),
       }))
       .filter((bucket) => bucket.aliases.length > 0);
-  }, [buckets, query]);
+  }, [buckets, query, OPERATOR_ALIAS, OPERATOR_WIRE_ALIAS]);
 
   const select = (alias: string) => {
     onChange(alias);
