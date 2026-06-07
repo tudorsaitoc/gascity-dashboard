@@ -155,4 +155,51 @@ describe('api client error handling', () => {
       message: expect.stringContaining('supervisor status.status must be an object'),
     });
   });
+
+  it('rejects an available supervisor-status report missing sampledAt', async () => {
+    // The available branch's contract requires sampledAt; absence must fail at
+    // the edge so the decoded value does not lie about its type.
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(
+        async () =>
+          new Response(
+            JSON.stringify({
+              available: true,
+              status: { name: 'demo-city', work: { open: 1, ready: 2, in_progress: 3 } },
+            }),
+            { status: 200, headers: { 'content-type': 'application/json' } },
+          ),
+      ),
+    );
+
+    await expect(api.supervisorStatus()).rejects.toMatchObject({
+      name: 'ApiResponseDecodeError',
+      message: expect.stringContaining('supervisor status.sampledAt must be a string'),
+    });
+  });
+
+  it('rejects a supervisor-status report whose status.work is missing', async () => {
+    // The Beads usage widget dereferences status.work.{open,ready,in_progress};
+    // a status object without work must fail at the edge, not crash at render.
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(
+        async () =>
+          new Response(
+            JSON.stringify({
+              available: true,
+              sampledAt: '2026-06-07T00:00:00.000Z',
+              status: { name: 'demo-city' },
+            }),
+            { status: 200, headers: { 'content-type': 'application/json' } },
+          ),
+      ),
+    );
+
+    await expect(api.supervisorStatus()).rejects.toMatchObject({
+      name: 'ApiResponseDecodeError',
+      message: expect.stringContaining('supervisor status.status.work must be an object'),
+    });
+  });
 });

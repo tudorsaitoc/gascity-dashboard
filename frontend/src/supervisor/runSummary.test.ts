@@ -9,6 +9,7 @@ import type {
 } from 'gas-city-dashboard-shared/gc-supervisor';
 import { resetSupervisorApiForTests, setSupervisorApiForTests, type SupervisorApi } from './client';
 import {
+  loadSupervisorRunSummaryMountSource,
   loadSupervisorRunSummaryPreviewSource,
   loadSupervisorRunSummarySource,
   resetSupervisorRunSummaryStateForTests,
@@ -511,6 +512,37 @@ describe('loadSupervisorRunSummarySource', () => {
     if (source.status === 'error') throw new Error(source.error);
     expect(source.data.totalActive).toBe(1);
     expect(source.data.lanesPartial).toBeUndefined();
+  });
+
+  it('keeps the tight first-paint budget on the mount source so Home/Formula Run Detail never block on a slow read (gascity-dashboard-4bol)', async () => {
+    // Same 10s rig read as the refresh test above, but the mount source (Home,
+    // Formula Run Detail first paint) runs on the 2.5s budget — the read does NOT
+    // land, so the lanes are latched partial rather than blocking ~30s on a cold
+    // navigation. This is the regression guard for the refresh-budget leak.
+    const listBeads = vi.fn(async (_cityName: string, query?: Record<string, unknown>) => {
+      if (query?.type === 'molecule') return beadList([]);
+      if (query?.rig === 'rig-a') {
+        return new Promise<ListBodyBead>((resolve) => {
+          setTimeout(() => resolve(beadList([])), 10_000);
+        });
+      }
+      return beadList([runRoot()]);
+    });
+    setSupervisorApiForTests({
+      ...baseApi,
+      listBeads,
+      formulaFeed: vi.fn(async () => feed([feedRun()])),
+      listSessions: vi.fn(async () => sessionList()),
+    });
+
+    const pending = loadSupervisorRunSummaryMountSource();
+    await vi.advanceTimersByTimeAsync(2_500);
+    const source = await pending;
+
+    expect(source.status).toBe('fresh');
+    if (source.status === 'error') throw new Error(source.error);
+    expect(source.data.totalActive).toBe(1);
+    expect(source.data.lanesPartial).toBe(true);
   });
 
   it('returns an error source when the active bead list fails', async () => {

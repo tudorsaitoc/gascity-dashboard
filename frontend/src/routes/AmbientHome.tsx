@@ -11,7 +11,7 @@ import { useCachedData } from '../hooks/useCachedData';
 import { useFaviconSignal } from '../hooks/useFaviconSignal';
 import { useStaleness, type StalenessResult } from '../hooks/useStaleness';
 import { supervisorApi } from '../supervisor/client';
-import { loadSupervisorRunSummarySource } from '../supervisor/runSummary';
+import { loadSupervisorRunSummaryMountSource } from '../supervisor/runSummary';
 
 // gascity-dashboard-kb3 — the L0 ambient home at `/`. PRD §4 + §5.
 //
@@ -187,7 +187,7 @@ export function AmbientHomePage() {
   const cityName = getActiveCity();
   const { data, loading, error } = useCachedData(
     `runs:summary:${cityName ?? 'no-city'}`,
-    loadSupervisorRunSummarySource,
+    loadSupervisorRunSummaryMountSource,
   );
   const work = useCachedData(`home:work:${cityName ?? 'no-city'}`, fetchHomeWorkInProgress);
 

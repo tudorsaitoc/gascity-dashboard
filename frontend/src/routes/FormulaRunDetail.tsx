@@ -24,7 +24,7 @@ import { useRunDiff } from '../hooks/useRunDiff';
 import { useEntityLinks } from '../hooks/useEntityLinks';
 import { useCachedData } from '../hooks/useCachedData';
 import { getActiveCity } from '../api/cityBase';
-import { loadSupervisorRunSummarySource } from '../supervisor/runSummary';
+import { loadSupervisorRunSummaryMountSource } from '../supervisor/runSummary';
 import { NEEDS_YOU_VIEW_PARAM } from '../views/modules/maintainer/needsYou';
 
 const RUN_DETAIL_EVENT_PREFIXES = [GC_EVENT_PREFIX.bead, GC_EVENT_PREFIX.session] as const;
@@ -113,7 +113,7 @@ export function FormulaRunDetailPage() {
   // instead of a blank spinner while the full detail assembles.
   const runSummary = useCachedData(
     `runs:summary:${cityName ?? 'no-city'}`,
-    loadSupervisorRunSummarySource,
+    loadSupervisorRunSummaryMountSource,
   );
   const skeletonLane = useMemo(() => {
     if (!runId) return null;

@@ -290,7 +290,7 @@ describe('HealthPage', () => {
     // The stale marker renders on each cached widget (Dolt usage, Beads usage,
     // Store thresholds), mirroring the rig-store-health "showing last sample".
     expect(
-      screen.getAllByText(/showing the last sample — refresh failed/i).length,
+      screen.getAllByText(/showing the last sample; refresh failed/i).length,
     ).toBeGreaterThanOrEqual(3);
   });
 

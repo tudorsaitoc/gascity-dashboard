@@ -75,13 +75,30 @@ interface ProgressState {
 
 const progressStateByCity = new Map<string, ProgressState>();
 
+// Runs.tsx background refresh ONLY (gascity-dashboard-4bol): the wide enrichment
+// budget lets slow-but-available list/feed reads land and clear the spurious
+// "runs partial" badge (upstream gascity-dashboard#88). Do NOT use as a
+// mount/first-paint fetcher — it can block up to REFRESH_ENRICHMENT_TIMEOUT_MS;
+// mount consumers (Home, Formula Run Detail) use loadSupervisorRunSummaryMountSource.
 export async function loadSupervisorRunSummarySource(): Promise<SourceState<RunSummary>> {
+  return loadRunSummarySource(REFRESH_ENRICHMENT_TIMEOUT_MS);
+}
+
+// Mount / first-paint full source for Home and Formula Run Detail: the same data
+// as the refresh source (lanes + sessions) but on the tight first-paint budget,
+// so a cold navigation to those routes never blocks on slow optional enrichment
+// reads (gascity-dashboard-4bol).
+export async function loadSupervisorRunSummaryMountSource(): Promise<SourceState<RunSummary>> {
+  return loadRunSummarySource(PREVIEW_ENRICHMENT_TIMEOUT_MS);
+}
+
+async function loadRunSummarySource(enrichmentBudgetMs: number): Promise<SourceState<RunSummary>> {
   const cityName = activeCityOrThrow('load supervisor run summary');
   const fetchedAt = new Date().toISOString();
   try {
     const [loaded, sessions] = await Promise.all([
-      loadRunBeads(cityName, RUNS_FETCH_LIMIT, REFRESH_ENRICHMENT_TIMEOUT_MS),
-      loadRunSessions(cityName, REFRESH_ENRICHMENT_TIMEOUT_MS),
+      loadRunBeads(cityName, RUNS_FETCH_LIMIT, enrichmentBudgetMs),
+      loadRunSessions(cityName, enrichmentBudgetMs),
     ]);
     const summary = buildRunSummary(
       loaded.beads.filter(runBeadFilter).map(fromDashboardBead),

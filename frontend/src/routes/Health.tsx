@@ -482,7 +482,7 @@ function RigStoreHealthBlock({ report }: { report: RigStoreHealthReport | null }
     <div className="space-y-6 max-w-prose">
       {!report.available && (
         <p className="text-body text-warn italic">
-          Showing the last sample — refresh failed: {rigStoreUnavailableCopy(report.reason)}.
+          Showing the last sample; refresh failed: {rigStoreUnavailableCopy(report.reason)}.
         </p>
       )}
       {rigs.map((rig) => (
@@ -756,7 +756,7 @@ function supervisorStatusUnavailableCopy(
 function supervisorStatusStaleCopy(
   reason: Extract<SupervisorStatusReport, { available: false }>['reason'],
 ): string {
-  return `Showing the last sample — refresh failed: ${supervisorStatusUnavailableCopy(reason)}.`;
+  return `Showing the last sample; refresh failed: ${supervisorStatusUnavailableCopy(reason)}.`;
 }
 
 // gascity-dashboard-4bol: read the dashboard backend's cached /status snapshot
