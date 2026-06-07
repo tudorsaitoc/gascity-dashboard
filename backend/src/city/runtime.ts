@@ -22,18 +22,21 @@ import { ALL_MODULES } from '../views/registry.js';
 import { resolveEnabledFirstPartyIds } from '../views/enabled.js';
 import { bind, type CityContext } from '../views/types.js';
 
-// gascity-dashboard-nyln: the dolt-noms and rig-store-health samplers read the
-// supervisor /status, which turns slow on a bloated city store (~247K beads on
-// ds-research) and trips the 5s default GcClient timeout — surfacing as
-// rig_list_failed even though the rig PATHs are valid. Both are periodic
-// background samplers serving cached snapshots, so they tolerate a higher
-// ceiling than the interactive default. Env-overridable so ops can tune the
-// live deployment without a code redeploy.
+// gascity-dashboard-nyln / -4bol: the dolt-noms, rig-store-health, and
+// supervisor-status samplers read the supervisor /status, which turns slow on a
+// bloated city store (~247K beads on ds-research) and trips the 5s default
+// GcClient timeout — surfacing as rig_list_failed / "status unavailable" even
+// though the data is valid. Live /status timings (gastownhall/gascity-dashboard#88)
+// run 10–38s with a ~38s tail that exceeds a 30s ceiling, so the default sits at
+// 45s of headroom above that tail. All three are periodic background samplers
+// serving cached snapshots, so they tolerate this ceiling; the deeper /status
+// perf fix is upstream (#88). Env-overridable so ops can tune the live
+// deployment without a code redeploy.
 const STATUS_SAMPLER_TIMEOUT_MS = (() => {
   const raw = process.env.GC_STATUS_SAMPLER_TIMEOUT_MS;
-  if (typeof raw !== 'string') return 30_000;
+  if (typeof raw !== 'string') return 45_000;
   const n = Number.parseInt(raw, 10);
-  return Number.isFinite(n) && n > 0 ? n : 30_000;
+  return Number.isFinite(n) && n > 0 ? n : 45_000;
 })();
 
 /**

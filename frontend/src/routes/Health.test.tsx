@@ -267,12 +267,16 @@ describe('HealthPage', () => {
     expect(screen.getByText('5')).toBeTruthy();
     expect(screen.getByText('Dolt MB-per-row ratio')).toBeTruthy();
     expect(screen.getByText('<= 1')).toBeTruthy();
+    // Fresh data carries no stale marker — guards against the marker leaking
+    // onto a healthy read (the negative contrast for the degraded test below).
+    expect(screen.queryAllByText(/showing the last sample/i)).toHaveLength(0);
   });
 
-  it('shows cached status data (Dolt/Beads/thresholds) when the latest sample failed but a prior one exists', async () => {
+  it('shows cached status data plus a stale marker when the latest sample failed but a prior one exists', async () => {
     // gascity-dashboard-4bol: a degraded report (latest /status read failed on a
     // slow supervisor) still carries the last good snapshot, so the widgets must
-    // render real data, NOT "supervisor status unavailable".
+    // render real data with a "showing last sample" marker, NOT
+    // "supervisor status unavailable".
     statusMode = 'degraded';
 
     renderPage();
@@ -283,6 +287,11 @@ describe('HealthPage', () => {
     expect(screen.getByText('Beads usage')).toBeTruthy();
     expect(screen.getByText('Dolt MB-per-row ratio')).toBeTruthy();
     expect(screen.queryAllByText(/supervisor status unavailable/i)).toHaveLength(0);
+    // The stale marker renders on each cached widget (Dolt usage, Beads usage,
+    // Store thresholds), mirroring the rig-store-health "showing last sample".
+    expect(
+      screen.getAllByText(/showing the last sample — refresh failed/i).length,
+    ).toBeGreaterThanOrEqual(3);
   });
 
   it('surfaces the warming-up copy when the backend has not sampled status yet', async () => {
