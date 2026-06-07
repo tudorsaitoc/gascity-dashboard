@@ -9,13 +9,17 @@ import type {
 } from 'gas-city-dashboard-shared';
 import {
   advanceProgressMarks,
+  buildCensus,
   buildRunSummary,
   deriveRunHealth,
   fromFeedScope,
   fromDashboardBead,
   fromRootMetadataScope,
   fromStoreRef,
+  isStaleSessionlessLatch,
+  MAX_VISIBLE_ACTIVE_LANES,
   runBeadFilter,
+  runCounts,
   type LaneProgressMark,
 } from 'gas-city-dashboard-shared';
 import { activeCityOrThrow } from '../api/cityBase';
@@ -109,7 +113,9 @@ export async function loadSupervisorRunSummaryPreviewSource(): Promise<SourceSta
       fetchedAt,
       staleAt: new Date(Date.parse(fetchedAt) + RUNS_STALE_AFTER_MS).toISOString(),
       error: { kind: 'none' },
-      data: summary,
+      // First paint has no sessions yet, so no latch demotion — just apply the
+      // visible cap that buildRunSummary now defers to its consumers (s4rp).
+      data: { ...summary, lanes: summary.lanes.slice(0, MAX_VISIBLE_ACTIVE_LANES) },
     };
   } catch (err) {
     return {
@@ -266,17 +272,37 @@ function enrichRunSummary(
     progressStateByCity.set(cityName, { marks, fetchedAt: source.fetchedAt });
   }
 
-  const { lanes, census } = deriveRunHealth({
+  const sessionsAvailable = sessionsLookup.kind === 'available';
+  const { lanes } = deriveRunHealth({
     lanes: inFlight,
     sessions: sessionsLookup.sessions,
-    sessionsAvailable: sessionsLookup.kind === 'available',
+    sessionsAvailable,
     marks,
   });
 
+  const blockedLanes = lanes.filter((lane) => lane.phase === 'blocked');
+  const activeEnriched = lanes.filter((lane) => lane.phase !== 'blocked');
+
+  // gascity-dashboard-s4rp: sessions only resolve here at enrichment, so this is
+  // the earliest seam with enough information to demote stale session-less
+  // latches (the gc-1920 phantom: no live session, no in_progress step, days
+  // stale) out of the Active set. buildRunSummary hands us the FULL active set
+  // (not the capped window), so totalActive is recomputed exactly from the
+  // surviving lanes — a phantom past the 8th slot is demoted too. Staleness is
+  // judged against the snapshot generation time, not a live clock, so the result
+  // is stable for a snapshot.
+  const liveActive = activeEnriched.filter(
+    (lane) => !isStaleSessionlessLatch(lane, generationMs, sessionsAvailable),
+  );
+  const visibleActive = liveActive.slice(0, MAX_VISIBLE_ACTIVE_LANES);
+  const census = buildCensus([...liveActive, ...blockedLanes]);
+
   return {
     ...source.data,
-    lanes: lanes.filter((lane) => lane.phase !== 'blocked'),
-    blockedLanes: lanes.filter((lane) => lane.phase === 'blocked'),
+    totalActive: liveActive.length,
+    lanes: visibleActive,
+    blockedLanes,
+    runCounts: runCounts(liveActive, visibleActive.length, blockedLanes.length),
     census: { status: 'available', data: census },
   };
 }

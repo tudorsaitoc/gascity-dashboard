@@ -233,6 +233,132 @@ describe('loadSupervisorRunSummarySource', () => {
     expect(source.data.runCounts.blocked).toBe(1);
   });
 
+  // gascity-dashboard-s4rp: the gc-1920 phantom now surfaces NOT as blocked but
+  // as a stale session-less approval latch — counted Active:1 despite no live
+  // session, no in_progress step, and ~4d since its last write. Enrichment must
+  // demote it out of the Active set and count once sessions resolve.
+  function staleLatch(): Bead {
+    return runRoot({
+      id: 'gc-1920',
+      title: 'mol-focus-review',
+      description: 'Focus + in-session review formula. Approval gate, review.',
+      status: 'open',
+      updated_at: '2026-05-28T00:00:00.000Z',
+      metadata: {
+        'gc.kind': 'run',
+        'gc.formula_contract': 'graph.v2',
+        'gc.scope_kind': 'city',
+        'gc.scope_ref': 'test-city',
+        'gc.root_store_ref': 'city:test-city',
+      },
+    });
+  }
+
+  it('demotes a stale session-less approval latch out of the Active set (gascity-dashboard-s4rp)', async () => {
+    const listBeads = vi.fn(async (_cityName: string, query?: Record<string, unknown>) => {
+      if (query?.type === 'molecule') return beadList([]);
+      if (query?.rig === 'rig-a') {
+        return beadList([
+          bead({
+            id: 'run-1-step-1',
+            title: 'Implementation patch',
+            status: 'in_progress',
+            updated_at: '2026-06-01T11:55:00.000Z',
+            metadata: {
+              'gc.kind': 'step',
+              'gc.root_bead_id': 'run-1',
+              'gc.step_id': 'implementation.patch',
+            },
+          }),
+        ]);
+      }
+      return beadList([runRoot(), staleLatch()]);
+    });
+    setSupervisorApiForTests({
+      ...baseApi,
+      listBeads,
+      formulaFeed: vi.fn(async () => feed([feedRun()])),
+      listSessions: vi.fn(async () => sessionList()),
+    });
+
+    const source = await loadSupervisorRunSummarySource();
+
+    expect(source.status).toBe('fresh');
+    if (source.status === 'error') throw new Error(source.error);
+    // run-1 has an in_progress step and stays Active; gc-1920 is demoted out of
+    // the Active set, count, AND the blocked/historical buckets (dropped).
+    expect(source.data.totalActive).toBe(1);
+    expect(source.data.lanes.map((lane) => lane.id)).toEqual(['run-1']);
+    expect(source.data.blockedLanes).toEqual([]);
+    expect(source.data.historicalLanes.map((lane) => lane.id)).not.toContain('gc-1920');
+    expect(source.data.runCounts.total).toBe(1);
+  });
+
+  it('keeps a session-less approval gate that is still recent (gascity-dashboard-s4rp)', async () => {
+    const listBeads = vi.fn(async (_cityName: string, query?: Record<string, unknown>) => {
+      if (query?.type === 'molecule') return beadList([]);
+      if (query?.rig === 'rig-a') return beadList([]);
+      // Same shape as the stale latch but written 30 minutes ago — a real
+      // approval gate waiting on a human must still appear as Active.
+      return beadList([{ ...staleLatch(), updated_at: '2026-06-01T11:30:00.000Z' }]);
+    });
+    setSupervisorApiForTests({
+      ...baseApi,
+      listBeads,
+      formulaFeed: vi.fn(async () => feed([])),
+      listSessions: vi.fn(async () => sessionList()),
+    });
+
+    const source = await loadSupervisorRunSummarySource();
+
+    expect(source.status).toBe('fresh');
+    if (source.status === 'error') throw new Error(source.error);
+    expect(source.data.totalActive).toBe(1);
+    expect(source.data.lanes.map((lane) => lane.id)).toEqual(['gc-1920']);
+    expect(source.data.lanes[0]?.phase).toBe('approval');
+  });
+
+  it('demotes a phantom exactly even when active runs exceed the visible cap (gascity-dashboard-s4rp)', async () => {
+    // Demotion runs on the FULL active set, not the capped window, so totalActive
+    // is exact: a phantom is removed from the count even with >8 active runs.
+    const liveRuns = Array.from({ length: 9 }, (_, i) =>
+      runRoot({
+        id: `live-${i}`,
+        title: `Live run ${i}`,
+        status: 'open',
+        updated_at: '2026-06-01T11:55:00.000Z',
+        metadata: {
+          'gc.kind': 'run',
+          'gc.formula_contract': 'graph.v2',
+          'gc.scope_kind': 'city',
+          'gc.scope_ref': 'test-city',
+          'gc.root_store_ref': 'city:test-city',
+        },
+      }),
+    );
+    const listBeads = vi.fn(async (_cityName: string, query?: Record<string, unknown>) => {
+      if (query?.type === 'molecule') return beadList([]);
+      if (query?.rig === 'rig-a') return beadList([]);
+      return beadList([...liveRuns, staleLatch()]);
+    });
+    setSupervisorApiForTests({
+      ...baseApi,
+      listBeads,
+      formulaFeed: vi.fn(async () => feed([])),
+      listSessions: vi.fn(async () => sessionList()),
+    });
+
+    const source = await loadSupervisorRunSummarySource();
+
+    expect(source.status).toBe('fresh');
+    if (source.status === 'error') throw new Error(source.error);
+    expect(source.data.totalActive).toBe(9);
+    expect(source.data.lanes).toHaveLength(8); // visible window still capped
+    expect(source.data.lanes.map((lane) => lane.id)).not.toContain('gc-1920');
+    expect(source.data.runCounts.total).toBe(9);
+    expect(source.data.runCounts.visible).toBe(8);
+  });
+
   it('keeps available lanes while marking the summary partial when a recent rig read fails', async () => {
     const listBeads = vi.fn(async (_cityName: string, query?: Record<string, unknown>) => {
       if (query?.type === 'molecule') return beadList([]);

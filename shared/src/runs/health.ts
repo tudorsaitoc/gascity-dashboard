@@ -174,7 +174,7 @@ function zeroByPhase(): Record<RunPhase, number> {
   };
 }
 
-function buildCensus(lanes: readonly RunLane[]): RunCensus {
+export function buildCensus(lanes: readonly RunLane[]): RunCensus {
   const byPhase = zeroByPhase();
 
   let totalInFlight = 0;

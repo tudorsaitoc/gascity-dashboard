@@ -111,6 +111,41 @@ describe('buildRunSummary — blocked lanes are not Active (gascity-dashboard-4x
   });
 });
 
+// gascity-dashboard-s4rp: a run rooted at a bead missing from the store
+// (dangling root, gc-1920-class — id ~1920 vs a current store at ~346k) has no
+// authoritative root metadata. Its only members are orphan step beads pointing
+// at the absent root, so it must never be surfaced as a live lane.
+describe('buildRunSummary — dangling-root groups are not surfaced (gascity-dashboard-s4rp)', () => {
+  function orphanStep(rootId: string): RunIssue {
+    return {
+      id: `${rootId}-step-1`,
+      title: 'Implementation patch',
+      status: 'in_progress',
+      issue_type: 'task',
+      updated_at: '2026-06-01T00:05:00Z',
+      metadata: {
+        'gc.kind': 'step',
+        'gc.formula_contract': 'graph.v2',
+        'gc.root_bead_id': rootId,
+        'gc.step_id': 'implementation.patch',
+      },
+    };
+  }
+
+  test('a group whose root bead is absent does not appear anywhere', () => {
+    const summary = buildRunSummary([orphanStep('gc-1920'), ...activeRun('run-1')]);
+
+    assert.equal(summary.totalActive, 1);
+    assert.deepEqual(
+      summary.lanes.map((lane) => lane.id),
+      ['run-1'],
+    );
+    assert.deepEqual(summary.blockedLanes, []);
+    assert.deepEqual(summary.historicalLanes, []);
+    assert.equal(summary.runCounts.total, 1);
+  });
+});
+
 // gascity-dashboard-5e5v: supervisor-controlled rig/scope refs are rendered
 // verbatim by run-summary consumers (the web frontend, and any terminal client
 // that emits DTO strings into the operator's terminal — Ink tokenises ANSI but

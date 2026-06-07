@@ -2,6 +2,7 @@ import type { RunChange, RunCounts, RunLane, RunSummary, RunStage } from '../sna
 import { fromRootMetadataScope } from '../run-scope.js';
 import { stripNonPrintable } from '../strip-non-printable.js';
 import { resolveRunFormulaIdentity } from './formula-name.js';
+import { isDanglingRootGroup } from './liveness.js';
 import {
   isPrimaryStepIssue,
   latestStepId,
@@ -14,7 +15,7 @@ import {
   type RunIssue,
 } from './phaseMapping.js';
 
-const MAX_VISIBLE_ACTIVE_LANES = 8;
+export const MAX_VISIBLE_ACTIVE_LANES = 8;
 export const RECENT_CHANGES_CAP = 12;
 const ENGINEERING_TYPES = new Set([
   'feature',
@@ -48,8 +49,13 @@ export function buildRunSummary(
     groups.set(rootId, group);
   }
 
-  const runGroups = Array.from(groups.entries()).filter(([rootId, groupIssues]) =>
-    isGraphV2RunGroup(rootId, groupIssues),
+  const runGroups = Array.from(groups.entries()).filter(
+    ([rootId, groupIssues]) =>
+      // gascity-dashboard-s4rp: a run rooted at a bead missing from the store
+      // (dangling root, gc-1920-class) has no authoritative root metadata — its
+      // title is inferred from a child and its scope is unresolvable. Drop it
+      // explicitly rather than rely on the graph.v2 check incidentally failing.
+      !isDanglingRootGroup(rootId, groupIssues) && isGraphV2RunGroup(rootId, groupIssues),
   );
   const laneIssues = runGroups.flatMap(([, groupIssues]) => groupIssues);
   const sortedLanes = runGroups
@@ -66,11 +72,18 @@ export function buildRunSummary(
   const blockedLanes = sortedLanes.filter((lane) => lane.phase === 'blocked');
   const visibleActive = activeLanes.slice(0, MAX_VISIBLE_ACTIVE_LANES);
 
+  // gascity-dashboard-s4rp: `lanes` carries the FULL active set, not the capped
+  // window. Session-less-latch demotion (enrichRunSummary) is session-aware and
+  // can only run downstream of this builder, so it must see every active lane to
+  // recompute totalActive exactly — capping here would hide phantoms beyond the
+  // 8th slot from demotion and leave them in the count. Both consumers
+  // (preview and enriched loaders) apply MAX_VISIBLE_ACTIVE_LANES to `lanes`
+  // before it reaches the DTO, so the rendered window stays capped.
   const summary: RunSummary = {
     totalActive: activeLanes.length,
     totalHistorical: historicalLanes.length,
     runCounts: runCounts(activeLanes, visibleActive.length, blockedLanes.length),
-    lanes: visibleActive,
+    lanes: activeLanes,
     historicalLanes,
     blockedLanes,
     recentChanges: recentChanges(laneIssues),
