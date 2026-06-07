@@ -32,18 +32,13 @@ export function useReadOnly(): boolean {
   return useContext(ReadOnlyContext);
 }
 
-/**
- * Shared title/affordance copy for a control disabled by read-only mode.
- * Uses a colon, not an em dash, per DESIGN.md §"Don't use em dashes in UI copy".
- */
+/** Title/affordance copy for a control disabled by read-only mode. Colon, not
+ *  an em dash, per DESIGN.md §"Don't use em dashes in UI copy". */
 export const READ_ONLY_CONTROL_TITLE = 'Read-only mode: mutations are disabled';
 
-/**
- * The single "Read-only" affordance badge, shared by every surface that
- * disables a supervisor-mutating control. Keeping the tone/label/title in one
- * place stops the five call sites from drifting (DESIGN.md §States have words:
- * a glyph + word, not color alone). Render behind a `readOnly &&` guard.
- */
+/** The single "Read-only" affordance badge shared by every disabled mutating
+ *  control (DESIGN.md §States have words: a glyph + word, not color alone).
+ *  Render behind a `readOnly &&` guard. */
 export function ReadOnlyBadge() {
   return <StatusBadge tone="warn" label="Read-only" title={READ_ONLY_CONTROL_TITLE} />;
 }
