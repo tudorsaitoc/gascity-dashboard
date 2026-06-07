@@ -5,7 +5,7 @@ import { AttentionProvider } from './attention/context';
 import { useLiveAttentionContributors } from './attention/liveContributors';
 import { Layout } from './components/Layout';
 import { NowProvider } from './contexts/NowContext';
-import { ReadOnlyProvider } from './contexts/ReadOnlyContext';
+import { ReadOnlyProvider, resolveReadOnly } from './contexts/ReadOnlyContext';
 import { ViewingAsProvider } from './contexts/ViewingAsContext';
 import { useCachedData } from './hooks/useCachedData';
 import { ALL_VIEWS } from './views/registry';
@@ -36,12 +36,13 @@ export function App() {
   // flight `data` is undefined; we treat that as core-only, matching the
   // steady-state default install and preventing disabled first-party modules
   // from flashing or fetching before config lands.
-  const { data: config } = useCachedData('config', () => api.config());
+  const { data: config, error: configError } = useCachedData('config', () => api.config());
   const enabledModules = config?.enabledModules ?? null;
   const defaultViewEnv = config?.defaultView ?? null;
-  // Until /config lands, treat the dashboard as writable (matches prior
-  // behaviour); the server proxy gate stays the real enforcement either way.
-  const readOnly = config?.readOnly ?? false;
+  // Read-only posture is fail-closed on a config-fetch error and writable only
+  // while the first fetch is in flight — see resolveReadOnly. The server proxy
+  // gate stays the real enforcement throughout.
+  const readOnly = resolveReadOnly(config, configError);
   const attentionContributors = useLiveAttentionContributors(enabledModules);
 
   const enabledViews = useMemo(
