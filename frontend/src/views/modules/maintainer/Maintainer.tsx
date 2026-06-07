@@ -14,13 +14,12 @@ import {
   filterTierByNeedsPr,
 } from './triageFilters';
 import { useNow } from '../../../contexts/NowContext';
-import { READ_ONLY_CONTROL_TITLE, useReadOnly } from '../../../contexts/ReadOnlyContext';
+import { ReadOnlyBadge, useReadOnly } from '../../../contexts/ReadOnlyContext';
 import { api } from '../../../api/client';
 import { cityPath, getActiveCity } from '../../../api/cityBase';
 import { setCached } from '../../../api/cache';
 import { Button } from '../../../components/Button';
 import { PageHeader } from '../../../components/PageHeader';
-import { StatusBadge } from '../../../components/StatusBadge';
 import { SlungSection, TierSection } from './TriageSections';
 import { useCachedData } from '../../../hooks/useCachedData';
 import { useViewingAs } from '../../../contexts/ViewingAsContext';
@@ -275,9 +274,7 @@ export function MaintainerPage() {
                 {refreshError ?? error}
               </span>
             )}
-            {readOnly && (
-              <StatusBadge tone="warn" label="Read-only" title={READ_ONLY_CONTROL_TITLE} />
-            )}
+            {readOnly && <ReadOnlyBadge />}
             <Button size="sm" onClick={toggleFocus}>
               {focusBreaking ? 'Show all tiers' : 'Breaking only'}
             </Button>

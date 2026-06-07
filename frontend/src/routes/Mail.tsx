@@ -11,14 +11,13 @@ import { GroupedTable } from '../components/GroupedTable';
 import { ListSearchBar } from '../components/ListSearchBar';
 import { Modal } from '../components/Modal';
 import { PageHeader } from '../components/PageHeader';
-import { StatusBadge } from '../components/StatusBadge';
 import { type TableColumn } from '../components/Table';
 import { AgentPanel } from '../components/AgentPanel';
 import { ComposeModal } from '../components/mail/ComposeModal';
 import { ThreadMessage } from '../components/mail/ThreadMessage';
 import { Field } from '../components/Field';
 import { useNow } from '../contexts/NowContext';
-import { READ_ONLY_CONTROL_TITLE, useReadOnly } from '../contexts/ReadOnlyContext';
+import { READ_ONLY_CONTROL_TITLE, ReadOnlyBadge, useReadOnly } from '../contexts/ReadOnlyContext';
 import { useViewingAs, OPERATOR_ALIAS } from '../contexts/ViewingAsContext';
 import { displayLabel } from '../hooks/aliasPriority';
 import { useListFilters, type FilterChip } from '../hooks/useListFilters';
@@ -294,9 +293,7 @@ export function MailPage() {
                 {error}
               </span>
             )}
-            {readOnly && (
-              <StatusBadge tone="warn" label="Read-only" title={READ_ONLY_CONTROL_TITLE} />
-            )}
+            {readOnly && <ReadOnlyBadge />}
             <Button
               size="sm"
               onClick={() => setComposing(true)}

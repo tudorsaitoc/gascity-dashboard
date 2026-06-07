@@ -1,7 +1,6 @@
 import { Link } from 'react-router-dom';
 import { Button } from '../../../components/Button';
-import { READ_ONLY_CONTROL_TITLE } from '../../../contexts/ReadOnlyContext';
-import { StatusBadge } from '../../../components/StatusBadge';
+import { READ_ONLY_CONTROL_TITLE, ReadOnlyBadge } from '../../../contexts/ReadOnlyContext';
 import { formatRelative } from '../../../hooks/time';
 import { formatDateTime } from '../../../lib/format';
 import type { MaintainerSlingIntent, SlingSuccess } from './maintainerSelection';
@@ -88,9 +87,7 @@ export function SelectionActionBar({
           )}
         </div>
         <div className="flex items-baseline gap-3">
-          {readOnly && (
-            <StatusBadge tone="warn" label="Read-only" title={READ_ONLY_CONTROL_TITLE} />
-          )}
+          {readOnly && <ReadOnlyBadge />}
           <Button
             size="sm"
             onClick={onSend}

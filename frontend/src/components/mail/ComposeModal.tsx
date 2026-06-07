@@ -1,6 +1,10 @@
 import { useCallback, useEffect, useState } from 'react';
 import { formatApiError } from '../../api/client';
-import { READ_ONLY_CONTROL_TITLE, useReadOnly } from '../../contexts/ReadOnlyContext';
+import {
+  READ_ONLY_CONTROL_TITLE,
+  ReadOnlyBadge,
+  useReadOnly,
+} from '../../contexts/ReadOnlyContext';
 import { OPERATOR_ALIAS, useViewingAs } from '../../contexts/ViewingAsContext';
 import { displayLabel } from '../../hooks/aliasPriority';
 import { sendSupervisorMail } from '../../supervisor/mailWrites';
@@ -122,7 +126,7 @@ export function ComposeModal({ open, onClose, onSent }: ComposeModalProps) {
             className="w-full bg-surface-tint border border-rule rounded-sm px-3 py-2 text-body text-fg focus:border-accent focus:outline-none focus:ring-1 focus:ring-accent/40 resize-y"
           />
         </Field>
-        {readOnly && <StatusBadge tone="warn" label="Read-only" title={READ_ONLY_CONTROL_TITLE} />}
+        {readOnly && <ReadOnlyBadge />}
         {!viewingAs.isOperator && (
           <StatusBadge
             tone="warn"

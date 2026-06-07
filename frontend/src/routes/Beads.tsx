@@ -13,7 +13,7 @@ import { ListSearchBar } from '../components/ListSearchBar';
 import { Modal } from '../components/Modal';
 import { PageHeader } from '../components/PageHeader';
 import { StatusBadge } from '../components/StatusBadge';
-import { READ_ONLY_CONTROL_TITLE, useReadOnly } from '../contexts/ReadOnlyContext';
+import { READ_ONLY_CONTROL_TITLE, ReadOnlyBadge, useReadOnly } from '../contexts/ReadOnlyContext';
 import { buildBeadGraph } from '../lib/beadGraph';
 import { resolveRigName, rigNameOptions } from '../lib/rigNames';
 import { useCachedData } from '../hooks/useCachedData';
@@ -403,9 +403,7 @@ export function BeadsPage() {
             <span className="text-label uppercase tracking-wider text-fg-faint">
               {showClosed ? 'All statuses' : 'Open work'}
             </span>
-            {readOnly && (
-              <StatusBadge tone="warn" label="Read-only" title={READ_ONLY_CONTROL_TITLE} />
-            )}
+            {readOnly && <ReadOnlyBadge />}
             <Button
               type="button"
               size="sm"
