@@ -52,6 +52,37 @@ export function basename(path: string | null | undefined): string {
   return seg || trimmed;
 }
 
+/** The pool-worker template token. A pool worker is a "polecat" by Gas City
+ *  convention (see {@link agentKind}); the dashboard has no other pool kind. */
+const POLECAT = 'polecat';
+
+/**
+ * A mail sender that is a pool worker (a "polecat") — the worker firehose the
+ * operator's nav badge folds away (gascity-dashboard-2j8e.5). Classified from
+ * the `from` STRING, not a live session: pool workers are ephemeral, so the
+ * session that sent a message is often already gone and cannot be looked up.
+ * The supervisor reports the sender inconsistently (a bare name, a session id,
+ * or a filesystem path), so the polecat token is matched anywhere in the
+ * basename — mirroring the template check {@link agentKind} runs on a session.
+ */
+export function isPoolWorkerSender(from: string): boolean {
+  return basename(from).toLowerCase().includes(POLECAT);
+}
+
+/**
+ * The operator's needs-you mail (gascity-dashboard-2j8e.5): unread messages that
+ * are NOT pool-worker firehose. The single selector the Mail nav badge and the
+ * Mail page both read, so the badge count and the page count cannot disagree
+ * (mirrors {@link selectBlockedRuns} for the Runs badge). Recipient scoping is
+ * the caller's job — both feed it the operator inbox — so this stays a pure
+ * sender/read filter. Input order is preserved; the caller owns sort.
+ */
+export function selectOperatorActionableUnread<T extends OperatorMailItem>(
+  mail: readonly T[],
+): readonly T[] {
+  return mail.filter((m) => !m.read && !isPoolWorkerSender(m.from));
+}
+
 /**
  * Canonical rig label. The supervisor reports a rig inconsistently — sometimes
  * a filesystem path (`/home/ds/projects/scix_experiments`), sometimes a name

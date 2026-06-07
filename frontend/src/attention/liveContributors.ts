@@ -219,8 +219,11 @@ async function fetchMailAttention(
   cityName: string | null,
   operator: OperatorConfig,
 ): Promise<MailAttentionFacts> {
-  if (cityName === null) return { operatorAlias: operator.operatorWireAlias };
+  if (cityName === null) return {};
   try {
+    // The operator inbox (to:operator). selectOperatorActionableUnread then
+    // folds the pool-worker firehose, so the badge counts only needs-you mail
+    // (gascity-dashboard-2j8e.5).
     const list = await listSupervisorMail(
       'inbox',
       operator.operatorAlias,
@@ -230,12 +233,10 @@ async function fetchMailAttention(
     return {
       items: list.items ?? [],
       nowMs: Date.now(),
-      operatorAlias: operator.operatorWireAlias,
       partial: list.partial === true,
     };
   } catch (err) {
     return {
-      operatorAlias: operator.operatorWireAlias,
       error: formatApiError(err, 'mail list unavailable'),
     };
   }

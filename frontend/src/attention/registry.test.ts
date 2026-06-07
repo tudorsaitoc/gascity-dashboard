@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { selectOperatorActionableUnread } from 'gas-city-dashboard-shared';
 import type {
   DeployList,
   DoltNomsTrend,
@@ -153,7 +154,6 @@ describe('createAttentionContributors', () => {
           ],
         },
         mail: {
-          operatorAlias: 'stephanie',
           items: [
             message({
               id: 'M-1',
@@ -267,6 +267,66 @@ describe('createAttentionContributors', () => {
     expect(navBadgeCount).toBe(2);
     expect(pageBlockedTile).toBe(navBadgeCount);
     expect(pageBlockedSection).toBe(navBadgeCount);
+  });
+
+  it('counts operator needs-you mail only — folds the pool-worker firehose (gascity-dashboard-2j8e.5)', () => {
+    const model = composeAttention(
+      createAttentionContributors({
+        mail: {
+          nowMs: Date.parse('2026-06-07T12:00:00.000Z'),
+          items: [
+            message({
+              id: 'M-mayor',
+              from: 'mayor',
+              subject: 'Decision needed',
+              read: false,
+              created_at: '2026-06-07T11:00:00.000Z',
+            }),
+            message({
+              id: 'M-pl',
+              from: 'zeldascension/oversight-rig.project-lead',
+              subject: 'Review escalation',
+              read: false,
+              created_at: '2026-06-07T10:00:00.000Z',
+            }),
+            // The worker firehose (the ~93 inflation) — folded out of the badge.
+            message({ id: 'M-pc1', from: '/home/ds/gascity/polecat-1', read: false }),
+            message({ id: 'M-pc2', from: '/home/ds/gascity/polecat-2', read: false }),
+          ],
+        },
+      }),
+    );
+
+    expect(model.byDomain.mail.attention).toBe(2);
+    expect(model.byDomain.mail.watch).toBe(0);
+    expect(model.byDomain.mail.items.map((item) => item.id)).toEqual([
+      'mail:M-mayor:unread',
+      'mail:M-pl:unread',
+    ]);
+    expect(model.byDomain.mail.items.map((item) => item.href)).toEqual([
+      '/mail?message=M-mayor',
+      '/mail?message=M-pl',
+    ]);
+  });
+
+  it('Mail badge count equals the Mail page selector count — one selectOperatorActionableUnread (gascity-dashboard-2j8e.5)', () => {
+    const items = [
+      message({ id: 'A', from: 'mayor', read: false, created_at: '2026-06-07T11:00:00.000Z' }),
+      message({ id: 'B', from: '/home/ds/gascity/polecat-1', read: false }),
+      message({ id: 'C', from: 'clerk', read: false, created_at: '2026-06-07T11:30:00.000Z' }),
+      message({ id: 'D', from: 'mayor', read: true }),
+    ];
+    const badge = composeAttention(
+      createAttentionContributors({
+        mail: { items, nowMs: Date.parse('2026-06-07T12:00:00.000Z') },
+      }),
+    ).byDomain.mail;
+    // The Mail page derives its count from the SAME selector, so the two cannot
+    // disagree: the polecat firehose (B) and the read message (D) drop, leaving
+    // the mayor + clerk escalations.
+    const pageCount = selectOperatorActionableUnread(items).length;
+    expect(pageCount).toBe(2);
+    expect(badge.attention + badge.watch).toBe(pageCount);
   });
 
   it('never counts a supervisor partial read as a run (gascity-dashboard-2j8e.2)', () => {
@@ -446,7 +506,6 @@ describe('createAttentionContributors', () => {
         },
         mail: {
           nowMs,
-          operatorAlias: 'stephanie',
           items: [
             message({
               created_at: '2026-05-31T08:00:00.000Z',

@@ -7,7 +7,11 @@ import type {
   SystemHealth,
   TriageItem,
 } from 'gas-city-dashboard-shared';
-import { selectAgentsNeedingYou, selectBlockedRuns } from 'gas-city-dashboard-shared';
+import {
+  selectAgentsNeedingYou,
+  selectBlockedRuns,
+  selectOperatorActionableUnread,
+} from 'gas-city-dashboard-shared';
 import { selectBeadsNeedingAttention, type BeadAttentionReason } from './beadsNeedingAttention';
 import { elapsedSince, formatElapsed } from './elapsed';
 import { runDetailHref } from '../supervisor/runHref';
@@ -74,10 +78,9 @@ export interface BeadsAttentionFacts {
   items?: readonly Bead[];
   /**
    * The label marking a bead as a mayor-decision (DASHBOARD_DECISION_LABEL,
-   * gascity-dashboard-bhvn). Carried in the facts — like `MailAttentionFacts`
-   * carries `operatorAlias` — so the registry derives the decision skip from
-   * runtime config instead of a hardcoded literal. The live producer
-   * (liveContributors) sets it from the operator config.
+   * gascity-dashboard-bhvn). Carried in the facts so the registry derives the
+   * decision skip from runtime config instead of a hardcoded literal. The live
+   * producer (liveContributors) sets it from the operator config.
    */
   decisionLabel: string;
   /**
@@ -108,7 +111,6 @@ export interface BeadsAttentionFacts {
 
 export interface MailAttentionFacts {
   items?: readonly Message[];
-  operatorAlias: string;
   nowMs?: number;
   partial?: boolean;
   error?: string;
@@ -524,14 +526,17 @@ function deriveMailAttention(facts: MailAttentionFacts | undefined): readonly At
     );
   }
   const nowMs = facts.nowMs ?? Date.now();
-  for (const message of facts.items ?? []) {
-    if (message.read) continue;
-    const addressedToOperator = addressMatches(message.to, facts.operatorAlias);
-    const builder = addressedToOperator ? domainAttention : domainWatch;
+  // gascity-dashboard-2j8e.5: the Mail badge counts the operator's needs-you
+  // mail — unread, minus the pool-worker firehose (the ~93 inflation) — via the
+  // SAME selectOperatorActionableUnread the Mail page reads over the operator
+  // inbox, so the badge and the page agree on one selector (mirrors the Runs
+  // selectBlockedRuns). Every kept message is addressed to the operator (the
+  // fetch reads the operator inbox), so each surfaces as an attention item.
+  for (const message of selectOperatorActionableUnread(facts.items ?? [])) {
     const staleAgeMs = elapsedSince(message.created_at, nowMs);
     const stale = staleAgeMs !== null && staleAgeMs >= MAIL_UNREAD_STALE_MS;
     items.push(
-      builder('mail', {
+      domainAttention('mail', {
         id: `mail:${message.id}:${stale ? 'unread-stale' : 'unread'}`,
         title: message.subject,
         summary: stale
@@ -929,12 +934,6 @@ function formatBytes(bytes: number): string {
 function safeRatio(numerator: number, denominator: number): number | null {
   if (denominator <= 0) return null;
   return numerator / denominator;
-}
-
-function addressMatches(raw: string, alias: string): boolean {
-  const normalizedAlias = alias.trim().toLowerCase();
-  if (normalizedAlias.length === 0) return false;
-  return raw.split(/[,\s;]+/).some((part) => part.trim().toLowerCase() === normalizedAlias);
 }
 
 function healthAttention(
