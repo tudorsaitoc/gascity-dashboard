@@ -1,10 +1,12 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { getCached, setCached } from '../api/cache';
+import { getCached, getCachedFetchedAt, setCached } from '../api/cache';
 
 interface UseCachedDataResult<T> {
   data: T | undefined;
   loading: boolean;
   error: string | null;
+  /** ISO timestamp of the cache read backing `data`, or undefined before any lands. */
+  fetchedAt: string | undefined;
   refresh: () => Promise<void>;
 }
 
@@ -49,6 +51,7 @@ export function useCachedData<T>(
   const [data, setData] = useState<T | undefined>(() => getCached<T>(key));
   const [loading, setLoading] = useState<boolean>(() => getCached<T>(key) === undefined);
   const [error, setError] = useState<string | null>(null);
+  const [fetchedAt, setFetchedAt] = useState<string | undefined>(() => getCachedFetchedAt(key));
 
   const runFetcher = useCallback(
     async (fetch: () => Promise<T>) => {
@@ -64,6 +67,7 @@ export function useCachedData<T>(
         if (isLatestRun && isActiveKey) {
           setCached(cacheKey, fresh);
           setData(fresh);
+          setFetchedAt(getCachedFetchedAt(cacheKey));
         } else if (isActiveKey) {
           // First-paint rescue: a busy SSE stream can re-fire refresh()
           // faster than a slow fetch (e.g. the beads board's per-type
@@ -74,6 +78,14 @@ export function useCachedData<T>(
           // landed, latest-run-wins resumes and a stale slow fetch never
           // clobbers fresher data.
           setData((prev) => (prev === undefined ? fresh : prev));
+          // Mirror the data adoption for provenance. The rescue skips setCached
+          // (a superseded slow fetch must not become the authoritative cache
+          // value), so getCachedFetchedAt is undefined on a cold first paint —
+          // the exact SSE-storm case this rescue exists for. Stamp the rescued
+          // result as-of-now (same clock setCached uses) so fetchedAt never
+          // stays undefined while data is shown, while a kept prev or a real
+          // cache write keeps its own timestamp.
+          setFetchedAt((prev) => prev ?? getCachedFetchedAt(cacheKey) ?? new Date().toISOString());
         }
       } catch (err) {
         if (runIdRef.current === runId) {
@@ -98,11 +110,12 @@ export function useCachedData<T>(
     const cached = getCached<T>(key);
     setData(cached);
     setLoading(cached === undefined);
+    setFetchedAt(getCachedFetchedAt(key));
     void runFetcher(fetcherRef.current);
     return () => {
       runIdRef.current += 1;
     };
   }, [key, runFetcher]);
 
-  return { data, loading, error, refresh };
+  return { data, loading, error, fetchedAt, refresh };
 }

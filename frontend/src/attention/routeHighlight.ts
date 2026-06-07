@@ -1,5 +1,5 @@
 import type { HTMLAttributes } from 'react';
-import type { AttentionDomain, AttentionModel, AttentionSeverity } from './compose';
+import type { AttentionDomain, AttentionModel, AttentionSeverity, BadgeSeverity } from './compose';
 
 type AttentionAttributes<T extends HTMLElement> = HTMLAttributes<T> & {
   'data-attention-severity'?: AttentionSeverity;
@@ -9,14 +9,16 @@ export function resourceAttentionSeverity(
   model: AttentionModel,
   domain: AttentionDomain,
   resourceId: string,
-): AttentionSeverity | null {
+): BadgeSeverity | null {
   const prefix = `${domain}:${resourceId}:`;
   const exact = `${domain}:${resourceId}`;
-  let severity: AttentionSeverity | null = null;
+  let severity: BadgeSeverity | null = null;
   for (const item of model.byDomain[domain].items) {
     if (item.id !== exact && !item.id.startsWith(prefix)) continue;
     if (item.severity === 'attention') return 'attention';
-    severity = 'watch';
+    // `unavailable` reports a degraded read, not a watch-worthy state — it must
+    // not tint a row as if the resource itself needs the operator.
+    if (item.severity === 'watch') severity = 'watch';
   }
   return severity;
 }
@@ -25,18 +27,19 @@ export function prefixedAttentionSeverity(
   model: AttentionModel,
   domain: AttentionDomain,
   itemIdPrefixes: readonly string[],
-): AttentionSeverity | null {
-  let severity: AttentionSeverity | null = null;
+): BadgeSeverity | null {
+  let severity: BadgeSeverity | null = null;
   for (const item of model.byDomain[domain].items) {
     if (!itemIdPrefixes.some((prefix) => item.id.startsWith(prefix))) continue;
     if (item.severity === 'attention') return 'attention';
-    severity = 'watch';
+    // `unavailable` reports a degraded read, not a watch-worthy state.
+    if (item.severity === 'watch') severity = 'watch';
   }
   return severity;
 }
 
 export function attentionRowProps(
-  severity: AttentionSeverity | null,
+  severity: BadgeSeverity | null,
 ): AttentionAttributes<HTMLTableRowElement> {
   if (severity === null) return {};
   return {
@@ -57,7 +60,7 @@ export function attentionDataProps(
 }
 
 export function attentionListItemProps(
-  severity: AttentionSeverity | null,
+  severity: BadgeSeverity | null,
 ): AttentionAttributes<HTMLLIElement> {
   if (severity === null) return {};
   return {
@@ -67,7 +70,7 @@ export function attentionListItemProps(
 }
 
 export function attentionBlockProps(
-  severity: AttentionSeverity | null,
+  severity: BadgeSeverity | null,
 ): AttentionAttributes<HTMLDivElement> {
   if (severity === null) return {};
   return {
@@ -77,7 +80,7 @@ export function attentionBlockProps(
 }
 
 export function attentionSectionProps(
-  severity: AttentionSeverity | null,
+  severity: BadgeSeverity | null,
 ): AttentionAttributes<HTMLElement> {
   if (severity === null) return {};
   const toneClass =
@@ -88,7 +91,7 @@ export function attentionSectionProps(
   };
 }
 
-function attentionHighlightClass(severity: AttentionSeverity): string {
+function attentionHighlightClass(severity: BadgeSeverity): string {
   return severity === 'attention'
     ? 'bg-accent/10 hover:bg-accent/15'
     : 'bg-warn/10 hover:bg-warn/15';
