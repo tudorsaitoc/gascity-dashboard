@@ -40,6 +40,9 @@ credentials.*
 !.prettierignore
 !.claude/
 !.claude/**
+# ...but never the nested git worktrees agents create under .claude/ — those are
+# full checkouts (with node_modules) that must not be tracked or formatted.
+.claude/worktrees/
 !.agents/
 !.agents/**
 .scorecard/
