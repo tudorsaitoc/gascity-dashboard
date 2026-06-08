@@ -17,6 +17,12 @@ import {
 
 export const MAX_VISIBLE_ACTIVE_LANES = 8;
 export const RECENT_CHANGES_CAP = 12;
+// gascity-dashboard-9w3k: once v1 history is surfaced the completed set can grow
+// into the thousands. Cap the historical lanes carried on the wire to the most-
+// recent N (sortedLanes is already newest-first) so a long tail of old runs
+// cannot bury or out-pay the active set. totalHistorical still reports the full
+// count so the operator sees the true number behind the window.
+export const MAX_HISTORICAL_LANES = 50;
 const ENGINEERING_TYPES = new Set([
   'feature',
   'bug',
@@ -55,7 +61,13 @@ export function buildRunSummary(
       // (dangling root, gc-1920-class) has no authoritative root metadata — its
       // title is inferred from a child and its scope is unresolvable. Drop it
       // explicitly rather than rely on the graph.v2 check incidentally failing.
-      !isDanglingRootGroup(rootId, groupIssues) && isGraphV2RunGroup(rootId, groupIssues),
+      // gascity-dashboard-9w3k: surface v1 / wisp (non-graph.v2) runs too. The
+      // grouping + lane/stage primitives are formula-agnostic, so broadening the
+      // keep-condition is all that is needed — but the v1 predicate must reject a
+      // lone engineering bead (root = itself, no run markers) so the whole bead
+      // store does not turn into phantom lanes.
+      !isDanglingRootGroup(rootId, groupIssues) &&
+      (isGraphV2RunGroup(rootId, groupIssues) || isV1RunGroup(rootId, groupIssues)),
   );
   const laneIssues = runGroups.flatMap(([, groupIssues]) => groupIssues);
   const sortedLanes = runGroups
@@ -68,7 +80,10 @@ export function buildRunSummary(
   const activeLanes = sortedLanes.filter(
     (lane) => lane.phase !== 'complete' && lane.phase !== 'blocked',
   );
-  const historicalLanes = sortedLanes.filter((lane) => lane.phase === 'complete');
+  const completedLanes = sortedLanes.filter((lane) => lane.phase === 'complete');
+  // gascity-dashboard-9w3k: cap on the wire, but keep the FULL count for the DTO.
+  const totalHistorical = completedLanes.length;
+  const historicalLanes = completedLanes.slice(0, MAX_HISTORICAL_LANES);
   const blockedLanes = sortedLanes.filter((lane) => lane.phase === 'blocked');
   const visibleActive = activeLanes.slice(0, MAX_VISIBLE_ACTIVE_LANES);
 
@@ -81,7 +96,7 @@ export function buildRunSummary(
   // before it reaches the DTO, so the rendered window stays capped.
   const summary: RunSummary = {
     totalActive: activeLanes.length,
-    totalHistorical: historicalLanes.length,
+    totalHistorical,
     runCounts: runCounts(activeLanes, visibleActive.length, blockedLanes.length),
     lanes: activeLanes,
     historicalLanes,
@@ -95,6 +110,22 @@ export function buildRunSummary(
 function isGraphV2RunGroup(rootId: string, issues: RunIssue[]): boolean {
   const root = issues.find((issue) => issue.id === rootId);
   return stringValue(root?.metadata?.['gc.formula_contract']) === 'graph.v2';
+}
+
+// gascity-dashboard-9w3k: a genuine v1 / wisp run root — a molecule bead, an
+// explicit `gc.kind=run` marker, or a `gc.formula` attribution. This is the
+// flood guard: a lone engineering bead (root = itself with none of these
+// markers) must NOT be promoted to a lane, or every task/bug/feature in the
+// store would render as a phantom run. Convoys are already excluded upstream by
+// runBeadFilter (ENGINEERING_TYPES has no 'convoy').
+function isV1RunGroup(rootId: string, issues: RunIssue[]): boolean {
+  const root = issues.find((issue) => issue.id === rootId);
+  if (!root) return false;
+  return (
+    root.issue_type === 'molecule' ||
+    stringValue(root.metadata?.['gc.kind']) === 'run' ||
+    stringValue(root.metadata?.['gc.formula']) !== ''
+  );
 }
 
 export function runCounts(lanes: RunLane[], visible: number, blocked: number): RunCounts {

@@ -37,7 +37,8 @@ const COUNT_LABELS: Array<[keyof RunSummary['runCounts'], string]> = [
 const HISTORICAL_SECTION_ID = 'runs-historical-section';
 const HISTORICAL_LIST_ID = 'runs-historical-list';
 // How many completed runs show before the operator opts into the rest.
-// The wire carries every historical lane (gascity-dashboard-l9q9); this
+// The wire carries up to MAX_HISTORICAL_LANES most-recent historical lanes
+// (gascity-dashboard-l9q9, recency-bounded in gascity-dashboard-9w3k); this
 // preview keeps the section ambient by default per DESIGN.md.
 const HISTORICAL_PREVIEW = 5;
 
