@@ -2,10 +2,11 @@ import type { FormulaRunDetail, RunScopeKind } from 'gas-city-dashboard-shared';
 import { errorMessage, UnsupportedRunError } from 'gas-city-dashboard-shared';
 import { reportClientError } from '../lib/clientErrorReporting';
 import { loadSupervisorFormulaRunDetail } from '../supervisor/runDetail';
+import { SupervisorApiError } from '../supervisor/errors';
 import { useCachedData } from './useCachedData';
 
 interface FormulaRunDetailState {
-  kind: 'idle' | 'loading' | 'ready' | 'failed' | 'unsupported';
+  kind: 'idle' | 'loading' | 'ready' | 'failed' | 'unsupported' | 'not_found';
   refresh: () => Promise<void>;
 }
 
@@ -15,14 +16,23 @@ type FormulaRunRefreshState =
   | { kind: 'failed'; error: string };
 
 // gascity-dashboard-9w3k: a v1 / wisp run (not graph.v2) is surfaced in the run
-// list but has no graph.v2 step-detail view. enrichFormulaRun throws an
-// UnsupportedRunError('not_run_view') for it. We carry that as a DISTINCT
-// frontend payload (not a thrown error → not the generic failed state) so the
-// detail page can render an honest "list-only" message instead of an opaque
-// "Formula run unavailable." dead-end. No shared wire-shape field is added.
+// list but has no graph.v2 step-detail view. When its snapshot LOADS but isn't a
+// run view, enrichFormulaRun throws UnsupportedRunError('not_run_view') — the
+// RELIABLE v1 signal. We carry that as a DISTINCT 'unsupported' payload (not a
+// thrown error → not the generic failed state) so the page can render an honest
+// "list-only" message instead of the opaque "Formula run unavailable." dead-end.
+//
+// gascity-dashboard (Major 2): a raw SupervisorApiError 404 (no snapshot at all)
+// is AMBIGUOUS — it can be a v1/wisp id the workflow endpoint never knew, a
+// completed run whose snapshot wasn't retained, a pruned/deleted run, or a
+// stale/wrong derived scope. We must NOT assert it is definitively v1. It maps
+// to a distinct 'not_found' payload with honest copy that lists the
+// possibilities, kept separate from both 'unsupported' (which over-claims v1)
+// and the generic transport 'failed' state. No shared wire-shape field is added.
 type FormulaRunDetailPayload =
   | { kind: 'unrequested' }
   | { kind: 'unsupported' }
+  | { kind: 'not_found' }
   | {
       kind: 'loaded';
       detail: FormulaRunDetail;
@@ -37,6 +47,7 @@ export type FormulaRunDetailLoadState =
       refreshState: FormulaRunRefreshState;
     })
   | (FormulaRunDetailState & { kind: 'unsupported' })
+  | (FormulaRunDetailState & { kind: 'not_found' })
   | (FormulaRunDetailState & { kind: 'failed'; error: string });
 
 export function useFormulaRunDetail(
@@ -65,6 +76,7 @@ export function useFormulaRunDetail(
     };
   }
   if (data?.kind === 'unsupported') return { kind: 'unsupported', refresh };
+  if (data?.kind === 'not_found') return { kind: 'not_found', refresh };
   if (error !== null) return { kind: 'failed', error, refresh };
   return { kind: 'loading', refresh };
 }
@@ -82,12 +94,22 @@ async function loadFormulaRunDetail(
     const detail = await loadSupervisorFormulaRunDetail(runId, params.scopeKind, params.scopeRef);
     return { kind: 'loaded', detail };
   } catch (err) {
-    // gascity-dashboard-9w3k: a v1 / wisp run has no graph.v2 detail view. Map
-    // that one expected case to an 'unsupported' payload so the page renders the
-    // list-only message; a malformed graph.v2 snapshot ('invalid_snapshot') and
-    // any transport failure still propagate as a generic load error.
+    // gascity-dashboard-9w3k: a snapshot that LOADS but isn't a graph.v2 run
+    // view throws UnsupportedRunError('not_run_view'). That is the RELIABLE v1 /
+    // wisp signal, so it maps to the 'unsupported' payload and the page renders
+    // the honest list-only message instead of a raw error.
     if (err instanceof UnsupportedRunError && err.reason === 'not_run_view') {
       return { kind: 'unsupported' };
+    }
+    // gascity-dashboard (Major 2): a raw SupervisorApiError 404 (no snapshot at
+    // all) is AMBIGUOUS — v1/wisp id the workflow endpoint never knew, a
+    // completed run whose snapshot wasn't retained, a pruned/deleted run, or a
+    // stale/wrong derived scope. We do NOT claim it is definitively v1; it maps
+    // to the distinct 'not_found' payload whose copy lists the possibilities
+    // without over-claiming. A malformed graph.v2 snapshot ('invalid_snapshot')
+    // and any other transport failure still propagate as a generic load error.
+    if (err instanceof SupervisorApiError && err.status === 404) {
+      return { kind: 'not_found' };
     }
     throw err;
   }

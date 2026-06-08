@@ -3,6 +3,7 @@ import { afterEach, beforeEach, describe, expect, it, vi, type Mock } from 'vite
 import { invalidate } from '../api/cache';
 import { reportClientError } from '../lib/clientErrorReporting';
 import { supervisorApi } from '../supervisor/client';
+import { SupervisorApiError } from '../supervisor/errors';
 import { useFormulaRunDetail } from './useFormulaRunDetail';
 
 vi.mock('../api/cityBase', () => ({
@@ -143,6 +144,25 @@ describe('useFormulaRunDetail', () => {
     const { result } = renderHook(() => useFormulaRunDetail('wf-1', 'city', 'test-city'));
 
     await waitFor(() => expect(result.current.kind).toBe('unsupported'));
+    expect(mockReportClientError).not.toHaveBeenCalled();
+  });
+
+  it('surfaces a raw 404 from the workflow endpoint as not_found, not v1-unsupported', async () => {
+    // gascity-dashboard (Major 2): a raw SupervisorApiError 404 (no snapshot at
+    // all) is AMBIGUOUS — a v1/wisp id the workflow endpoint never knew, a
+    // completed run whose snapshot wasn't retained, a pruned/deleted run, or a
+    // stale/wrong derived scope. It must NOT be mislabeled as the definitive v1
+    // 'unsupported' state, and it must NOT collapse into the generic 'failed'
+    // transport state — it gets its own honest 'not_found' state.
+    supervisor.workflowRun.mockRejectedValue(
+      new SupervisorApiError(404, 'workflow gc-p7yf1m not found', undefined),
+    );
+
+    const { result } = renderHook(() => useFormulaRunDetail('gc-p7yf1m', 'city', 'test-city'));
+
+    await waitFor(() => expect(result.current.kind).toBe('not_found'));
+    expect(result.current.kind).not.toBe('unsupported');
+    expect(result.current.kind).not.toBe('failed');
     expect(mockReportClientError).not.toHaveBeenCalled();
   });
 });
