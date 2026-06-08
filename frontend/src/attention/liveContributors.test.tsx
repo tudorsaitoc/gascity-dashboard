@@ -1,10 +1,11 @@
 import { renderHook, waitFor } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import type { RunSummary, SourceState } from 'gas-city-dashboard-shared';
 import { invalidate } from '../api/cache';
 import { setActiveCity } from '../api/cityBase';
 import type { OperatorConfig } from '../contexts/OperatorConfigContext';
 import { composeAttention } from './compose';
-import { useLiveAttentionContributors } from './liveContributors';
+import { runsFactsFromSource, useLiveAttentionContributors } from './liveContributors';
 
 // Operator identity the live hook reads from /config (gascity-dashboard-bhvn).
 const testOperator: OperatorConfig = {
@@ -12,6 +13,34 @@ const testOperator: OperatorConfig = {
   operatorWireAlias: 'human',
   decisionLabel: 'needs/stephanie',
 };
+
+function freshRunsSource(): SourceState<RunSummary> {
+  return {
+    source: 'runs',
+    status: 'fresh',
+    fetchedAt: '2026-06-01T00:00:00.000Z',
+    staleAt: '2026-06-01T00:01:00.000Z',
+    error: { kind: 'none' },
+    data: {
+      totalActive: 0,
+      totalHistorical: 0,
+      historicalLanes: [],
+      blockedLanes: [],
+      runCounts: {
+        total: 0,
+        visible: 0,
+        prReview: 0,
+        designReview: 0,
+        bugfix: 0,
+        blocked: 0,
+        other: 0,
+      },
+      lanes: [],
+      recentChanges: [],
+      census: { status: 'unavailable', error: 'run health has not been derived' },
+    },
+  };
+}
 
 const mockApi = vi.hoisted(() => ({
   doltTrend: vi.fn(),
@@ -279,16 +308,17 @@ describe('useLiveAttentionContributors', () => {
   });
 
   it('composes Home/nav attention from direct supervisor facts and enabled dashboard-local module facts', async () => {
-    const { result } = renderHook(() => useLiveAttentionContributors(['maintainer'], testOperator));
+    const { result } = renderHook(() =>
+      useLiveAttentionContributors(['maintainer'], testOperator, undefined),
+    );
 
     await waitFor(() => {
       const model = composeAttention(result.current);
-      // gascity-dashboard-2j8e.2: the Runs badge now counts genuinely-blocked
-      // runs from the bead-derived run summary, not the formula feed. This
-      // fixture has no graph.v2 run beads (only a plain task bead + a city feed
-      // item), so there are no blocked runs to count. The blocked-counting
-      // logic is covered in registry.test.ts; here we assert the contributor is
-      // wired to the summary loader (listBeads({ limit: 500 }) below).
+      // gascity-dashboard-2j8e.7: the Runs badge reads the shared run-summary
+      // subscription (passed in as the runsSource arg), not its own fan-out.
+      // With no source here it contributes nothing; the blocked-counting logic
+      // is covered in registry.test.ts and the source projection in
+      // runsFactsFromSource below.
       expect(model.byDomain.runs.attention).toBe(0);
       // gascity-dashboard-2j8e.4: the one agent ('reviewer') is both in a
       // failure state AND awaiting an input decision; selectAgentsNeedingYou
@@ -304,9 +334,6 @@ describe('useLiveAttentionContributors', () => {
       expect(model.byDomain.maintainer.attention).toBe(1);
     });
 
-    // The Runs contributor drives the bead-derived run summary loader, whose
-    // required read is the active run-bead list (gascity-dashboard-2j8e.2).
-    expect(mockSupervisorApi.listBeads).toHaveBeenCalledWith('test-city', { limit: 500 });
     expect(mockSupervisorApi.listAgents).toHaveBeenCalledWith('test-city');
     expect(mockSupervisorApi.listSessions).toHaveBeenCalledWith('test-city');
     expect(mockSupervisorApi.sessionPending).toHaveBeenCalledWith('test-city', 'gc-2568');
@@ -331,27 +358,31 @@ describe('useLiveAttentionContributors', () => {
     expect(mockApi.doltTrend).toHaveBeenCalledTimes(1);
   });
 
-  it('drives the runs badge from the full run-summary snapshot, not the cheap preview (gascity-dashboard-2j8e.6)', async () => {
-    const { result } = renderHook(() => useLiveAttentionContributors(['maintainer'], testOperator));
+  it('projects the shared run-summary source onto the Runs badge facts (gascity-dashboard-2j8e.7)', () => {
+    // The badge reads the SAME source object the /runs page renders, so a fresh
+    // source carries its summary + status through, an error source carries the
+    // message, and an absent source contributes nothing — by-construction parity
+    // with no second fan-out.
+    expect(runsFactsFromSource(undefined)).toBeUndefined();
 
-    await waitFor(() => {
-      // The runs contributor has resolved (no blocked graph.v2 runs in this
-      // fixture, so 0 — the count itself is exercised in registry.test.ts).
-      expect(composeAttention(result.current).byDomain.runs.attention).toBe(0);
+    const errorFacts = runsFactsFromSource({
+      source: 'runs',
+      status: 'error',
+      error: 'supervisor warming up',
     });
+    expect(errorFacts).toEqual({ error: 'supervisor warming up', provenance: 'error' });
 
-    // The badge must read the SAME complete snapshot the /runs page renders.
-    // The page upgrades to the full source (REFRESH_ENRICHMENT_TIMEOUT_MS = 30s,
-    // session-enriched) on its first refresh; the badge previously stayed on the
-    // 2.5s preview budget and persistently undercounted blocked runs
-    // (gascity-dashboard-2j8e.6). The 30s enrichment budget is unique to the full
-    // run-summary source, so its presence proves the badge is on the full path
-    // (the old preview path only ever used the 2.5s / 5s budgets).
-    expect(mockSupervisorApiForRequestBudget).toHaveBeenCalledWith(30_000);
+    const fresh = freshRunsSource();
+    const freshFacts = runsFactsFromSource(fresh);
+    expect(freshFacts?.summary).toBe(fresh.status === 'error' ? undefined : fresh.data);
+    expect(freshFacts?.provenance).toBe('fresh');
+    expect(freshFacts?.fetchedAt).toBe('2026-06-01T00:00:00.000Z');
   });
 
   it('does not fetch maintainer triage before the enabled module config is loaded', async () => {
-    const { result } = renderHook(() => useLiveAttentionContributors(null, testOperator));
+    const { result } = renderHook(() =>
+      useLiveAttentionContributors(null, testOperator, undefined),
+    );
 
     await waitFor(() => {
       const model = composeAttention(result.current);
@@ -363,7 +394,7 @@ describe('useLiveAttentionContributors', () => {
   });
 
   it('does not fetch maintainer triage when the maintainer module is disabled', async () => {
-    const { result } = renderHook(() => useLiveAttentionContributors([], testOperator));
+    const { result } = renderHook(() => useLiveAttentionContributors([], testOperator, undefined));
 
     await waitFor(() => {
       const model = composeAttention(result.current);

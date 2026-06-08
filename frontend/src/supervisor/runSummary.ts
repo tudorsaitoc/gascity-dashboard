@@ -29,8 +29,9 @@ import { listIsIncomplete, listIsPartial } from './listPartial';
 import { normalizeSessions } from './sessionReads';
 
 // Pre-exposure load bound (gascity-dashboard-q89b): the primary in-flight
-// bead fetch refreshes on SSE bursts (10s debounce floor in Runs.tsx) per
-// client. listIsIncomplete keeps truncation visible in the lanes-partial signal.
+// bead fetch refreshes on SSE bursts (10s debounce floor in the shared
+// run-summary subscription) per client. listIsIncomplete keeps truncation
+// visible in the lanes-partial signal.
 const RUNS_FETCH_LIMIT = 500;
 // gascity-dashboard-4xcv: the supervisor's bead list has no sort/recency
 // guarantee, so a small `all=true` window can drop run roots and step beads
@@ -46,8 +47,9 @@ const REQUIRED_RUN_SUMMARY_TIMEOUT_MS = 5_000;
 // is best-effort: a miss degrades the lanes to "partial" rather than failing the
 // load. The budget is split by call site (gascity-dashboard-4bol). The preview
 // runs on first paint and blocks it, so it keeps a tight bound and the tab paints
-// fast even when the supervisor is slow. The full source runs only as Runs.tsx's
-// background refreshFetcher, so it can afford a far wider budget matching the 30s
+// fast even when the supervisor is slow. The full source runs only as the shared
+// run-summary subscription's background refreshFetcher, so it can afford a far
+// wider budget matching the 30s
 // background status samplers: on the bloated store the supervisor's list/feed
 // reads run ~10-38s (upstream gascity-dashboard#88), so a 2.5s interactive bound
 // always times out and latches a spurious "runs partial" badge. The wider refresh
@@ -78,20 +80,16 @@ const progressStateByCity = new Map<string, ProgressState>();
 // The wide-budget run-summary source (gascity-dashboard-4bol): the wide
 // enrichment budget lets slow-but-available list/feed reads land and clear the
 // spurious "runs partial" badge (upstream gascity-dashboard#88). It is the
-// /runs page's authoritative refresh snapshot.
+// authoritative refresh snapshot for the shared run-summary subscription
+// (runs/runSummarySubscription), which both the /runs page and the nav attention
+// badge read — so the badge counts the same genuinely-blocked runs the page
+// shows, by construction, off a single fan-out (gascity-dashboard-2j8e.7).
 //
 // Do NOT use this as a ROUTE first-paint fetcher — it can block a route view for
 // up to REFRESH_ENRICHMENT_TIMEOUT_MS; route mount consumers (Home, Formula Run
 // Detail) use loadSupervisorRunSummaryMountSource on the tight budget instead.
-//
-// The nav attention badge (liveContributors `fetchRunsAttention`) is an APPROVED
-// caller despite being mount-driven (gascity-dashboard-2j8e.6): it is cache-
-// backed and renders in the always-mounted header, so its latency never blocks a
-// route view — and it MUST read this exact snapshot. The badge counts the same
-// genuinely-blocked runs the page shows; using a narrower budget would let the
-// recent-run fan-out time out on a slow supervisor where the page's 30s budget
-// succeeds, re-introducing the badge-vs-page undercount this source was chosen to
-// eliminate. Parity requires the same budget, not merely the same selector.
+// The shared subscription is exempt: it is cache-backed and the always-mounted
+// header reads its result, so its latency never blocks a route view.
 export async function loadSupervisorRunSummarySource(): Promise<SourceState<RunSummary>> {
   return loadRunSummarySource(REFRESH_ENRICHMENT_TIMEOUT_MS);
 }
