@@ -104,17 +104,23 @@ export function useRunSummarySubscription(): RunSummarySubscription {
     return () => clearTimeout(timer);
   }, [runs, refresh]);
 
-  const onSseMatch = useCallback(() => {
-    // Skip when fixtures are serving (supervisor down) — every forced refresh
-    // under fixture-fallback re-runs loadFixture(), wasted file IO. An 'error'
-    // or 'stale' source is the opposite case: a bead event is exactly the cue
-    // to try loading live data again (gascity-dashboard-4xcv).
-    if (runsStatusRef.current === null || runsStatusRef.current === 'fixture') return;
-    // Skip when an explicit refresh is already in flight, so a fast SSE event
-    // can't race a slow upstream call into a last-write-wins overwrite.
-    if (loadingRef.current) return;
-    const elapsed = Date.now() - lastRefreshAtRef.current;
-    if (elapsed < REFRESH_DEBOUNCE_MS) return;
+  // A bead event arriving while a load is already in flight is queued, not
+  // dropped: that load started before the event, so it can return the pre-event
+  // snapshot, and dropping the event would latch it stale until the next event
+  // (post-mount drift — the exact thing 2j8e.7 exists to kill). One flag
+  // coalesces a whole in-flight burst into a single trailing refresh.
+  const pendingRefreshRef = useRef(false);
+  const trailingTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const runRefresh = useCallback(() => {
+    // Any refresh — leading or trailing — satisfies a queued trailing refresh,
+    // so cancel a pending trailing timer here rather than only in the effect
+    // cleanup: that closes the window where a leading refresh and a due-but-not-
+    // yet-fired trailing timer both run and double-fetch inside one floor.
+    if (trailingTimerRef.current !== null) {
+      clearTimeout(trailingTimerRef.current);
+      trailingTimerRef.current = null;
+    }
     lastRefreshAtRef.current = Date.now();
     void refresh().catch(() => {
       // Reset on error so the next event retries instead of being silently
@@ -122,6 +128,43 @@ export function useRunSummarySubscription(): RunSummarySubscription {
       lastRefreshAtRef.current = 0;
     });
   }, [refresh]);
+
+  const onSseMatch = useCallback(() => {
+    // Skip when fixtures are serving (supervisor down) — every forced refresh
+    // under fixture-fallback re-runs loadFixture(), wasted file IO. An 'error'
+    // or 'stale' source is the opposite case: a bead event is exactly the cue
+    // to try loading live data again (gascity-dashboard-4xcv).
+    if (runsStatusRef.current === null || runsStatusRef.current === 'fixture') return;
+    // A refresh is already in flight: a fast SSE event can't race it into a
+    // last-write-wins overwrite, but it must not be lost either — queue a single
+    // trailing refresh to reconcile once the in-flight load settles.
+    if (loadingRef.current) {
+      pendingRefreshRef.current = true;
+      return;
+    }
+    const elapsed = Date.now() - lastRefreshAtRef.current;
+    if (elapsed < REFRESH_DEBOUNCE_MS) return;
+    runRefresh();
+  }, [runRefresh]);
+
+  // Trailing edge: fire the queued refresh once the in-flight load settles. The
+  // debounce floor still applies on this edge — a slung-pipeline burst becomes
+  // one follow-up fan-out, not a hammer (architect H1/H2 upstream-load
+  // protection) — so a too-recent refresh defers to the remainder of the floor
+  // (remaining 0 → next tick). The handle lives in a ref so runRefresh can
+  // cancel it from the leading path too (see runRefresh).
+  useEffect(() => {
+    if (loading || !pendingRefreshRef.current) return;
+    pendingRefreshRef.current = false;
+    const remaining = Math.max(0, REFRESH_DEBOUNCE_MS - (Date.now() - lastRefreshAtRef.current));
+    trailingTimerRef.current = setTimeout(runRefresh, remaining);
+    return () => {
+      if (trailingTimerRef.current !== null) {
+        clearTimeout(trailingTimerRef.current);
+        trailingTimerRef.current = null;
+      }
+    };
+  }, [loading, runRefresh]);
 
   const sseState = useGcEventRefresh([GC_EVENT_PREFIX.bead], onSseMatch);
 

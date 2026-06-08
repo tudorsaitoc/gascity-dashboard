@@ -142,6 +142,48 @@ describe('useRunSummarySubscription / RunSummaryProvider (gascity-dashboard-2j8e
     expect(screen.getByTestId('page').textContent).toBe('fresh:1');
   });
 
+  it('queues a trailing refresh when an SSE event lands mid-load (no stale latch)', async () => {
+    // The exact race the CI flake exposed: an SSE event arrives WHILE a load is
+    // already in flight. That load started before the event, so it can return
+    // the pre-event snapshot — if the event is dropped, the snapshot latches
+    // stale and every consumer drifts. Park the full upgrade in flight to drive
+    // the race deterministically instead of relying on machine speed.
+    let resolveFull: (source: SourceState<RunSummary>) => void = () => {};
+    mockFull.mockImplementationOnce(
+      () =>
+        new Promise<SourceState<RunSummary>>((resolve) => {
+          resolveFull = resolve;
+        }),
+    );
+
+    render(
+      <RunSummaryProvider>
+        <Consumer label="badge" />
+        <Consumer label="page" />
+      </RunSummaryProvider>,
+    );
+
+    // The full upgrade has been kicked off and is parked, mid-flight.
+    await waitFor(() => expect(mockFull).toHaveBeenCalledTimes(1));
+
+    // A bead event lands while the load is in flight; the next load must carry
+    // the newly-blocked run.
+    mockFull.mockResolvedValue(buildRunSource('fresh', 1));
+    await act(async () => {
+      lastHookCall.onMatch?.();
+    });
+
+    // Let the in-flight load settle with the pre-event snapshot...
+    await act(async () => {
+      resolveFull(buildRunSource('fresh', 0));
+    });
+
+    // ...and the queued trailing refresh reconciles every consumer to the
+    // post-event snapshot — no stale latch, no drift.
+    await waitFor(() => expect(screen.getByTestId('badge').textContent).toBe('fresh:1'));
+    expect(screen.getByTestId('page').textContent).toBe('fresh:1');
+  });
+
   it('throws when used outside a RunSummaryProvider', () => {
     const spy = vi.spyOn(console, 'error').mockImplementation(() => {});
     expect(() => renderHook(() => useRunSummary())).toThrow(/RunSummaryProvider/);
