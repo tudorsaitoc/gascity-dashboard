@@ -128,6 +128,23 @@ describe('useFormulaRunDetail', () => {
     expect(supervisor.formulaDetail).not.toHaveBeenCalled();
     expect(mockReportClientError).not.toHaveBeenCalled();
   });
+
+  it('surfaces a v1 / non-graph.v2 run as unsupported, not a generic failure', async () => {
+    // A v1 / wisp run: the root bead carries no gc.formula_contract=graph.v2,
+    // so enrichFormulaRun throws UnsupportedRunError('not_run_view'). The hook
+    // must map ONLY that case to {kind:'unsupported'} (the detail view then
+    // shows a list-only message) and NOT route it through the error path.
+    // The generic-failure branch is locked separately by the load-failure test
+    // above (a plain Error -> kind 'failed').
+    supervisor.workflowRun.mockResolvedValue(
+      workflowSnapshot({ metadata: { 'gc.kind': 'workflow' } }),
+    );
+
+    const { result } = renderHook(() => useFormulaRunDetail('wf-1', 'city', 'test-city'));
+
+    await waitFor(() => expect(result.current.kind).toBe('unsupported'));
+    expect(mockReportClientError).not.toHaveBeenCalled();
+  });
 });
 
 function workflowSnapshot(
