@@ -63,6 +63,18 @@ function stubFetch() {
               created_at: '2026-06-01T10:00:00Z',
               thread_id: 'thread-direct',
             }),
+            // Unread and addressed to the operator, but pool-worker firehose: it
+            // counts as inbox unread yet must NOT count toward "needs you"
+            // (gascity-dashboard-2j8e.5).
+            mail({
+              id: 'mail-firehose',
+              from: '/home/ds/gascity/polecat-2',
+              to: 'human',
+              subject: 'worker firehose noise',
+              body: 'status update preview',
+              created_at: '2026-06-01T09:59:00Z',
+              thread_id: 'thread-firehose',
+            }),
             mail({
               id: 'mail-sent',
               from: 'human',
@@ -83,7 +95,7 @@ function stubFetch() {
               thread_id: 'thread-other',
             }),
           ],
-          total: 3,
+          total: 4,
         });
       }
       if (url === '/gc-supervisor/v0/city/test-city/mail?limit=1000') {
@@ -281,6 +293,27 @@ describe('MailPage supervisor reads', () => {
     expect(fetchCalls.some((call) => call.url.startsWith('/api/city/test-city/mail'))).toBe(false);
     expect(screen.queryByText('operator sent only')).toBeNull();
     expect(screen.queryByText('other inbox')).toBeNull();
+  });
+
+  it('foregrounds the operator needs-you count, folding the pool-worker firehose (gascity-dashboard-2j8e.5)', async () => {
+    renderMailPage();
+
+    await screen.findByText('direct supervisor inbox');
+    // Two unread to:human (mayor + a polecat firehose message), but only the
+    // mayor escalation needs the operator — the same count the nav badge shows.
+    expect(screen.getByText(/1 need you of 2 unread/)).toBeTruthy();
+  });
+
+  it('the needs-you chip surfaces operator escalations and hides the firehose (gascity-dashboard-2j8e.5)', async () => {
+    renderMailPage();
+
+    await screen.findByText('direct supervisor inbox');
+    expect(screen.getByText('worker firehose noise')).toBeTruthy();
+
+    fireEvent.click(screen.getByRole('button', { name: 'needs you' }));
+
+    expect(screen.getByText('direct supervisor inbox')).toBeTruthy();
+    expect(screen.queryByText('worker firehose noise')).toBeNull();
   });
 
   it('expands mailbox history through the generated supervisor limit query', async () => {

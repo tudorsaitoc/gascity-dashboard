@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
+import { isPoolWorkerSender, selectOperatorActionableUnread } from 'gas-city-dashboard-shared';
 import { formatApiError } from '../api/client';
 import { formatMailSender } from '../lib/mailSender';
 import { useCachedData } from '../hooks/useCachedData';
@@ -48,6 +49,16 @@ const MAIL_CHIPS: ReadonlyArray<FilterChip<SupervisorMailItem>> = [
   { id: 'unread', label: 'unread', match: (m) => !m.read },
   { id: 'read', label: 'read', match: (m) => m.read },
 ];
+
+// gascity-dashboard-2j8e.5: the operator's "needs you" filter — unread mail
+// minus the pool-worker firehose, the same predicate selectOperatorActionableUnread
+// applies, so the chip surfaces exactly the set the nav badge counts. Operator-only
+// (it is the operator's signal); composed ahead of the read-state chips.
+const NEEDS_YOU_CHIP: FilterChip<SupervisorMailItem> = {
+  id: 'needs-you',
+  label: 'needs you',
+  match: (m) => !m.read && !isPoolWorkerSender(m.from),
+};
 
 const MAIL_SEARCH_FIELDS = (m: SupervisorMailItem): ReadonlyArray<string | undefined> => [
   m.from,
@@ -249,13 +260,38 @@ export function MailPage() {
     [viewingAs.alias, operator.operatorAlias],
   );
 
+  // gascity-dashboard-2j8e.5: the operator inbox's needs-you count — the same
+  // selectOperatorActionableUnread the Mail nav badge reads, so the count and
+  // the badge agree on the default operator inbox (the badge's canonical
+  // source). Only meaningful on the operator's own inbox — it is their signal.
+  const needsYou = useMemo(
+    () =>
+      box === 'inbox' && viewingAs.isOperator ? selectOperatorActionableUnread(items).length : 0,
+    [box, items, viewingAs.isOperator],
+  );
+
   const synopsis = useMemo(() => {
     const noun = box === 'all' ? 'all mail' : box === 'inbox' ? 'inbox' : 'sent';
     if (items.length === 0) return `${capitalize(noun)} empty for ${aliasLabel}.`;
     const unread = box === 'sent' ? 0 : items.filter((m) => !m.read).length;
+    if (box === 'inbox' && viewingAs.isOperator) {
+      // Foreground the needs-you count and name the folded pool-worker firehose
+      // (unread − needsYou) so the smaller badge number is legible, not a mystery.
+      if (unread === 0) return `${items.length} in inbox, all read.`;
+      return needsYou > 0
+        ? `${items.length} in inbox, ${needsYou} need you of ${unread} unread.`
+        : `${items.length} in inbox, ${unread} unread, none need you.`;
+    }
     if (unread > 0) return `${items.length} in ${noun}, ${unread} unread.`;
     return `${items.length} in ${noun}.`;
-  }, [box, items, aliasLabel]);
+  }, [box, items, aliasLabel, needsYou, viewingAs.isOperator]);
+
+  // The operator gets the needs-you chip ahead of the read-state chips; other
+  // aliases see read-state only (needs-you is the operator's signal).
+  const mailChips = useMemo<ReadonlyArray<FilterChip<SupervisorMailItem>>>(
+    () => (viewingAs.isOperator ? [NEEDS_YOU_CHIP, ...MAIL_CHIPS] : MAIL_CHIPS),
+    [viewingAs.isOperator],
+  );
 
   // Mail view key includes box so collapsed-project state is independent
   // between inbox and sent (different mental models).
@@ -264,7 +300,7 @@ export function MailPage() {
     rows: items,
     projectOf: mailProject,
     searchOf: MAIL_SEARCH_FIELDS,
-    chips: MAIL_CHIPS,
+    chips: mailChips,
   });
   // gascity-dashboard-s464: mail is not an alert by default. We keep the
   // data-attention-severity attribute (so the home-alerts panel and
@@ -282,7 +318,7 @@ export function MailPage() {
   );
 
   // Sent box has no unread concept; suppress those chips there.
-  const visibleChips = box === 'sent' ? [] : MAIL_CHIPS;
+  const visibleChips = box === 'sent' ? [] : mailChips;
   const replyDisabled =
     readOnly ||
     threadFor === null ||
