@@ -8,7 +8,7 @@ import { listAgentPendingInteractions } from '../supervisor/agentPending';
 import { listSupervisorBeads } from '../supervisor/beadReads';
 import { supervisorApi, supervisorApiForRequestBudget } from '../supervisor/client';
 import { DEFAULT_MAIL_HISTORY_LIMIT, listSupervisorMail } from '../supervisor/mailReads';
-import { loadSupervisorRunSummaryPreviewSource } from '../supervisor/runSummary';
+import { loadSupervisorRunSummarySource } from '../supervisor/runSummary';
 import type { AttentionContributor } from './compose';
 import {
   createAttentionContributors,
@@ -113,21 +113,29 @@ function withRunsFreshness(
 
 async function fetchRunsAttention(cityName: string | null): Promise<RunsAttentionFacts> {
   if (cityName === null) return {};
-  // gascity-dashboard-2j8e.2: the badge derives genuinely-blocked runs from the
-  // bead-derived run summary — the SAME source the /runs page reads — so the
-  // badge and the page count one selector and cannot disagree. The preview
-  // source is sufficient: `phase === 'blocked'` is decided from bead state in
-  // buildRunSummary and needs no session enrichment. The formula feed (the old
-  // source) is dropped: it counted phantom feed-only roots and flapped on
-  // partial fan-outs.
+  // gascity-dashboard-2j8e.6: the badge must derive its genuinely-blocked count
+  // from the SAME COMPLETE snapshot the /runs page renders, not just the same
+  // selector. #95 (2j8e.2) unified the selector (selectBlockedRuns) but left the
+  // badge on the cheap preview source while the page upgrades to the full source
+  // on its first refresh — so the two read DIFFERENT-completeness snapshots and
+  // the badge persistently undercounted (operator saw page Blocked(4), nav badge
+  // empty). The preview budget (2.5s) lets the recent-run fan-out time out under
+  // a slow supervisor, dropping the very lanes that map to `phase === 'blocked'`;
+  // the page's full source (30s budget + session enrichment) loads them. Reading
+  // the full source here makes the badge's blocked set as complete as the page's,
+  // so the counts agree in steady state rather than only "by construction" over a
+  // snapshot neither side actually shares.
   //
-  // This refetches the summary under the attention cache key rather than sharing
-  // the page's `runs:summary:*` entry, so when the operator is on /runs the
-  // fan-out runs twice. The attention fetch is mount-driven (no recurring poll),
-  // so the cost is bounded to cold load / city switch; unifying the two cache
-  // entries is a worthwhile follow-up but a cross-cutting cache change kept out
-  // of this focused fix.
-  const source = await loadSupervisorRunSummaryPreviewSource();
+  // The formula feed (the pre-#95 source) stays dropped: it counted phantom
+  // feed-only roots and flapped on partial fan-outs.
+  //
+  // This still refetches under the attention cache key rather than sharing the
+  // page's `runs:summary:*` entry, so on /runs the fan-out runs twice. The fetch
+  // is mount-driven (no recurring poll), so the cost is bounded to cold load /
+  // city switch; lifting the run summary into one shared subscription that both
+  // the header badge and the page read is the proper follow-up (a cross-cutting
+  // change kept out of this focused parity fix).
+  const source = await loadSupervisorRunSummarySource();
   if (source.status === 'error') {
     return { error: source.error };
   }

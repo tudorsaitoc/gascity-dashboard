@@ -75,11 +75,23 @@ interface ProgressState {
 
 const progressStateByCity = new Map<string, ProgressState>();
 
-// Runs.tsx background refresh ONLY (gascity-dashboard-4bol): the wide enrichment
-// budget lets slow-but-available list/feed reads land and clear the spurious
-// "runs partial" badge (upstream gascity-dashboard#88). Do NOT use as a
-// mount/first-paint fetcher — it can block up to REFRESH_ENRICHMENT_TIMEOUT_MS;
-// mount consumers (Home, Formula Run Detail) use loadSupervisorRunSummaryMountSource.
+// The wide-budget run-summary source (gascity-dashboard-4bol): the wide
+// enrichment budget lets slow-but-available list/feed reads land and clear the
+// spurious "runs partial" badge (upstream gascity-dashboard#88). It is the
+// /runs page's authoritative refresh snapshot.
+//
+// Do NOT use this as a ROUTE first-paint fetcher — it can block a route view for
+// up to REFRESH_ENRICHMENT_TIMEOUT_MS; route mount consumers (Home, Formula Run
+// Detail) use loadSupervisorRunSummaryMountSource on the tight budget instead.
+//
+// The nav attention badge (liveContributors `fetchRunsAttention`) is an APPROVED
+// caller despite being mount-driven (gascity-dashboard-2j8e.6): it is cache-
+// backed and renders in the always-mounted header, so its latency never blocks a
+// route view — and it MUST read this exact snapshot. The badge counts the same
+// genuinely-blocked runs the page shows; using a narrower budget would let the
+// recent-run fan-out time out on a slow supervisor where the page's 30s budget
+// succeeds, re-introducing the badge-vs-page undercount this source was chosen to
+// eliminate. Parity requires the same budget, not merely the same selector.
 export async function loadSupervisorRunSummarySource(): Promise<SourceState<RunSummary>> {
   return loadRunSummarySource(REFRESH_ENRICHMENT_TIMEOUT_MS);
 }

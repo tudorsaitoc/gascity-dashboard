@@ -15,7 +15,7 @@ import type {
   Message,
   TypedEventStreamEnvelope,
 } from 'gas-city-dashboard-shared/gc-supervisor';
-import { selectAgentsNeedingYou } from 'gas-city-dashboard-shared';
+import { selectAgentsNeedingYou, selectBlockedRuns } from 'gas-city-dashboard-shared';
 import { ATTENTION_DOMAINS, composeAttention } from './compose';
 import { createAttentionContributors, type AgentsAttentionFacts } from './registry';
 
@@ -218,6 +218,55 @@ describe('createAttentionContributors', () => {
     expect(model.byDomain.runs.watch).toBe(0);
     expect(model.byDomain.runs.items.map((item) => item.id)).toEqual(['runs:blocked-1:blocked']);
     expect(model.byDomain.runs.items[0]?.href).toBe('/runs/blocked-1');
+  });
+
+  it('nav badge count equals the page Blocked count for a mixed summary (gascity-dashboard-2j8e.6)', () => {
+    // #95 (2j8e.2) claimed the badge and the /runs page "cannot disagree by
+    // construction" but never asserted it. This pins the invariant over ONE
+    // summary with a non-trivial mix of phases: the nav badge number
+    // (byDomain.runs.attention), the page Blocked CountTile (runCounts.blocked),
+    // and the page Blocked section header (selectBlockedRuns(blockedLanes).length)
+    // must all be the SAME number. A regression that counts all lanes, or that
+    // lets runCounts.blocked drift from the selectBlockedRuns phase filter, fails
+    // here instead of silently shipping a mismatched badge.
+    const summary = runSummary([
+      runLane({
+        id: 'blocked-1',
+        title: 'First stuck run',
+        phase: 'blocked',
+        statusCounts: { blocked: 1 },
+        health: { phaseConfidence: 'known', needsOperator: true, thrashingDetected: false },
+      }),
+      runLane({
+        id: 'active-1',
+        title: 'Healthy active run',
+        phase: 'implementation',
+        health: { phaseConfidence: 'known', needsOperator: false, thrashingDetected: false },
+      }),
+      runLane({
+        id: 'blocked-2',
+        title: 'Second stuck run',
+        phase: 'blocked',
+        statusCounts: { blocked: 2 },
+        health: { phaseConfidence: 'known', needsOperator: true, thrashingDetected: false },
+      }),
+      runLane({
+        id: 'done-1',
+        title: 'Finished run',
+        phase: 'complete',
+        health: { phaseConfidence: 'known', needsOperator: false, thrashingDetected: false },
+      }),
+    ]);
+
+    const model = composeAttention(createAttentionContributors({ runs: { summary } }));
+
+    const navBadgeCount = model.byDomain.runs.attention;
+    const pageBlockedTile = summary.runCounts.blocked;
+    const pageBlockedSection = selectBlockedRuns(summary.blockedLanes).length;
+
+    expect(navBadgeCount).toBe(2);
+    expect(pageBlockedTile).toBe(navBadgeCount);
+    expect(pageBlockedSection).toBe(navBadgeCount);
   });
 
   it('never counts a supervisor partial read as a run (gascity-dashboard-2j8e.2)', () => {
