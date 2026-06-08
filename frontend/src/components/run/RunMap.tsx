@@ -37,7 +37,8 @@ const COUNT_LABELS: Array<[keyof RunSummary['runCounts'], string]> = [
 const HISTORICAL_SECTION_ID = 'runs-historical-section';
 const HISTORICAL_LIST_ID = 'runs-historical-list';
 // How many completed runs show before the operator opts into the rest.
-// The wire carries every historical lane (gascity-dashboard-l9q9); this
+// The wire carries up to MAX_HISTORICAL_LANES most-recent historical lanes
+// (gascity-dashboard-l9q9, recency-bounded in gascity-dashboard-9w3k); this
 // preview keeps the section ambient by default per DESIGN.md.
 const HISTORICAL_PREVIEW = 5;
 
@@ -274,6 +275,16 @@ function HistoricalSection({
             >
               {expanded ? 'Show fewer' : `Show ${lanes.length - HISTORICAL_PREVIEW} more`}
             </button>
+          )}
+          {/* gascity-dashboard-9w3k: the wire caps historicalLanes at
+              MAX_HISTORICAL_LANES while totalHistorical keeps the true count.
+              Disclose the cap so the operator knows the rendered set is the
+              recent window, not the whole history — mirroring the Active
+              section's "N more not shown" note (same typographic register). */}
+          {summary.totalHistorical > lanes.length && (
+            <p className="mt-3 text-label uppercase tracking-wider text-fg-faint tnum">
+              Showing {lanes.length} most-recent of {summary.totalHistorical}
+            </p>
           )}
         </>
       )}

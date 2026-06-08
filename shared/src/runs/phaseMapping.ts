@@ -131,7 +131,15 @@ export function fallbackReviewRound(issues: RunIssue[]): number {
 }
 
 export function textForIssue(issue: RunIssue): string {
+  // gascity-dashboard-9w3k: skip `gc.var.*` keys. v1 / wisp runs carry operator
+  // free-text template inputs there (e.g. gc.var.prompt = "review the blocked PR
+  // and merge it") which would otherwise feed phase needles ('review', 'blocked',
+  // 'merge', 'approval', ...) and mis-bucket the run's phase. These are inputs,
+  // not structural progress signals, so they are excluded from classification.
+  // graph.v2 roots derive phase from gc.step_id / status, not gc.var.*, so this
+  // does not affect graph.v2 classification.
   const metadataText = Object.entries(issue.metadata ?? {})
+    .filter(([key]) => !key.startsWith('gc.var.'))
     .map(([key, value]) => `${key} ${String(value)}`)
     .join(' ');
 

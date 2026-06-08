@@ -16,6 +16,7 @@ import {
   type RunLane,
   type RunSummary,
   type SourceState,
+  UnsupportedRunError,
 } from 'gas-city-dashboard-shared';
 import rawFormulaRunDetailFixture from '../test/fixtures/formula-run-detail.json';
 
@@ -632,6 +633,36 @@ describe('FormulaRunDetailPage', () => {
     await screen.findByText('preserve failed attempt transcript links');
     expect(container.querySelector('.diff-code-insert')?.textContent).toContain('preserve failed');
     expect(container.querySelector('.diff-code-delete')?.textContent).toContain('old session');
+  });
+
+  it('renders an informative list-only message for a v1 / wisp (unsupported) run, not the generic failure (gascity-dashboard-9w3k)', async () => {
+    // A v1 / wisp run is clickable in the run list but has no graph.v2 detail
+    // view: enrichFormulaRun throws UnsupportedRunError('not_run_view'). The page
+    // must explain that clearly rather than show the opaque generic fallback.
+    loadSupervisorFormulaRunDetail.mockImplementation(async () => {
+      throw new UnsupportedRunError('run is not a graph.v2 run', 'not_run_view');
+    });
+
+    renderPage();
+
+    await screen.findByText(/detailed step view isn’t available for v1 \(wisp\) runs yet/i);
+    expect(screen.getByText(/appears in the run list only/i)).toBeTruthy();
+    // Not the generic dead-end, and not an error alert.
+    expect(screen.queryByText(/^formula run unavailable\.$/i)).toBeNull();
+    expect(screen.queryByRole('alert')).toBeNull();
+  });
+
+  it('still shows the generic failure for a malformed graph.v2 snapshot (invalid_snapshot)', async () => {
+    // A genuine load failure (malformed graph.v2 snapshot, or any other
+    // UnsupportedRunError reason) must NOT be mistaken for a v1 list-only run.
+    loadSupervisorFormulaRunDetail.mockImplementation(async () => {
+      throw new UnsupportedRunError('run snapshot identity is missing or invalid');
+    });
+
+    renderPage();
+
+    await screen.findByRole('alert');
+    expect(screen.queryByText(/v1 \(wisp\) runs yet/i)).toBeNull();
   });
 
   it('surfaces a partial formula run snapshot on the detail page', async () => {

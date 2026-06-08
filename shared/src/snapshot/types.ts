@@ -307,17 +307,21 @@ export interface RunSummary {
    *  operator attention; they are simply not part of the Active set or
    *  the headline `activeRuns` metric. */
   totalActive: number;
-  /** Count of HISTORICAL lanes (phase === 'complete'). gascity-dashboard-yh5i:
+  /** TRUE count of HISTORICAL lanes (phase === 'complete'). gascity-dashboard-yh5i:
    *  /runs defaults to showing the active set; toggling `?history=1`
    *  reveals the historical section so the user can see recently-completed
-   *  runs without complete lanes crowding active out of the 8-cap window. */
+   *  runs without complete lanes crowding active out of the 8-cap window.
+   *  gascity-dashboard-9w3k: this is the full completed-lane count and may
+   *  EXCEED historicalLanes.length when the MAX_HISTORICAL_LANES cap applies,
+   *  so the operator sees the real number behind the recency window. */
   totalHistorical: number;
   runCounts: RunCounts;
   /** Active lanes, sorted by compareLanes, capped at MAX_VISIBLE_ACTIVE_LANES. */
   lanes: RunLane[];
   /** Historical (phase === 'complete') lanes, sorted by compareLanes, capped at
-   *  MAX_VISIBLE_HISTORICAL_LANES. Frontend renders these only when the user
-   *  toggles ?history=1; backend always returns the array. */
+   *  MAX_HISTORICAL_LANES (most-recent-first). Frontend renders these only when
+   *  the user toggles ?history=1; backend always returns the array. When the cap
+   *  trims older lanes, totalHistorical still reports the true count. */
   historicalLanes: RunLane[];
   /** Blocked (phase === 'blocked') lanes, sorted by compareLanes
    *  (gascity-dashboard-4xcv). Rendered as their own section so a blocked

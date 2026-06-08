@@ -18,16 +18,29 @@ interface EnrichOptions {
   formulaDetailState?: RunFormulaDetailState;
 }
 
+/**
+ * Why a run snapshot cannot be enriched into a detail view.
+ * gascity-dashboard-9w3k: distinguishes the expected v1 / wisp case
+ * ('not_run_view' — the run shows in the list but has no graph.v2 detail
+ * view) from a malformed graph.v2 snapshot ('invalid_snapshot' — a genuine
+ * load failure). The frontend renders these differently: the former is an
+ * honest "list-only" message, the latter a generic load error.
+ */
+export type UnsupportedRunReason = 'not_run_view' | 'invalid_snapshot';
+
 export class UnsupportedRunError extends Error {
-  constructor(message: string) {
+  readonly reason: UnsupportedRunReason;
+
+  constructor(message: string, reason: UnsupportedRunReason = 'invalid_snapshot') {
     super(message);
     this.name = 'UnsupportedRunError';
+    this.reason = reason;
   }
 }
 
 export function enrichFormulaRun(raw: RunSnapshot, opts: EnrichOptions): FormulaRunDetail {
   if (!isGraphV2(raw)) {
-    throw new UnsupportedRunError('run is not a graph.v2 run');
+    throw new UnsupportedRunError('run is not a graph.v2 run', 'not_run_view');
   }
 
   const rootBeadId = nonEmpty(raw.root_bead_id) ?? '';
