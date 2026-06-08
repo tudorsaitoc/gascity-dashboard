@@ -17,6 +17,16 @@ interface FetchCall {
 
 const fetchCalls: FetchCall[] = [];
 
+// Stateful read-state overrides so a mark-read/unread POST is reflected by the
+// next mailbox GET — lets the bulk-mark tests assert the needs-you count (the
+// same selectOperatorActionableUnread the nav badge reads) actually updates.
+const markedRead = new Map<string, boolean>();
+
+function applyReadState(item: Record<string, unknown>): Record<string, unknown> {
+  const id = item.id as string;
+  return markedRead.has(id) ? { ...item, read: markedRead.get(id) } : item;
+}
+
 vi.mock('../contexts/ViewingAsContext', () => ({
   useViewingAs: () => ({
     viewingAs: { alias: 'stephanie', isOperator: true },
@@ -94,7 +104,7 @@ function stubFetch() {
               created_at: '2026-06-01T10:02:00Z',
               thread_id: 'thread-other',
             }),
-          ],
+          ].map(applyReadState),
           total: 4,
         });
       }
@@ -183,13 +193,14 @@ function stubFetch() {
           201,
         );
       }
-      if (url === '/gc-supervisor/v0/city/test-city/mail/mail-inbox/read' && method === 'POST') {
+      const readMatch = url.match(/\/mail\/([^/]+)\/read$/);
+      if (readMatch?.[1] !== undefined && method === 'POST') {
+        markedRead.set(readMatch[1], true);
         return jsonResponse({ status: 'ok' });
       }
-      if (
-        url === '/gc-supervisor/v0/city/test-city/mail/mail-sent/mark-unread' &&
-        method === 'POST'
-      ) {
+      const unreadMatch = url.match(/\/mail\/([^/]+)\/mark-unread$/);
+      if (unreadMatch?.[1] !== undefined && method === 'POST') {
+        markedRead.set(unreadMatch[1], false);
         return jsonResponse({ status: 'ok' });
       }
       if (url === '/gc-supervisor/v0/city/test-city/mail/mail-inbox/archive' && method === 'POST') {
@@ -272,6 +283,7 @@ function mail(overrides: Record<string, unknown>): Record<string, unknown> {
 
 beforeEach(() => {
   fetchCalls.length = 0;
+  markedRead.clear();
   invalidate('mail');
   stubFetch();
 });
@@ -575,6 +587,112 @@ describe('MailPage supervisor reads', () => {
 
     const threadArticle = (await screen.findByText('oldest in thread')).closest('article');
     expect(threadArticle?.getAttribute('data-attention-severity')).toBe('attention');
+  });
+});
+
+describe('MailPage bulk read-state selection (gascity-dashboard-mp3g)', () => {
+  it('select-all selects the whole visible set, and rows toggle independently', async () => {
+    renderMailPage();
+    await screen.findByText('direct supervisor inbox');
+
+    const selectAll = screen.getByRole('checkbox', { name: 'select all mail' });
+    fireEvent.click(selectAll);
+    // Both visible inbox rows (mayor escalation + polecat firehose) selected.
+    expect(screen.getByText('2 selected')).toBeTruthy();
+
+    fireEvent.click(selectAll);
+    expect(screen.queryByText(/selected/)).toBeNull();
+
+    fireEvent.click(screen.getByRole('checkbox', { name: /select mail: direct supervisor inbox/ }));
+    expect(screen.getByText('1 selected')).toBeTruthy();
+    // Toggling a row checkbox must not open the thread modal (no Reply field).
+    expect(screen.queryByLabelText('Reply')).toBeNull();
+  });
+
+  it('bulk-marks the selected inbox mail read through the supervisor API', async () => {
+    renderMailPage();
+    await screen.findByText('direct supervisor inbox');
+
+    fireEvent.click(screen.getByRole('checkbox', { name: 'select all mail' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Mark read' }));
+
+    await waitFor(() => {
+      expect(fetchCalls).toContainEqual({
+        method: 'POST',
+        url: '/gc-supervisor/v0/city/test-city/mail/mail-inbox/read',
+        body: undefined,
+        gcRequest: 'dashboard',
+      });
+    });
+    expect(fetchCalls).toContainEqual({
+      method: 'POST',
+      url: '/gc-supervisor/v0/city/test-city/mail/mail-firehose/read',
+      body: undefined,
+      gcRequest: 'dashboard',
+    });
+  });
+
+  it('bulk-marks the selected read mail unread, skipping already-unread rows (no second mark)', async () => {
+    renderMailPage();
+    fireEvent.click(await screen.findByRole('button', { name: 'All' }));
+    await screen.findByText('operator sent only');
+
+    fireEvent.click(screen.getByRole('checkbox', { name: 'select all mail' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Mark unread' }));
+
+    await waitFor(() => {
+      expect(fetchCalls).toContainEqual({
+        method: 'POST',
+        url: '/gc-supervisor/v0/city/test-city/mail/mail-sent/mark-unread',
+        body: undefined,
+        gcRequest: 'dashboard',
+      });
+    });
+    // mail-inbox / mail-other are already unread — bulk mark-unread must not
+    // re-issue redundant writes for them.
+    expect(
+      fetchCalls.some(
+        (c) => c.url === '/gc-supervisor/v0/city/test-city/mail/mail-inbox/mark-unread',
+      ),
+    ).toBe(false);
+    expect(
+      fetchCalls.some(
+        (c) => c.url === '/gc-supervisor/v0/city/test-city/mail/mail-other/mark-unread',
+      ),
+    ).toBe(false);
+  });
+
+  it('updates the needs-you count after a bulk mark-read (same selector as the nav badge)', async () => {
+    renderMailPage();
+    await screen.findByText(/1 need you of 2 unread/);
+
+    fireEvent.click(screen.getByRole('checkbox', { name: 'select all mail' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Mark read' }));
+
+    // After both inbox rows are marked read, the re-fetched mailbox has no
+    // unread — the needs-you synopsis collapses to the all-read line.
+    expect(await screen.findByText(/all read/)).toBeTruthy();
+  });
+
+  it('offers no bulk selection in the sent box, which has no read-state concept', async () => {
+    renderMailPage();
+    fireEvent.click(await screen.findByRole('button', { name: 'Sent' }));
+    await waitFor(() => {
+      expect(screen.queryByRole('checkbox', { name: 'select all mail' })).toBeNull();
+    });
+  });
+
+  it('disables the bulk mark actions in read-only mode', async () => {
+    renderMailPage('/mail', { readOnly: true });
+    await screen.findByText('direct supervisor inbox');
+
+    fireEvent.click(screen.getByRole('checkbox', { name: 'select all mail' }));
+    expect((screen.getByRole('button', { name: 'Mark read' }) as HTMLButtonElement).disabled).toBe(
+      true,
+    );
+    expect(
+      (screen.getByRole('button', { name: 'Mark unread' }) as HTMLButtonElement).disabled,
+    ).toBe(true);
   });
 });
 

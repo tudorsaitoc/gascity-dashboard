@@ -132,6 +132,14 @@ export function MailPage() {
 
   const [composing, setComposing] = useState(false);
 
+  // Bulk read-state selection (gascity-dashboard-mp3g). Lives in component
+  // state only; switching mailbox or reading-as identity clears it (different
+  // working set). Bulk marks reuse the same per-item supervisor writes the
+  // thread modal uses, then refresh() so the needs-you count — and the nav
+  // badge, which reads the same selectOperatorActionableUnread — stay in step.
+  const [selectedIds, setSelectedIds] = useState<ReadonlySet<string>>(() => new Set());
+  const [bulkInFlight, setBulkInFlight] = useState<'read' | 'unread' | null>(null);
+
   const openThread = useCallback(
     async (mail: SupervisorMailItem) => {
       setThreadFor(mail);
@@ -302,6 +310,79 @@ export function MailPage() {
     searchOf: MAIL_SEARCH_FIELDS,
     chips: mailChips,
   });
+
+  // Sent mail has no read-state to manage, so bulk selection is offered only on
+  // inbox / all — the same boxes that surface the read-state chips.
+  const selectable = box !== 'sent';
+  const visibleRows = useMemo(() => filters.groups.flatMap((g) => g.rows), [filters.groups]);
+  const selectedCount = useMemo(
+    () => visibleRows.reduce((n, r) => (selectedIds.has(r.id) ? n + 1 : n), 0),
+    [visibleRows, selectedIds],
+  );
+  const allSelected = visibleRows.length > 0 && selectedCount === visibleRows.length;
+
+  useEffect(() => {
+    setSelectedIds(new Set<string>());
+  }, [box, viewingAs.alias]);
+
+  const toggleSelect = useCallback((id: string) => {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  }, []);
+
+  const toggleSelectAll = useCallback(() => {
+    setSelectedIds(allSelected ? new Set<string>() : new Set(visibleRows.map((r) => r.id)));
+  }, [allSelected, visibleRows]);
+
+  const runBulkMark = useCallback(
+    async (read: boolean) => {
+      if (readOnly) return;
+      // Only write rows whose state actually changes — never re-mark a row that
+      // is already in the target state (DESIGN.md: no second mark).
+      const targets = visibleRows.filter((r) => selectedIds.has(r.id) && r.read !== read);
+      if (targets.length === 0) return;
+      setBulkInFlight(read ? 'read' : 'unread');
+      setError(null);
+      try {
+        await Promise.all(
+          targets.map((m) => (read ? markSupervisorMailRead(m) : markSupervisorMailUnread(m))),
+        );
+        setSelectedIds(new Set<string>());
+      } catch (err) {
+        setError(formatApiError(err, `bulk mark ${read ? 'read' : 'unread'} failed`));
+      } finally {
+        setBulkInFlight(null);
+        // Re-read so the table, the needs-you synopsis, and the nav badge all
+        // reflect server truth — even when a subset of the writes failed.
+        await refresh();
+      }
+    },
+    [readOnly, visibleRows, selectedIds, refresh],
+  );
+
+  const selectColumn = useMemo<TableColumn<SupervisorMailItem>>(
+    () => ({
+      key: '__select',
+      label: '',
+      className: 'w-8',
+      render: (r) => (
+        <input
+          type="checkbox"
+          className="h-3.5 w-3.5 translate-y-[2px] cursor-pointer accent-fg focus-mark"
+          checked={selectedIds.has(r.id)}
+          onChange={() => toggleSelect(r.id)}
+          onClick={(e) => e.stopPropagation()}
+          aria-label={`select mail: ${r.subject}`}
+        />
+      ),
+    }),
+    [selectedIds, toggleSelect],
+  );
+  const tableColumns = selectable ? [selectColumn, ...columns] : columns;
   // gascity-dashboard-s464: mail is not an alert by default. We keep the
   // data-attention-severity attribute (so the home-alerts panel and
   // keyboard nav still see flagged rows), but DO NOT paint the warn/accent
@@ -415,9 +496,23 @@ export function MailPage() {
             )}
           </div>
 
+          {selectable && visibleRows.length > 0 && (
+            <div className="mb-6">
+              <MailSelectionBar
+                selectedCount={selectedCount}
+                allSelected={allSelected}
+                onToggleAll={toggleSelectAll}
+                onMarkRead={() => void runBulkMark(true)}
+                onMarkUnread={() => void runBulkMark(false)}
+                bulkInFlight={bulkInFlight}
+                readOnly={readOnly}
+              />
+            </div>
+          )}
+
           <GroupedTable
             groups={filters.groups}
-            columns={columns}
+            columns={tableColumns}
             rowKey={(r) => r.id}
             onToggleProject={filters.toggleProject}
             onRowClick={(r) => void openThread(r)}
@@ -530,6 +625,78 @@ function BoxTabs({ box, onChange }: { box: MailBox; onChange: (b: MailBox) => vo
           {b === 'all' ? 'All' : capitalize(b)}
         </button>
       ))}
+    </div>
+  );
+}
+
+// Editorial bulk-action line (gascity-dashboard-mp3g): a select-all affordance
+// and the read-state writes for the selected set, on one hairline-ruled row.
+// Flat page register — no card, no sticky toolbar; words on every action so the
+// row reads in greyscale (DESIGN.md §States).
+function MailSelectionBar({
+  selectedCount,
+  allSelected,
+  onToggleAll,
+  onMarkRead,
+  onMarkUnread,
+  bulkInFlight,
+  readOnly,
+}: {
+  selectedCount: number;
+  allSelected: boolean;
+  onToggleAll: () => void;
+  onMarkRead: () => void;
+  onMarkUnread: () => void;
+  bulkInFlight: 'read' | 'unread' | null;
+  readOnly: boolean;
+}) {
+  const allRef = useRef<HTMLInputElement>(null);
+  const someSelected = selectedCount > 0;
+  useEffect(() => {
+    if (allRef.current !== null) allRef.current.indeterminate = someSelected && !allSelected;
+  }, [someSelected, allSelected]);
+  const busy = bulkInFlight !== null;
+  const title = readOnly ? READ_ONLY_CONTROL_TITLE : undefined;
+  return (
+    <div
+      className="flex items-baseline justify-between gap-4 flex-wrap border-b border-rule pb-3"
+      role="region"
+      aria-label="bulk mail selection"
+    >
+      <label className="flex items-baseline gap-2 text-label uppercase tracking-wider text-fg-muted cursor-pointer">
+        <input
+          ref={allRef}
+          type="checkbox"
+          className="h-3.5 w-3.5 translate-y-[2px] cursor-pointer accent-fg focus-mark"
+          checked={allSelected}
+          onChange={onToggleAll}
+          aria-label="select all mail"
+        />
+        <span>{someSelected ? `${selectedCount} selected` : 'Select all'}</span>
+      </label>
+      {someSelected && (
+        <div className="flex items-baseline gap-3">
+          {readOnly && <ReadOnlyBadge />}
+          <Button
+            size="sm"
+            tone="quiet"
+            onClick={onMarkRead}
+            disabled={readOnly || busy}
+            title={title}
+          >
+            {bulkInFlight === 'read' ? 'Marking' : 'Mark read'}
+          </Button>
+          <Button
+            size="sm"
+            tone="quiet"
+            onClick={onMarkUnread}
+            disabled={readOnly || busy}
+            title={title}
+          >
+            {bulkInFlight === 'unread' ? 'Marking' : 'Mark unread'}
+          </Button>
+        </div>
+      )}
     </div>
   );
 }
