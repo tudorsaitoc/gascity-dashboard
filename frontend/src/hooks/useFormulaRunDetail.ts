@@ -1,11 +1,11 @@
 import type { FormulaRunDetail, RunScopeKind } from 'gas-city-dashboard-shared';
-import { errorMessage } from 'gas-city-dashboard-shared';
+import { errorMessage, UnsupportedRunError } from 'gas-city-dashboard-shared';
 import { reportClientError } from '../lib/clientErrorReporting';
 import { loadSupervisorFormulaRunDetail } from '../supervisor/runDetail';
 import { useCachedData } from './useCachedData';
 
 interface FormulaRunDetailState {
-  kind: 'idle' | 'loading' | 'ready' | 'failed';
+  kind: 'idle' | 'loading' | 'ready' | 'failed' | 'unsupported';
   refresh: () => Promise<void>;
 }
 
@@ -14,8 +14,15 @@ type FormulaRunRefreshState =
   | { kind: 'refreshing' }
   | { kind: 'failed'; error: string };
 
+// gascity-dashboard-9w3k: a v1 / wisp run (not graph.v2) is surfaced in the run
+// list but has no graph.v2 step-detail view. enrichFormulaRun throws an
+// UnsupportedRunError('not_run_view') for it. We carry that as a DISTINCT
+// frontend payload (not a thrown error → not the generic failed state) so the
+// detail page can render an honest "list-only" message instead of an opaque
+// "Formula run unavailable." dead-end. No shared wire-shape field is added.
 type FormulaRunDetailPayload =
   | { kind: 'unrequested' }
+  | { kind: 'unsupported' }
   | {
       kind: 'loaded';
       detail: FormulaRunDetail;
@@ -29,6 +36,7 @@ export type FormulaRunDetailLoadState =
       detail: FormulaRunDetail;
       refreshState: FormulaRunRefreshState;
     })
+  | (FormulaRunDetailState & { kind: 'unsupported' })
   | (FormulaRunDetailState & { kind: 'failed'; error: string });
 
 export function useFormulaRunDetail(
@@ -56,6 +64,7 @@ export function useFormulaRunDetail(
       refreshState: refreshState(loading, error),
     };
   }
+  if (data?.kind === 'unsupported') return { kind: 'unsupported', refresh };
   if (error !== null) return { kind: 'failed', error, refresh };
   return { kind: 'loading', refresh };
 }
@@ -69,8 +78,19 @@ async function loadFormulaRunDetail(
   const params: { scopeKind?: RunScopeKind; scopeRef?: string } = {};
   if (scopeKind !== undefined) params.scopeKind = scopeKind;
   if (scopeRef !== undefined) params.scopeRef = scopeRef;
-  const detail = await loadSupervisorFormulaRunDetail(runId, params.scopeKind, params.scopeRef);
-  return { kind: 'loaded', detail };
+  try {
+    const detail = await loadSupervisorFormulaRunDetail(runId, params.scopeKind, params.scopeRef);
+    return { kind: 'loaded', detail };
+  } catch (err) {
+    // gascity-dashboard-9w3k: a v1 / wisp run has no graph.v2 detail view. Map
+    // that one expected case to an 'unsupported' payload so the page renders the
+    // list-only message; a malformed graph.v2 snapshot ('invalid_snapshot') and
+    // any transport failure still propagate as a generic load error.
+    if (err instanceof UnsupportedRunError && err.reason === 'not_run_view') {
+      return { kind: 'unsupported' };
+    }
+    throw err;
+  }
 }
 
 async function noopRefresh(): Promise<void> {}

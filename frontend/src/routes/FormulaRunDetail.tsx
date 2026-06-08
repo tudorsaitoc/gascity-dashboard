@@ -58,6 +58,11 @@ export function FormulaRunDetailPage() {
   );
   const readyRun = runDetail.kind === 'ready' ? runDetail : null;
   const detail = readyRun?.detail ?? null;
+  // gascity-dashboard-9w3k: v1 / wisp runs are clickable in the run list but
+  // have no graph.v2 step-detail view. The hook reports this as a distinct
+  // 'unsupported' state (not a generic load failure) so we can render an honest
+  // list-only message instead of the opaque "Formula run unavailable." dead-end.
+  const unsupported = runDetail.kind === 'unsupported';
   const runDiff = useRunDiff(
     routeError || detail === null ? undefined : runId,
     detail?.executionPath,
@@ -127,7 +132,7 @@ export function FormulaRunDetailPage() {
 
   const synopsis = detail
     ? `${detail.progress.visibleNodeCount} nodes. ${summarizeNodeStatuses(detail.progress)}. Local changes are shown for the run execution folder.`
-    : initialLoading && !routeError
+    : (initialLoading && !routeError) || unsupported
       ? undefined
       : 'Formula run unavailable.';
 
@@ -187,6 +192,11 @@ export function FormulaRunDetailPage() {
         ) : (
           <p className="text-body text-fg-muted italic">Loading formula run.</p>
         )
+      ) : unsupported ? (
+        <p className="text-body text-fg-muted" role="status">
+          Detailed step view isn&rsquo;t available for v1 (wisp) runs yet — this run appears in the
+          run list only.
+        </p>
       ) : pageError && !detail ? (
         <p className="text-body text-accent" role="alert">
           {pageError}

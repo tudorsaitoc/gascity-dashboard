@@ -248,6 +248,41 @@ describe('buildRunSummary — v1 / wisp runs surface as lanes (gascity-dashboard
     assert.equal(summary.totalActive, 1);
   });
 
+  // gascity-dashboard-9w3k: a wisp run's gc.var.* free-text template inputs must
+  // NOT drive phase classification. Here gc.var.prompt contains 'review',
+  // 'blocked', and 'merge' — phase needles that would mis-bucket the run as
+  // blocked/approval/finalization — but the run's actual work (a 'do-work' step)
+  // keeps it in implementation/active.
+  test('gc.var.* free-text does not mis-classify a wisp run as blocked/approval', () => {
+    const summary = buildRunSummary([
+      runIssue({
+        id: 'wisp-var',
+        title: 'mol-do-work',
+        status: 'open',
+        issue_type: 'molecule',
+        updated_at: '2026-06-02T00:00:00Z',
+        metadata: {
+          'gc.var.prompt': 'review the blocked PR and merge it after approval, then finalize',
+        },
+      }),
+      runIssue({
+        id: 'wisp-var-child-1',
+        title: 'Do the work',
+        updated_at: '2026-06-02T00:05:00Z',
+        metadata: { molecule_id: 'wisp-var', 'gc.step_id': 'do-work' },
+      }),
+    ]);
+
+    const lane = summary.lanes[0];
+    assert.ok(lane !== undefined);
+    assert.equal(lane.id, 'wisp-var');
+    assert.notEqual(lane.phase, 'blocked');
+    assert.notEqual(lane.phase, 'approval');
+    assert.equal(summary.blockedLanes.length, 0);
+    // The 'do-work' step keeps it in the implementation register.
+    assert.equal(lane.phase, 'implementation');
+  });
+
   // Flood guard: a lone task/bug/feature bead (root = itself, no molecule /
   // gc.kind=run / gc.formula) must NOT become a run lane — otherwise every
   // engineering bead in the store would render as a phantom run.

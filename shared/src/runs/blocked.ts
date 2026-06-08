@@ -3,11 +3,14 @@ import type { RunLane, RunLaneScope } from '../snapshot/types.js';
 // gascity-dashboard-2j8e.2: the genuinely-blocked-runs selector. The Runs nav
 // badge and the /runs page both read this one projection, so the badge count
 // and the page count read the same selector and cannot disagree. Its input is
-// buildRunSummary's `blockedLanes` — already dangling-root + non-graph.v2
-// suppressed (the gc-1920-class phantom: codeprobe upstream_error, no backing
-// bead, never a graph.v2 run) — so phantom suppression is upstream, not a dead
-// per-lane guard here. A supervisor `partial` read is never counted: this
-// selector only ever sees real blocked beads.
+// buildRunSummary's `blockedLanes` — already dangling-root suppressed and gated
+// by the isRunGroup run-marker (graph.v2 `gc.formula_contract`, OR a molecule
+// bead, OR `gc.kind=run`, OR a `gc.formula` attribution; gascity-dashboard-9w3k).
+// v1 molecule / gc.kind=run beads now reach blockedLanes, so a blocked lane is
+// not necessarily graph.v2 — only the gc-1920-class phantom (no backing bead,
+// no run marker) is suppressed, upstream, not by a dead per-lane guard here. A
+// supervisor `partial` read is never counted: this selector only ever sees real
+// blocked beads.
 
 export interface BlockedRun {
   id: string;

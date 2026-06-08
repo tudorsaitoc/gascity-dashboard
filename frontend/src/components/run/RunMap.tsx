@@ -276,6 +276,16 @@ function HistoricalSection({
               {expanded ? 'Show fewer' : `Show ${lanes.length - HISTORICAL_PREVIEW} more`}
             </button>
           )}
+          {/* gascity-dashboard-9w3k: the wire caps historicalLanes at
+              MAX_HISTORICAL_LANES while totalHistorical keeps the true count.
+              Disclose the cap so the operator knows the rendered set is the
+              recent window, not the whole history — mirroring the Active
+              section's "N more not shown" note (same typographic register). */}
+          {summary.totalHistorical > lanes.length && (
+            <p className="mt-3 text-label uppercase tracking-wider text-fg-faint tnum">
+              Showing {lanes.length} most-recent of {summary.totalHistorical}
+            </p>
+          )}
         </>
       )}
     </section>

@@ -31,7 +31,10 @@ function historicalLane(id: string): RunLane {
   };
 }
 
-function runsSource(historicalLanes: RunLane[]): SourceState<RunSummary> {
+function runsSource(
+  historicalLanes: RunLane[],
+  totalHistorical = historicalLanes.length,
+): SourceState<RunSummary> {
   return {
     source: 'runs',
     status: 'fresh',
@@ -40,7 +43,7 @@ function runsSource(historicalLanes: RunLane[]): SourceState<RunSummary> {
     error: { kind: 'none' },
     data: {
       ...emptyRunSummary(),
-      totalHistorical: historicalLanes.length,
+      totalHistorical,
       historicalLanes,
     },
   };
@@ -50,11 +53,11 @@ function makeLanes(count: number): RunLane[] {
   return Array.from({ length: count }, (_, i) => historicalLane(`gc-hist-${i}`));
 }
 
-function renderHistory(historicalLanes: RunLane[]) {
+function renderHistory(historicalLanes: RunLane[], totalHistorical?: number) {
   return render(
     <MemoryRouter future={{ v7_relativeSplatPath: true, v7_startTransition: true }}>
       <RunMap
-        source={runsSource(historicalLanes)}
+        source={runsSource(historicalLanes, totalHistorical)}
         now={Date.parse('2026-05-24T12:01:00Z')}
         showHistory={true}
       />
@@ -97,5 +100,25 @@ describe('RunMap historical expand-in-place (gascity-dashboard-l9q9)', () => {
     const section = screen.getByRole('region', { name: /historical runs/i });
     expect(within(section).getAllByRole('listitem')).toHaveLength(5);
     expect(within(section).queryByRole('button')).toBeNull();
+  });
+});
+
+describe('RunMap historical recency-cap disclosure (gascity-dashboard-9w3k)', () => {
+  it('discloses the cap when totalHistorical exceeds the rendered lane count', () => {
+    // The wire caps historicalLanes at MAX_HISTORICAL_LANES but totalHistorical
+    // reports the true completed count, so the section must say it is a window.
+    const lanes = makeLanes(50);
+    renderHistory(lanes, 60);
+
+    const section = screen.getByRole('region', { name: /historical runs/i });
+    expect(within(section).getByText(/showing 50 most-recent of 60/i)).toBeTruthy();
+  });
+
+  it('omits the disclosure when the full history fits the wire', () => {
+    const lanes = makeLanes(7);
+    renderHistory(lanes);
+
+    const section = screen.getByRole('region', { name: /historical runs/i });
+    expect(within(section).queryByText(/most-recent of/i)).toBeNull();
   });
 });
