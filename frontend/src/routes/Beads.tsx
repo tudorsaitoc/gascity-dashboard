@@ -25,7 +25,6 @@ import { listSupervisorAgents, type SupervisorAgent } from '../supervisor/agentR
 import { listSupervisorBeads, type SupervisorBead } from '../supervisor/beadReads';
 import { listSupervisorRigs } from '../supervisor/rigReads';
 import {
-  claimSupervisorBead,
   closeSupervisorBead,
   createAndSlingSupervisorBead,
   nudgeSupervisorAgent,
@@ -44,7 +43,7 @@ const CLOSED_CHIP_ID = 'closed';
 // at most one refetch per window and a latency spike can no longer empty it.
 const BOARD_REFRESH_COALESCE_MS = 10_000;
 
-type BeadAction = 'claim' | 'close' | 'nudge';
+type BeadAction = 'close' | 'nudge';
 
 interface ActionMessage {
   tone: 'ok' | 'error';
@@ -203,10 +202,7 @@ export function BeadsPage() {
       setActionInFlight({ id: bead.id, action });
       setActionMessage(null);
       try {
-        if (action === 'claim') {
-          await claimSupervisorBead(bead.id);
-          setActionMessage({ tone: 'ok', text: `Claimed ${bead.id}.` });
-        } else if (action === 'close') {
+        if (action === 'close') {
           await closeSupervisorBead(bead.id, reason);
           setClosing(null);
           setCloseReason('');
@@ -309,11 +305,9 @@ export function BeadsPage() {
 
   // The "Needs you" section (gascity-dashboard-2j8e.3) renders the same
   // beads-domain attention items the nav badge counts, so the page count and the
-  // badge agree. Claim is offered inline for a ready-unclaimed bead the board
-  // already loaded; everything else opens the bead to act on it.
-  const beadById = useCallback((beadId: string) => rows.find((b) => b.id === beadId), [rows]);
-  const claimingId = actionInFlight?.action === 'claim' ? actionInFlight.id : null;
-
+  // badge agree. Each item opens the bead to act on it — the operator does not
+  // claim beads (a bead assignee must be a concrete session, never the human
+  // operator), so there is no inline Claim affordance.
   const renderBeadActions = useCallback(
     (bead: SupervisorBead) => {
       const assignee = bead.assignee?.trim() ?? '';
@@ -329,16 +323,6 @@ export function BeadsPage() {
           {actionLabel && (
             <span className="text-label uppercase tracking-wider text-fg-faint">{actionLabel}</span>
           )}
-          <Button
-            type="button"
-            size="sm"
-            tone="quiet"
-            title={roTitle}
-            disabled={readOnly || busy || bead.status === 'in_progress' || bead.status === 'closed'}
-            onClick={() => void runAction(bead, 'claim')}
-          >
-            Claim
-          </Button>
           <Button
             type="button"
             size="sm"
@@ -457,14 +441,7 @@ export function BeadsPage() {
         )}
       </div>
 
-      <BeadAttentionPanel
-        items={attention.byDomain.beads.items}
-        beadById={beadById}
-        onOpen={setSelectedId}
-        onClaim={(bead) => void runAction(bead, 'claim')}
-        readOnly={readOnly}
-        claimingId={claimingId}
-      />
+      <BeadAttentionPanel items={attention.byDomain.beads.items} onOpen={setSelectedId} />
 
       <div className="mb-6 space-y-3">
         <ListSearchBar

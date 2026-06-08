@@ -97,16 +97,20 @@ describe('BeadsPage supervisor reads', () => {
     expect(screen.getByText('Read-only')).toBeTruthy();
   });
 
-  it('disables the per-bead claim/close/nudge actions in read-only mode', async () => {
+  it('disables the per-bead close/nudge actions in read-only mode', async () => {
     renderPage('/beads?bead=td-bead-abc123', [], { readOnly: true });
 
     const dialog = await screen.findByRole('dialog');
     // Scope to the bead-action group: the modal's own dismiss control also
-    // carries aria-label "Close", so query the actions row Claim sits in.
-    const actions = (within(dialog).getByRole('button', { name: 'Claim' }) as HTMLButtonElement)
+    // carries aria-label "Close", so query the actions row via Nudge (unique to
+    // the action row) and assert the writes there are disabled. There is no
+    // operator Claim action (gascity-dashboard-2j8e.8) — the human is never a
+    // bead assignee.
+    const actions = (within(dialog).getByRole('button', { name: 'Nudge' }) as HTMLButtonElement)
       .parentElement;
     expect(actions).not.toBeNull();
-    for (const name of ['Claim', 'Close', 'Nudge']) {
+    expect(within(actions as HTMLElement).queryByRole('button', { name: 'Claim' })).toBeNull();
+    for (const name of ['Close', 'Nudge']) {
       const button = within(actions as HTMLElement).getByRole('button', {
         name,
       }) as HTMLButtonElement;

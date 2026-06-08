@@ -1,4 +1,3 @@
-import { OPERATOR_DISPLAY_ALIAS } from 'gas-city-dashboard-shared';
 import { activeCityOrThrow } from '../api/cityBase';
 import { supervisorApi } from './client';
 import type {
@@ -18,13 +17,6 @@ export interface CreateAndSlingSupervisorBeadInput {
 export interface CreateAndSlingSupervisorBeadResult {
   bead: Bead;
   sling: SlingResponse;
-}
-
-export async function claimSupervisorBead(id: string): Promise<void> {
-  await supervisorApi().updateBead(activeCityOrThrow('claim supervisor bead'), id, {
-    status: 'in_progress',
-    assignee: OPERATOR_DISPLAY_ALIAS,
-  });
 }
 
 export async function closeSupervisorBead(id: string, reason?: string): Promise<void> {

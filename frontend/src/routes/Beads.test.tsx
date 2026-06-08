@@ -61,6 +61,15 @@ beforeEach(() => {
       }
       if (
         url.pathname === '/gc-supervisor/v0/city/test-city/bead/gascity-0001' &&
+        method === 'GET'
+      ) {
+        // The detail modal fetches the bead by id when it opens before the
+        // board's full row is in state. Serve the full bead so the modal
+        // renders deterministically regardless of load ordering.
+        return jsonResponse(sampleBead());
+      }
+      if (
+        url.pathname === '/gc-supervisor/v0/city/test-city/bead/gascity-0001' &&
         method === 'PATCH'
       ) {
         supervisorWrites.push({
@@ -269,12 +278,13 @@ describe('BeadsPage', () => {
     ]);
   });
 
-  it('claims, closes, and nudges beads directly through the supervisor API', async () => {
+  it('closes and nudges beads directly through the supervisor API', async () => {
     renderPage('/beads?bead=gascity-0001');
 
     const detailDialog = await screen.findByRole('dialog');
-    fireEvent.click(within(detailDialog).getByRole('button', { name: /^claim$/i }));
-    await screen.findByText(/claimed gascity-0001/i);
+    // No operator Claim affordance: the human is never a bead assignee
+    // (gascity-dashboard-2j8e.8).
+    expect(within(detailDialog).queryByRole('button', { name: /^claim$/i })).toBeNull();
 
     fireEvent.click(within(detailDialog).getByRole('button', { name: /^nudge$/i }));
     await screen.findByText(/nudged mayor/i);
@@ -296,14 +306,6 @@ describe('BeadsPage', () => {
     await screen.findByText(/closed gascity-0001/i);
     await waitFor(() => {
       expect(supervisorWrites).toEqual([
-        {
-          method: 'PATCH',
-          path: '/gc-supervisor/v0/city/test-city/bead/gascity-0001',
-          body: {
-            status: 'in_progress',
-            assignee: 'stephanie',
-          },
-        },
         {
           method: 'POST',
           path: '/gc-supervisor/v0/city/test-city/agent/mayor/nudge',
@@ -351,6 +353,11 @@ function sampleBead(): SupervisorBead {
   return {
     id: `${PROJECT}-0001`,
     title: 'Sample bead',
+    // The board fetch returns full beads (description included). Carrying it
+    // here lets the detail modal render from the pre-loaded row and skip the
+    // by-id detail fetch (useBeadDetail's `description` freshness signal),
+    // matching the production path.
+    description: 'Sample bead description.',
     status: 'open',
     priority: 0,
     issue_type: 'task',

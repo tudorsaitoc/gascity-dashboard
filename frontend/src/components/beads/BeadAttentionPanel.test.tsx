@@ -4,7 +4,6 @@ import type { AttentionItem } from '../../attention/compose';
 import { composeAttention } from '../../attention/compose';
 import { createAttentionContributors } from '../../attention/registry';
 import type { Bead } from 'gas-city-dashboard-shared/gc-supervisor';
-import type { SupervisorBead } from '../../supervisor/beadReads';
 import { BeadAttentionPanel, beadIdFromHref } from './BeadAttentionPanel';
 
 afterEach(() => cleanup());
@@ -15,16 +14,6 @@ function attentionItem(
   return {
     domain: 'beads',
     severity: 'attention',
-    title: 'Bead',
-    ...overrides,
-  };
-}
-
-function supervisorBead(overrides: Partial<SupervisorBead> & { id: string }): SupervisorBead {
-  return {
-    created_at: '2026-06-07T11:00:00.000Z',
-    issue_type: 'task',
-    status: 'open',
     title: 'Bead',
     ...overrides,
   };
@@ -54,8 +43,7 @@ describe('beadIdFromHref', () => {
 describe('BeadAttentionPanel (gascity-dashboard-2j8e.3)', () => {
   const noop = () => undefined;
 
-  it('offers Claim for a ready-unclaimed bead the board loaded, Open otherwise', () => {
-    const onClaim = vi.fn();
+  it('opens each item and never offers an operator Claim (gascity-dashboard-2j8e.8)', () => {
     const onOpen = vi.fn();
     render(
       <BeadAttentionPanel
@@ -72,59 +60,25 @@ describe('BeadAttentionPanel (gascity-dashboard-2j8e.3)', () => {
             href: '/beads?bead=B-esc',
           }),
         ]}
-        beadById={(id) => (id === 'B-ready' ? supervisorBead({ id: 'B-ready' }) : undefined)}
         onOpen={onOpen}
-        onClaim={onClaim}
-        readOnly={false}
-        claimingId={null}
       />,
     );
 
     expect(screen.getByText('Needs you').textContent).toContain('(2)');
+    // The operator cannot be a bead assignee, so no row offers Claim — only Open.
+    expect(screen.queryByRole('button', { name: 'Claim' })).toBeNull();
+
     const readyRow = screen.getByText('B-ready unclaimed').closest('li') as HTMLElement;
-    within(readyRow).getByRole('button', { name: 'Claim' }).click();
-    expect(onClaim).toHaveBeenCalledWith(expect.objectContaining({ id: 'B-ready' }));
+    within(readyRow).getByRole('button', { name: 'Open' }).click();
+    expect(onOpen).toHaveBeenCalledWith('B-ready');
 
     const escRow = screen.getByText('B-esc escalated').closest('li') as HTMLElement;
-    expect(within(escRow).queryByRole('button', { name: 'Claim' })).toBeNull();
     within(escRow).getByRole('button', { name: 'Open' }).click();
     expect(onOpen).toHaveBeenCalledWith('B-esc');
   });
 
-  it('disables Claim in read-only mode', () => {
-    render(
-      <BeadAttentionPanel
-        items={[
-          attentionItem({
-            id: 'beads:B-ready:ready-unclaimed',
-            severity: 'watch',
-            title: 'B-ready unclaimed',
-            href: '/beads?bead=B-ready',
-          }),
-        ]}
-        beadById={() => supervisorBead({ id: 'B-ready' })}
-        onOpen={noop}
-        onClaim={noop}
-        readOnly
-        claimingId={null}
-      />,
-    );
-    expect((screen.getByRole('button', { name: 'Claim' }) as HTMLButtonElement).disabled).toBe(
-      true,
-    );
-  });
-
   it('renders nothing when there are no badge-counting items', () => {
-    const { container } = render(
-      <BeadAttentionPanel
-        items={[]}
-        beadById={() => undefined}
-        onOpen={noop}
-        onClaim={noop}
-        readOnly={false}
-        claimingId={null}
-      />,
-    );
+    const { container } = render(<BeadAttentionPanel items={[]} onOpen={noop} />);
     expect(container.firstChild).toBeNull();
   });
 
@@ -151,16 +105,7 @@ describe('BeadAttentionPanel (gascity-dashboard-2j8e.3)', () => {
     const navTotal = summary.attention + summary.watch;
     expect(navTotal).toBe(3);
 
-    render(
-      <BeadAttentionPanel
-        items={summary.items}
-        beadById={() => undefined}
-        onOpen={noop}
-        onClaim={noop}
-        readOnly={false}
-        claimingId={null}
-      />,
-    );
+    render(<BeadAttentionPanel items={summary.items} onOpen={noop} />);
 
     expect(screen.getByText('Needs you').textContent).toContain(`(${navTotal})`);
     expect(screen.getAllByRole('button', { name: 'Open' })).toHaveLength(navTotal);
