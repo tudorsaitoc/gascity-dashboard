@@ -12,6 +12,7 @@ import { invalidateKey } from '../api/cache';
 import { AttentionProvider } from '../attention/context';
 import type { AttentionContributor } from '../attention/compose';
 import { RunsPage } from './Runs';
+import { RunSummaryProvider } from '../runs/runSummarySubscription';
 import { MemoryRouter } from 'react-router-dom';
 import { NowProvider } from '../contexts/NowContext';
 import {
@@ -197,7 +198,9 @@ function mount(initialPath = '/runs', contributors: readonly AttentionContributo
     >
       <NowProvider intervalMs={1_000_000}>
         <AttentionProvider contributors={contributors}>
-          <RunsPage />
+          <RunSummaryProvider>
+            <RunsPage />
+          </RunSummaryProvider>
         </AttentionProvider>
       </NowProvider>
     </MemoryRouter>,

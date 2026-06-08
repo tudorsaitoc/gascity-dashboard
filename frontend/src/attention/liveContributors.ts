@@ -1,5 +1,5 @@
 import { useMemo } from 'react';
-import { type SourceStatus } from 'gas-city-dashboard-shared';
+import { type RunSummary, type SourceState } from 'gas-city-dashboard-shared';
 import { api, formatApiError } from '../api/client';
 import { getActiveCity } from '../api/cityBase';
 import { type OperatorConfig } from '../contexts/OperatorConfigContext';
@@ -8,7 +8,6 @@ import { listAgentPendingInteractions } from '../supervisor/agentPending';
 import { listSupervisorBeads } from '../supervisor/beadReads';
 import { supervisorApi, supervisorApiForRequestBudget } from '../supervisor/client';
 import { DEFAULT_MAIL_HISTORY_LIMIT, listSupervisorMail } from '../supervisor/mailReads';
-import { loadSupervisorRunSummarySource } from '../supervisor/runSummary';
 import type { AttentionContributor } from './compose';
 import {
   createAttentionContributors,
@@ -31,6 +30,7 @@ const HEALTH_ATTENTION_SUPERVISOR_TIMEOUT_MS = 2_500;
 export function useLiveAttentionContributors(
   enabledModules: readonly string[] | null,
   operator: OperatorConfig,
+  runsSource: SourceState<RunSummary> | undefined,
 ): readonly AttentionContributor[] {
   const cityName = getActiveCity();
   const cacheSuffix = cityName ?? 'no-city';
@@ -40,9 +40,10 @@ export function useLiveAttentionContributors(
   // pre-config fallback → real-config transition refetches with the resolved
   // identity (useCachedData only refetches on key change).
   const { decisionLabel, operatorWireAlias } = operator;
-  const runs = useCachedData<RunsAttentionFacts>(`attention:runs:${cacheSuffix}`, () =>
-    fetchRunsAttention(cityName),
-  );
+  // gascity-dashboard-2j8e.7: the Runs badge reads the SAME shared run-summary
+  // subscription the /runs page renders (passed in as runsSource), not its own
+  // fan-out — one fetch, by-construction parity, and SSE refresh reach the badge.
+  const runs = useMemo(() => runsFactsFromSource(runsSource), [runsSource]);
   const agents = useCachedData<AgentsAttentionFacts>(`attention:agents:${cacheSuffix}`, () =>
     fetchAgentsAttention(cityName),
   );
@@ -75,71 +76,31 @@ export function useLiveAttentionContributors(
           health: health.data,
           mail: mail.data,
           maintainer: maintainer.data,
-          runs: withRunsFreshness(runs.data, runs.error, runs.fetchedAt),
+          runs,
         }),
       ),
-    [
-      activity.data,
-      agents.data,
-      beads.data,
-      health.data,
-      mail.data,
-      maintainer.data,
-      runs.data,
-      runs.error,
-      runs.fetchedAt,
-    ],
+    [activity.data, agents.data, beads.data, health.data, mail.data, maintainer.data, runs],
   );
 }
 
 /**
- * Stamp the runs read's provenance + fetch timestamp onto its facts so the
- * registry can carry them onto `unavailable`-tier items. A degraded read can
- * then be aged (gascity-dashboard issue-88 follow-up) rather than rendered as
- * current truth. The cache is event-refreshed (no TTL), so provenance is the
- * coarse read status — `error` on failure, otherwise `fresh`; `fetchedAt`
+ * Project the shared run-summary subscription's source onto the Runs badge
+ * facts. The badge counts genuinely-blocked runs from `summary.blockedLanes` —
+ * the same selectBlockedRuns the /runs page renders — so reading the page's exact
+ * source object makes the badge and the page agree by construction, not merely by
+ * shared selector (gascity-dashboard-2j8e.7). The source's own status flows
+ * through as provenance and is carried onto `unavailable`-tier items so a
+ * degraded read can be aged rather than rendered as current truth; `fetchedAt`
  * carries the exact read time for any age comparison.
  */
-function withRunsFreshness(
-  facts: RunsAttentionFacts | undefined,
-  error: string | null,
-  fetchedAt: string | undefined,
+export function runsFactsFromSource(
+  source: SourceState<RunSummary> | undefined,
 ): RunsAttentionFacts | undefined {
-  if (facts === undefined) return undefined;
-  const provenance: SourceStatus =
-    error !== null || (facts.error !== undefined && facts.error.length > 0) ? 'error' : 'fresh';
-  return { ...facts, provenance, ...(fetchedAt === undefined ? {} : { fetchedAt }) };
-}
-
-async function fetchRunsAttention(cityName: string | null): Promise<RunsAttentionFacts> {
-  if (cityName === null) return {};
-  // gascity-dashboard-2j8e.6: the badge must derive its genuinely-blocked count
-  // from the SAME COMPLETE snapshot the /runs page renders, not just the same
-  // selector. #95 (2j8e.2) unified the selector (selectBlockedRuns) but left the
-  // badge on the cheap preview source while the page upgrades to the full source
-  // on its first refresh — so the two read DIFFERENT-completeness snapshots and
-  // the badge persistently undercounted (operator saw page Blocked(4), nav badge
-  // empty). The preview budget (2.5s) lets the recent-run fan-out time out under
-  // a slow supervisor, dropping the very lanes that map to `phase === 'blocked'`;
-  // the page's full source (30s budget + session enrichment) loads them. Reading
-  // the full source here makes the badge's blocked set as complete as the page's,
-  // so the counts agree in steady state rather than only "by construction" over a
-  // snapshot neither side actually shares.
-  //
-  // The formula feed (the pre-#95 source) stays dropped: it counted phantom
-  // feed-only roots and flapped on partial fan-outs.
-  //
-  // This still refetches under the attention cache key rather than sharing the
-  // page's `runs:summary:*` entry, so on /runs the fan-out runs twice. The fetch
-  // is mount-driven (no recurring poll), so the cost is bounded to cold load /
-  // city switch; lifting the run summary into one shared subscription that both
-  // the header badge and the page read is the proper follow-up (a cross-cutting
-  // change kept out of this focused parity fix).
-  const source = await loadSupervisorRunSummarySource();
+  if (source === undefined) return undefined;
   if (source.status === 'error') {
-    return { error: source.error };
+    return { error: source.error, provenance: 'error' };
   }
-  return { summary: source.data };
+  return { summary: source.data, provenance: source.status, fetchedAt: source.fetchedAt };
 }
 
 async function fetchAgentsAttention(cityName: string | null): Promise<AgentsAttentionFacts> {
