@@ -60,14 +60,8 @@ export function buildRunSummary(
       // gascity-dashboard-s4rp: a run rooted at a bead missing from the store
       // (dangling root, gc-1920-class) has no authoritative root metadata — its
       // title is inferred from a child and its scope is unresolvable. Drop it
-      // explicitly rather than rely on the graph.v2 check incidentally failing.
-      // gascity-dashboard-9w3k: surface v1 / wisp (non-graph.v2) runs too. The
-      // grouping + lane/stage primitives are formula-agnostic, so broadening the
-      // keep-condition is all that is needed — but the v1 predicate must reject a
-      // lone engineering bead (root = itself, no run markers) so the whole bead
-      // store does not turn into phantom lanes.
-      !isDanglingRootGroup(rootId, groupIssues) &&
-      (isGraphV2RunGroup(rootId, groupIssues) || isV1RunGroup(rootId, groupIssues)),
+      // explicitly rather than rely on the run-marker check incidentally failing.
+      !isDanglingRootGroup(rootId, groupIssues) && isRunGroup(rootId, groupIssues),
   );
   const laneIssues = runGroups.flatMap(([, groupIssues]) => groupIssues);
   const sortedLanes = runGroups
@@ -107,24 +101,23 @@ export function buildRunSummary(
   return partial ? { ...summary, lanesPartial: true } : summary;
 }
 
-function isGraphV2RunGroup(rootId: string, issues: RunIssue[]): boolean {
-  const root = issues.find((issue) => issue.id === rootId);
-  return stringValue(root?.metadata?.['gc.formula_contract']) === 'graph.v2';
-}
-
-// gascity-dashboard-9w3k: a genuine v1 / wisp run root — a molecule bead, an
-// explicit `gc.kind=run` marker, or a `gc.formula` attribution. This is the
-// flood guard: a lone engineering bead (root = itself with none of these
-// markers) must NOT be promoted to a lane, or every task/bug/feature in the
-// store would render as a phantom run. Convoys are already excluded upstream by
-// runBeadFilter (ENGINEERING_TYPES has no 'convoy').
-function isV1RunGroup(rootId: string, issues: RunIssue[]): boolean {
+// gascity-dashboard-9w3k: a group is a run when its root bead carries a run
+// marker — the graph.v2 `gc.formula_contract`, or a v1 / wisp signal (a
+// molecule bead, an explicit `gc.kind=run` marker, or a `gc.formula`
+// attribution). The v1 arms are the flood guard: a lone engineering bead
+// (root = itself with none of these markers) must NOT be promoted to a lane,
+// or every task/bug/feature in the store would render as a phantom run.
+// Convoys are already excluded upstream by runBeadFilter (ENGINEERING_TYPES
+// has no 'convoy'); dangling roots are dropped separately by the caller.
+function isRunGroup(rootId: string, issues: RunIssue[]): boolean {
   const root = issues.find((issue) => issue.id === rootId);
   if (!root) return false;
+  const metadata = root.metadata;
   return (
+    stringValue(metadata?.['gc.formula_contract']) === 'graph.v2' ||
     root.issue_type === 'molecule' ||
-    stringValue(root.metadata?.['gc.kind']) === 'run' ||
-    stringValue(root.metadata?.['gc.formula']) !== ''
+    stringValue(metadata?.['gc.kind']) === 'run' ||
+    stringValue(metadata?.['gc.formula']) !== ''
   );
 }
 

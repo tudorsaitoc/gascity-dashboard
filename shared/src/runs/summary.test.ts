@@ -192,7 +192,7 @@ function runIssue(overrides: Partial<RunIssue> & Pick<RunIssue, 'id'>): RunIssue
 
 // gascity-dashboard-9w3k: v1 / wisp (non-graph.v2) runs are surfaced as lanes
 // using the same lane/stage primitives as graph.v2. The drop used to be at the
-// `isGraphV2RunGroup` filter, which silently swallowed the entire v1 history.
+// graph.v2-only keep-filter, which silently swallowed the entire v1 history.
 // These tests pin (a) a genuine v1 wisp run becomes exactly one lane, (b) a
 // lone engineering bead is NOT promoted into a lane (flood guard), and that
 // graph.v2 lanes are unchanged.
@@ -202,28 +202,20 @@ describe('buildRunSummary — v1 / wisp runs surface as lanes (gascity-dashboard
   // back at the root. runRootId groups the child under the molecule root.
   function wispRun(id: string): RunIssue[] {
     return [
-      {
+      runIssue({
         id,
         title: 'mol-do-work',
         status: 'open',
         issue_type: 'molecule',
         updated_at: '2026-06-02T00:00:00Z',
-        metadata: {
-          'gc.var.target': 'demo-app',
-          'gc.var.prompt': 'fix the thing',
-        },
-      },
-      {
+        metadata: { 'gc.var.target': 'demo-app', 'gc.var.prompt': 'fix the thing' },
+      }),
+      runIssue({
         id: `${id}-child-1`,
         title: 'Implementation work',
-        status: 'in_progress',
-        issue_type: 'task',
         updated_at: '2026-06-02T00:05:00Z',
-        metadata: {
-          molecule_id: id,
-          'gc.step_id': 'do-work',
-        },
-      },
+        metadata: { molecule_id: id, 'gc.step_id': 'do-work' },
+      }),
     ];
   }
 
@@ -282,28 +274,23 @@ describe('buildRunSummary — v1 / wisp runs surface as lanes (gascity-dashboard
 // builder emits to the most-recent MAX_HISTORICAL_LANES, while totalHistorical
 // keeps reporting the true full count.
 describe('buildRunSummary — historical lanes are recency-bounded (gascity-dashboard-9w3k)', () => {
-  function completedV1Run(id: string, updatedAt: string): RunIssue[] {
-    return [
-      {
-        id,
-        title: 'mol-do-work',
-        status: 'closed',
-        issue_type: 'molecule',
-        updated_at: updatedAt,
-        metadata: { 'gc.var.target': 'demo-app' },
-      },
-    ];
-  }
-
   test('caps historicalLanes at MAX_HISTORICAL_LANES, keeps the most-recent ones, reports true total', () => {
     const total = MAX_HISTORICAL_LANES + 10;
     const issues: RunIssue[] = [];
     // Distinct, monotonically increasing updated_at so newest-first order is
     // unambiguous. id-N has updated_at = base + N minutes; higher N = newer.
+    // A closed molecule root is a complete v1 run (one lane each).
     const base = Date.parse('2026-01-01T00:00:00Z');
     for (let n = 0; n < total; n += 1) {
       const at = new Date(base + n * 60_000).toISOString();
-      issues.push(...completedV1Run(`hist-${String(n).padStart(3, '0')}`, at));
+      issues.push(
+        runIssue({
+          id: `hist-${String(n).padStart(3, '0')}`,
+          issue_type: 'molecule',
+          status: 'closed',
+          updated_at: at,
+        }),
+      );
     }
 
     const summary = buildRunSummary(issues);
