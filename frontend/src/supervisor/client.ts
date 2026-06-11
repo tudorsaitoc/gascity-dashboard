@@ -72,6 +72,10 @@ import type {
   SupervisorCitiesOutputBody,
   WorkflowSnapshotResponse,
 } from 'gas-city-dashboard-shared/gc-supervisor';
+import {
+  SUPERVISOR_CACHE_BYPASS_HEADER,
+  SUPERVISOR_CACHE_BYPASS_VALUE,
+} from 'gas-city-dashboard-shared';
 import { SupervisorApiError, unwrapSupervisorResult, type SupervisorResult } from './errors';
 import {
   SUPERVISOR_PROXY_BASE_URL,
@@ -84,6 +88,20 @@ export const SUPERVISOR_REQUEST_TIMEOUT_MS = 60_000;
 export const GC_MUTATION_HEADERS = {
   'X-GC-Request': 'dashboard',
 } as const;
+
+// Options for the two cacheable city-wide reads (listBeads molecule history +
+// formulaFeed). `cacheBypass` makes the proxy force a fresh upstream scan instead
+// of serving its short-TTL cache — set only by the operator's explicit /runs
+// Refresh so preview/SSE reads keep the amortization (gascity-dashboard-i3dz).
+export interface SupervisorReadOptions {
+  cacheBypass?: boolean;
+}
+
+function cacheBypassHeaders(options?: SupervisorReadOptions): { headers?: Record<string, string> } {
+  return options?.cacheBypass === true
+    ? { headers: { [SUPERVISOR_CACHE_BYPASS_HEADER]: SUPERVISOR_CACHE_BYPASS_VALUE } }
+    : {};
+}
 
 export { SupervisorApiError, SUPERVISOR_PROXY_BASE_URL };
 
@@ -98,6 +116,7 @@ export interface SupervisorApi {
   listBeads(
     cityName: string,
     query?: NonNullable<GetV0CityByCityNameBeadsData['query']>,
+    options?: SupervisorReadOptions,
   ): Promise<ListBodyBead>;
   listEvents(
     cityName: string,
@@ -117,6 +136,7 @@ export interface SupervisorApi {
   formulaFeed(
     cityName: string,
     query?: NonNullable<GetV0CityByCityNameFormulasFeedData['query']>,
+    options?: SupervisorReadOptions,
   ): Promise<FormulaFeedBody>;
   sendMail(cityName: string, body: MailSendInputBody): Promise<Message>;
   mailThread(cityName: string, threadId: string): Promise<MailListBody>;
@@ -244,12 +264,13 @@ export function createSupervisorApi(options: CreateSupervisorApiOptions = {}): S
         'gc supervisor rigs response was empty',
       );
     },
-    listBeads(cityName, query) {
+    listBeads(cityName, query, options) {
       return unwrapSupervisorResult<ListBodyBead>(
         getV0CityByCityNameBeads({
           client,
           path: { cityName },
           ...(query === undefined ? {} : { query }),
+          ...cacheBypassHeaders(options),
         }) as Promise<SupervisorResult<ListBodyBead>>,
         'gc supervisor beads response was empty',
       );
@@ -367,12 +388,13 @@ export function createSupervisorApi(options: CreateSupervisorApiOptions = {}): S
         'gc supervisor mail response was empty',
       );
     },
-    formulaFeed(cityName, query) {
+    formulaFeed(cityName, query, options) {
       return unwrapSupervisorResult<FormulaFeedBody>(
         getV0CityByCityNameFormulasFeed({
           client,
           path: { cityName },
           ...(query === undefined ? {} : { query }),
+          ...cacheBypassHeaders(options),
         }) as Promise<SupervisorResult<FormulaFeedBody>>,
         'gc supervisor formula feed response was empty',
       );

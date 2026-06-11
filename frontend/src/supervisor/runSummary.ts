@@ -113,8 +113,15 @@ const progressStateByCity = new Map<string, ProgressState>();
 // Detail) use loadSupervisorRunSummaryMountSource on the tight budget instead.
 // The shared subscription is exempt: it is cache-backed and the always-mounted
 // header reads its result, so its latency never blocks a route view.
-export async function loadSupervisorRunSummarySource(): Promise<SourceState<RunSummary>> {
-  return loadRunSummarySource(REFRESH_ENRICHMENT_TIMEOUT_MS);
+// `forceFresh` flows down to the two cacheable city-wide reads (molecule history
+// + city feed) as the proxy cache-bypass marker. The shared subscription sets it
+// ONLY for the operator's explicit Refresh (gascity-dashboard-i3dz); the one-time
+// preview→full upgrade and SSE refreshes leave it false so they keep serving the
+// proxy's amortized cache.
+export async function loadSupervisorRunSummarySource(options?: {
+  forceFresh?: boolean;
+}): Promise<SourceState<RunSummary>> {
+  return loadRunSummarySource(REFRESH_ENRICHMENT_TIMEOUT_MS, options?.forceFresh === true);
 }
 
 // Mount / first-paint full source for Home and Formula Run Detail: the same data
@@ -125,12 +132,15 @@ export async function loadSupervisorRunSummaryMountSource(): Promise<SourceState
   return loadRunSummarySource(PREVIEW_ENRICHMENT_TIMEOUT_MS);
 }
 
-async function loadRunSummarySource(enrichmentBudgetMs: number): Promise<SourceState<RunSummary>> {
+async function loadRunSummarySource(
+  enrichmentBudgetMs: number,
+  forceFresh = false,
+): Promise<SourceState<RunSummary>> {
   const cityName = activeCityOrThrow('load supervisor run summary');
   const fetchedAt = new Date().toISOString();
   try {
     const [loaded, sessions] = await Promise.all([
-      loadRunBeads(cityName, RUNS_FETCH_LIMIT, enrichmentBudgetMs),
+      loadRunBeads(cityName, RUNS_FETCH_LIMIT, enrichmentBudgetMs, forceFresh),
       loadRunSessions(cityName, enrichmentBudgetMs),
     ]);
     const summary = buildRunSummary(
@@ -277,10 +287,14 @@ async function loadRunBeads(
   cityName: string,
   limit: number,
   enrichmentBudgetMs: number,
+  forceFresh = false,
 ): Promise<LoadedRunBeads> {
   // The molecule-history read gets its own tight bound (gascity-dashboard-9rk2),
   // capped to the surrounding enrichment budget so the first-paint path is never
   // loosened: a slow scan folds to `partial` instead of dominating the refresh.
+  // forceFresh rides the two proxy-cached reads (molecule + feed) so an explicit
+  // Refresh re-scans upstream within the TTL window (gascity-dashboard-i3dz). The
+  // per-rig task reads are not proxy-cached, so they need no bypass.
   const moleculeFetch = settledRecentFetch(
     cityName,
     {
@@ -289,10 +303,11 @@ async function loadRunBeads(
       all: true,
     },
     Math.min(MOLECULE_HISTORY_TIMEOUT_MS, enrichmentBudgetMs),
+    forceFresh,
   );
   const [activeList, feedDiscovery] = await Promise.all([
     fetchCoreActiveBeads(cityName, limit),
-    discoverFromFeed(cityName, enrichmentBudgetMs),
+    discoverFromFeed(cityName, enrichmentBudgetMs, forceFresh),
   ]);
   const active = normalizeBeads(activeList.items ?? []);
   const rigNames = unionRigNames(runRigNames(active), feedDiscovery.rigNames);
@@ -336,10 +351,15 @@ async function settledRecentFetch(
   cityName: string,
   query: { limit: number; type: string; all: true; rig?: string },
   budgetMs: number,
+  cacheBypass = false,
 ): Promise<RecentFetchOutcome> {
   try {
+    // Attach the read options only to force a bypass: an unmarked read makes the
+    // same call as before (no options object, no bypass header), so the proxy
+    // keeps serving its amortized city-wide cache for it.
+    const readOptions = cacheBypass ? ([{ cacheBypass: true }] as const) : ([] as const);
     const list = await withOptionalReadBudget(
-      optionalRunSummaryApi(budgetMs).listBeads(cityName, query),
+      optionalRunSummaryApi(budgetMs).listBeads(cityName, query, ...readOptions),
       `recent ${query.type} beads`,
       budgetMs,
     );
@@ -359,13 +379,25 @@ interface FeedDiscovery {
   partial: boolean;
 }
 
-async function discoverFromFeed(cityName: string, budgetMs: number): Promise<FeedDiscovery> {
+async function discoverFromFeed(
+  cityName: string,
+  budgetMs: number,
+  cacheBypass = false,
+): Promise<FeedDiscovery> {
   try {
+    // Attach the read options only to force a bypass: an unmarked read makes the
+    // same call as before (no options object, no bypass header), so the proxy
+    // keeps serving its amortized city-wide cache for it.
+    const readOptions = cacheBypass ? ([{ cacheBypass: true }] as const) : ([] as const);
     const runs = await withOptionalReadBudget(
-      optionalRunSummaryApi(budgetMs).formulaFeed(cityName, {
-        scope_kind: 'city',
-        scope_ref: cityName,
-      }),
+      optionalRunSummaryApi(budgetMs).formulaFeed(
+        cityName,
+        {
+          scope_kind: 'city',
+          scope_ref: cityName,
+        },
+        ...readOptions,
+      ),
       'formula feed',
       budgetMs,
     );

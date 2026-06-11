@@ -49,7 +49,14 @@ export interface RunSummarySubscription {
   source: SourceState<RunSummary> | undefined;
   loading: boolean;
   error: string | null;
+  /** Programmatic wide refresh that may serve the proxy's amortized cache. */
   refresh: () => Promise<void>;
+  /**
+   * The operator's explicit Refresh: a wide refresh that bypasses the proxy's
+   * city-wide read cache so the molecule+feed scan re-hits upstream even inside
+   * the TTL window (gascity-dashboard-i3dz).
+   */
+  manualRefresh: () => Promise<void>;
   sseState: GcEventConnState;
 }
 
@@ -80,8 +87,16 @@ export function useRunSummarySubscription(): RunSummarySubscription {
   // of a failure" so recovery keeps driving regardless of what we display, and
   // is cleared the moment a genuine fresh/full result lands.
   const staleDueToFailureRef = useRef(false);
+  // Set true for exactly one wide refresh by manualRefresh(), then consumed
+  // synchronously here before any await. The one-time preview→full upgrade and
+  // the degraded-load retry call refresh() directly and leave it false, so only
+  // the operator's explicit Refresh bypasses the proxy cache
+  // (gascity-dashboard-i3dz).
+  const forceFreshRef = useRef(false);
   const refreshWithLastGoodRetention = useCallback(async (): Promise<SourceState<RunSummary>> => {
-    const result = await loadSupervisorRunSummarySource().catch(
+    const forceFresh = forceFreshRef.current;
+    forceFreshRef.current = false;
+    const result = await loadSupervisorRunSummarySource({ forceFresh }).catch(
       (err): SourceState<RunSummary> => ({
         source: 'runs',
         status: 'error',
@@ -156,6 +171,14 @@ export function useRunSummarySubscription(): RunSummarySubscription {
       sseRefreshFetcher: refreshActiveWithMerge,
     },
   );
+  // The operator's explicit Refresh: arm the one-shot bypass flag, then run the
+  // same wide refresh path. refreshWithLastGoodRetention consumes the flag
+  // synchronously (before its first await), so this stays scoped to this one
+  // call and never bleeds into the upgrade/retry refreshes (gascity-dashboard-i3dz).
+  const manualRefresh = useCallback(() => {
+    forceFreshRef.current = true;
+    return refresh();
+  }, [refresh]);
   // Capture the latest available snapshot so the next failed refresh can fall
   // back to it. A re-published 'stale' snapshot stays good data, so it keeps
   // being retained across a run of consecutive failures.
@@ -282,7 +305,7 @@ export function useRunSummarySubscription(): RunSummarySubscription {
 
   const sseState = useGcEventRefresh([GC_EVENT_PREFIX.bead], onSseMatch);
 
-  return { source: data, loading, error, refresh, sseState };
+  return { source: data, loading, error, refresh, manualRefresh, sseState };
 }
 
 const RunSummaryContext = createContext<RunSummarySubscription | null>(null);

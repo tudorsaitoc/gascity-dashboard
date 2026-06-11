@@ -195,6 +195,29 @@ describe('useRunSummarySubscription / RunSummaryProvider (gascity-dashboard-2j8e
     expect(typeof lastHookCall.onMatch).toBe('function');
   });
 
+  it('manualRefresh forces a cache-bypassing wide refresh; the one-time upgrade does not (gascity-dashboard-i3dz)', async () => {
+    const { result } = renderHook(() => useRunSummary(), { wrapper: RunSummaryProvider });
+
+    // The one-time preview→full upgrade runs a NORMAL wide refresh, so it keeps
+    // serving the proxy's amortized cache.
+    await waitFor(() => expect(mockFull).toHaveBeenCalledTimes(1));
+    expect(mockFull).toHaveBeenLastCalledWith({ forceFresh: false });
+
+    // The operator's explicit Refresh forces a fresh upstream re-scan.
+    await act(async () => {
+      await result.current.manualRefresh();
+    });
+    expect(mockFull).toHaveBeenCalledTimes(2);
+    expect(mockFull).toHaveBeenLastCalledWith({ forceFresh: true });
+
+    // The bypass is one-shot: a subsequent programmatic refresh() reverts to the
+    // cache-friendly path (the flag was consumed, not latched).
+    await act(async () => {
+      await result.current.refresh();
+    });
+    expect(mockFull).toHaveBeenLastCalledWith({ forceFresh: false });
+  });
+
   it('refreshes every consumer on an SSE event (no post-mount drift)', async () => {
     render(
       <RunSummaryProvider>

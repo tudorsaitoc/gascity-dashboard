@@ -28,7 +28,7 @@ const HISTORY_QUERY_VALUE = '1';
 
 export function RunsPage() {
   const attention = useAttentionModel();
-  const { source: data, loading, error, refresh, sseState } = useRunSummary();
+  const { source: data, loading, error, manualRefresh, sseState } = useRunSummary();
   const [searchParams, setSearchParams] = useSearchParams();
   // gascity-dashboard-yh5i: ?history=1 toggles the historical lane
   // section. Pure render-time state — the summary already carries both
@@ -151,7 +151,7 @@ export function RunsPage() {
               <Button
                 size="sm"
                 className="w-full justify-center"
-                onClick={() => void refresh()}
+                onClick={() => void manualRefresh()}
                 disabled={loading}
               >
                 {loading ? 'Refreshing' : 'Refresh'}

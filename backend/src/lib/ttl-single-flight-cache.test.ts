@@ -107,6 +107,79 @@ describe('createTtlSingleFlightCache', () => {
     await assert.rejects(b, /shared boom/);
   });
 
+  test('forceFresh re-runs the loader inside the TTL and repopulates the cache', async () => {
+    // gascity-dashboard-i3dz: the operator's explicit Refresh must re-scan
+    // upstream even while a ready entry is still warm, and the fresh value must
+    // replace the cached one (resetting the TTL window) so later reads ride it.
+    let nowMs = 0;
+    const cache = createTtlSingleFlightCache({ ttlMs: 1_000, now: () => nowMs });
+    let calls = 0;
+    const loader = async () => {
+      calls += 1;
+      return response(200, `body-${calls}`);
+    };
+
+    const first = await cache.getOrFetch('k', loader);
+    assert.equal(first.body.toString(), 'body-1');
+
+    nowMs = 500; // still within TTL — a normal read would be a cache hit.
+    const forced = await cache.getOrFetch('k', loader, { forceFresh: true });
+    assert.equal(calls, 2, 'forceFresh re-runs the loader despite the warm entry');
+    assert.equal(forced.body.toString(), 'body-2');
+
+    nowMs = 900; // within the RESET TTL of the forced load.
+    const afterForced = await cache.getOrFetch('k', loader);
+    assert.equal(calls, 2, 'the forced result repopulated the cache; the next read is a hit');
+    assert.equal(afterForced.body.toString(), 'body-2');
+  });
+
+  test('forceFresh does not coalesce onto an in-flight normal read', async () => {
+    // An explicit Refresh must observe genuinely fresh data, not attach to a
+    // load that started before the operator's intent (gascity-dashboard-i3dz).
+    const cache = createTtlSingleFlightCache({ ttlMs: 1_000, now: () => 0 });
+    let calls = 0;
+    const resolvers: Array<(value: CachedResponse) => void> = [];
+    const loader = () =>
+      new Promise<CachedResponse>((resolve) => {
+        calls += 1;
+        resolvers.push(resolve);
+      });
+
+    const normal = cache.getOrFetch('k', loader);
+    const forced = cache.getOrFetch('k', loader, { forceFresh: true });
+    assert.equal(calls, 2, 'forceFresh starts its own load rather than sharing the in-flight one');
+
+    resolvers[0]?.(response(200, 'normal'));
+    resolvers[1]?.(response(200, 'forced'));
+    assert.equal((await normal).body.toString(), 'normal');
+    assert.equal((await forced).body.toString(), 'forced');
+  });
+
+  test('a forceFresh result is not clobbered by a slower concurrent normal read', async () => {
+    // The repopulation guarantee: when a normal in-flight read and a forceFresh
+    // race and the normal load resolves LAST, the cache must end on the forced
+    // (newer) value, not the stale predecessor (gascity-dashboard-i3dz).
+    const cache = createTtlSingleFlightCache({ ttlMs: 1_000, now: () => 0 });
+    const resolvers: Array<(value: CachedResponse) => void> = [];
+    const loader = () =>
+      new Promise<CachedResponse>((resolve) => {
+        resolvers.push(resolve);
+      });
+
+    const normal = cache.getOrFetch('k', loader);
+    const forced = cache.getOrFetch('k', loader, { forceFresh: true });
+
+    // The forced load resolves first and pins its value...
+    resolvers[1]?.(response(200, 'forced'));
+    await forced;
+    // ...then the slower normal load resolves — it must NOT re-pin its stale body.
+    resolvers[0]?.(response(200, 'normal'));
+    await normal;
+
+    const afterRace = await cache.getOrFetch('k', loader);
+    assert.equal(afterRace.body.toString(), 'forced', 'the cache keeps the forced value');
+  });
+
   test('a thrown non-2xx (loader-side) is not cached', async () => {
     const cache = createTtlSingleFlightCache({ ttlMs: 1_000, now: () => 0 });
     let calls = 0;

@@ -3,6 +3,8 @@ import { Readable } from 'node:stream';
 import { pipeline } from 'node:stream/promises';
 import type { ReadableStream as NodeReadableStream } from 'node:stream/web';
 
+import { SUPERVISOR_CACHE_BYPASS_HEADER } from 'gas-city-dashboard-shared';
+
 import { HTTP_STATUS } from '../lib/http-status.js';
 import { createTtlSingleFlightCache, type CachedResponse } from '../lib/ttl-single-flight-cache.js';
 import { LOG_COMPONENT, errorMessage, logWarn } from '../logging.js';
@@ -25,6 +27,10 @@ const STRIPPED_REQUEST_HEADERS = new Set([
   'host',
   'origin',
   'referer',
+  // The cache-bypass marker is consumed by THIS proxy (forces a fresh upstream
+  // scan, gascity-dashboard-i3dz); it carries no meaning upstream, so strip it
+  // before forwarding rather than leaking a dashboard-internal header.
+  SUPERVISOR_CACHE_BYPASS_HEADER,
 ]);
 
 // In read-only mode every forwarded request is a GET/HEAD read, so the
@@ -181,21 +187,31 @@ export function supervisorTransportProxy(supervisorBaseUrl: string, readOnly = f
 
     try {
       if (req.method === 'GET' && cacheableCityWideRead(target)) {
-        const cached = await cityWideReadCache.getOrFetch(cacheKey(target), async () => {
-          const upstream = await fetch(target, requestInit(req, readOnly));
-          const body = Buffer.from(await upstream.arrayBuffer());
-          const response: CachedResponse = {
-            status: upstream.status,
-            headers: headerPairs(upstream),
-            body,
-          };
-          if (upstream.status < 200 || upstream.status >= 300) {
-            // Surface non-2xx to the caller but don't pin it: throw so the
-            // single-flight cache drops the entry, then re-materialize below.
-            throw new UpstreamNon2xx(response);
-          }
-          return response;
-        });
+        // The operator's explicit /runs Refresh sets the bypass marker so its
+        // wide molecule+feed scan re-hits upstream even inside the TTL window;
+        // preview/SSE reads omit it and keep serving the amortized cache
+        // (gascity-dashboard-i3dz). A force-fresh load still repopulates the
+        // cache, so the refreshed value resets the amortization window.
+        const forceFresh = requestsCacheBypass(req);
+        const cached = await cityWideReadCache.getOrFetch(
+          cacheKey(target),
+          async () => {
+            const upstream = await fetch(target, requestInit(req, readOnly));
+            const body = Buffer.from(await upstream.arrayBuffer());
+            const response: CachedResponse = {
+              status: upstream.status,
+              headers: headerPairs(upstream),
+              body,
+            };
+            if (upstream.status < 200 || upstream.status >= 300) {
+              // Surface non-2xx to the caller but don't pin it: throw so the
+              // single-flight cache drops the entry, then re-materialize below.
+              throw new UpstreamNon2xx(response);
+            }
+            return response;
+          },
+          { forceFresh },
+        );
         writeCachedResponse(cached, res);
         return;
       }
@@ -237,6 +253,13 @@ function resolveUpstreamTarget(reqUrl: string, baseUrl: URL): URL | null {
   }
   if (target.origin !== baseUrl.origin) return null;
   return target;
+}
+
+// True when the request carries the dashboard's cache-bypass marker (set only by
+// the operator's explicit /runs Refresh). express lowercases header names, so the
+// lookup matches the lowercase header constant.
+function requestsCacheBypass(req: Request): boolean {
+  return req.headers[SUPERVISOR_CACHE_BYPASS_HEADER] !== undefined;
 }
 
 function isAllowedPath(path: string, readOnly: boolean): boolean {

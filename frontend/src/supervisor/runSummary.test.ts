@@ -226,6 +226,64 @@ describe('loadSupervisorRunSummarySource', () => {
     expect(fetchSpy).not.toHaveBeenCalled();
   });
 
+  it('forceFresh marks ONLY the proxy-cached molecule + feed reads for cache bypass (gascity-dashboard-i3dz)', async () => {
+    const listBeads = vi.fn(async (_cityName: string, query?: Record<string, unknown>) => {
+      if (query?.type === 'molecule') return beadList([]);
+      return beadList([runRoot()]);
+    });
+    const formulaFeed = vi.fn(async () => feed([feedRun()]));
+    const listSessions = vi.fn(async () => sessionList());
+    setSupervisorApiForTests({ ...baseApi, listBeads, formulaFeed, listSessions });
+
+    const source = await loadSupervisorRunSummarySource({ forceFresh: true });
+    expect(source.status).toBe('fresh');
+
+    // The two proxy-cached city-wide reads carry the bypass option...
+    expect(listBeads).toHaveBeenCalledWith(
+      'test-city',
+      { limit: 500, type: 'molecule', all: true },
+      { cacheBypass: true },
+    );
+    expect(formulaFeed).toHaveBeenCalledWith(
+      'test-city',
+      { scope_kind: 'city', scope_ref: 'test-city' },
+      { cacheBypass: true },
+    );
+    // ...while the uncached core-active and per-rig reads keep the plain
+    // two-arg call (no options object), so they are never marked for bypass.
+    expect(listBeads).toHaveBeenCalledWith('test-city', { limit: 500 });
+    expect(listBeads).toHaveBeenCalledWith('test-city', {
+      limit: 500,
+      type: 'task',
+      rig: 'rig-a',
+      all: true,
+    });
+  });
+
+  it('a normal (non-forceFresh) wide refresh leaves the cacheable reads on the plain cacheable call', async () => {
+    const listBeads = vi.fn(async (_cityName: string, query?: Record<string, unknown>) => {
+      if (query?.type === 'molecule') return beadList([]);
+      return beadList([runRoot()]);
+    });
+    const formulaFeed = vi.fn(async () => feed([feedRun()]));
+    const listSessions = vi.fn(async () => sessionList());
+    setSupervisorApiForTests({ ...baseApi, listBeads, formulaFeed, listSessions });
+
+    await loadSupervisorRunSummarySource();
+
+    // No bypass option is attached, so the proxy keeps serving its amortized
+    // cache for preview/SSE/upgrade reads.
+    expect(listBeads).toHaveBeenCalledWith('test-city', {
+      limit: 500,
+      type: 'molecule',
+      all: true,
+    });
+    expect(formulaFeed).toHaveBeenCalledWith('test-city', {
+      scope_kind: 'city',
+      scope_ref: 'test-city',
+    });
+  });
+
   it('derives a rig lane scope from the feed root_store_ref even when the feed scope_kind is city (q89b detail scope leak)', async () => {
     // The formula feed's top-level scope_kind is always 'city'; the rig identity
     // lives only in root_store_ref. When the root bead carries no scope metadata

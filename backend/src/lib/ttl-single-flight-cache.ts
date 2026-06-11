@@ -20,7 +20,10 @@ export interface CachedResponse {
 }
 
 type Entry =
-  | { state: 'inflight'; promise: Promise<CachedResponse> }
+  // `token` identifies WHICH load owns the slot: a concurrent forceFresh can
+  // replace an in-flight entry, so a load only writes back (or deletes on error)
+  // when it still owns the slot, never clobbering a newer load's value.
+  | { state: 'inflight'; promise: Promise<CachedResponse>; token: object }
   | { state: 'ready'; value: CachedResponse; expiresAt: number };
 
 export interface TtlSingleFlightCacheOptions {
@@ -28,8 +31,22 @@ export interface TtlSingleFlightCacheOptions {
   now?: () => number;
 }
 
+export interface GetOrFetchOptions {
+  /**
+   * Force a fresh upstream load, ignoring any ready/in-flight entry, and store
+   * its result (resetting the TTL). For the operator's explicit Refresh, which
+   * must re-scan upstream within the TTL window while preview/SSE reads keep
+   * serving the amortized cache (gascity-dashboard-i3dz).
+   */
+  forceFresh?: boolean;
+}
+
 export interface TtlSingleFlightCache {
-  getOrFetch(key: string, loader: () => Promise<CachedResponse>): Promise<CachedResponse>;
+  getOrFetch(
+    key: string,
+    loader: () => Promise<CachedResponse>,
+    options?: GetOrFetchOptions,
+  ): Promise<CachedResponse>;
 }
 
 export function createTtlSingleFlightCache(
@@ -53,31 +70,45 @@ export function createTtlSingleFlightCache(
   }
 
   return {
-    async getOrFetch(key, loader) {
+    async getOrFetch(key, loader, options) {
       sweepExpired();
-      const existing = entries.get(key);
-      if (existing !== undefined) {
-        if (existing.state === 'ready' && now() < existing.expiresAt) {
-          return existing.value;
-        }
-        if (existing.state === 'inflight') {
-          return existing.promise;
+      // forceFresh skips BOTH a warm ready value and coalescing onto an
+      // in-flight load: an explicit Refresh must observe genuinely fresh
+      // upstream data, not a value that may predate the operator's intent.
+      if (options?.forceFresh !== true) {
+        const existing = entries.get(key);
+        if (existing !== undefined) {
+          if (existing.state === 'ready' && now() < existing.expiresAt) {
+            return existing.value;
+          }
+          if (existing.state === 'inflight') {
+            return existing.promise;
+          }
         }
       }
 
+      const token = {};
       const promise = (async () => {
         const value = await loader();
-        entries.set(key, { state: 'ready', value, expiresAt: now() + ttlMs });
+        // Repopulate only if this load still owns the inflight slot. A concurrent
+        // forceFresh may have superseded it; the newer load's value must win, so a
+        // slower predecessor resolving afterward must not re-pin its stale body.
+        const current = entries.get(key);
+        if (current?.state === 'inflight' && current.token === token) {
+          entries.set(key, { state: 'ready', value, expiresAt: now() + ttlMs });
+        }
         return value;
       })();
-      entries.set(key, { state: 'inflight', promise });
+      entries.set(key, { state: 'inflight', promise, token });
 
       try {
         return await promise;
       } catch (err) {
         // Never cache a failure: drop the inflight entry so the next caller
         // retries upstream instead of being served the rejection for the TTL.
-        if (entries.get(key)?.state === 'inflight') {
+        // Same ownership guard — only the load that still owns the slot deletes it.
+        const current = entries.get(key);
+        if (current?.state === 'inflight' && current.token === token) {
           entries.delete(key);
         }
         throw err;

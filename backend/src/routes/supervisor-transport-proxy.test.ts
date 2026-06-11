@@ -5,6 +5,11 @@ import type { Server } from 'node:http';
 import express from 'express';
 
 import {
+  SUPERVISOR_CACHE_BYPASS_HEADER,
+  SUPERVISOR_CACHE_BYPASS_VALUE,
+} from 'gas-city-dashboard-shared';
+
+import {
   CITY_WIDE_READ_TTL_MS,
   cacheableCityWideRead,
   supervisorTransportProxy,
@@ -86,11 +91,13 @@ describe('supervisorTransportProxy — single-flight coalescing for the cacheabl
   let proxy: Server;
   let proxyUrl: string;
   let upstreamCalls = 0;
+  let lastForwardedBypassHeader: string | undefined;
 
   before(async () => {
     const upstreamApp = express();
-    upstreamApp.get('/v0/city/:city/beads', (_req, res) => {
+    upstreamApp.get('/v0/city/:city/beads', (req, res) => {
       upstreamCalls += 1;
+      lastForwardedBypassHeader = req.get(SUPERVISOR_CACHE_BYPASS_HEADER) ?? undefined;
       // Slow enough that two near-simultaneous proxy requests overlap.
       setTimeout(() => {
         // A stray upstream set-cookie must NOT be captured into the cached body
@@ -157,5 +164,48 @@ describe('supervisorTransportProxy — single-flight coalescing for the cacheabl
     const second = await fetch(proxyUrl + path).then((r) => r.json());
     assert.equal(upstreamCalls, 1, 'the within-TTL re-read is served from cache, not upstream');
     assert.deepEqual(first, second);
+  });
+
+  test('the cache-bypass header re-hits upstream within the TTL, then repopulates the cache', async () => {
+    // gascity-dashboard-i3dz: the operator's explicit Refresh sends the bypass
+    // marker so its wide read re-scans upstream even inside the 45s window, while
+    // a plain re-read (preview/SSE) stays a cache hit. A fresh key keeps this
+    // independent of the suite's other warmed keys.
+    upstreamCalls = 0;
+    const path = '/gc-supervisor/v0/city/bypass-probe-city/beads?type=molecule&all=true&limit=500';
+
+    const cold = await fetch(proxyUrl + path).then((r) => r.json());
+    assert.equal(upstreamCalls, 1, 'first read is the cold upstream scan');
+
+    // A within-TTL read carrying the bypass marker forces a SECOND upstream scan.
+    const bypassed = await fetch(proxyUrl + path, {
+      headers: { [SUPERVISOR_CACHE_BYPASS_HEADER]: SUPERVISOR_CACHE_BYPASS_VALUE },
+    }).then((r) => r.json());
+    assert.equal(upstreamCalls, 2, 'the bypass marker re-hits upstream inside the TTL');
+    assert.notDeepEqual(bypassed, cold, 'the bypassed read returns the fresh upstream body');
+
+    // The forced scan repopulated the cache, so the next plain read is a hit.
+    await fetch(proxyUrl + path).then((r) => r.json());
+    assert.equal(
+      upstreamCalls,
+      2,
+      'the force-refreshed value resets the warm window for plain reads',
+    );
+  });
+
+  test('the cache-bypass marker is stripped before forwarding upstream', async () => {
+    // The marker is consumed by the proxy; the supervisor must never see this
+    // dashboard-internal header (gascity-dashboard-i3dz).
+    upstreamCalls = 0;
+    lastForwardedBypassHeader = undefined;
+    const path = '/gc-supervisor/v0/city/bypass-strip-city/beads?type=molecule&all=true&limit=500';
+    await fetch(proxyUrl + path, {
+      headers: { [SUPERVISOR_CACHE_BYPASS_HEADER]: SUPERVISOR_CACHE_BYPASS_VALUE },
+    }).then((r) => r.text());
+    assert.equal(
+      lastForwardedBypassHeader,
+      undefined,
+      'the bypass header is not forwarded to the supervisor',
+    );
   });
 });
