@@ -34,9 +34,9 @@ export interface AttentionItem {
   actionable?: boolean;
   updatedAt?: string;
   /**
-   * Freshness of the source this item was derived from, mirroring
-   * AlertItem.provenance. Carried on `unavailable` items so a badge fed from a
-   * stale cache read can be marked stale rather than rendered as live truth.
+   * Freshness of the source this item was derived from. Carried on
+   * `unavailable` items so a badge fed from a stale cache read can be marked
+   * stale rather than rendered as live truth.
    */
   provenance?: SourceStatus;
   /**

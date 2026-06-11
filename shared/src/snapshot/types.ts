@@ -6,7 +6,6 @@
 // visible product surface.
 
 import type { Avail } from '../lists.js';
-import type { AlertItem } from '../alert.js';
 
 export type SourceName = 'city' | 'resources' | 'runs' | 'work';
 
@@ -30,50 +29,6 @@ export interface SourceUnavailableState {
 }
 
 export type SourceState<T> = SourceAvailableState<T> | SourceUnavailableState;
-
-// ── Aggregate snapshot ────────────────────────────────────────────────────
-
-export interface DashboardSnapshot {
-  generatedAt: string;
-  config: DashboardRuntimeConfig;
-  headline: DashboardHeadline;
-  sources: DashboardSources;
-  /**
-   * Ranked home-view attention queue (gascity-dashboard-i4ui, PRD R2).
-   * Run-sourced alerts (run-needs-operator, run-thrashing) are assembled here
-   * in the backend snapshot read path from the health-enriched `sources.runs`,
-   * inheriting that source's provenance. The `pending-decision` tier is layered
-   * client-side from the live per-session SSE (R3) and is NOT carried here —
-   * folding it into this TTL-bound envelope would gate the highest tier behind
-   * the snapshot clock. `operator-mail` (R4) lands here once the read path
-   * fetches mail. Empty array means "no run-sourced alerts"; the per-source
-   * SourceState (not this array) is the signal-unavailable channel (R6/R15).
-   */
-  alerts: readonly AlertItem[];
-  /**
-   * Out-of-band digest for the operator-mail signal (gascity-dashboard-mpfx,
-   * R4). Raw mail stays OFF this envelope (operator-private; payload), so this
-   * carries only what the home view needs without the bodies: the mail source's
-   * `status` (the signal-unavailable channel for the mail tier — R6/R15, used
-   * by 035r's tri-state) and `folded`, the count of unread worker-firehose mail
-   * suppressed by the sender-role filter. `folded` is reported even when zero
-   * operator-mail alerts are kept (the steady state — the mayor digests the
-   * firehose), so the fold is never silent.
-   */
-  mail: MailDigest;
-}
-
-/**
- * Out-of-band operator-mail digest carried on {@link DashboardSnapshot}.
- * Deliberately carries only `status` (not the source's error string): the mail
- * cache runs with `sanitizeErrorMessage: null`, so were an error message ever
- * added here it could leak raw supervisor detail to the client — keep this
- * digest message-free, or sanitize at the edge if a detail field is added.
- */
-export interface MailDigest {
-  readonly status: SourceStatus;
-  readonly folded: number;
-}
 
 export interface DashboardRuntimeConfig {
   cityName: string;
@@ -162,140 +117,6 @@ export type DashboardMetric =
       source: SourceName;
       error: string;
     };
-
-export interface DashboardHeadline {
-  activeAgents: DashboardMetric;
-  maxAgents: DashboardMetric;
-  activeSessions: DashboardMetric;
-  activeRuns: DashboardMetric;
-  /**
-   * In-progress work-item count (gascity-dashboard-aw75). Sourced from the
-   * `work` source's `inProgress` field, which mirrors the supervisor's
-   * `status.work.in_progress`. Closes the observability gap where a claimed
-   * (in_progress) bead never surfaced in the dashboard — the run-lane census
-   * counts formula-run lanes only, not arbitrary claimed beads.
-   */
-  workInProgress: DashboardMetric;
-}
-
-export interface DashboardSources {
-  city: SourceState<CityStatusSummary>;
-  resources: SourceState<ResourceSummary>;
-  runs: SourceState<RunSummary>;
-  work: SourceState<WorkSummary>;
-}
-
-/**
- * Per-source data shape map. Derived from DashboardSources so the two
- * cannot drift; used by fixtureSourceLoader<K> in the snapshot fixtures
- * module to return a precisely-typed data accessor per source name.
- *
- * SourceState only exposes data on available states; unavailable states carry
- * a required error instead of a nullable data sentinel.
- */
-export type SourceDataMap = {
-  [K in SourceName]: DashboardSources[K] extends SourceState<infer T> ? NonNullable<T> : never;
-};
-
-// ── city ──────────────────────────────────────────────────────────────────
-
-export interface CityStatusSummary {
-  activeAgents: number;
-  totalAgents: number;
-  activeSessions: number;
-  suspendedSessions: number;
-  maxSessions: DashboardMetric;
-  sessionsByProvider: CitySessionProvider[];
-  rigs: CityRig[];
-  /**
-   * True when the supervisor's listRigs response was degraded
-   * (one or more rig backends failed during aggregation; signalled by
-   * generated ListBodyRigResponse.partial === true or non-empty partial_errors). Optional —
-   * absent on a clean response. gascity-dashboard-19w.1: mirrors the
-   * partial-handling convention in direct supervisor entity-link and mail reads
-   * so operators see a degraded indicator instead of an apparent
-   * "no rigs configured" report.
-   *
-   * Typed as optional literal `true` (gascity-dashboard-19w.1.1): the
-   * collector only ever assigns `true` (else leaves the field absent),
-   * so `false` was never a real wire value. Tightening closes the
-   * type-lie window — consumers must check truthiness/presence, never
-   * `=== false`.
-   */
-  rigsPartial?: true;
-  /**
-   * Same degradation signal for the agent roster. sd4.1: since sd4 made
-   * /agents the authoritative source for sessionsByProvider, a partial
-   * agent list silently produces an under-counted breakdown. Surfacing
-   * this lets the operator distinguish "no agents configured" from "agent
-   * backends degraded." Optional literal `true` per the rigsPartial
-   * convention (gascity-dashboard-19w.1.1) — the collector only assigns
-   * `true` or omits the field.
-   */
-  agentsPartial?: true;
-}
-
-export interface CitySessionProvider {
-  provider: string;
-  active: number;
-  total: number;
-}
-
-export interface CityRig {
-  name: string;
-  path: string;
-}
-
-// ── resources ─────────────────────────────────────────────────────────────
-
-export interface ResourceSummary {
-  vcpuCount: number;
-  loadAverage: [number, number, number];
-  loadPerVcpu: number;
-  memory: MemorySummary;
-  uptimeSeconds: number;
-  samples: ResourceSample[];
-}
-
-export interface MemorySummary {
-  totalBytes: number;
-  usedBytes: number;
-  availableBytes: number;
-  utilization: number;
-}
-
-export interface ResourceSample {
-  sampledAt: string;
-  vcpuCount: number;
-  loadAverage: [number, number, number];
-  loadPerVcpu: number;
-  memoryUsedBytes: number;
-  memoryAvailableBytes: number;
-  memoryUtilization: number;
-}
-
-// ── work ──────────────────────────────────────────────────────────────
-
-/**
- * City-wide work-item census (gascity-dashboard-aw75). Mirrors the
- * supervisor's `status.work` block from `GET /v0/city/{name}/status` —
- * the wire's snake_case `in_progress` is translated to `inProgress` at the
- * collector edge so the dashboard DTO stays camelCase.
- *
- * These counts cover ALL beads in the city's stores, not just formula-run
- * lanes (the runs census), so a claimed task bead's `in_progress` state
- * surfaces here even when it is not part of any formula run.
- *
- * NOTE on `ready` vs `open`: the supervisor computes these itself and its
- * `ready` does NOT match `bd ready` semantics (verified live: ready=0 while
- * open=1091). The dashboard exposes all three verbatim for completeness but
- * only headline-surfaces `inProgress`, which is accurate.
- */
-export interface WorkSummary {
-  open: number;
-  ready: number;
-  inProgress: number;
-}
 
 // ── runs ─────────────────────────────────────────────────────────────
 
