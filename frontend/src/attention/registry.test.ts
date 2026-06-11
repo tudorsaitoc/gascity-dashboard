@@ -760,6 +760,102 @@ describe('createAttentionContributors', () => {
     ]);
   });
 
+  it('dedups mayor-decisions sharing a decision.slug, keeping the most recently moved bead', () => {
+    const model = composeAttention(
+      createAttentionContributors({
+        beads: {
+          decisionLabel: NEEDS_STEPHANIE_LABEL,
+          // The same decision identity re-filed as a second marker bead: one
+          // decision = one attention row, and the most recent movement wins.
+          decisions: [
+            bead({
+              id: 'dec-old',
+              title: 'Decide: merge-queue protocol',
+              labels: [NEEDS_STEPHANIE_LABEL],
+              updated_at: '2026-06-03T10:00:00.000Z',
+              metadata: { 'decision.slug': 'merge-queue-protocol' },
+            }),
+            bead({
+              id: 'dec-new',
+              title: 'Decide: merge-queue protocol (re-filed)',
+              labels: [NEEDS_STEPHANIE_LABEL],
+              updated_at: '2026-06-04T10:00:00.000Z',
+              metadata: { 'decision.slug': 'merge-queue-protocol' },
+            }),
+          ],
+        },
+      }),
+    );
+
+    expect(model.byDomain.beads.items.map((item) => item.id)).toEqual([
+      'beads:dec-new:mayor-decision',
+    ]);
+  });
+
+  it('keeps mayor-decisions with distinct or absent decision.slug as separate items', () => {
+    const model = composeAttention(
+      createAttentionContributors({
+        beads: {
+          decisionLabel: NEEDS_STEPHANIE_LABEL,
+          decisions: [
+            bead({
+              id: 'dec-a',
+              labels: [NEEDS_STEPHANIE_LABEL],
+              metadata: { 'decision.slug': 'slug-a' },
+            }),
+            bead({
+              id: 'dec-b',
+              labels: [NEEDS_STEPHANIE_LABEL],
+              metadata: { 'decision.slug': 'slug-b' },
+            }),
+            // No slug (and a blank slug) — no shared identity to dedup on.
+            bead({ id: 'dec-c', labels: [NEEDS_STEPHANIE_LABEL] }),
+            bead({
+              id: 'dec-d',
+              labels: [NEEDS_STEPHANIE_LABEL],
+              metadata: { 'decision.slug': '   ' },
+            }),
+          ],
+        },
+      }),
+    );
+
+    expect(model.byDomain.beads.items.map((item) => item.id)).toEqual([
+      'beads:dec-a:mayor-decision',
+      'beads:dec-b:mayor-decision',
+      'beads:dec-c:mayor-decision',
+      'beads:dec-d:mayor-decision',
+    ]);
+  });
+
+  it('breaks a decision.slug recency tie deterministically by bead id', () => {
+    const model = composeAttention(
+      createAttentionContributors({
+        beads: {
+          decisionLabel: NEEDS_STEPHANIE_LABEL,
+          decisions: [
+            bead({
+              id: 'dec-b',
+              labels: [NEEDS_STEPHANIE_LABEL],
+              updated_at: '2026-06-04T10:00:00.000Z',
+              metadata: { 'decision.slug': 'tied' },
+            }),
+            bead({
+              id: 'dec-a',
+              labels: [NEEDS_STEPHANIE_LABEL],
+              updated_at: '2026-06-04T10:00:00.000Z',
+              metadata: { 'decision.slug': 'tied' },
+            }),
+          ],
+        },
+      }),
+    );
+
+    expect(model.byDomain.beads.items.map((item) => item.id)).toEqual([
+      'beads:dec-a:mayor-decision',
+    ]);
+  });
+
   it('surfaces a decision-queue fetch failure without blanking generic bead alerts', () => {
     const model = composeAttention(
       createAttentionContributors({

@@ -167,6 +167,14 @@ export const GC_ESCALATION_LABEL = 'gc:escalation';
  */
 const DECISION_DECIDE_META_KEY = 'decision.decide';
 
+/**
+ * Flat metadata key for the decision's stable identity (the spec's
+ * `metadata.decision.slug`). Two open marker beads sharing a slug are the SAME
+ * decision (re-filed or mirrored) and must surface as one attention row.
+ * Optional: a bead without it has no shared identity and is never deduped.
+ */
+const DECISION_SLUG_META_KEY = 'decision.slug';
+
 export function createAttentionContributors(
   facts: AttentionContributorFacts = {},
 ): readonly AttentionContributor[] {
@@ -431,7 +439,7 @@ function deriveBeadsAttention(facts: BeadsAttentionFacts | undefined): readonly 
       }),
     );
   }
-  for (const decision of facts.decisions ?? []) {
+  for (const decision of dedupeDecisionsBySlug(facts.decisions ?? [])) {
     items.push(mayorDecisionAttention(decision));
   }
   const nowMs = facts.nowMs ?? Date.now();
@@ -481,6 +489,46 @@ function beadHref(beadId: string): string {
  */
 function isMayorDecision(bead: Bead, decisionLabel: string): boolean {
   return (bead.labels ?? []).includes(decisionLabel);
+}
+
+/**
+ * Collapse the decision queue onto distinct decision identities
+ * (`metadata['decision.slug']`). Among beads sharing a non-empty slug only the
+ * most recently moved bead surfaces; on a timestamp tie the lowest bead id
+ * wins. Mechanical duplicate detection with explicit deterministic tiebreakers
+ * (the sanctioned ZFC exception), not a semantic judgment — bodies are never
+ * read. Beads without a slug pass through untouched, in queue order.
+ */
+function dedupeDecisionsBySlug(decisions: readonly Bead[]): readonly Bead[] {
+  const winners = new Map<string, Bead>();
+  for (const bead of decisions) {
+    const slug = decisionSlug(bead);
+    if (slug === null) continue;
+    const held = winners.get(slug);
+    if (held === undefined || displacesHeldDecision(bead, held)) winners.set(slug, bead);
+  }
+  return decisions.filter((bead) => {
+    const slug = decisionSlug(bead);
+    return slug === null || winners.get(slug) === bead;
+  });
+}
+
+function decisionSlug(bead: Bead): string | null {
+  const slug = bead.metadata?.[DECISION_SLUG_META_KEY]?.trim();
+  return slug === undefined || slug.length === 0 ? null : slug;
+}
+
+function displacesHeldDecision(candidate: Bead, held: Bead): boolean {
+  const candidateMs = decisionMovementMs(candidate);
+  const heldMs = decisionMovementMs(held);
+  if (candidateMs !== heldMs) return candidateMs > heldMs;
+  return candidate.id < held.id;
+}
+
+/** Movement timestamp for recency ranking; an unparsable timestamp sorts oldest. */
+function decisionMovementMs(bead: Bead): number {
+  const ms = Date.parse(bead.updated_at ?? bead.created_at);
+  return Number.isNaN(ms) ? Number.NEGATIVE_INFINITY : ms;
 }
 
 /**
