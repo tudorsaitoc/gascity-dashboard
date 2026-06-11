@@ -233,6 +233,28 @@ async function waitForMount() {
   await waitFor(() => expect(btn.disabled).toBe(false));
 }
 
+// gascity-dashboard-tdxk: waitForMount only proves the PREVIEW fetch resolved and
+// the Refresh button enabled. The one-time full upgrade refresh — the WIDE
+// loadSupervisorRunSummarySource read that runSummarySubscription dispatches from
+// a post-paint effect (see its `fullRefreshKeyRef` effect) — fires AFTER that,
+// flipping loading true→false a second time and replacing the preview snapshot
+// with the upgraded one. An SSE test that fires onMatch (or asserts on the
+// upgraded status) before that upgrade SETTLES races it under full-suite parallel
+// load, where the upgrade resolves late:
+//   - In-flight upgrade ⇒ onSseMatch sees loadingRef=true and queues a TRAILING
+//     cheap refresh; when the upgrade settles the trailing edge fires an extra
+//     loadSupervisorRunSummaryActiveSource read — the '2 vs 1' the bead reports.
+//   - Not-yet-upgraded status ⇒ the still-'fresh' preview status slips a
+//     leading-edge refresh past a guard meant for the upgraded 'fixture' status.
+// Awaiting this gate makes onMatch the SOLE refresh trigger, so the counts are
+// deterministic. Only valid when the upgrade actually fires (preview status is
+// not 'error'); an error first load short-circuits the upgrade effect.
+async function settleFullUpgrade() {
+  await waitFor(() => expect(mockLoadRunSummary).toHaveBeenCalled());
+  const btn = screen.getByRole('button', { name: /refresh/i }) as HTMLButtonElement;
+  await waitFor(() => expect(btn.disabled).toBe(false));
+}
+
 describe('RunsPage — SSE wiring (gascity-dashboard-bqn)', () => {
   it('paints from the fast preview source before the full run summary resolves', async () => {
     const preview = buildRunSource('fresh');
@@ -493,6 +515,7 @@ describe('RunsPage — SSE wiring (gascity-dashboard-bqn)', () => {
     vi.useFakeTimers({ shouldAdvanceTime: true });
     mount();
     await waitForMount();
+    await settleFullUpgrade();
     mockLoadRunSummaryActive.mockClear();
 
     // Simulate a busy slung pipeline: 5 onMatch calls within 1s. The
@@ -526,6 +549,7 @@ describe('RunsPage — SSE wiring (gascity-dashboard-bqn)', () => {
     vi.useFakeTimers({ shouldAdvanceTime: true });
     mount();
     await waitForMount();
+    await settleFullUpgrade();
     mockLoadRunSummaryActive.mockClear();
 
     // Leading edge: one event, one CHEAP read.
@@ -555,6 +579,10 @@ describe('RunsPage — SSE wiring (gascity-dashboard-bqn)', () => {
     mockLoadRunSummary.mockResolvedValue(buildRunSource('fixture'));
     mount();
     await waitForMount();
+    // Let the upgrade land so the published status is 'fixture' BEFORE the event:
+    // onSseMatch reads the live status, and a pre-upgrade 'fresh' status would slip
+    // a leading-edge refresh past the fixture guard (gascity-dashboard-tdxk).
+    await settleFullUpgrade();
     mockLoadRunSummary.mockClear();
     mockLoadRunSummaryActive.mockClear();
 
@@ -577,13 +605,16 @@ describe('RunsPage — partial lane set (gascity-dashboard-n6f1)', () => {
     mount();
     await waitForMount();
 
-    // Runs.tsx always renders an aria-hidden "runs partial" placeholder for
-    // layout stability; scope the match to the live status element so we wait
-    // for the real partial notice rather than matching the hidden spacer.
-    const marker = await screen.findByText(/runs partial/i, { selector: '[role="status"]' });
+    // Query by role, NOT findByText(/runs partial/i): the header always renders an
+    // aria-hidden, `invisible` "runs partial" placeholder for layout stability
+    // (Runs.tsx), so the text matches even before lanesPartial flips. Under
+    // full-suite parallel load the one-time upgrade that sets lanesPartial lands
+    // late, and findByText would grab that role-less placeholder → `expected null
+    // to be 'status'`. role='status' only ever matches the real PartialDataNotice
+    // (gascity-dashboard-tdxk).
+    const marker = await screen.findByRole('status');
     const live = await screen.findByText(/^live$/i);
-    expect(marker).toBeTruthy();
-    expect(marker.getAttribute('role')).toBe('status');
+    expect(marker.textContent).toMatch(/runs partial/i);
     expect(live.compareDocumentPosition(marker) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
   });
 
