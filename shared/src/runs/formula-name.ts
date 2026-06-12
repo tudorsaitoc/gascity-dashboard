@@ -30,10 +30,10 @@ export interface ResolveRunFormulaIdentityInput {
  * `source` carries which resolution path produced `name`:
  *  - `'metadata'` — the workflow root carried an explicit `gc.formula` key.
  *  - `'title_fallback'` — gc.formula was absent and the resolver derived
- *    the name from the bead title under the graph.v2 + `gc.run_target`
- *    gate. The dashboard surfaces this provenance to the operator in a
- *    warn tone instead of letting it pass as canonical metadata. See
- *    gascity-dashboard-e7hj for the precedent.
+ *    the name from the bead title under the graph.v2 + run-target
+ *    (`gc.run_target` / `gc.routed_to`) gate. The dashboard surfaces this
+ *    provenance to the operator in a warn tone instead of letting it pass
+ *    as canonical metadata. See gascity-dashboard-e7hj for the precedent.
  */
 export interface ResolvedRunFormulaName {
   name: string;
@@ -54,10 +54,14 @@ export interface ResolvedRunFormulaName {
  * missing a formula, collapsing every graph.v2 run-detail page to an
  * empty `formula_detail_unavailable` state.
  *
- * The gate on `gc.run_target` is what keeps the fallback honest: only
- * fully-instantiated runnable roots set both `gc.formula_contract` and
- * `gc.run_target`. Operator-edited descriptive titles on closed roots
- * without a target won't be mis-surfaced as formula names.
+ * The gate on a run target is what keeps the fallback honest: only
+ * fully-instantiated runnable roots set `gc.formula_contract` together
+ * with a target key. Operator-edited descriptive titles on closed roots
+ * without a target won't be mis-surfaced as formula names. The supervisor
+ * retired `gc.run_target` as a root wire field in favor of `gc.routed_to`
+ * (upstream gascity ga-eld2x / #2763), so the gate accepts either key:
+ * current roots carry only `gc.routed_to`, older roots only
+ * `gc.run_target` (audit finding M3, run ga-wisp-x0tank).
  *
  * gascity-dashboard-xfb7 (sadp follow-up): terminal graph.v2 roots are
  * additionally excluded from the title fallback even when they retain
@@ -87,7 +91,7 @@ export function resolveRunFormulaName(
   if (explicit !== undefined) return { name: explicit, source: 'metadata' };
   if (
     meta(root, 'gc.formula_contract') === 'graph.v2' &&
-    meta(root, 'gc.run_target') !== undefined &&
+    rootRunTarget(root) !== undefined &&
     !isTerminalRunRootStatus(root.status)
   ) {
     const title = root.title.trim();
@@ -139,7 +143,7 @@ function runFormulaTitleFallback(
   if (root === undefined) return null;
   if (
     rootMeta(root, 'gc.formula_contract') !== 'graph.v2' ||
-    rootMeta(root, 'gc.run_target') === undefined ||
+    rootRunTarget(root) === undefined ||
     isTerminalRunRootStatus(root.status)
   ) {
     return null;
@@ -162,13 +166,18 @@ function isTerminalRunRootStatus(status: string): boolean {
   }
 }
 
+/**
+ * Run target carried by a workflow root's metadata. `gc.run_target` was
+ * retired as a root wire field by the supervisor in favor of
+ * `gc.routed_to` (upstream gascity ga-eld2x / #2763); the dashboard
+ * accepts either so legacy and current roots both resolve.
+ */
+function rootRunTarget(root: RunFormulaRootLike | undefined): string | undefined {
+  return rootMeta(root, 'gc.run_target') ?? rootMeta(root, 'gc.routed_to');
+}
+
 function runFormulaTarget(root: RunFormulaRootLike | undefined): string | null {
-  return (
-    rootMeta(root, 'gc.run_target') ??
-    rootMeta(root, 'gc.routed_to') ??
-    nonEmpty(root?.assignee) ??
-    null
-  );
+  return rootRunTarget(root) ?? nonEmpty(root?.assignee) ?? null;
 }
 
 function rootMeta(root: RunFormulaRootLike | undefined, key: string): string | undefined {
