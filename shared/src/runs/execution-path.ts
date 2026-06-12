@@ -21,11 +21,17 @@ export function resolveRunExecutionPath(
 }
 
 function executionWorkDirs(bead: RunSnapshotBead | undefined): Array<string | undefined> {
+  // work_dir before gc.work_dir, matching the supervisor's own resolution
+  // order (gascity resolveInheritedMetadata reads work_dir first). When the
+  // two disagree, work_dir is the per-run execution worktree recorded on the
+  // bead, while gc.work_dir is the shared rig checkout inherited from
+  // dispatch vars — diffing the latter shows whatever workflow currently
+  // occupies the shared checkout, not this run's work (M15).
   return [
     meta(bead, 'gc.cwd'),
     meta(bead, 'cwd'),
-    meta(bead, 'gc.work_dir'),
     meta(bead, 'work_dir'),
+    meta(bead, 'gc.work_dir'),
   ];
 }
 
