@@ -16,5 +16,18 @@ export default defineConfig({
     include: ['src/**/*.test.{ts,tsx}'],
     globals: false,
     setupFiles: ['src/test/setup.ts'],
+    coverage: {
+      provider: 'v8',
+      // Ratchet floor, not aspiration: thresholds sit ~5 points below the
+      // measured baseline (89.02 lines / 77.12 branches / 86.4 stmts /
+      // 87.1 funcs as of 2026-06). Raise them as real coverage rises;
+      // never lower them to admit a regression.
+      thresholds: {
+        lines: 84,
+        branches: 72,
+        statements: 81,
+        functions: 82,
+      },
+    },
   },
 });

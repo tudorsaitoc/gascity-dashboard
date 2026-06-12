@@ -4,6 +4,9 @@ dist
 *.log
 scripts/node_modules
 
+# Vitest coverage output (npm --workspace frontend run test:coverage)
+coverage/
+
 # Beads / Dolt internal files. The .beads/ store itself is local-only — bd
 # state lives in each operator's Dolt working copy, not in the GitHub tree.
 # Falls under the hidden-path deny-all below; no allow-list entry on purpose.
