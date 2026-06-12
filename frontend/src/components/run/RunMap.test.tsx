@@ -281,10 +281,7 @@ describe('RunMap historical lazy-source states (header-first)', () => {
   });
 
   it('renders the loading state while a retry is in flight after an error', () => {
-    renderHistorySource(
-      { source: 'runs', status: 'error', error: 'transient timeout' },
-      true,
-    );
+    renderHistorySource({ source: 'runs', status: 'error', error: 'transient timeout' }, true);
 
     const section = screen.getByRole('region', { name: /historical runs/i });
     expect(within(section).getByText(/Loading completed runs\./i)).toBeTruthy();

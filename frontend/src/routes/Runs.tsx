@@ -45,9 +45,7 @@ export function RunsPage() {
       ? runs.data
       : null;
   const historyData =
-    history.source !== undefined && history.source.status !== 'error'
-      ? history.source.data
-      : null;
+    history.source !== undefined && history.source.status !== 'error' ? history.source.data : null;
   // Known only after the lazy history read lands; null keeps the toggle label
   // honest ("Show history", no fabricated zero) before that.
   const totalHistorical = historyData?.totalHistorical ?? null;
