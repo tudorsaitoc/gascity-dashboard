@@ -139,7 +139,7 @@ function buildExecutionInstance(
 function preferredExecutionInstance(
   instances: RunExecutionInstance[],
 ): RunExecutionInstance | undefined {
-  return [...instances].sort(compareExecutionInstances).at(-1);
+  return [...instances].sort(compareVisiblePreference).at(-1);
 }
 
 function compareExecutionInstances(
@@ -151,6 +151,39 @@ function compareExecutionInstances(
     attemptOrder(left.attempt) - attemptOrder(right.attempt) ||
     left.beadId.localeCompare(right.beadId)
   );
+}
+
+// When (iteration, attempt) tie — e.g. a retry shell plus the attempt bead it
+// spawned — the visible instance must be the most-progressed one, not whichever
+// bead id sorts last. Otherwise a completed step renders as pending/ready for
+// the entire shell-close lag window (audit finding M7).
+function compareVisiblePreference(
+  left: RunExecutionInstance,
+  right: RunExecutionInstance,
+): number {
+  return (
+    iterationOrder(left.iteration) - iterationOrder(right.iteration) ||
+    attemptOrder(left.attempt) - attemptOrder(right.attempt) ||
+    statusProgressOrder(left.status) - statusProgressOrder(right.status) ||
+    left.beadId.localeCompare(right.beadId)
+  );
+}
+
+function statusProgressOrder(status: RunExecutionInstance['status']): number {
+  switch (status) {
+    case 'completed':
+    case 'done':
+    case 'failed':
+    case 'skipped':
+      return 3;
+    case 'active':
+    case 'running':
+      return 2;
+    case 'ready':
+      return 1;
+    default:
+      return 0;
+  }
 }
 
 function attemptSummaryFor(
