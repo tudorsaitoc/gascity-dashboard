@@ -445,7 +445,8 @@ function summarizeNodeStatuses(progress: FormulaRunProgress): string {
     statusSummaryPart(progress, ['active', 'running'], 'running'),
     statusSummaryPart(progress, ['completed', 'done'], 'done'),
     statusSummaryPart(progress, 'ready', 'ready'),
-    statusSummaryPart(progress, 'blocked', 'blocked'),
+    // 'blocked' is client-derived (waiting on upstream deps), so the calm word.
+    statusSummaryPart(progress, 'blocked', 'waiting'),
     statusSummaryPart(progress, 'failed', 'failed'),
     statusSummaryPart(progress, 'skipped', 'skipped'),
     statusSummaryPart(progress, 'pending', 'pending'),

@@ -288,6 +288,26 @@ describe('FormulaRunDetailPage', () => {
     expect(screen.getByText(/99 nodes\. 99 pending/i)).toBeTruthy();
   });
 
+  it('summarizes derived blocked nodes as waiting, not blocked', async () => {
+    // M13: 'blocked' here is client-derived (pending nodes awaiting upstream
+    // completion in a healthy run), so the synopsis uses the calm word.
+    // Counts mirror the audited live run ga-wisp-x0tank.
+    currentDetail = {
+      ...detail,
+      progress: {
+        ...detail.progress,
+        visibleNodeCount: 19,
+        statusCounts: { completed: 6, ready: 1, blocked: 12 },
+      },
+    };
+
+    renderPage();
+    await screen.findByRole('heading', { name: /adopt pr #42/i });
+
+    expect(screen.getByText(/19 nodes\. 6 done, 1 ready, 12 waiting/i)).toBeTruthy();
+    expect(screen.queryByText(/12 blocked/i)).toBeNull();
+  });
+
   it('clears query-driven selection when the node query is removed', async () => {
     renderPage('/runs/gc-adopt-pr-active?node=review-pipeline', true);
     await screen.findByRole('heading', { name: /adopt pr #42/i });
