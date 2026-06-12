@@ -2,11 +2,13 @@ import { useState } from 'react';
 import {
   MAX_VISIBLE_ACTIVE_LANES,
   selectBlockedRuns,
+  type RunHistory,
   type RunLane,
   type RunSummary,
   type SourceState,
 } from 'gas-city-dashboard-shared';
 import type { BadgeSeverity } from '../../attention/compose';
+import { PartialDataNotice } from '../PartialDataNotice';
 import { LaneCard } from './LaneCard';
 
 // Run phase-lane map (gascity-dashboard-0t6). Renders the snapshot's
@@ -20,11 +22,20 @@ import { LaneCard } from './LaneCard';
 // when `showHistory` is true (controlled by ?history=1 in the URL,
 // threaded down from /runs). The historical section is labeled and
 // hairlined to keep the typographic register continuous with active.
+//
+// Header-first restructure: the historical section renders from its OWN lazy
+// source (`history`, loaded on toggle by runs/runHistory) instead of fields on
+// the run summary, with its own loading/unavailable/partial states — so the
+// default summary refresh never pays the closed-history fan-out.
 
 interface RunMapProps {
   source: SourceState<RunSummary>;
   now: number;
   showHistory: boolean;
+  /** The lazy history payload; undefined until the first history read lands. */
+  history?: SourceState<RunHistory> | undefined;
+  /** True while a history read is in flight (loading or refreshing). */
+  historyLoading?: boolean;
   attentionSeverity?: (lane: RunLane) => BadgeSeverity | null;
 }
 
@@ -44,7 +55,14 @@ const ACTIVE_LIST_ID = 'runs-active-list';
 // preview keeps the section ambient by default per DESIGN.md.
 const HISTORICAL_PREVIEW = 5;
 
-export function RunMap({ source, now, showHistory, attentionSeverity }: RunMapProps) {
+export function RunMap({
+  source,
+  now,
+  showHistory,
+  history,
+  historyLoading = false,
+  attentionSeverity,
+}: RunMapProps) {
   if (source.status === 'error') {
     return (
       <section>
@@ -57,6 +75,11 @@ export function RunMap({ source, now, showHistory, attentionSeverity }: RunMapPr
   }
 
   const summary = source.data;
+  // The "(N completed.)" hint on the active empty state needs the lazy history
+  // payload; before it loads the count is honestly unknown, so the hint is
+  // omitted rather than rendered as a fabricated zero.
+  const completedCount =
+    history !== undefined && history.status !== 'error' ? history.data.totalHistorical : null;
 
   return (
     <section>
@@ -64,6 +87,7 @@ export function RunMap({ source, now, showHistory, attentionSeverity }: RunMapPr
       <ActiveSection
         summary={summary}
         now={now}
+        completedCount={completedCount}
         {...(attentionSeverity === undefined ? {} : { attentionSeverity })}
       />
       <BlockedSection
@@ -73,7 +97,8 @@ export function RunMap({ source, now, showHistory, attentionSeverity }: RunMapPr
       />
       {showHistory && (
         <HistoricalSection
-          summary={summary}
+          history={history}
+          historyLoading={historyLoading}
           now={now}
           {...(attentionSeverity === undefined ? {} : { attentionSeverity })}
         />
@@ -85,10 +110,13 @@ export function RunMap({ source, now, showHistory, attentionSeverity }: RunMapPr
 function ActiveSection({
   summary,
   now,
+  completedCount,
   attentionSeverity,
 }: {
   summary: RunSummary;
   now: number;
+  /** totalHistorical from the lazy history payload, or null before it loads. */
+  completedCount: number | null;
   attentionSeverity?: (lane: RunLane) => BadgeSeverity | null;
 }) {
   // gascity-dashboard: `lanes` now carries the FULL active set; the collapsed
@@ -109,8 +137,11 @@ function ActiveSection({
         </p>
       );
     }
-    // Distinguish "nothing at all" from "nothing active but N completed".
-    const trailer = summary.totalHistorical > 0 ? ` (${summary.totalHistorical} completed.)` : '';
+    // Distinguish "nothing at all" from "nothing active but N completed". The
+    // count comes from the lazy history payload, so the hint appears only once
+    // history has loaded (header-first: the default read cannot know it).
+    const trailer =
+      completedCount !== null && completedCount > 0 ? ` (${completedCount} completed.)` : '';
     return (
       <p className="mt-8 text-body text-fg-muted italic">{`No active formula runs.${trailer}`}</p>
     );
@@ -257,58 +288,110 @@ function BlockedSection({
   );
 }
 
+// Header-first: the historical section renders from the lazy history source,
+// with explicit loading / unavailable / partial states of its own. The summary's
+// lanesPartial never speaks for history, and vice versa — each signal flags only
+// its own fan-out (honest-partial rule, gascity-dashboard-n6f1).
 function HistoricalSection({
-  summary,
+  history,
+  historyLoading,
   now,
   attentionSeverity,
 }: {
-  summary: RunSummary;
+  history: SourceState<RunHistory> | undefined;
+  historyLoading: boolean;
   now: number;
   attentionSeverity?: (lane: RunLane) => BadgeSeverity | null;
 }) {
   const [expanded, setExpanded] = useState(false);
-  const lanes = summary.historicalLanes;
-  const shown = expanded ? lanes : lanes.slice(0, HISTORICAL_PREVIEW);
 
   return (
     <section id={HISTORICAL_SECTION_ID} aria-label="Historical runs" className="mt-12">
-      <h2 className="text-label uppercase tracking-wider text-fg-faint">Historical</h2>
-      {lanes.length === 0 ? (
+      <h2 className="text-label uppercase tracking-wider text-fg-faint">
+        Historical
+        {history !== undefined && history.status !== 'error' && history.data.lanesPartial && (
+          <span className="ml-3 normal-case tracking-normal">
+            <PartialDataNotice
+              glyph="◐"
+              label="history partial"
+              title="one or more closed-history reads were unavailable; the completed set may be incomplete"
+            />
+          </span>
+        )}
+      </h2>
+      {history === undefined || (historyLoading && history.status === 'error') ? (
+        <p className="mt-3 text-body text-fg-muted italic">Loading completed runs.</p>
+      ) : history.status === 'error' ? (
         <p className="mt-3 text-body text-fg-muted italic">
-          No completed runs in the current window.
+          {`Completed runs unavailable: ${history.error}.`}
         </p>
       ) : (
-        <>
-          <LaneList
-            lanes={shown}
-            now={now}
-            listId={HISTORICAL_LIST_ID}
-            {...(attentionSeverity === undefined ? {} : { attentionSeverity })}
-          />
-          {lanes.length > HISTORICAL_PREVIEW && (
-            <button
-              type="button"
-              onClick={() => setExpanded((value) => !value)}
-              aria-expanded={expanded}
-              aria-controls={HISTORICAL_LIST_ID}
-              className="mt-3 text-label uppercase tracking-wider text-fg-faint tnum hover:text-fg focus-mark"
-            >
-              {expanded ? 'Show fewer' : `Show ${lanes.length - HISTORICAL_PREVIEW} more`}
-            </button>
-          )}
-          {/* gascity-dashboard-9w3k: the wire caps historicalLanes at
-              MAX_HISTORICAL_LANES while totalHistorical keeps the true count.
-              Disclose the cap so the operator knows the rendered set is the
-              recent window, not the whole history — mirroring the Active
-              section's "N more not shown" note (same typographic register). */}
-          {summary.totalHistorical > lanes.length && (
-            <p className="mt-3 text-label uppercase tracking-wider text-fg-faint tnum">
-              Showing {lanes.length} most-recent of {summary.totalHistorical}
-            </p>
-          )}
-        </>
+        <HistoricalLanes
+          history={history.data}
+          now={now}
+          expanded={expanded}
+          onToggle={() => setExpanded((value) => !value)}
+          {...(attentionSeverity === undefined ? {} : { attentionSeverity })}
+        />
       )}
     </section>
+  );
+}
+
+function HistoricalLanes({
+  history,
+  now,
+  expanded,
+  onToggle,
+  attentionSeverity,
+}: {
+  history: RunHistory;
+  now: number;
+  expanded: boolean;
+  onToggle: () => void;
+  attentionSeverity?: (lane: RunLane) => BadgeSeverity | null;
+}) {
+  const lanes = history.lanes;
+  const shown = expanded ? lanes : lanes.slice(0, HISTORICAL_PREVIEW);
+
+  if (lanes.length === 0) {
+    return (
+      <p className="mt-3 text-body text-fg-muted italic">
+        No completed runs in the current window.
+      </p>
+    );
+  }
+
+  return (
+    <>
+      <LaneList
+        lanes={shown}
+        now={now}
+        listId={HISTORICAL_LIST_ID}
+        {...(attentionSeverity === undefined ? {} : { attentionSeverity })}
+      />
+      {lanes.length > HISTORICAL_PREVIEW && (
+        <button
+          type="button"
+          onClick={onToggle}
+          aria-expanded={expanded}
+          aria-controls={HISTORICAL_LIST_ID}
+          className="mt-3 text-label uppercase tracking-wider text-fg-faint tnum hover:text-fg focus-mark"
+        >
+          {expanded ? 'Show fewer' : `Show ${lanes.length - HISTORICAL_PREVIEW} more`}
+        </button>
+      )}
+      {/* gascity-dashboard-9w3k: the wire caps history lanes at
+          MAX_HISTORICAL_LANES while totalHistorical keeps the true count.
+          Disclose the cap so the operator knows the rendered set is the
+          recent window, not the whole history — mirroring the Active
+          section's "N more not shown" note (same typographic register). */}
+      {history.totalHistorical > lanes.length && (
+        <p className="mt-3 text-label uppercase tracking-wider text-fg-faint tnum">
+          Showing {lanes.length} most-recent of {history.totalHistorical}
+        </p>
+      )}
+    </>
   );
 }
 

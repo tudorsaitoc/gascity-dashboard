@@ -1,4 +1,11 @@
-import type { RunChange, RunCounts, RunLane, RunSummary, RunStage } from '../snapshot/types.js';
+import type {
+  RunChange,
+  RunCounts,
+  RunHistory,
+  RunLane,
+  RunSummary,
+  RunStage,
+} from '../snapshot/types.js';
 import { fromRootMetadataScope } from '../run-scope.js';
 import { stripNonPrintable } from '../strip-non-printable.js';
 import { resolveRunFormulaIdentity } from './formula-name.js';
@@ -17,14 +24,14 @@ import {
 
 // Default collapsed active-lane count (component-controlled). The wire carries
 // the FULL active set in `lanes`; RunMap renders this many by default and offers
-// a "Show N more runs" expander (mirroring historicalLanes/MAX_HISTORICAL_LANES).
+// a "Show N more runs" expander (mirroring RunHistory/MAX_HISTORICAL_LANES).
 export const MAX_VISIBLE_ACTIVE_LANES = 8;
 export const RECENT_CHANGES_CAP = 12;
 // gascity-dashboard-9w3k: once v1 history is surfaced the completed set can grow
-// into the thousands. Cap the historical lanes carried on the wire to the most-
-// recent N (sortedLanes is already newest-first) so a long tail of old runs
-// cannot bury or out-pay the active set. totalHistorical still reports the full
-// count so the operator sees the true number behind the window.
+// into the thousands. Cap the historical lanes carried on the wire (RunHistory)
+// to the most-recent N (sortedLanes is already newest-first) so a long tail of
+// old runs cannot bury or out-pay the active set. totalHistorical still reports
+// the full count so the operator sees the true number behind the window.
 export const MAX_HISTORICAL_LANES = 50;
 const ENGINEERING_TYPES = new Set([
   'feature',
@@ -49,6 +56,67 @@ export function buildRunSummary(
   feedScopes: RunFeedScopeMap = new Map(),
   partial = false,
 ): RunSummary {
+  const { laneIssues, sortedLanes } = buildSortedRunLanes(issues, feedScopes);
+
+  // gascity-dashboard-4xcv: blocked lanes are split out of Active. A stale
+  // blocked formula latch (gc-1920 repro) is not progressing; it surfaces in
+  // its own section instead of inflating the Active set.
+  //
+  // Header-first restructure: completed lanes are DROPPED here, not carried.
+  // They are the lazy history read's payload (buildRunHistory) so the default
+  // refresh never pays the closed-history fan-out for them.
+  const activeLanes = sortedLanes.filter(
+    (lane) => lane.phase !== 'complete' && lane.phase !== 'blocked',
+  );
+  const blockedLanes = sortedLanes.filter((lane) => lane.phase === 'blocked');
+
+  // gascity-dashboard-s4rp: `lanes` carries the FULL active set, not a capped
+  // window. Session-less-latch demotion (enrichRunSummary) is session-aware and
+  // can only run downstream of this builder, so it must see every active lane to
+  // recompute totalActive exactly — capping here would hide phantoms beyond the
+  // 8th slot from demotion and leave them in the count. RunMap owns the rendered
+  // collapse (default MAX_VISIBLE_ACTIVE_LANES) and its "Show N more" expander,
+  // mirroring the historical section — so the wire is never pre-capped.
+  const summary: RunSummary = {
+    totalActive: activeLanes.length,
+    runCounts: runCounts(activeLanes, activeLanes.length, blockedLanes.length),
+    lanes: activeLanes,
+    blockedLanes,
+    recentChanges: recentChanges(laneIssues),
+    census: runCensusUnavailable(),
+  };
+  return partial ? { ...summary, lanesPartial: true } : summary;
+}
+
+/**
+ * Build the lazy /runs history payload: ONLY the completed (phase ===
+ * 'complete') lanes, derived from the closed-history fan-out (header-first
+ * restructure). gascity-dashboard-9w3k semantics are preserved: `lanes` is
+ * capped at MAX_HISTORICAL_LANES (newest-first) while totalHistorical reports
+ * the true completed count behind the window.
+ */
+export function buildRunHistory(
+  issues: RunIssue[],
+  feedScopes: RunFeedScopeMap = new Map(),
+  partial = false,
+): RunHistory {
+  const { sortedLanes } = buildSortedRunLanes(issues, feedScopes);
+  const completedLanes = sortedLanes.filter((lane) => lane.phase === 'complete');
+  const history: RunHistory = {
+    totalHistorical: completedLanes.length,
+    lanes: completedLanes.slice(0, MAX_HISTORICAL_LANES),
+  };
+  return partial ? { ...history, lanesPartial: true } : history;
+}
+
+// The shared lane derivation behind buildRunSummary and buildRunHistory:
+// group issues by run root, drop dangling-root and non-run groups, and emit
+// compareLanes-sorted lanes. Splitting active/blocked/complete is the callers'
+// concern.
+function buildSortedRunLanes(
+  issues: RunIssue[],
+  feedScopes: RunFeedScopeMap,
+): { laneIssues: RunIssue[]; sortedLanes: RunLane[] } {
   const groups = new Map<string, RunIssue[]>();
 
   for (const issue of issues) {
@@ -70,37 +138,7 @@ export function buildRunSummary(
   const sortedLanes = runGroups
     .map(([rootId, groupIssues]) => runLane(rootId, groupIssues, feedScopes))
     .sort(compareLanes);
-
-  // gascity-dashboard-4xcv: blocked lanes are split out of Active. A stale
-  // blocked formula latch (gc-1920 repro) is not progressing; it surfaces in
-  // its own section instead of inflating the Active set.
-  const activeLanes = sortedLanes.filter(
-    (lane) => lane.phase !== 'complete' && lane.phase !== 'blocked',
-  );
-  const completedLanes = sortedLanes.filter((lane) => lane.phase === 'complete');
-  // gascity-dashboard-9w3k: cap on the wire, but keep the FULL count for the DTO.
-  const totalHistorical = completedLanes.length;
-  const historicalLanes = completedLanes.slice(0, MAX_HISTORICAL_LANES);
-  const blockedLanes = sortedLanes.filter((lane) => lane.phase === 'blocked');
-
-  // gascity-dashboard-s4rp: `lanes` carries the FULL active set, not a capped
-  // window. Session-less-latch demotion (enrichRunSummary) is session-aware and
-  // can only run downstream of this builder, so it must see every active lane to
-  // recompute totalActive exactly — capping here would hide phantoms beyond the
-  // 8th slot from demotion and leave them in the count. RunMap owns the rendered
-  // collapse (default MAX_VISIBLE_ACTIVE_LANES) and its "Show N more" expander,
-  // mirroring the historical section — so the wire is never pre-capped.
-  const summary: RunSummary = {
-    totalActive: activeLanes.length,
-    totalHistorical,
-    runCounts: runCounts(activeLanes, activeLanes.length, blockedLanes.length),
-    lanes: activeLanes,
-    historicalLanes,
-    blockedLanes,
-    recentChanges: recentChanges(laneIssues),
-    census: runCensusUnavailable(),
-  };
-  return partial ? { ...summary, lanesPartial: true } : summary;
+  return { laneIssues, sortedLanes };
 }
 
 // gascity-dashboard-9w3k: a group is a run when its root bead carries a run
@@ -408,7 +446,6 @@ export function metadataString(issues: RunIssue[], key: string): string {
 export function emptyRunSummary(): RunSummary {
   return {
     totalActive: 0,
-    totalHistorical: 0,
     runCounts: {
       total: 0,
       visible: 0,
@@ -419,7 +456,6 @@ export function emptyRunSummary(): RunSummary {
       other: 0,
     },
     lanes: [],
-    historicalLanes: [],
     blockedLanes: [],
     recentChanges: [],
     census: runCensusUnavailable(),

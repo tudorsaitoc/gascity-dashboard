@@ -24,8 +24,6 @@ function freshRunsSource(): SourceState<RunSummary> {
     error: { kind: 'none' },
     data: {
       totalActive: 0,
-      totalHistorical: 0,
-      historicalLanes: [],
       blockedLanes: [],
       runCounts: {
         total: 0,

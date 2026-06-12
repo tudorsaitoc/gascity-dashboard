@@ -58,8 +58,6 @@ function buildRunSource(
     error: { kind: 'none' },
     data: {
       totalActive: 0,
-      totalHistorical: 0,
-      historicalLanes: [],
       blockedLanes: [],
       runCounts: {
         total: 0,
@@ -101,26 +99,21 @@ function lane(id: string): RunLane {
   };
 }
 
-// Build a source carrying explicit active / blocked / historical lane sets, so a
-// test can assert WHICH run ids land in WHICH section after a cheap merge.
+// Build a source carrying explicit active / blocked lane sets, so a test can
+// assert WHICH run ids land in WHICH section after a cheap refresh.
 function buildLaneSource(opts: {
   status?: Exclude<SourceStatus, 'error'>;
   active?: string[];
   blocked?: string[];
-  historical?: string[];
-  totalHistorical?: number;
 }): SourceState<RunSummary> {
   const base = buildRunSource(opts.status ?? 'fresh');
   if (base.status === 'error') throw new Error('unreachable');
-  const historical = (opts.historical ?? []).map(lane);
   return {
     ...base,
     data: {
       ...base.data,
       lanes: (opts.active ?? []).map(lane),
       blockedLanes: (opts.blocked ?? []).map(lane),
-      historicalLanes: historical,
-      totalHistorical: opts.totalHistorical ?? historical.length,
     },
   };
 }
@@ -133,18 +126,14 @@ function Consumer({ label }: { label: string }) {
   return <div data-testid={label}>{`${source?.status ?? 'pending'}:${blocked}`}</div>;
 }
 
-// A consumer that renders the active+blocked lane ids, the historical lane ids,
-// and totalHistorical — for asserting cheap-refresh history reconciliation.
+// A consumer that renders the live (active + blocked) lane ids.
 function LaneConsumer({ label }: { label: string }) {
   const { source } = useRunSummary();
   if (!source || source.status === 'error') return <div data-testid={label}>none</div>;
-  const live = [...source.data.lanes, ...source.data.blockedLanes].map((l) => l.id).join(',');
-  const hist = source.data.historicalLanes.map((l) => l.id).join(',');
-  return (
-    <div
-      data-testid={label}
-    >{`live=[${live}] hist=[${hist}] totalHist=${source.data.totalHistorical}`}</div>
-  );
+  const live = [...source.data.lanes, ...source.data.blockedLanes]
+    .map((l: RunLane) => l.id)
+    .join(',');
+  return <div data-testid={label}>{`live=[${live}]`}</div>;
 }
 
 beforeEach(() => {
@@ -425,12 +414,12 @@ describe('useRunSummarySubscription / RunSummaryProvider (gascity-dashboard-2j8e
     await waitFor(() => expect(screen.getByTestId('page').textContent).toBe('error:-1'));
   });
 
-  it('reconciles merged history against the fresh active set on a cheap refresh (no double-display)', async () => {
-    // MAJOR 1: the cheap refresh borrows historicalLanes from the last wide
-    // snapshot. If a run that WAS historical is now active/blocked again, it must
-    // appear ONLY in the live set, not in both. The wide upgrade seeds history
-    // with gc-1 (historical); the cheap refresh then reports gc-1 as active again.
-    mockFull.mockResolvedValue(buildLaneSource({ active: [], historical: ['gc-1', 'gc-2'] }));
+  it('publishes the cheap refresh result as-is (header-first: no history merge)', async () => {
+    // The cheap SSE refresh used to borrow historicalLanes from the last wide
+    // snapshot and reconcile them. Header-first removed history from the summary
+    // entirely (it lives in the lazy run-history hook), so the cheap result IS
+    // the published snapshot: the live set replaces wholesale, nothing is merged.
+    mockFull.mockResolvedValue(buildLaneSource({ active: ['gc-2'] }));
 
     render(
       <RunSummaryProvider>
@@ -438,22 +427,16 @@ describe('useRunSummarySubscription / RunSummaryProvider (gascity-dashboard-2j8e
       </RunSummaryProvider>,
     );
 
-    // Wide upgrade landed: gc-1 + gc-2 are historical, nothing live.
-    await waitFor(() =>
-      expect(screen.getByTestId('page').textContent).toBe('live=[] hist=[gc-1,gc-2] totalHist=2'),
-    );
+    // Wide upgrade landed: gc-2 is live.
+    await waitFor(() => expect(screen.getByTestId('page').textContent).toBe('live=[gc-2]'));
 
-    // A bead event lands and the cheap active read now reports gc-1 active again.
-    mockActive.mockResolvedValue(buildLaneSource({ active: ['gc-1'], historical: [] }));
+    // A bead event lands and the cheap active read now reports gc-1 instead.
+    mockActive.mockResolvedValue(buildLaneSource({ active: ['gc-1'] }));
     await act(async () => {
       lastHookCall.onMatch?.();
     });
 
-    // gc-1 appears ONLY in the live set; the borrowed history drops it and the
-    // count is recomputed. gc-2 (still only historical) stays in history.
-    await waitFor(() =>
-      expect(screen.getByTestId('page').textContent).toBe('live=[gc-1] hist=[gc-2] totalHist=1'),
-    );
+    await waitFor(() => expect(screen.getByTestId('page').textContent).toBe('live=[gc-1]'));
   });
 
   it('does not let a cheap SSE success cancel the bounded wide-failure retry', async () => {

@@ -2,7 +2,7 @@ import { cleanup, fireEvent, render, screen, within } from '@testing-library/rea
 import { MemoryRouter } from 'react-router-dom';
 import { afterEach, describe, expect, it } from 'vitest';
 import { emptyRunSummary, MAX_VISIBLE_ACTIVE_LANES } from 'gas-city-dashboard-shared';
-import type { RunLane, RunSummary, SourceState } from 'gas-city-dashboard-shared';
+import type { RunHistory, RunLane, RunSummary, SourceState } from 'gas-city-dashboard-shared';
 import { RunMap } from './RunMap';
 
 afterEach(() => cleanup());
@@ -31,10 +31,24 @@ function historicalLane(id: string): RunLane {
   };
 }
 
-function runsSource(
-  historicalLanes: RunLane[],
-  totalHistorical = historicalLanes.length,
-): SourceState<RunSummary> {
+function emptySummarySource(): SourceState<RunSummary> {
+  return {
+    source: 'runs',
+    status: 'fresh',
+    fetchedAt: '2026-05-24T12:00:00Z',
+    staleAt: '2026-05-24T12:01:00Z',
+    error: { kind: 'none' },
+    data: emptyRunSummary(),
+  };
+}
+
+// Header-first: history is its own lazy source rendered by RunMap's
+// historical section, not a field on the run summary.
+function historySource(
+  lanes: RunLane[],
+  totalHistorical = lanes.length,
+  lanesPartial = false,
+): SourceState<RunHistory> {
   return {
     source: 'runs',
     status: 'fresh',
@@ -42,9 +56,9 @@ function runsSource(
     staleAt: '2026-05-24T12:01:00Z',
     error: { kind: 'none' },
     data: {
-      ...emptyRunSummary(),
       totalHistorical,
-      historicalLanes,
+      lanes,
+      ...(lanesPartial ? { lanesPartial: true } : {}),
     },
   };
 }
@@ -53,13 +67,19 @@ function makeLanes(count: number): RunLane[] {
   return Array.from({ length: count }, (_, i) => historicalLane(`gc-hist-${i}`));
 }
 
-function renderHistory(historicalLanes: RunLane[], totalHistorical?: number) {
+function renderHistory(lanes: RunLane[], totalHistorical?: number) {
+  return renderHistorySource(historySource(lanes, totalHistorical));
+}
+
+function renderHistorySource(history: SourceState<RunHistory> | undefined, historyLoading = false) {
   return render(
     <MemoryRouter future={{ v7_relativeSplatPath: true, v7_startTransition: true }}>
       <RunMap
-        source={runsSource(historicalLanes, totalHistorical)}
+        source={emptySummarySource()}
         now={Date.parse('2026-05-24T12:01:00Z')}
         showHistory={true}
+        history={history}
+        historyLoading={historyLoading}
       />
     </MemoryRouter>,
   );
@@ -230,5 +250,68 @@ describe('RunMap historical recency-cap disclosure (gascity-dashboard-9w3k)', ()
 
     const section = screen.getByRole('region', { name: /historical runs/i });
     expect(within(section).queryByText(/most-recent of/i)).toBeNull();
+  });
+});
+
+// Header-first: the historical section owns its lazy source's loading /
+// unavailable / partial states, so the operator always knows whether an empty
+// section means "no completed runs", "still fetching", or "could not read".
+describe('RunMap historical lazy-source states (header-first)', () => {
+  it('shows a loading state before the first history read lands', () => {
+    renderHistorySource(undefined, true);
+
+    const section = screen.getByRole('region', { name: /historical runs/i });
+    expect(within(section).getByText(/Loading completed runs\./i)).toBeTruthy();
+    expect(within(section).queryByRole('listitem')).toBeNull();
+  });
+
+  it('shows an unavailable state when the history read failed', () => {
+    renderHistorySource({
+      source: 'runs',
+      status: 'error',
+      error: 'gc supervisor request timed out after 30000ms',
+    });
+
+    const section = screen.getByRole('region', { name: /historical runs/i });
+    expect(
+      within(section).getByText(
+        /Completed runs unavailable: gc supervisor request timed out after 30000ms\./i,
+      ),
+    ).toBeTruthy();
+  });
+
+  it('renders the loading state while a retry is in flight after an error', () => {
+    renderHistorySource(
+      { source: 'runs', status: 'error', error: 'transient timeout' },
+      true,
+    );
+
+    const section = screen.getByRole('region', { name: /historical runs/i });
+    expect(within(section).getByText(/Loading completed runs\./i)).toBeTruthy();
+  });
+
+  it('pairs a history-partial notice with the lanes when the fan-out degraded', () => {
+    renderHistorySource(historySource(makeLanes(2), 2, true));
+
+    const section = screen.getByRole('region', { name: /historical runs/i });
+    const marker = within(section).getByRole('status');
+    expect(marker.textContent).toContain('◐');
+    expect(marker.textContent).toContain('history partial');
+    // The lanes still render alongside the degradation signal.
+    expect(within(section).getAllByRole('listitem')).toHaveLength(2);
+  });
+
+  it('omits the partial notice on a clean history read', () => {
+    renderHistory(makeLanes(2));
+
+    const section = screen.getByRole('region', { name: /historical runs/i });
+    expect(within(section).queryByRole('status')).toBeNull();
+  });
+
+  it('says so when a clean history read finds no completed runs', () => {
+    renderHistory([]);
+
+    const section = screen.getByRole('region', { name: /historical runs/i });
+    expect(within(section).getByText(/No completed runs in the current window\./i)).toBeTruthy();
   });
 });
