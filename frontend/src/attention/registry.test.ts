@@ -1012,10 +1012,8 @@ function runSummary(lanes: readonly RunLane[]): RunSummary {
   const activeLanes = lanes.filter((lane) => lane.phase !== 'blocked' && lane.phase !== 'complete');
   return {
     lanes: activeLanes,
-    historicalLanes: lanes.filter((lane) => lane.phase === 'complete'),
     blockedLanes,
     totalActive: activeLanes.length,
-    totalHistorical: 0,
     runCounts: {
       total: activeLanes.length,
       visible: activeLanes.length,

@@ -10,14 +10,15 @@ import { SseIndicator } from '../components/SseIndicator';
 import { RunMap, RUNS_HISTORICAL_SECTION_ID } from '../components/run/RunMap';
 import { useNow } from '../contexts/NowContext';
 import { formatRelative } from '../hooks/time';
+import { useRunHistory } from '../runs/runHistory';
 import { useRunSummary } from '../runs/runSummarySubscription';
 
 // /runs route (gascity-dashboard-0t6, made live in gascity-dashboard-bqn). The
 // fetch, SSE refresh, and degraded-load retry now live in the shared
 // run-summary subscription (gascity-dashboard-2j8e.7), which the nav badge reads
 // too — so the page and the badge render the same source by construction. This
-// component is the source's renderer: it owns only the ?history=1 toggle,
-// freshness label, and lane layout.
+// component is the source's renderer: it owns the ?history=1 toggle (which now
+// drives the LAZY history load, header-first), freshness label, and lane layout.
 //
 // The app-level NowProvider refreshes relative-time labels in lane cards; the
 // shared subscription's SSE path drives actual data updates.
@@ -30,22 +31,33 @@ export function RunsPage() {
   const attention = useAttentionModel();
   const { source: data, loading, error, manualRefresh, sseState } = useRunSummary();
   const [searchParams, setSearchParams] = useSearchParams();
-  // gascity-dashboard-yh5i: ?history=1 toggles the historical lane
-  // section. Pure render-time state — the summary already carries both
-  // active + historical arrays, so the toggle does not trigger a fetch
-  // and the shared run-summary subscription stays stable across modes.
+  // gascity-dashboard-yh5i: ?history=1 toggles the historical lane section.
+  // Header-first restructure: the summary no longer carries historical lanes,
+  // so the toggle is also the LAZY trigger — opening the section fires the
+  // closed-history fan-out (useRunHistory) the first time, while the shared
+  // run-summary subscription stays untouched across modes.
   const showHistory = searchParams.get(HISTORY_QUERY_PARAM) === HISTORY_QUERY_VALUE;
+  const history = useRunHistory(showHistory);
   const now = useNow();
   const runs = data ?? null;
   const runsData =
     runs?.status === 'fresh' || runs?.status === 'fixture' || runs?.status === 'stale'
       ? runs.data
       : null;
-  const totalHistorical = runsData?.totalHistorical ?? 0;
-  // gascity-dashboard-n6f1: the backend now degrades (not collapses) when a
-  // single rig's recent-run query fails, flagging lanesPartial. Surface it
-  // so the operator reads a short lane set as "some rigs unavailable" rather
-  // than "everything's done." Mirrors the roster-partial signal in Agents.tsx.
+  const historyData =
+    history.source !== undefined && history.source.status !== 'error'
+      ? history.source.data
+      : null;
+  // Known only after the lazy history read lands; null keeps the toggle label
+  // honest ("Show history", no fabricated zero) before that.
+  const totalHistorical = historyData?.totalHistorical ?? null;
+  // gascity-dashboard-n6f1: the summary degrades (not collapses) when an
+  // active-set read fails or truncates, flagging lanesPartial. Surface it so
+  // the operator reads a short lane set as "sources unavailable" rather than
+  // "everything's done." Mirrors the roster-partial signal in Agents.tsx.
+  // Header-first: this flags ONLY the active fan-out (core read truncation, a
+  // failed feed); the lazy history payload carries its own partial signal,
+  // rendered inside the historical section.
   const lanesPartial = runsData?.lanesPartial === true;
 
   const toggleHistory = useCallback(() => {
@@ -67,6 +79,16 @@ export function RunsPage() {
     (lane: RunLane) => resourceAttentionSeverity(attention, 'runs', lane.id),
     [attention],
   );
+
+  // The operator's explicit Refresh re-fetches the summary fan-out, and — when
+  // the history section is open — the lazy history fan-out too, both with the
+  // proxy cache bypass (gascity-dashboard-i3dz). A closed history section costs
+  // nothing.
+  const historyRefresh = history.refresh;
+  const refreshAll = useCallback(() => {
+    void manualRefresh();
+    if (showHistory) void historyRefresh({ forceFresh: true });
+  }, [manualRefresh, historyRefresh, showHistory]);
 
   const synopsis = runSynopsis(data);
 
@@ -111,7 +133,7 @@ export function RunsPage() {
                   <PartialDataNotice
                     glyph="◐"
                     label="runs partial"
-                    title="one or more rigs' recent runs were unavailable; the lane set may be incomplete"
+                    title="one or more run sources were unavailable or truncated; the lane set may be incomplete"
                   />
                 ) : (
                   <span aria-hidden="true" className="invisible normal-case text-body text-warn">
@@ -123,12 +145,10 @@ export function RunsPage() {
                 size="sm"
                 className="w-full justify-center"
                 onClick={toggleHistory}
-                // yh5i: disable only when the toggle is off AND there's
-                // nothing to show. If the user already opened history
-                // (showHistory=true) we must let them close it, even if
-                // the last historical lane has since dropped out — otherwise
-                // a back-button + SSE refresh sequence locks the toggle open.
-                disabled={!showHistory && totalHistorical === 0}
+                // Header-first: completed runs load lazily on open, so the
+                // count is unknown until then and the toggle must always be
+                // actionable — opening IS the fetch. Once history has loaded,
+                // the label carries the known count.
                 aria-expanded={showHistory}
                 // aria-controls only references the historical section's id
                 // when that element is actually in the DOM; the WAI-ARIA
@@ -137,21 +157,23 @@ export function RunsPage() {
                 aria-label={
                   showHistory
                     ? 'Hide historical formula runs.'
-                    : totalHistorical === 0
-                      ? 'No completed formula runs in the current window.'
-                      : `Show ${totalHistorical} completed formula runs.`
+                    : totalHistorical === null
+                      ? 'Show completed formula runs.'
+                      : totalHistorical === 0
+                        ? 'Show completed formula runs (none in the current window).'
+                        : `Show ${totalHistorical} completed formula runs.`
                 }
               >
                 {showHistory
                   ? 'Hide history'
-                  : totalHistorical > 0
+                  : totalHistorical !== null && totalHistorical > 0
                     ? `Show history (${totalHistorical})`
                     : 'Show history'}
               </Button>
               <Button
                 size="sm"
                 className="w-full justify-center"
-                onClick={() => void manualRefresh()}
+                onClick={refreshAll}
                 disabled={loading}
               >
                 {loading ? 'Refreshing' : 'Refresh'}
@@ -168,6 +190,8 @@ export function RunsPage() {
           source={runs}
           now={now}
           showHistory={showHistory}
+          history={history.source}
+          historyLoading={history.loading}
           attentionSeverity={runAttentionSeverity}
         />
       )}

@@ -30,13 +30,14 @@ import {
 //
 // The fetch contract: the cheap preview (2.5s budget) paints first, a one-time
 // full refresh (30s, session-enriched, WIDE) upgrades the snapshot to the
-// page-complete one and populates the historical lanes, a bounded backoff
-// recovers a degraded first load (WIDE), and SSE-driven refetches take the CHEAP
-// active-only path (skips the molecule(all=true) + city feed + per-rig reads,
-// merging historical lanes from the last wide snapshot) gated by an in-component
-// debounce floor on top of useGcEventRefresh's own coalescing (architect H1/H2
-// upstream-load protection during slung-pipeline bursts). The manual Refresh
-// button still triggers a WIDE scan on demand.
+// page-complete one, a bounded backoff recovers a degraded first load (WIDE),
+// and SSE-driven refetches take the CHEAP active-only path (skips the city
+// feed) gated by an in-component debounce floor on top of useGcEventRefresh's
+// own coalescing (architect H1/H2 upstream-load protection during
+// slung-pipeline bursts). The manual Refresh button still triggers a WIDE scan
+// on demand. Historical lanes are NOT part of this subscription (header-first):
+// they load lazily through runs/runHistory when the operator opens the /runs
+// history section.
 
 const REFRESH_DEBOUNCE_MS = 10_000;
 // gascity-dashboard-4xcv: bounded retry backoff for a degraded first load (error
@@ -114,13 +115,13 @@ export function useRunSummarySubscription(): RunSummarySubscription {
   }, []);
 
   // gascity-dashboard: the CHEAP SSE-burst refresh. loadSupervisorRunSummaryActiveSource
-  // skips the molecule(all=true) + city feed + per-rig task reads, so a routine
-  // bead burst no longer saturates the browser connection pool and queues the
-  // run-detail's fast workflowRun read behind it. The active/blocked set is fully
-  // correct (scope/health/counts/census); only HISTORICAL lanes come from the
-  // recent reads, so we merge those back from the last wide snapshot to keep the
-  // History section populated. Failure handling mirrors the wide wrapper.
-  const refreshActiveWithMerge = useCallback(async (): Promise<SourceState<RunSummary>> => {
+  // skips the city feed read, so a routine bead burst no longer saturates the
+  // browser connection pool and queues the run-detail's fast workflowRun read
+  // behind it. The active/blocked set is fully correct (scope/health/counts/
+  // census). Historical lanes are not carried by the summary at all
+  // (header-first) — they live in the lazy run-history hook — so there is
+  // nothing to merge here. Failure handling mirrors the wide wrapper.
+  const refreshActiveWithRetention = useCallback(async (): Promise<SourceState<RunSummary>> => {
     const result = await loadSupervisorRunSummaryActiveSource().catch(
       (err): SourceState<RunSummary> => ({
         source: 'runs',
@@ -133,29 +134,7 @@ export function useRunSummarySubscription(): RunSummarySubscription {
       // the wide retry loop must keep driving off staleDueToFailureRef until a
       // wide refresh actually lands (refreshWithLastGoodRetention clears it). So
       // we deliberately do NOT clear the flag here.
-      const lastGood = lastGoodRef.current;
-      const borrowedHistorical = lastGood?.data.historicalLanes ?? [];
-      // Reconcile the borrowed history against the CURRENT active/blocked set: a
-      // run that was historical in last-good but is active or blocked again in
-      // this fresh snapshot would otherwise appear in BOTH sets (double-display).
-      // Drop any historical lane whose run is now live; recompute the count to
-      // match. (A run that completes between wide refreshes still lags into
-      // History on the next wide scan — accepted; this only kills the overlap.)
-      const liveIds = new Set<string>([
-        ...result.data.lanes.map((lane) => lane.id),
-        ...result.data.blockedLanes.map((lane) => lane.id),
-      ]);
-      const historicalLanes = borrowedHistorical.filter((lane) => !liveIds.has(lane.id));
-      const dropped = borrowedHistorical.length - historicalLanes.length;
-      const totalHistorical = Math.max(0, (lastGood?.data.totalHistorical ?? 0) - dropped);
-      return {
-        ...result,
-        data: {
-          ...result.data,
-          historicalLanes,
-          totalHistorical,
-        },
-      };
+      return result;
     }
     const lastGood = lastGoodRef.current;
     if (lastGood === null) return result;
@@ -168,7 +147,7 @@ export function useRunSummarySubscription(): RunSummarySubscription {
     loadSupervisorRunSummaryPreviewSource,
     {
       refreshFetcher: refreshWithLastGoodRetention,
-      sseRefreshFetcher: refreshActiveWithMerge,
+      sseRefreshFetcher: refreshActiveWithRetention,
     },
   );
   // The operator's explicit Refresh: arm the one-shot bypass flag, then run the

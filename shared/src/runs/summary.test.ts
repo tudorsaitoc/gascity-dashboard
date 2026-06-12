@@ -2,6 +2,7 @@ import { test, describe } from 'node:test';
 import assert from 'node:assert/strict';
 
 import {
+  buildRunHistory,
   buildRunSummary,
   emptyRunSummary,
   runLane,
@@ -90,15 +91,15 @@ describe('buildRunSummary — blocked lanes are not Active (gascity-dashboard-4x
     assert.equal(summary.runCounts.blocked, 1);
   });
 
-  test('blocked lanes are not historical either', () => {
+  test('completed lanes are dropped from the summary, blocked lanes stay (header-first)', () => {
+    // Header-first restructure: the summary carries the live (active + blocked)
+    // sets only; completed runs are the lazy history read's payload
+    // (buildRunHistory), so the default refresh never pays the closed-history
+    // fan-out for lanes hidden behind ?history=1.
     const summary = buildRunSummary([latch(), ...completedRun('run-done')]);
 
     assert.equal(summary.totalActive, 0);
-    assert.equal(summary.totalHistorical, 1);
-    assert.deepEqual(
-      summary.historicalLanes.map((lane) => lane.id),
-      ['run-done'],
-    );
+    assert.deepEqual(summary.lanes, []);
     assert.deepEqual(
       summary.blockedLanes.map((lane) => lane.id),
       ['gc-1920'],
@@ -147,7 +148,6 @@ describe('buildRunSummary — dangling-root groups are not surfaced (gascity-das
       ['run-1'],
     );
     assert.deepEqual(summary.blockedLanes, []);
-    assert.deepEqual(summary.historicalLanes, []);
     assert.equal(summary.runCounts.total, 1);
   });
 
@@ -303,10 +303,8 @@ describe('buildRunSummary — v1 / wisp runs surface as lanes (gascity-dashboard
     const summary = buildRunSummary([loneTask]);
 
     assert.deepEqual(summary.lanes, []);
-    assert.deepEqual(summary.historicalLanes, []);
     assert.deepEqual(summary.blockedLanes, []);
     assert.equal(summary.totalActive, 0);
-    assert.equal(summary.totalHistorical, 0);
   });
 });
 
@@ -326,12 +324,56 @@ describe('buildRunSummary — active lanes carry the full set (component-collaps
   });
 });
 
-// gascity-dashboard-9w3k (part b): the now-much-larger v1 history can bury
-// active runs in the historical set on the wire. Cap the historical lanes the
-// builder emits to the most-recent MAX_HISTORICAL_LANES, while totalHistorical
-// keeps reporting the true full count.
-describe('buildRunSummary — historical lanes are recency-bounded (gascity-dashboard-9w3k)', () => {
-  test('caps historicalLanes at MAX_HISTORICAL_LANES, keeps the most-recent ones, reports true total', () => {
+// Header-first restructure: completed runs are the lazy history read's payload.
+// buildRunHistory derives ONLY the completed lanes from the (expensive) closed-
+// history fan-out, keeping the 9w3k recency cap and true-total semantics.
+describe('buildRunHistory — completed lanes only, recency-bounded (gascity-dashboard-9w3k)', () => {
+  test('a completed run lands in history; active and blocked runs do not', () => {
+    const history = buildRunHistory([latch(), ...activeRun('run-1'), ...completedRun('run-done')]);
+
+    assert.equal(history.totalHistorical, 1);
+    assert.deepEqual(
+      history.lanes.map((lane) => lane.id),
+      ['run-done'],
+    );
+    assert.equal(history.lanesPartial, undefined);
+  });
+
+  test('marks the history partial when the fan-out was degraded', () => {
+    const history = buildRunHistory(completedRun('run-done'), new Map(), true);
+
+    assert.equal(history.lanesPartial, true);
+  });
+
+  test('a dangling-root group and a lone engineering bead never become history lanes', () => {
+    const orphan: RunIssue = {
+      id: 'gc-1920-step-1',
+      title: 'Implementation patch',
+      status: 'closed',
+      issue_type: 'task',
+      updated_at: '2026-06-01T00:05:00Z',
+      metadata: {
+        'gc.kind': 'step',
+        'gc.formula_contract': 'graph.v2',
+        'gc.root_bead_id': 'gc-1920',
+        'gc.step_id': 'implementation.patch',
+      },
+    };
+    const loneTask: RunIssue = {
+      id: 'task-99',
+      title: 'Fix a typo',
+      status: 'closed',
+      issue_type: 'task',
+      updated_at: '2026-06-02T00:00:00Z',
+    };
+
+    const history = buildRunHistory([orphan, loneTask]);
+
+    assert.deepEqual(history.lanes, []);
+    assert.equal(history.totalHistorical, 0);
+  });
+
+  test('caps lanes at MAX_HISTORICAL_LANES, keeps the most-recent ones, reports true total', () => {
     const total = MAX_HISTORICAL_LANES + 10;
     const issues: RunIssue[] = [];
     // Distinct, monotonically increasing updated_at so newest-first order is
@@ -350,10 +392,10 @@ describe('buildRunSummary — historical lanes are recency-bounded (gascity-dash
       );
     }
 
-    const summary = buildRunSummary(issues);
+    const history = buildRunHistory(issues);
 
-    assert.equal(summary.historicalLanes.length, MAX_HISTORICAL_LANES);
-    assert.equal(summary.totalHistorical, total);
+    assert.equal(history.lanes.length, MAX_HISTORICAL_LANES);
+    assert.equal(history.totalHistorical, total);
 
     // The retained lanes must be the newest N (highest n), newest first.
     const expected = Array.from({ length: MAX_HISTORICAL_LANES }, (_, i) => {
@@ -361,7 +403,7 @@ describe('buildRunSummary — historical lanes are recency-bounded (gascity-dash
       return `hist-${String(n).padStart(3, '0')}`;
     });
     assert.deepEqual(
-      summary.historicalLanes.map((lane) => lane.id),
+      history.lanes.map((lane) => lane.id),
       expected,
     );
   });
