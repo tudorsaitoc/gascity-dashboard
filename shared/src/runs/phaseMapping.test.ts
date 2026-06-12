@@ -1172,6 +1172,18 @@ describe('mapRunPhase — zero step progress never invents a mid-run phase (gasc
     assert.equal(phase.phase, 'intake');
   });
 
+  test('a live run whose approval-vocabulary first step is untouched also reads intake', () => {
+    // The clamp is registration-agnostic by design: zero progress means intake
+    // for registered runs too, not only orphans — without it this graph read
+    // as 'approval' before any step was picked up.
+    const phase = mapRunPhase([
+      root({ id: 'z4' }),
+      step('z4-s1', 'approve-fix-plan', 'open'),
+      step('z4-s2', 'human-approval', 'open'),
+    ]);
+    assert.equal(phase.phase, 'intake');
+  });
+
   test('an in_progress root bead with all steps open is still zero step progress → intake', () => {
     const phase = mapRunPhase([
       root({ id: 'z2', status: 'in_progress' }),

@@ -112,7 +112,10 @@ export const STRANDED_DISPATCH_GRACE_MS = 10 * 60 * 1000;
  * its last bead write predates that observation by the dispatch grace. Any
  * weaker evidence returns false: a run with step progress executed (feed
  * absence just means it aged out of the feed window), and a group without a
- * step graph offers no never-executed signal to judge.
+ * step graph offers no never-executed signal to judge. A group whose
+ * timestamps are all unparsable (e.g. the run-detail snapshot adapter blanks
+ * every updated_at) has no age to hold against the grace and is likewise
+ * unjudgeable — never stranded.
  *
  * Precedence vs {@link isStaleSessionlessLatch}: a stranded lane is sessionless
  * with no in_progress step, so once its last write ages past

@@ -205,8 +205,8 @@ export function FormulaRunDetailPage() {
         )
       ) : unsupported ? (
         <p className="text-body text-fg-muted" role="status">
-          Detailed step view isn&rsquo;t available for this run (v1/wisp runs are list-only) — this
-          run appears in the run list only.
+          Detailed step view isn&rsquo;t available for this run (v1/wisp runs are list-only); it
+          appears in the run list only.
         </p>
       ) : notFound ? (
         <p className="text-body text-fg-muted" role="status">

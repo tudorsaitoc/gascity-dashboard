@@ -394,7 +394,7 @@ async function loadHistoryBeads(cityName: string, forceFresh: boolean): Promise<
   // gascity-dashboard-uxvk: a COMPLETE feed read is the registration evidence;
   // record when it was taken so the stranded judgment's dispatch grace is
   // anchored to the observation, never to a later clock read.
-  if (!feedDiscovery.partial) {
+  if (!feedDiscovery.partial && feedDiscovery.rootIdsComplete) {
     feedObservationByCity.set(cityName, {
       rootIds: feedDiscovery.rootIds,
       observedAtMs: Date.now(),
@@ -472,6 +472,13 @@ interface FeedDiscovery {
    * still proves the supervisor knows the run.
    */
   rootIds: ReadonlySet<string>;
+  /**
+   * False when any feed item lacked root_bead_id: such an item may cover a
+   * root under a key the bead store never sees (workflow_id), so this read can
+   * prove a root's presence but no longer prove any root's ABSENCE. A stranded
+   * judgment must not be cached from an incomplete root-id set.
+   */
+  rootIdsComplete: boolean;
   partial: boolean;
 }
 
@@ -500,9 +507,11 @@ async function discoverFromFeed(
     const rigNames = new Set<string>();
     const scopes = new Map<string, RunFeedScope>();
     const rootIds = new Set<string>();
+    let rootIdsComplete = true;
     for (const run of runs.items ?? []) {
       const rootId = run.root_bead_id ?? run.workflow_id ?? null;
       if (rootId !== null) rootIds.add(rootId);
+      if (run.root_bead_id == null) rootIdsComplete = false;
       if (run.type !== 'formula') continue;
       const storeScope = fromStoreRef(run.root_store_ref ?? null);
       if (storeScope?.scopeKind === 'rig') {
@@ -533,9 +542,21 @@ async function discoverFromFeed(
         });
       }
     }
-    return { rigNames: [...rigNames], scopes, rootIds, partial: feedIsPartial(runs) };
+    return {
+      rigNames: [...rigNames],
+      scopes,
+      rootIds,
+      rootIdsComplete,
+      partial: feedIsPartial(runs),
+    };
   } catch {
-    return { rigNames: [], scopes: new Map(), rootIds: new Set(), partial: true };
+    return {
+      rigNames: [],
+      scopes: new Map(),
+      rootIds: new Set(),
+      rootIdsComplete: false,
+      partial: true,
+    };
   }
 }
 
