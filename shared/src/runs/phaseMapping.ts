@@ -43,7 +43,7 @@ export function mapRunPhase(issues: RunIssue[]): PhaseMapping {
     return { phase: 'blocked', label: 'blocked', reviewRound: null };
   }
 
-  if (issues.length > 0 && issues.every((i) => i.status === 'closed')) {
+  if (issues.length > 0 && issues.every((i) => isClosedStatus(i.status))) {
     return { phase: 'complete', label: 'complete', reviewRound: null };
   }
 
@@ -70,15 +70,17 @@ export function mapRunPhase(issues: RunIssue[]): PhaseMapping {
 /**
  * gascity-dashboard-q3p1: derive the phase from the run's current step.
  *
- * The active step is the latest in_progress primary step; if none is in_progress
- * (e.g. between steps) it is the latest primary step that carries a gc.step_id.
- * The step-id is classified into a generic RunPhase by stepIdPhase. Returns null
- * when no primary step carries a gc.step_id (no structured signal to use).
+ * The active step is the latest in-flight primary step; if none is in flight
+ * (e.g. between steps) it is the furthest-ADVANCED primary step that carries a
+ * gc.step_id (started or completed — never a merely materialized pending
+ * shell). The step-id is classified into a generic RunPhase by stepIdPhase.
+ * Returns null when no primary step carries a gc.step_id (no structured signal
+ * to use).
  */
 function structuredPhase(issues: RunIssue[]): PhaseMapping | null {
   const primary = issues.filter(isPrimaryStepIssue);
-  const inProgressStep = latestStepId(primary.filter((i) => i.status === 'in_progress'));
-  // gascity-dashboard (Major 3): when no step is in_progress, the current step
+  const inProgressStep = latestStepId(primary.filter((i) => isInFlightStatus(i.status)));
+  // gascity-dashboard (Major 3): when no step is in flight, the current step
   // is the FURTHEST-ADVANCED step by stage rank — a deterministic, order- and
   // timestamp-independent signal. The run-detail snapshot adapter sets every
   // bead updated_at='' (the snapshot carries no per-bead timestamp), so a
@@ -86,17 +88,56 @@ function structuredPhase(issues: RunIssue[]): PhaseMapping | null {
   // summary lane. Stage rank is derived from gc.step_id alone, so the summary
   // context (real timestamps) and the detail context (empty timestamps) resolve
   // the same run to the same phase.
-  const activeStepId = inProgressStep ?? furthestStageStepId(primary);
-  if (activeStepId === null) {
-    return null;
+  //
+  // M2 audit (ga-wisp-x0tank): only ADVANCED steps (in flight or closed) may
+  // rank here. graph.v2 runs materialize their full DAG at pour time, so
+  // pending shells for late steps (finalize, cleanup-worktree) exist from the
+  // start; ranking them drove phase='finalization' while the run was
+  // mid-review.
+  const activeStepId = inProgressStep ?? furthestStageStepId(primary.filter(hasAdvanced));
+  if (activeStepId !== null) {
+    const phase = stepIdPhase(activeStepId);
+    if (phase === 'review') {
+      const resolved = reviewRoundForIssues(issues) ?? fallbackReviewRound(issues);
+      return { phase: 'review', label: `review round ${resolved}`, reviewRound: resolved };
+    }
+    return { phase, label: phase, reviewRound: null };
   }
 
-  const phase = stepIdPhase(activeStepId);
-  if (phase === 'review') {
-    const resolved = reviewRoundForIssues(issues) ?? fallbackReviewRound(issues);
-    return { phase: 'review', label: `review round ${resolved}`, reviewRound: resolved };
+  // Structured signal exists (some primary step carries a gc.step_id) but no
+  // step has advanced yet — a freshly poured run. Stay conservative instead of
+  // falling through to the keyword scan, which would match late-stage words in
+  // the materialized step titles/ids (e.g. 'approval' in pre-approval-ci).
+  if (furthestStageStepId(primary) !== null) {
+    return { phase: 'active', label: 'active', reviewRound: null };
   }
-  return { phase, label: phase, reviewRound: null };
+  return null;
+}
+
+// ── Status vocabulary ───────────────────────────────────────────────────────
+//
+// Phase derivation reads beads from two adapters with DIFFERENT status
+// vocabularies: the summary lane feeds bd ledger statuses
+// (open/in_progress/closed) via fromDashboardBead, while the run-detail page
+// feeds supervisor wire statuses (pending/active/completed) via
+// fromRunSnapshotBead. Every status comparison here must accept both — the M2
+// audit found the in_progress-only filter made structured phase detection
+// unable to ever fire on the run-detail page. The accepted spellings mirror
+// presentationStatus in status.ts.
+
+/** True when the bead status marks a step currently being worked. */
+export function isInFlightStatus(status: string): boolean {
+  return status === 'in_progress' || status === 'active' || status === 'running';
+}
+
+/** True when the bead status marks a finished step. */
+export function isClosedStatus(status: string): boolean {
+  return status === 'closed' || status === 'completed' || status === 'done';
+}
+
+/** True when the step has actually advanced (started or finished). */
+function hasAdvanced(issue: RunIssue): boolean {
+  return isInFlightStatus(issue.status) || isClosedStatus(issue.status);
 }
 
 /**
@@ -579,14 +620,14 @@ function formulaStageProgress(
   issues: RunIssue[],
 ): RunStage[] {
   const primary = issues.filter(isPrimaryStepIssue);
-  const activeStepId = latestStepId(primary.filter((i) => i.status === 'in_progress'));
+  const activeStepId = latestStepId(primary.filter((i) => isInFlightStatus(i.status)));
   const activeIndex = activeStepId
     ? stages.findIndex((s) => s.steps.includes(activeStepId))
     : firstOpenStageIndex(stages, primary);
   const furthestClosedIndex = furthestClosedStageIndex(stages, primary);
 
   const stageHasClosed = (stage: { steps: string[] }): boolean =>
-    stage.steps.some((step) => stepIssues(primary, step).some((i) => i.status === 'closed'));
+    stage.steps.some((step) => stepIssues(primary, step).some((i) => isClosedStatus(i.status)));
 
   return stages.map((stage, idx) => {
     let status: RunStage['status'];
@@ -603,14 +644,14 @@ function formulaStageProgress(
 
 function firstOpenStageIndex(stages: Array<{ steps: string[] }>, issues: RunIssue[]): number {
   return stages.findIndex((s) =>
-    s.steps.some((step) => stepIssues(issues, step).some((i) => i.status !== 'closed')),
+    s.steps.some((step) => stepIssues(issues, step).some((i) => !isClosedStatus(i.status))),
   );
 }
 
 function furthestClosedStageIndex(stages: Array<{ steps: string[] }>, issues: RunIssue[]): number {
   let furthest = -1;
   stages.forEach((s, idx) => {
-    if (s.steps.some((step) => stepIssues(issues, step).some((i) => i.status === 'closed'))) {
+    if (s.steps.some((step) => stepIssues(issues, step).some((i) => isClosedStatus(i.status)))) {
       furthest = idx;
     }
   });
