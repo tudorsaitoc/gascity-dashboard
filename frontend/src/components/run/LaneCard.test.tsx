@@ -33,7 +33,7 @@ describe('LaneCard navigation', () => {
         error: 'run progress unavailable in test',
       },
       formulaStageResolved: false,
-      registration: { status: 'unknown', error: 'supervisor formula feed not observed' },
+      registration: 'unknown',
       health: { status: 'unavailable', error: 'run health has not been derived' },
     };
 
@@ -68,7 +68,7 @@ describe('LaneCard navigation', () => {
         error: 'run progress unavailable in test',
       },
       formulaStageResolved: false,
-      registration: { status: 'unknown', error: 'supervisor formula feed not observed' },
+      registration: 'unknown',
       health: { status: 'unavailable', error: 'run health has not been derived' },
     };
 
@@ -115,7 +115,7 @@ describe('LaneCard historical-lane render', () => {
         error: 'workflow progress unavailable in test',
       },
       formulaStageResolved: false,
-      registration: { status: 'unknown', error: 'supervisor formula feed not observed' },
+      registration: 'unknown',
       health: {
         status: 'unavailable',
         error: 'workflow health has not been derived',
@@ -204,7 +204,7 @@ describe('LaneCard stranded runs (gascity-dashboard-uxvk)', () => {
       },
       formulaStageResolved: false,
       health: { status: 'unavailable', error: 'run health has not been derived' },
-      registration: { status: 'stranded' },
+      registration: 'stranded',
       ...overrides,
     };
   }
@@ -233,7 +233,7 @@ describe('LaneCard stranded runs (gascity-dashboard-uxvk)', () => {
   });
 
   it('keeps the stage ladder and phase label for a non-stranded lane', () => {
-    renderLane(strandedLane({ registration: { status: 'registered' } }));
+    renderLane(strandedLane({ registration: 'registered' }));
     // Matches both the phase label and the ladder's Intake stage word.
     expect(screen.getAllByText(/^intake$/i).length).toBeGreaterThan(0);
     expect(screen.getByLabelText(/stages$/i)).toBeTruthy();
@@ -243,7 +243,7 @@ describe('LaneCard stranded runs (gascity-dashboard-uxvk)', () => {
   it('an unknown registration renders exactly like a registered lane (no stranded claim)', () => {
     renderLane(
       strandedLane({
-        registration: { status: 'unknown', error: 'supervisor formula feed not observed' },
+        registration: 'unknown',
       }),
     );
     expect(screen.queryByText(/stranded/i)).toBeNull();

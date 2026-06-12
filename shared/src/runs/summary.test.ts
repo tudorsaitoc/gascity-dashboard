@@ -772,7 +772,7 @@ describe('buildRunSummary — orphaned molecules carry a stranded registration (
     const summary = buildRunSummary(orphanGroup('gc-odssky'), new Map(), false, observation([]));
     const lane = summary.lanes.find((l) => l.id === 'gc-odssky');
     assert.ok(lane);
-    assert.deepEqual(lane.registration, { status: 'stranded' });
+    assert.equal(lane.registration, 'stranded');
     // The false-alive part of the repro: the orphan must never read as a
     // mid-run stage.
     assert.equal(lane.phase, 'intake');
@@ -788,14 +788,14 @@ describe('buildRunSummary — orphaned molecules carry a stranded registration (
     );
     const lane = summary.lanes.find((l) => l.id === 'gc-known');
     assert.ok(lane);
-    assert.deepEqual(lane.registration, { status: 'registered' });
+    assert.equal(lane.registration, 'registered');
   });
 
   test('no feed observation → registration unknown, lane renders as before', () => {
     const summary = buildRunSummary(orphanGroup('gc-blind'));
     const lane = summary.lanes.find((l) => l.id === 'gc-blind');
     assert.ok(lane);
-    assert.equal(lane.registration.status, 'unknown');
+    assert.equal(lane.registration, 'unknown');
   });
 
   test('a progressed run absent from the observation is unknown, not stranded', () => {
@@ -804,6 +804,6 @@ describe('buildRunSummary — orphaned molecules carry a stranded registration (
     const summary = buildRunSummary(group, new Map(), false, observation([]));
     const lane = summary.lanes.find((l) => l.id === 'gc-aged');
     assert.ok(lane);
-    assert.equal(lane.registration.status, 'unknown');
+    assert.equal(lane.registration, 'unknown');
   });
 });

@@ -1127,7 +1127,7 @@ describe('run registration (gascity-dashboard-uxvk)', () => {
     expect(source.status).toBe('fresh');
     if (source.status === 'error') throw new Error(source.error);
     const lane = source.data.lanes.find((l) => l.id === 'gc-odssky');
-    expect(lane?.registration).toEqual({ status: 'stranded' });
+    expect(lane?.registration).toBe('stranded');
     expect(lane?.phase).toBe('intake');
   });
 
@@ -1140,7 +1140,7 @@ describe('run registration (gascity-dashboard-uxvk)', () => {
 
     if (source.status === 'error') throw new Error(source.error);
     const lane = source.data.lanes.find((l) => l.id === 'gc-odssky');
-    expect(lane?.registration).toEqual({ status: 'registered' });
+    expect(lane?.registration).toBe('registered');
   });
 
   it('a partial feed read never strands a lane', async () => {
@@ -1150,14 +1150,14 @@ describe('run registration (gascity-dashboard-uxvk)', () => {
 
     if (source.status === 'error') throw new Error(source.error);
     const lane = source.data.lanes.find((l) => l.id === 'gc-odssky');
-    expect(lane?.registration.status).toBe('unknown');
+    expect(lane?.registration).toBe('unknown');
   });
 
   it('the cheap active source reuses the cached complete-feed observation (no flap)', async () => {
     wideApi(feed([]));
     const wide = await loadSupervisorRunSummarySource();
     if (wide.status === 'error') throw new Error(wide.error);
-    expect(wide.data.lanes.find((l) => l.id === 'gc-odssky')?.registration.status).toBe('stranded');
+    expect(wide.data.lanes.find((l) => l.id === 'gc-odssky')?.registration).toBe('stranded');
 
     // The cheap source: core active read + sessions only, NO feed read.
     const listBeads = vi.fn(async () => beadList(orphanBeads()));
@@ -1173,9 +1173,7 @@ describe('run registration (gascity-dashboard-uxvk)', () => {
 
     if (cheap.status === 'error') throw new Error(cheap.error);
     expect(formulaFeed).not.toHaveBeenCalled();
-    expect(cheap.data.lanes.find((l) => l.id === 'gc-odssky')?.registration).toEqual({
-      status: 'stranded',
-    });
+    expect(cheap.data.lanes.find((l) => l.id === 'gc-odssky')?.registration).toBe('stranded');
   });
 
   it('without any complete feed observation the cheap source reports unknown', async () => {
@@ -1189,6 +1187,6 @@ describe('run registration (gascity-dashboard-uxvk)', () => {
     const cheap = await loadSupervisorRunSummaryActiveSource();
 
     if (cheap.status === 'error') throw new Error(cheap.error);
-    expect(cheap.data.lanes.find((l) => l.id === 'gc-odssky')?.registration.status).toBe('unknown');
+    expect(cheap.data.lanes.find((l) => l.id === 'gc-odssky')?.registration).toBe('unknown');
   });
 });

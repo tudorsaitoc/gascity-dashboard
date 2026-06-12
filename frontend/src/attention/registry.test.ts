@@ -1072,7 +1072,7 @@ function runLane({
     stages: [],
     progress: { status: 'unavailable', error: 'run progress unavailable' },
     formulaStageResolved: false,
-    registration: { status: 'unknown', error: 'supervisor formula feed not observed' },
+    registration: 'unknown',
     health: {
       status: 'available',
       data: {

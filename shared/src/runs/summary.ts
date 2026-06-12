@@ -275,19 +275,9 @@ function runRegistration(
   issues: RunIssue[],
   registry?: RunRegistryObservation,
 ): RunLane['registration'] {
-  if (registry === undefined) {
-    return { status: 'unknown', error: 'supervisor formula feed not observed' };
-  }
-  if (registry.rootIds.has(rootId)) {
-    return { status: 'registered' };
-  }
-  if (isStrandedRun(rootId, issues, registry)) {
-    return { status: 'stranded' };
-  }
-  return {
-    status: 'unknown',
-    error: 'run absent from the supervisor formula feed but not conclusively stranded',
-  };
+  if (registry === undefined) return 'unknown';
+  if (registry.rootIds.has(rootId)) return 'registered';
+  return isStrandedRun(rootId, issues, registry) ? 'stranded' : 'unknown';
 }
 
 export function runRootId(issue: RunIssue): string {

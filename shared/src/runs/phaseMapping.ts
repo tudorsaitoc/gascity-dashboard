@@ -111,7 +111,7 @@ function structuredPhase(issues: RunIssue[]): PhaseMapping | null {
   // stage. Any non-open carrier (closed, blocked, unknown) disables the clamp
   // and falls through to the existing pinned derivation.
   if (inProgressStep === null) {
-    const carriers = primary.filter((i) => stringValue(i.metadata?.['gc.step_id']) !== '');
+    const carriers = stepIdCarriers(primary);
     if (carriers.length > 0 && carriers.every((i) => i.status === 'open')) {
       return { phase: 'intake', label: 'intake', reviewRound: null };
     }
@@ -942,5 +942,18 @@ export function isPrimaryStepIssue(issue: RunIssue): boolean {
     kind !== 'scope-check' &&
     kind !== 'workflow-finalize' &&
     kind !== 'run-finalize'
+  );
+}
+
+/**
+ * The run's structured step graph: primary step issues carrying a non-empty
+ * gc.step_id. This is the SINGLE definition of the carrier set behind the
+ * "zero step progress" fact (gascity-dashboard-uxvk) — the intake phase clamp
+ * and isStrandedRun must judge the same issues or a stranded lane could stop
+ * reading as intake (and vice versa).
+ */
+export function stepIdCarriers(issues: readonly RunIssue[]): RunIssue[] {
+  return issues.filter(
+    (issue) => isPrimaryStepIssue(issue) && stringValue(issue.metadata?.['gc.step_id']) !== '',
   );
 }

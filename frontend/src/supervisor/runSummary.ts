@@ -151,6 +151,18 @@ export async function loadSupervisorRunSummaryMountSource(): Promise<SourceState
   return loadRunSummarySource(PREVIEW_ENRICHMENT_TIMEOUT_MS);
 }
 
+// Single place the lane summary is built from a bead load, so every source
+// (wide refresh, cheap active, preview) derives registration from the same
+// per-city feed observation.
+function citySummary(cityName: string, loaded: LoadedRunBeads): RunSummary {
+  return buildRunSummary(
+    loaded.beads.filter(runBeadFilter).map(fromDashboardBead),
+    loaded.feedScopes,
+    loaded.partial,
+    feedObservationByCity.get(cityName),
+  );
+}
+
 async function loadRunSummarySource(
   enrichmentBudgetMs: number,
   forceFresh = false,
@@ -162,12 +174,7 @@ async function loadRunSummarySource(
       loadRunBeads(cityName, RUNS_FETCH_LIMIT, enrichmentBudgetMs, forceFresh),
       loadRunSessions(cityName, enrichmentBudgetMs),
     ]);
-    const summary = buildRunSummary(
-      loaded.beads.filter(runBeadFilter).map(fromDashboardBead),
-      loaded.feedScopes,
-      loaded.partial,
-      feedObservationByCity.get(cityName),
-    );
+    const summary = citySummary(cityName, loaded);
     const source: SourceAvailableState<RunSummary> = {
       source: 'runs',
       status: 'fresh',
@@ -207,12 +214,7 @@ export async function loadSupervisorRunSummaryActiveSource(): Promise<SourceStat
       loadActiveRunBeads(cityName, RUNS_FETCH_LIMIT),
       loadRunSessions(cityName, PREVIEW_ENRICHMENT_TIMEOUT_MS),
     ]);
-    const summary = buildRunSummary(
-      loaded.beads.filter(runBeadFilter).map(fromDashboardBead),
-      loaded.feedScopes,
-      loaded.partial,
-      feedObservationByCity.get(cityName),
-    );
+    const summary = citySummary(cityName, loaded);
     const source: SourceAvailableState<RunSummary> = {
       source: 'runs',
       status: 'fresh',
@@ -254,12 +256,7 @@ export async function loadSupervisorRunSummaryPreviewSource(): Promise<SourceSta
   const fetchedAt = new Date().toISOString();
   try {
     const loaded = await loadRunBeads(cityName, RUNS_FETCH_LIMIT, PREVIEW_ENRICHMENT_TIMEOUT_MS);
-    const summary = buildRunSummary(
-      loaded.beads.filter(runBeadFilter).map(fromDashboardBead),
-      loaded.feedScopes,
-      loaded.partial,
-      feedObservationByCity.get(cityName),
-    );
+    const summary = citySummary(cityName, loaded);
     return {
       source: 'runs',
       status: 'fresh',
@@ -504,14 +501,13 @@ async function discoverFromFeed(
     const scopes = new Map<string, RunFeedScope>();
     const rootIds = new Set<string>();
     for (const run of runs.items ?? []) {
-      const feedRootId = run.root_bead_id ?? run.workflow_id ?? null;
-      if (feedRootId !== null) rootIds.add(feedRootId);
+      const rootId = run.root_bead_id ?? run.workflow_id ?? null;
+      if (rootId !== null) rootIds.add(rootId);
       if (run.type !== 'formula') continue;
       const storeScope = fromStoreRef(run.root_store_ref ?? null);
       if (storeScope?.scopeKind === 'rig') {
         rigNames.add(storeScope.scopeRef);
       }
-      const rootId = run.root_bead_id ?? run.workflow_id ?? null;
       // gascity-dashboard-q89b (detail scope leak): the feed's top-level
       // scope_kind is always 'city', so fromFeedScope alone makes a rig lane's
       // detail href drop to city scope — and a city-scoped workflow fetch hits

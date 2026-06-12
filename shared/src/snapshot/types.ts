@@ -349,10 +349,14 @@ export interface RunLane {
   registration: RunLaneRegistration;
 }
 
-export type RunLaneRegistration =
-  | { status: 'registered' }
-  | { status: 'stranded' }
-  | { status: 'unknown'; error: string };
+/**
+ * 'unknown' covers both "no complete feed observation yet" and "absent from
+ * the feed but not conclusively stranded" (inside the dispatch grace, or
+ * showing step progress so it merely aged out of the feed window) — neither
+ * is evidence either way, so consumers must never read 'unknown' as
+ * registered.
+ */
+export type RunLaneRegistration = 'registered' | 'stranded' | 'unknown';
 
 export type RunLaneUpdatedAt = Avail<{
   at: string;

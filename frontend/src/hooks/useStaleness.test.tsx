@@ -48,7 +48,7 @@ function laneFixture(overrides: {
     stages: [],
     progress: { status: 'unavailable', error: 'unused' },
     formulaStageResolved: false,
-    registration: { status: 'unknown', error: 'supervisor formula feed not observed' },
+    registration: 'unknown',
     health,
   };
 }

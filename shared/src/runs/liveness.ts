@@ -1,4 +1,4 @@
-import { isPrimaryStepIssue, stringValue, type RunIssue } from './phaseMapping.js';
+import { stepIdCarriers, type RunIssue } from './phaseMapping.js';
 import type { RunLane } from '../snapshot/types.js';
 
 // gascity-dashboard-s4rp: a run can be echoed by the supervisor long after it
@@ -113,6 +113,13 @@ export const STRANDED_DISPATCH_GRACE_MS = 10 * 60 * 1000;
  * weaker evidence returns false: a run with step progress executed (feed
  * absence just means it aged out of the feed window), and a group without a
  * step graph offers no never-executed signal to judge.
+ *
+ * Precedence vs {@link isStaleSessionlessLatch}: a stranded lane is sessionless
+ * with no in_progress step, so once its last write ages past
+ * {@link STALE_LATCH_AFTER_MS} the latch demotes it out of the Active set like
+ * any other abandoned lane. Deliberate — the stranded card is an operator
+ * prompt while the orphan is recent; a day-old orphan leaves the board with
+ * the rest of the stale latches rather than accumulating forever.
  */
 export function isStrandedRun(
   rootId: string,
@@ -121,9 +128,7 @@ export function isStrandedRun(
 ): boolean {
   if (observation.rootIds.has(rootId)) return false;
 
-  const stepCarriers = issues.filter(
-    (issue) => isPrimaryStepIssue(issue) && stringValue(issue.metadata?.['gc.step_id']) !== '',
-  );
+  const stepCarriers = stepIdCarriers(issues);
   if (stepCarriers.length === 0) return false;
   if (stepCarriers.some((issue) => issue.status !== 'open')) return false;
 

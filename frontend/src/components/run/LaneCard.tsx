@@ -49,7 +49,7 @@ export function LaneCard({ lane, now, attentionSeverity = null, blocked }: LaneC
   // record, never executed) must not read as a live run. Stranded lanes swap
   // the phase label for a glyph + word and the stage ladder for an
   // explanation — a run that never started has no live stage to show.
-  const stranded = lane.registration.status === 'stranded';
+  const stranded = lane.registration === 'stranded';
   const statusEntries = Object.entries(lane.statusCounts).sort((a, b) =>
     statusSortKey(a[0]).localeCompare(statusSortKey(b[0])),
   );
