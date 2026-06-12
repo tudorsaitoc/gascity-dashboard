@@ -28,10 +28,12 @@ import { normalizeSessions } from './sessionReads';
 // 'partial'). It gets the same treatment as the runs-list core read
 // (runSummary.ts): a burst-tolerant budget so a CPU spike doesn't time it out,
 // and one retry on a transient timeout/5xx. A city-scoped (no-rig) fetch hits
-// the supervisor's full-store scan (~12-14s, upstream gascity-dashboard#88), so
-// the wider budget is what lets that path complete instead of timing out; the
-// rig-scoped fetch (the common case once scope is passed) is sub-second.
-const RUN_DETAIL_CORE_TIMEOUT_MS = 15_000;
+// the supervisor's full-store scan (observed max 12.9s, upstream
+// gascity-dashboard#88), which left almost no headroom under the previous 15s
+// budget — server journals show the >15s regime occurring in practice (40 HTTP
+// 500s at 22-102s on Jun 11 2026). 60s gives the scan path real headroom; the
+// rig-scoped fetch (the common case once scope is passed) runs ~5-6s.
+const RUN_DETAIL_CORE_TIMEOUT_MS = 60_000;
 
 export async function loadSupervisorFormulaRunDetail(
   runId: string,
