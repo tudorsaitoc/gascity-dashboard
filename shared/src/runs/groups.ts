@@ -319,7 +319,16 @@ function resolveBadgeTarget(
 }
 
 function hiddenBadgeTargetCandidates(bead: RunSnapshotBead, fallback: string | null): string[] {
-  return [meta(bead, 'gc.control_for'), hiddenBadgeFullTargetFor(bead), fallback ?? undefined]
+  // gc.step_id sits between the full runtime ref and the bare-segment
+  // fallback in specificity: for steps nested inside a pipeline (e.g.
+  // 'review-pipeline.review-claude') it is the alias the visible node
+  // actually registers, while the bare last segment is not (audit M5).
+  return [
+    meta(bead, 'gc.control_for'),
+    hiddenBadgeFullTargetFor(bead),
+    meta(bead, 'gc.step_id'),
+    fallback ?? undefined,
+  ]
     .filter((value): value is string => value !== undefined)
     .flatMap((value) => {
       const stripped = stripControlSuffix(value);
