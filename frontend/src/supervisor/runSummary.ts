@@ -453,7 +453,7 @@ async function loadHistoryBeads(cityName: string, forceFresh: boolean): Promise<
   return {
     beads: uniqueBeads([...active, ...recentItems]),
     feedScopes: feedDiscovery.scopes,
-    feedRootIds: feedDiscovery.rootIds,
+    feedRootIds: feedDiscovery.presenceRootIds,
     partial,
   };
 }
@@ -495,6 +495,13 @@ interface FeedDiscovery {
    */
   rootIds: ReadonlySet<string>;
   /**
+   * Only the authoritative run.root_bead_id values — no workflow_id fallback.
+   * This is the set that may prove a bead root's PRESENCE (the overlay in
+   * citySummary); the broader `rootIds` set above is only ever conservative
+   * (extra ids prevent stranding) and stays confined to the absence evidence.
+   */
+  presenceRootIds: ReadonlySet<string>;
+  /**
    * False when any feed item lacked root_bead_id: such an item may cover a
    * root under a key the bead store never sees (workflow_id), so this read can
    * prove a root's presence but no longer prove any root's ABSENCE. A stranded
@@ -529,11 +536,13 @@ async function discoverFromFeed(
     const rigNames = new Set<string>();
     const scopes = new Map<string, RunFeedScope>();
     const rootIds = new Set<string>();
+    const presenceRootIds = new Set<string>();
     let rootIdsComplete = true;
     for (const run of runs.items ?? []) {
       const rootId = run.root_bead_id ?? run.workflow_id ?? null;
       if (rootId !== null) rootIds.add(rootId);
       if (run.root_bead_id == null) rootIdsComplete = false;
+      else presenceRootIds.add(run.root_bead_id);
       if (run.type !== 'formula') continue;
       const storeScope = fromStoreRef(run.root_store_ref ?? null);
       if (storeScope?.scopeKind === 'rig') {
@@ -568,6 +577,7 @@ async function discoverFromFeed(
       rigNames: [...rigNames],
       scopes,
       rootIds,
+      presenceRootIds,
       rootIdsComplete,
       partial: feedIsPartial(runs),
     };
@@ -576,6 +586,7 @@ async function discoverFromFeed(
       rigNames: [],
       scopes: new Map(),
       rootIds: new Set(),
+      presenceRootIds: new Set(),
       rootIdsComplete: false,
       partial: true,
     };

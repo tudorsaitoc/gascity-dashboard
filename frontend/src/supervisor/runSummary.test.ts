@@ -1222,6 +1222,25 @@ describe('run registration (gascity-dashboard-uxvk)', () => {
     expect(second.data.lanes.find((l) => l.id === 'gc-odssky')?.registration).toBe('registered');
   });
 
+  it('a workflow_id-only row never recovers a stranded lane (non-authoritative key)', async () => {
+    // The presence overlay trusts only run.root_bead_id. A rootless row whose
+    // workflow_id happens to equal the stranded root proves nothing about the
+    // bead root — the lane must stay stranded off the cached observation.
+    wideApi(feed([]));
+    const first = await loadSupervisorRunSummarySource();
+    if (first.status === 'error') throw new Error(first.error);
+    expect(first.data.lanes.find((l) => l.id === 'gc-odssky')?.registration).toBe('stranded');
+
+    const { root_bead_id: _omitted, ...rootless } = feedRun({
+      id: 'gc-odssky',
+      workflow_id: 'gc-odssky',
+    });
+    wideApi(feed([rootless]));
+    const second = await loadSupervisorRunSummarySource();
+    if (second.status === 'error') throw new Error(second.error);
+    expect(second.data.lanes.find((l) => l.id === 'gc-odssky')?.registration).toBe('stranded');
+  });
+
   it('the cheap active source reuses the cached complete-feed observation (no flap)', async () => {
     wideApi(feed([]));
     const wide = await loadSupervisorRunSummarySource();
