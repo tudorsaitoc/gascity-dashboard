@@ -104,6 +104,87 @@ describe('loadSupervisorFormulaRunDetail', () => {
     expect(detail.completeness).toEqual({ kind: 'complete' });
   });
 
+  // Audit finding M3 (ga-wisp-x0tank): current supervisor graph.v2 roots
+  // carry `gc.routed_to` instead of the retired `gc.run_target` (upstream
+  // gascity ga-eld2x / #2763). The title fallback must still resolve the
+  // formula name so the /formulas/{name} fetch fires instead of the page
+  // degrading to 'metadata missing' with the generic ladder.
+  it('title-falls-back and fetches formula detail when the root carries gc.routed_to only', async () => {
+    workflowRun.mockResolvedValue(
+      workflowSnapshot({
+        status: 'pending',
+        title: 'mol-adopt-pr-v2',
+        metadata: {
+          'gc.kind': 'workflow',
+          'gc.formula_contract': 'graph.v2',
+          'gc.routed_to': 'gascity/gc.run-operator',
+        },
+      }),
+    );
+    formulaDetail.mockResolvedValue({
+      ...formulaDetailResponse(),
+      name: 'mol-adopt-pr-v2',
+    });
+
+    const detail = await loadSupervisorFormulaRunDetail('wf-1', 'rig', 'gascity');
+
+    // The successful detail fetch is canonical, so provenance upgrades from
+    // 'title_fallback' to 'metadata' (e7hj/sadp precedence).
+    expect(detail.formula).toEqual({
+      kind: 'known',
+      name: 'mol-adopt-pr-v2',
+      source: 'metadata',
+    });
+    expect(detail.formulaDetail).toEqual({
+      kind: 'available',
+      name: 'mol-adopt-pr-v2',
+      target: 'gascity/gc.run-operator',
+    });
+    expect(formulaDetail).toHaveBeenCalledWith('test-city', 'mol-adopt-pr-v2', {
+      target: 'gascity/gc.run-operator',
+      scope_kind: 'rig',
+      scope_ref: 'gascity',
+    });
+  });
+
+  // Same routed_to root, but the formula registry fetch fails: the formula
+  // cell must still resolve via the title fallback (warn tone) instead of
+  // collapsing to 'metadata missing'. This is the rendered-page half of M3 —
+  // before the fix the page never even attempted the fetch.
+  it('keeps the title-fallback formula name for routed_to roots when the detail fetch fails', async () => {
+    workflowRun.mockResolvedValue(
+      workflowSnapshot({
+        status: 'pending',
+        title: 'mol-adopt-pr-v2',
+        metadata: {
+          'gc.kind': 'workflow',
+          'gc.formula_contract': 'graph.v2',
+          'gc.routed_to': 'gascity/gc.run-operator',
+        },
+      }),
+    );
+    formulaDetail.mockRejectedValue(new SupervisorApiError(400, 'target not found', undefined));
+
+    const detail = await loadSupervisorFormulaRunDetail('wf-1', 'rig', 'gascity');
+
+    expect(detail.formula).toEqual({
+      kind: 'known',
+      name: 'mol-adopt-pr-v2',
+      source: 'title_fallback',
+    });
+    expect(detail.formulaDetail).toEqual({
+      kind: 'unavailable',
+      reason: 'fetch_failed',
+      name: 'mol-adopt-pr-v2',
+      target: 'gascity/gc.run-operator',
+      failure: 'upstream_error',
+    });
+    expect(detail.completeness).toEqual({
+      kind: 'partial',
+      reasons: ['formula_detail_fetch_failed'],
+    });
+  });
+
   it('reports missing formula metadata without calling the formula endpoint', async () => {
     workflowRun.mockResolvedValue(
       workflowSnapshot({
@@ -250,6 +331,7 @@ describe('loadSupervisorFormulaRunDetail', () => {
 function workflowSnapshot(
   overrides: {
     status?: string;
+    title?: string;
     metadata?: Record<string, string>;
   } = {},
 ) {
@@ -267,7 +349,7 @@ function workflowSnapshot(
     beads: [
       {
         id: 'wf-1',
-        title: 'Direct supervisor run',
+        title: overrides.title ?? 'Direct supervisor run',
         status: overrides.status ?? 'in_progress',
         kind: 'workflow',
         metadata: overrides.metadata ?? {
