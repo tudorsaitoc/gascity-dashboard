@@ -44,16 +44,16 @@ const legacyGeneratedSchemasUrl = new URL(
   import.meta.url,
 );
 
-test('gc supervisor generated-client tooling runs on Node 22.13 or newer', async () => {
+test('gc supervisor generated-client tooling runs on Node 24 or newer', async () => {
   const rootPackage = JSON.parse(await readFile(rootPackageUrl, 'utf8')) as {
     engines?: { node?: string };
     devDependencies?: Record<string, string>;
   };
   const ciWorkflow = await readFile(ciWorkflowUrl, 'utf8');
 
-  assert.equal(rootPackage.engines?.node, '>=22.13.0');
-  assert.match(ciWorkflow, /node-version:\s*'22\.x'/);
-  assert.match(ciWorkflow, /typecheck \+ tests \(node 22\)/);
+  assert.equal(rootPackage.engines?.node, '>=24.0.0');
+  assert.match(ciWorkflow, /node-version:\s*'24\.x'/);
+  assert.match(ciWorkflow, /typecheck \+ tests \(node 24\)/);
   assert.ok(rootPackage.devDependencies?.['@hey-api/openapi-ts']);
 });
 

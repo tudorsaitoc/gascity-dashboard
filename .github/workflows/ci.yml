@@ -42,18 +42,18 @@ permissions:
 
 jobs:
   test:
-    name: typecheck + tests (node 22)
+    name: typecheck + tests (node 24)
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v5
 
       - uses: actions/setup-node@v5
         with:
-          # '22.x' rolls minor/patch updates within Node 22 — the engines
-          # field requires '>=22.13.0'. Pin to a patch version (or use .nvmrc
-          # with node-version-file) if reproducibility matters more than
+          # '24.x' rolls minor/patch updates within Node 24 (Active LTS) — the
+          # engines field requires '>=24.0.0'. Pin to a patch version (or use
+          # .nvmrc with node-version-file) if reproducibility matters more than
           # security patches.
-          node-version: '22.x'
+          node-version: '24.x'
           cache: 'npm'
 
       - name: Install

@@ -135,8 +135,8 @@ Full threat model: [`specs/architecture/security.md`](specs/architecture/securit
 
 ## Stack
 
-- **Backend** — Node 20 + Express + TypeScript. Single port serves API at `/api/*` and the SPA from `/`.
-- **Frontend** — React 18 + Vite + TypeScript + Tailwind, self-hosted Inter Variable. Single-page app, statically served by the backend in production.
+- **Backend** — Node 24 (Active LTS) + Express + TypeScript. Single port serves API at `/api/*` and the SPA from `/`.
+- **Frontend** — React 19 + Vite + TypeScript + Tailwind, self-hosted Inter Variable. Single-page app, statically served by the backend in production.
 - **Supervisor client** — generated OpenAPI client artifacts in backend and frontend. GC-owned resources should use these generated supervisor types directly.
 - **Shared types** — `gas-city-dashboard-shared` workspace package for dashboard-owned `/api/*` DTOs and UI contracts, not supervisor DTO mirrors.
 - **Deploy** — systemd user unit. Deliberately _not_ managed by `gc [[services]]`; see [`specs/architecture/overview.md`](specs/architecture/overview.md) for why the dashboard must outlive supervisor outages.

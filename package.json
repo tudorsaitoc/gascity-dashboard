@@ -29,7 +29,7 @@
     "typecheck:test": "npm --workspace backend run typecheck:test && npm --workspace frontend run typecheck:test"
   },
   "engines": {
-    "node": ">=22.13.0"
+    "node": ">=24.0.0"
   },
   "license": "MIT",
   "author": "Charlie Coutts",

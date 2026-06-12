@@ -418,7 +418,7 @@ describe('AgentsPage (post-ay6 regressions)', () => {
     );
 
     const table = await screen.findByRole('table');
-    expect(within(table).getByText('Approve deployment?')).toBeTruthy();
+    expect(await within(table).findByText('Approve deployment?')).toBeTruthy();
 
     const approve = screen.getByRole('button', { name: /approve/i }) as HTMLButtonElement;
     const deny = screen.getByRole('button', { name: /deny/i }) as HTMLButtonElement;

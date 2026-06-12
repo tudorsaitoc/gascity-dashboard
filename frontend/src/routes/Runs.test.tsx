@@ -577,7 +577,10 @@ describe('RunsPage — partial lane set (gascity-dashboard-n6f1)', () => {
     mount();
     await waitForMount();
 
-    const marker = await screen.findByText(/runs partial/i);
+    // Runs.tsx always renders an aria-hidden "runs partial" placeholder for
+    // layout stability; scope the match to the live status element so we wait
+    // for the real partial notice rather than matching the hidden spacer.
+    const marker = await screen.findByText(/runs partial/i, { selector: '[role="status"]' });
     const live = await screen.findByText(/^live$/i);
     expect(marker).toBeTruthy();
     expect(marker.getAttribute('role')).toBe('status');

@@ -30,8 +30,8 @@ attention/domain surface contract lives in
 
 ## Stack: TypeScript end-to-end
 
-- Backend: Node 22.13+ + Express + TypeScript.
-- Frontend: React 18 + Vite + TypeScript + Tailwind. Self-hosted Inter Variable.
+- Backend: Node 24+ (Active LTS) + Express + TypeScript.
+- Frontend: React 19 + Vite + TypeScript + Tailwind. Self-hosted Inter Variable.
 - **Generated supervisor client**: GC-owned browser surfaces use generated
   supervisor OpenAPI types/client directly.
 - **Shared DTOs**: `shared/` workspace package (`gas-city-dashboard-shared`)

@@ -105,7 +105,7 @@ function DiffFile({ file }: { file: FileData }) {
             hunks={file.hunks}
             renderGutter={renderGitGutter}
           >
-            {(hunks) => hunks.map((hunk) => <Hunk key={hunkKey(hunk)} hunk={hunk} />)}
+            {(hunks: HunkData[]) => hunks.map((hunk) => <Hunk key={hunkKey(hunk)} hunk={hunk} />)}
           </Diff>
         </div>
       )}

@@ -479,14 +479,18 @@ describe('FormulaRunDetailPage', () => {
     renderPage('/runs/gc-adopt-pr-active?scope_kind=city&scope_ref=racoon-city');
     await screen.findByRole('heading', { name: /adopt pr #42/i });
 
-    const runUrls = fetchUrls.filter((url) => url.startsWith('/api/city/test-city/runs/'));
     expect(loadSupervisorFormulaRunDetail).toHaveBeenCalledWith(
       'gc-adopt-pr-active',
       'city',
       'racoon-city',
     );
-    expect(runUrls).toContain(
-      '/api/city/test-city/runs/gc-adopt-pr-active/diff?scope_kind=city&scope_ref=racoon-city',
+    // The diff fetch is fired from its own hook effect, which under React 19
+    // can flush a tick after the detail heading paints; wait for the scoped
+    // diff URL rather than reading fetchUrls synchronously.
+    await waitFor(() =>
+      expect(fetchUrls.filter((url) => url.startsWith('/api/city/test-city/runs/'))).toContain(
+        '/api/city/test-city/runs/gc-adopt-pr-active/diff?scope_kind=city&scope_ref=racoon-city',
+      ),
     );
   });
 
@@ -651,7 +655,7 @@ describe('FormulaRunDetailPage', () => {
   it('renders the current execution-folder diff as grouped files', async () => {
     const { container } = renderPage();
     await screen.findByRole('heading', { name: /adopt pr #42/i });
-    expect(screen.getByRole('heading', { name: /local changes/i })).toBeTruthy();
+    expect(await screen.findByRole('heading', { name: /local changes/i })).toBeTruthy();
     expect(screen.getByText('shared/src/runs/enrich.ts')).toBeTruthy();
     expect(screen.getByText('docs/plan.md')).toBeTruthy();
     await screen.findByText('preserve failed attempt transcript links');
