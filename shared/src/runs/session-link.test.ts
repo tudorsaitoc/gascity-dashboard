@@ -58,3 +58,65 @@ describe('runSessionLinkFor — session id normalization', () => {
     assert.equal(runSessionLinkFor(bead, 'ready'), undefined);
   });
 });
+
+// Regression coverage for the mangled-session-id bug (audit finding M8). The
+// supervisor builds pool worker session names as
+// `{sanitized template base}-{session bead id}` (gascity
+// cmd/gc/pool_session_name.go PoolSessionName), so a wisp step records
+// `gc__implementation-worker-mc-wisp-08fqjv` for the real supervisor session
+// id `mc-wisp-08fqjv`. The old suffix regex could not represent the 2-letter
+// `mc-` store prefix: it latched onto the first 4-letter word followed by a
+// hyphen, deriving `wisp-08fqjv` (drops `mc-`) and — because `test` is a
+// 4-letter word — `test-risk-reviewer-mc-wisp-nw0w7v`, which 404s on the
+// supervisor. Beads are shaped like the captured ga-wisp-x0tank payload.
+describe('runSessionLinkFor — supervisor session id extraction from gc__<role>-<bead-id> names', () => {
+  test('extracts the full session bead id, keeping the mc- store prefix', () => {
+    const bead = {
+      assignee: 'gc__implementation-worker-mc-wisp-08fqjv',
+      metadata: {
+        'gc.session_name': 'gc__implementation-worker-mc-wisp-08fqjv',
+        'gc.run_target': 'gascity/gc.implementation-worker',
+      },
+    } as never;
+    const link = runSessionLinkFor(bead, 'done');
+    assert.equal(link?.sessionId, 'mc-wisp-08fqjv');
+    assert.equal(link?.sessionName, 'gc__implementation-worker-mc-wisp-08fqjv');
+  });
+
+  test('does not anchor on a 4-letter word inside a hyphenated role name', () => {
+    // `test` in `design-test-risk-reviewer` matched the old [a-z]{4} prefix
+    // alternation, producing the dangling id
+    // `test-risk-reviewer-mc-wisp-nw0w7v`.
+    const bead = {
+      assignee: 'gc__design-test-risk-reviewer-mc-wisp-nw0w7v',
+      metadata: {
+        'gc.session_name': 'gc__design-test-risk-reviewer-mc-wisp-nw0w7v',
+        'gc.run_target': 'gascity/gc.design-test-risk-reviewer',
+      },
+    } as never;
+    const link = runSessionLinkFor(bead, 'done');
+    assert.equal(link?.sessionId, 'mc-wisp-nw0w7v');
+  });
+
+  test('extracts from an assignee-only bead with no session metadata', () => {
+    // ga-wisp-2aadix in the captured payload: assignee only, no
+    // gc.session_name.
+    const bead = { assignee: 'gc__run-operator-mc-wisp-r5uqi9' } as never;
+    const link = runSessionLinkFor(bead, 'done');
+    assert.equal(link?.sessionId, 'mc-wisp-r5uqi9');
+  });
+
+  test('passes a bare 2-letter-prefixed session bead id through unchanged', () => {
+    const bead = { metadata: { session_id: 'mc-wisp-08fqjv' } } as never;
+    const link = runSessionLinkFor(bead, 'done');
+    assert.equal(link?.sessionId, 'mc-wisp-08fqjv');
+  });
+
+  test('degrades when the trailing tokens are role words, not a bead id', () => {
+    // `crew-lead` is shaped like `<prefix>-<suffix>` but `lead` is an
+    // English word, not a bead-id hash — bd requires a digit in 4-8 char
+    // hash suffixes. The old regex extracted `crew-lead` as a session id.
+    const bead = { assignee: 'polecat-crew-lead' } as never;
+    assert.equal(runSessionLinkFor(bead, 'done'), undefined);
+  });
+});
