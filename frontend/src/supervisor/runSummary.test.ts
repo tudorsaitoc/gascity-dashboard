@@ -1182,6 +1182,46 @@ describe('run registration (gascity-dashboard-uxvk)', () => {
     expect(second.data.lanes.find((l) => l.id === 'gc-odssky')?.registration).toBe('registered');
   });
 
+  it('a partial feed read that lists the root recovers stranded to registered', async () => {
+    // A partial read cannot prove absence, but it proves presence: the listed
+    // root must not stay stranded off the older cached observation.
+    wideApi(feed([]));
+    const first = await loadSupervisorRunSummarySource();
+    if (first.status === 'error') throw new Error(first.error);
+    expect(first.data.lanes.find((l) => l.id === 'gc-odssky')?.registration).toBe('stranded');
+
+    wideApi(
+      feed(
+        [feedRun({ id: 'gc-odssky', root_bead_id: 'gc-odssky', workflow_id: 'gc-odssky' })],
+        true,
+      ),
+    );
+    const second = await loadSupervisorRunSummarySource();
+    if (second.status === 'error') throw new Error(second.error);
+    expect(second.data.lanes.find((l) => l.id === 'gc-odssky')?.registration).toBe('registered');
+  });
+
+  it('a root-incomplete feed read that lists the root recovers stranded to registered', async () => {
+    wideApi(feed([]));
+    const first = await loadSupervisorRunSummarySource();
+    if (first.status === 'error') throw new Error(first.error);
+    expect(first.data.lanes.find((l) => l.id === 'gc-odssky')?.registration).toBe('stranded');
+
+    const { root_bead_id: _omitted, ...rootless } = feedRun({
+      id: 'other-run',
+      workflow_id: 'wf-other',
+    });
+    wideApi(
+      feed([
+        feedRun({ id: 'gc-odssky', root_bead_id: 'gc-odssky', workflow_id: 'gc-odssky' }),
+        rootless,
+      ]),
+    );
+    const second = await loadSupervisorRunSummarySource();
+    if (second.status === 'error') throw new Error(second.error);
+    expect(second.data.lanes.find((l) => l.id === 'gc-odssky')?.registration).toBe('registered');
+  });
+
   it('the cheap active source reuses the cached complete-feed observation (no flap)', async () => {
     wideApi(feed([]));
     const wide = await loadSupervisorRunSummarySource();

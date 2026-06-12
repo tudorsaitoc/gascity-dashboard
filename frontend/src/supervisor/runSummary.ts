@@ -87,6 +87,13 @@ const HISTORY_ENRICHMENT_TIMEOUT_MS = 30_000;
 interface LoadedRunBeads {
   beads: DashboardBead[];
   feedScopes: RunFeedScopeMap;
+  /**
+   * Root ids the feed listed in THIS load, regardless of the read's
+   * completeness — a partial or root-incomplete read cannot prove absence,
+   * but it still proves presence for every root it lists. Null when the load
+   * never read the feed (the cheap active source).
+   */
+  feedRootIds: ReadonlySet<string> | null;
   partial: boolean;
 }
 
@@ -155,11 +162,24 @@ export async function loadSupervisorRunSummaryMountSource(): Promise<SourceState
 // (wide refresh, cheap active, preview) derives registration from the same
 // per-city feed observation.
 function citySummary(cityName: string, loaded: LoadedRunBeads): RunSummary {
+  const cached = feedObservationByCity.get(cityName);
+  // Presence overlay (review iter 2): the stranded judgment's ABSENCE evidence
+  // must come from the cached complete observation, but any feed read — even
+  // partial or root-incomplete — proves PRESENCE for the roots it lists. Merge
+  // them in so a stranded lane recovers the moment any read shows the
+  // supervisor knows its root, instead of waiting for the next complete read.
+  const observation =
+    cached !== undefined && loaded.feedRootIds !== null && loaded.feedRootIds.size > 0
+      ? {
+          rootIds: new Set([...cached.rootIds, ...loaded.feedRootIds]),
+          observedAtMs: cached.observedAtMs,
+        }
+      : cached;
   return buildRunSummary(
     loaded.beads.filter(runBeadFilter).map(fromDashboardBead),
     loaded.feedScopes,
     loaded.partial,
-    feedObservationByCity.get(cityName),
+    observation,
   );
 }
 
@@ -247,6 +267,7 @@ async function loadActiveRunBeads(cityName: string, limit: number): Promise<Load
   return {
     beads: active,
     feedScopes: new Map(),
+    feedRootIds: null,
     partial: listIsIncomplete(activeList, active.length),
   };
 }
@@ -432,6 +453,7 @@ async function loadHistoryBeads(cityName: string, forceFresh: boolean): Promise<
   return {
     beads: uniqueBeads([...active, ...recentItems]),
     feedScopes: feedDiscovery.scopes,
+    feedRootIds: feedDiscovery.rootIds,
     partial,
   };
 }

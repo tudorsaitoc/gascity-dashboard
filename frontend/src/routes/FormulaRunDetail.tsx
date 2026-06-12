@@ -197,7 +197,17 @@ export function FormulaRunDetailPage() {
       {loading && !routeError && !detail ? (
         skeletonLane ? (
           <>
-            <StageLadder stages={skeletonLane.stages} label={skeletonLane.title} />
+            {/* A stranded lane must not flash a live stage ladder while the
+                detail loads — mirror the LaneCard stranded treatment. */}
+            {skeletonLane.registration === 'stranded' ? (
+              <p className="text-body text-fg-muted leading-snug" role="status">
+                <span aria-hidden="true">(!)</span> stranded: dispatched but never registered with
+                the supervisor, likely a supervisor restart or crash at dispatch time. This run
+                never executed.
+              </p>
+            ) : (
+              <StageLadder stages={skeletonLane.stages} label={skeletonLane.title} />
+            )}
             <p className="text-body text-fg-muted italic mt-8">Loading run detail.</p>
           </>
         ) : (
