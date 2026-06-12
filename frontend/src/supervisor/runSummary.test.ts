@@ -1065,3 +1065,130 @@ function sessionList(): ListBodySessionResponse {
     total: 0,
   };
 }
+
+// gascity-dashboard-uxvk: orphaned-molecule registration. The wide sources
+// observe the supervisor formula feed; a COMPLETE read is cached per city so
+// the cheap SSE-burst source (which deliberately skips the feed) judges lanes
+// off the same observation instead of flapping every stranded lane back to
+// unknown on each burst.
+describe('run registration (gascity-dashboard-uxvk)', () => {
+  beforeEach(() => {
+    setActiveCity('test-city');
+    resetSupervisorRunSummaryStateForTests();
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2026-06-01T12:00:00.000Z'));
+  });
+
+  afterEach(() => {
+    resetSupervisorApiForTests();
+    resetSupervisorRunSummaryStateForTests();
+    vi.unstubAllGlobals();
+    vi.useRealTimers();
+    vi.clearAllMocks();
+  });
+
+  function orphanBeads(): Bead[] {
+    // The gc-odssky shape: a molecule root with an all-open step graph,
+    // dispatched an hour ago (well past the dispatch grace).
+    return [
+      runRoot({ id: 'gc-odssky', title: 'mol-pr-start: gascity issue #3192' }),
+      bead({
+        id: 'gc-odssky-s1',
+        title: 'read issue',
+        status: 'open',
+        metadata: {
+          'gc.kind': 'step',
+          'gc.root_bead_id': 'gc-odssky',
+          'gc.step_id': 'read-issue',
+        },
+      }),
+    ];
+  }
+
+  function wideApi(feedBody: FormulaFeedBody) {
+    const listBeads = vi.fn(async (_cityName: string, query?: Record<string, unknown>) => {
+      if (query?.type === 'molecule') return beadList([]);
+      if (query?.rig !== undefined) return beadList([]);
+      return beadList(orphanBeads());
+    });
+    setSupervisorApiForTests({
+      ...baseApi,
+      listBeads,
+      formulaFeed: vi.fn(async () => feedBody),
+      listSessions: vi.fn(async () => sessionList()),
+    });
+  }
+
+  it('marks an orphaned molecule stranded off a complete feed read', async () => {
+    wideApi(feed([]));
+
+    const source = await loadSupervisorRunSummarySource();
+
+    expect(source.status).toBe('fresh');
+    if (source.status === 'error') throw new Error(source.error);
+    const lane = source.data.lanes.find((l) => l.id === 'gc-odssky');
+    expect(lane?.registration).toEqual({ status: 'stranded' });
+    expect(lane?.phase).toBe('intake');
+  });
+
+  it('a run listed by the feed is registered', async () => {
+    wideApi(
+      feed([feedRun({ id: 'gc-odssky', root_bead_id: 'gc-odssky', workflow_id: 'gc-odssky' })]),
+    );
+
+    const source = await loadSupervisorRunSummarySource();
+
+    if (source.status === 'error') throw new Error(source.error);
+    const lane = source.data.lanes.find((l) => l.id === 'gc-odssky');
+    expect(lane?.registration).toEqual({ status: 'registered' });
+  });
+
+  it('a partial feed read never strands a lane', async () => {
+    wideApi(feed([], true));
+
+    const source = await loadSupervisorRunSummarySource();
+
+    if (source.status === 'error') throw new Error(source.error);
+    const lane = source.data.lanes.find((l) => l.id === 'gc-odssky');
+    expect(lane?.registration.status).toBe('unknown');
+  });
+
+  it('the cheap active source reuses the cached complete-feed observation (no flap)', async () => {
+    wideApi(feed([]));
+    const wide = await loadSupervisorRunSummarySource();
+    if (wide.status === 'error') throw new Error(wide.error);
+    expect(wide.data.lanes.find((l) => l.id === 'gc-odssky')?.registration.status).toBe('stranded');
+
+    // The cheap source: core active read + sessions only, NO feed read.
+    const listBeads = vi.fn(async () => beadList(orphanBeads()));
+    const formulaFeed = vi.fn();
+    setSupervisorApiForTests({
+      ...baseApi,
+      listBeads,
+      formulaFeed,
+      listSessions: vi.fn(async () => sessionList()),
+    });
+
+    const cheap = await loadSupervisorRunSummaryActiveSource();
+
+    if (cheap.status === 'error') throw new Error(cheap.error);
+    expect(formulaFeed).not.toHaveBeenCalled();
+    expect(cheap.data.lanes.find((l) => l.id === 'gc-odssky')?.registration).toEqual({
+      status: 'stranded',
+    });
+  });
+
+  it('without any complete feed observation the cheap source reports unknown', async () => {
+    const listBeads = vi.fn(async () => beadList(orphanBeads()));
+    setSupervisorApiForTests({
+      ...baseApi,
+      listBeads,
+      listSessions: vi.fn(async () => sessionList()),
+    });
+
+    const cheap = await loadSupervisorRunSummaryActiveSource();
+
+    if (cheap.status === 'error') throw new Error(cheap.error);
+    expect(cheap.data.lanes.find((l) => l.id === 'gc-odssky')?.registration.status).toBe('unknown');
+  });
+});

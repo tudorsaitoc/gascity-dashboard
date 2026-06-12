@@ -1148,3 +1148,57 @@ describe('isPrimaryStepIssue — control constructs are not primary steps', () =
     assert.equal(isPrimaryStepIssue(issueWithKind('run-finalize')), false);
   });
 });
+
+// gascity-dashboard-uxvk: an orphaned molecule (dispatched during a supervisor
+// crash-loop, never registered, never executed) carries a full graph of OPEN
+// step beads. The furthest-stage fallback ran over ALL step-id carriers — open
+// ones included — so a run with ZERO step progress read as a mid-run phase
+// (gc-odssky surfaced as "implementation" with every step still open). With no
+// in_progress step and no closed step there is no progress signal at all; the
+// run is at its start, so it must read as intake, never a later stage.
+describe('mapRunPhase — zero step progress never invents a mid-run phase (gascity-dashboard-uxvk)', () => {
+  test('all step beads open (never executed) → intake, not implementation or review', () => {
+    // The gc-odssky shape: a planning-phase step graph, entirely open.
+    const phase = mapRunPhase([
+      root({ id: 'z1' }),
+      step('z1-s1', 'read-issue', 'open'),
+      step('z1-s2', 'plan-implementation', 'open'),
+      step('z1-s3', 'conventions-audit', 'open'),
+      step('z1-s4', 'blast-radius', 'open'),
+      step('z1-s5', 'plan-gates', 'open'),
+    ]);
+    assert.notEqual(phase.phase, 'implementation');
+    assert.notEqual(phase.phase, 'review');
+    assert.equal(phase.phase, 'intake');
+  });
+
+  test('an in_progress root bead with all steps open is still zero step progress → intake', () => {
+    const phase = mapRunPhase([
+      root({ id: 'z2', status: 'in_progress' }),
+      step('z2-s1', 'plan-implementation', 'open'),
+      step('z2-s2', 'conventions-audit', 'open'),
+    ]);
+    assert.equal(phase.phase, 'intake');
+  });
+
+  test('a single closed step among open ones keeps the existing furthest-stage pick', () => {
+    const phase = mapRunPhase([
+      root({ id: 'z3' }),
+      step('z3-s1', 'implement-change', 'closed'),
+      step('z3-s2', 'code-review-loop', 'open'),
+    ]);
+    // Not zero progress: the deterministic furthest pick stays as pinned by the
+    // Major 3 suite (review here, since the open review step outranks the
+    // closed implementation step).
+    assert.equal(phase.phase, 'review');
+  });
+
+  test('an in_progress step always wins over the zero-progress clamp', () => {
+    const phase = mapRunPhase([
+      root({ id: 'z4' }),
+      step('z4-s1', 'implement-change', 'in_progress'),
+      step('z4-s2', 'code-review-loop', 'open'),
+    ]);
+    assert.equal(phase.phase, 'implementation');
+  });
+});

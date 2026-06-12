@@ -27,6 +27,7 @@ function historicalLane(id: string): RunLane {
     stages: [],
     progress: { status: 'unavailable', error: 'run progress unavailable in test' },
     formulaStageResolved: false,
+    registration: { status: 'unknown', error: 'supervisor formula feed not observed' },
     health: { status: 'unavailable', error: 'run health has not been derived' },
   };
 }
@@ -143,6 +144,7 @@ function activeLane(id: string): RunLane {
     stages: [],
     progress: { status: 'unavailable', error: 'run progress unavailable in test' },
     formulaStageResolved: false,
+    registration: { status: 'unknown', error: 'supervisor formula feed not observed' },
     health: { status: 'unavailable', error: 'run health has not been derived' },
   };
 }

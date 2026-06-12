@@ -211,7 +211,9 @@ export function FormulaRunDetailPage() {
       ) : notFound ? (
         <p className="text-body text-fg-muted" role="status">
           This run&rsquo;s detail snapshot was not found. It may be a v1/wisp run, a completed run
-          whose snapshot wasn&rsquo;t retained, or no longer available.
+          whose snapshot wasn&rsquo;t retained, no longer available, or a run that was dispatched
+          but never registered with the supervisor (a supervisor restart or crash at dispatch time
+          strands a run before it executes).
         </p>
       ) : pageError && !detail ? (
         <p className="text-body text-accent" role="alert">

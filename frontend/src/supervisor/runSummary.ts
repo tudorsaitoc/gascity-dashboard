@@ -4,6 +4,7 @@ import type {
   RunFeedScope,
   RunFeedScopeMap,
   RunHistory,
+  RunRegistryObservation,
   RunSummary,
   SourceAvailableState,
   SourceState,
@@ -102,6 +103,15 @@ interface ProgressState {
 
 const progressStateByCity = new Map<string, ProgressState>();
 
+// gascity-dashboard-uxvk: the last COMPLETE formula-feed observation per city,
+// the evidence behind the stranded-run judgment (orphaned molecule with no
+// supervisor workflow record). Only the wide sources read the feed; caching the
+// observation here lets the cheap SSE-burst source judge lanes off the same
+// evidence instead of flapping every stranded lane back to 'unknown' on each
+// burst. A partial or failed feed read never updates the cache — the last
+// known-good observation keeps serving until a complete read replaces it.
+const feedObservationByCity = new Map<string, RunRegistryObservation>();
+
 // The wide-budget run-summary source (gascity-dashboard-4bol): the wide
 // enrichment budget lets the slow-but-available city feed (measured 14.3s) land
 // and clear the spurious "runs partial" badge (upstream gascity-dashboard#88).
@@ -156,6 +166,7 @@ async function loadRunSummarySource(
       loaded.beads.filter(runBeadFilter).map(fromDashboardBead),
       loaded.feedScopes,
       loaded.partial,
+      feedObservationByCity.get(cityName),
     );
     const source: SourceAvailableState<RunSummary> = {
       source: 'runs',
@@ -200,6 +211,7 @@ export async function loadSupervisorRunSummaryActiveSource(): Promise<SourceStat
       loaded.beads.filter(runBeadFilter).map(fromDashboardBead),
       loaded.feedScopes,
       loaded.partial,
+      feedObservationByCity.get(cityName),
     );
     const source: SourceAvailableState<RunSummary> = {
       source: 'runs',
@@ -246,6 +258,7 @@ export async function loadSupervisorRunSummaryPreviewSource(): Promise<SourceSta
       loaded.beads.filter(runBeadFilter).map(fromDashboardBead),
       loaded.feedScopes,
       loaded.partial,
+      feedObservationByCity.get(cityName),
     );
     return {
       source: 'runs',
@@ -304,6 +317,7 @@ export async function loadSupervisorRunHistorySource(options?: {
 
 export function resetSupervisorRunSummaryStateForTests(): void {
   progressStateByCity.clear();
+  feedObservationByCity.clear();
 }
 
 // Exposed for tests: the raised core-read budget that absorbs a CPU-burst spike.
@@ -380,6 +394,15 @@ async function loadHistoryBeads(cityName: string, forceFresh: boolean): Promise<
     fetchCoreActiveBeads(cityName, RUNS_FETCH_LIMIT),
     discoverFromFeed(cityName, budgetMs, forceFresh),
   ]);
+  // gascity-dashboard-uxvk: a COMPLETE feed read is the registration evidence;
+  // record when it was taken so the stranded judgment's dispatch grace is
+  // anchored to the observation, never to a later clock read.
+  if (!feedDiscovery.partial) {
+    feedObservationByCity.set(cityName, {
+      rootIds: feedDiscovery.rootIds,
+      observedAtMs: Date.now(),
+    });
+  }
   const active = normalizeBeads(activeList.items ?? []);
   const rigNames = unionRigNames(runRigNames(active), feedDiscovery.rigNames);
 
@@ -445,6 +468,13 @@ async function settledRecentFetch(
 interface FeedDiscovery {
   rigNames: string[];
   scopes: RunFeedScopeMap;
+  /**
+   * Every run root id the feed listed, regardless of scope resolvability —
+   * the registration evidence (gascity-dashboard-uxvk). Deliberately a
+   * superset of `scopes` keys: a feed item whose scope cannot be resolved
+   * still proves the supervisor knows the run.
+   */
+  rootIds: ReadonlySet<string>;
   partial: boolean;
 }
 
@@ -472,7 +502,10 @@ async function discoverFromFeed(
     );
     const rigNames = new Set<string>();
     const scopes = new Map<string, RunFeedScope>();
+    const rootIds = new Set<string>();
     for (const run of runs.items ?? []) {
+      const feedRootId = run.root_bead_id ?? run.workflow_id ?? null;
+      if (feedRootId !== null) rootIds.add(feedRootId);
       if (run.type !== 'formula') continue;
       const storeScope = fromStoreRef(run.root_store_ref ?? null);
       if (storeScope?.scopeKind === 'rig') {
@@ -504,9 +537,9 @@ async function discoverFromFeed(
         });
       }
     }
-    return { rigNames: [...rigNames], scopes, partial: feedIsPartial(runs) };
+    return { rigNames: [...rigNames], scopes, rootIds, partial: feedIsPartial(runs) };
   } catch {
-    return { rigNames: [], scopes: new Map(), partial: true };
+    return { rigNames: [], scopes: new Map(), rootIds: new Set(), partial: true };
   }
 }
 

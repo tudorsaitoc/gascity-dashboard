@@ -1,4 +1,4 @@
-import type { RunIssue } from './phaseMapping.js';
+import { isPrimaryStepIssue, stringValue, type RunIssue } from './phaseMapping.js';
 import type { RunLane } from '../snapshot/types.js';
 
 // gascity-dashboard-s4rp: a run can be echoed by the supervisor long after it
@@ -71,4 +71,67 @@ function laneSessionResolved(lane: RunLane): boolean {
  */
 export function isDanglingRootGroup(rootId: string, issues: readonly RunIssue[]): boolean {
   return !issues.some((issue) => issue.id === rootId);
+}
+
+// gascity-dashboard-uxvk: an orphaned molecule. The operator repro is
+// gc-odssky — dispatched during a supervisor orphan-PID crash-loop, so the
+// molecule bead graph persisted in the rig store but the supervisor's workflow
+// registry has NO entry (workflow detail 404, absent from a complete formula
+// feed) and every step child is still open: the run NEVER EXECUTED and never
+// will. Built from beads alone it rendered as a live lane with a stage and a
+// relative time — a false-alive signal the operator cannot distinguish from a
+// working run.
+
+/**
+ * The supervisor-registry side of the stranded judgment: the set of run root
+ * ids present in a COMPLETE formula-feed read, and when that read was taken.
+ * `observedAtMs` is the age reference for {@link STRANDED_DISPATCH_GRACE_MS} —
+ * judging a run's age against the observation that failed to list it (rather
+ * than a live clock) means a cached observation can never strand a run that
+ * was dispatched after it was taken.
+ */
+export interface RunRegistryObservation {
+  rootIds: ReadonlySet<string>;
+  observedAtMs: number;
+}
+
+/**
+ * Dispatch grace: a run is only judged stranded once its last bead write is at
+ * least this much older than the feed observation that lacks it. Registration
+ * normally follows bead creation within seconds; the race a grace must absorb
+ * is one refresh cycle (the bead read and the feed read run concurrently,
+ * ≤60s apart). Ten minutes is an order of magnitude above that race and far
+ * below the hours-old scale at which an operator meets a stranded run.
+ */
+export const STRANDED_DISPATCH_GRACE_MS = 10 * 60 * 1000;
+
+/**
+ * True when a run group is conclusively stranded: it has a structured step
+ * graph with ZERO progress (every primary gc.step_id carrier still open), the
+ * supervisor's formula feed — read completely — does not know its root, and
+ * its last bead write predates that observation by the dispatch grace. Any
+ * weaker evidence returns false: a run with step progress executed (feed
+ * absence just means it aged out of the feed window), and a group without a
+ * step graph offers no never-executed signal to judge.
+ */
+export function isStrandedRun(
+  rootId: string,
+  issues: readonly RunIssue[],
+  observation: RunRegistryObservation,
+): boolean {
+  if (observation.rootIds.has(rootId)) return false;
+
+  const stepCarriers = issues.filter(
+    (issue) => isPrimaryStepIssue(issue) && stringValue(issue.metadata?.['gc.step_id']) !== '',
+  );
+  if (stepCarriers.length === 0) return false;
+  if (stepCarriers.some((issue) => issue.status !== 'open')) return false;
+
+  const lastWriteMs = issues
+    .map((issue) => Date.parse(issue.updated_at))
+    .filter((ms) => Number.isFinite(ms))
+    .reduce((latest, ms) => Math.max(latest, ms), Number.NEGATIVE_INFINITY);
+  if (!Number.isFinite(lastWriteMs)) return false;
+
+  return observation.observedAtMs - lastWriteMs >= STRANDED_DISPATCH_GRACE_MS;
 }

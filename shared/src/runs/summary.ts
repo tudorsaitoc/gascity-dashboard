@@ -9,7 +9,7 @@ import type {
 import { fromRootMetadataScope } from '../run-scope.js';
 import { stripNonPrintable } from '../strip-non-printable.js';
 import { resolveRunFormulaIdentity } from './formula-name.js';
-import { isDanglingRootGroup } from './liveness.js';
+import { isDanglingRootGroup, isStrandedRun, type RunRegistryObservation } from './liveness.js';
 import {
   baseStepId,
   isPrimaryStepIssue,
@@ -57,6 +57,11 @@ export function buildRunSummary(
   issues: RunIssue[],
   feedScopes: RunFeedScopeMap = new Map(),
   partial = false,
+  // gascity-dashboard-uxvk: the last COMPLETE formula-feed observation, used
+  // to mark orphaned molecules (no supervisor workflow record) as stranded.
+  // Omitted (feed never read completely) → every lane's registration is
+  // 'unknown' — a feed outage must never strand the whole board.
+  registry?: RunRegistryObservation,
 ): RunSummary {
   const { laneIssues, sortedLanes } = buildSortedRunLanes(issues, feedScopes);
 
@@ -138,7 +143,7 @@ function buildSortedRunLanes(
   );
   const laneIssues = runGroups.flatMap(([, groupIssues]) => groupIssues);
   const sortedLanes = runGroups
-    .map(([rootId, groupIssues]) => runLane(rootId, groupIssues, feedScopes))
+    .map(([rootId, groupIssues]) => runLane(rootId, groupIssues, feedScopes, registry))
     .sort(compareLanes);
   return { laneIssues, sortedLanes };
 }
@@ -209,7 +214,12 @@ export function runKind(
   return 'other';
 }
 
-export function runLane(rootId: string, issues: RunIssue[], feedScopes: RunFeedScopeMap): RunLane {
+export function runLane(
+  rootId: string,
+  issues: RunIssue[],
+  feedScopes: RunFeedScopeMap,
+  registry?: RunRegistryObservation,
+): RunLane {
   const phase = mapRunPhase(issues);
   const updatedAt = latestUpdatedAt(issues);
   const formula = runFormula(rootId, issues);
@@ -252,6 +262,31 @@ export function runLane(rootId: string, issues: RunIssue[], feedScopes: RunFeedS
     progress,
     formulaStageResolved,
     health: runHealthUnavailable(),
+    registration: runRegistration(rootId, issues, registry),
+  };
+}
+
+// gascity-dashboard-uxvk: tri-state on purpose. 'stranded' needs the strong
+// evidence isStrandedRun demands; everything weaker is an explicit 'unknown'
+// rather than a guessed 'registered', so consumers can never treat a feed gap
+// as a confirmation either way.
+function runRegistration(
+  rootId: string,
+  issues: RunIssue[],
+  registry?: RunRegistryObservation,
+): RunLane['registration'] {
+  if (registry === undefined) {
+    return { status: 'unknown', error: 'supervisor formula feed not observed' };
+  }
+  if (registry.rootIds.has(rootId)) {
+    return { status: 'registered' };
+  }
+  if (isStrandedRun(rootId, issues, registry)) {
+    return { status: 'stranded' };
+  }
+  return {
+    status: 'unknown',
+    error: 'run absent from the supervisor formula feed but not conclusively stranded',
   };
 }
 

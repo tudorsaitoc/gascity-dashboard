@@ -716,6 +716,9 @@ describe('FormulaRunDetailPage', () => {
     renderPage();
 
     await screen.findByText(/this run’s detail snapshot was not found/i);
+    // gascity-dashboard-uxvk: the copy must name the orphaned-molecule cause —
+    // dispatched but never registered with the supervisor — alongside v1/wisp.
+    expect(screen.getByText(/never registered with the supervisor/i)).toBeTruthy();
     // Does not over-claim v1.
     expect(screen.queryByText(/v1\/wisp runs are list-only/i)).toBeNull();
     // Not the generic dead-end, and not an error alert.
@@ -875,6 +878,7 @@ function runSummarySourceWithActiveLane(): SourceState<RunSummary> {
     ],
     progress: { status: 'unavailable', error: 'active run step unavailable' },
     formulaStageResolved: false,
+    registration: { status: 'unknown', error: 'supervisor formula feed not observed' },
     health: {
       status: 'available',
       data: {

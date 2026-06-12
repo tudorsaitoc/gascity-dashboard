@@ -102,6 +102,20 @@ export function mapRunPhase(issues: RunIssue[]): PhaseMapping {
 function structuredPhase(issues: RunIssue[]): PhaseMapping | null {
   const primary = issues.filter(isPrimaryStepIssue);
   const inProgressStep = latestStepId(primary.filter((i) => isInFlightStatus(i.status)));
+  // gascity-dashboard-uxvk: ZERO step progress — every gc.step_id carrier is
+  // still open (none in flight, none closed). The furthest-stage pick below
+  // runs over ALL carriers, open ones included, so a never-executed run (the
+  // orphaned-molecule repro gc-odssky, all six step children open) would read
+  // as whatever mid-run stage its step VOCABULARY ranks highest. With no
+  // progress signal at all the run is at its start: intake, never a later
+  // stage. Any non-open carrier (closed, blocked, unknown) disables the clamp
+  // and falls through to the existing pinned derivation.
+  if (inProgressStep === null) {
+    const carriers = primary.filter((i) => stringValue(i.metadata?.['gc.step_id']) !== '');
+    if (carriers.length > 0 && carriers.every((i) => i.status === 'open')) {
+      return { phase: 'intake', label: 'intake', reviewRound: null };
+    }
+  }
   // gascity-dashboard (Major 3): when no step is in flight, the current step
   // is the FURTHEST-ADVANCED step by stage rank — a deterministic, order- and
   // timestamp-independent signal. The run-detail snapshot adapter sets every
