@@ -15,6 +15,7 @@ const STATUS_LABEL: Record<RunNodeStatus, string> = {
   completed: 'done',
   failed: 'failed',
   blocked: 'blocked',
+  waiting: 'waiting',
   skipped: 'skipped',
 };
 
@@ -128,6 +129,11 @@ function shapeClassFor(constructKind: RunConstructKind): string {
   }
 }
 
+// The maroon accent is reserved for genuinely loud states: `failed` and a raw
+// supervisor `blocked` bead (DESIGN.md "Stuck Maroon", always paired with the
+// word). The client-derived `waiting` state (a pending node waiting on upstream
+// deps, shared/src/runs/display-state.ts) is the calm, normal case and reads
+// faint — collapsing it into `blocked` would hide actionable blocked work.
 function statusClassFor(status: RunNodeStatus): string {
   switch (status) {
     case 'failed':
@@ -141,6 +147,7 @@ function statusClassFor(status: RunNodeStatus): string {
     case 'done':
       return 'text-fg-muted';
     case 'pending':
+    case 'waiting':
     case 'skipped':
       return 'text-fg-faint';
   }
@@ -157,6 +164,8 @@ function statusGlyph(status: RunNodeStatus): string {
     case 'failed':
     case 'blocked':
       return '!';
+    case 'waiting':
+      return '◌';
     case 'skipped':
       return '∅';
     case 'pending':

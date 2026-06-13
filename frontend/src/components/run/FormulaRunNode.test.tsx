@@ -1,11 +1,81 @@
 import { cleanup, render, screen } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import type { RunConstructKind, RunDisplayNode } from 'gas-city-dashboard-shared';
+import type { RunConstructKind, RunDisplayNode, RunNodeStatus } from 'gas-city-dashboard-shared';
 import { FormulaRunNode } from './FormulaRunNode';
 
 afterEach(() => cleanup());
 
 describe('FormulaRunNode', () => {
+  // PR #120 review: 'waiting' is client-derived (a pending node waiting on
+  // upstream deps, shared/src/runs/display-state.ts), not a failure. It must
+  // not wear the failure accent or the failure glyph, or a healthy idle run
+  // reads as alarming (DESIGN.md One Mark Rule).
+  it('renders the derived waiting state as calm, not a failure', () => {
+    render(
+      <FormulaRunNode
+        node={{ ...nodeFor('step'), status: 'waiting' }}
+        selected
+        onToggle={vi.fn()}
+      />,
+    );
+
+    const status = screen.getByText(/waiting/i);
+    expect(status.textContent?.trim()).toBe('◌ waiting');
+    expect(status.className).not.toContain('text-accent');
+    expect(status.textContent).not.toContain('!');
+  });
+
+  // A raw supervisor 'blocked' bead is operator-actionable and must stay
+  // visibly blocked (DESIGN.md "Stuck Maroon", always paired with the word),
+  // separate from the calm derived 'waiting' state — collapsing the two would
+  // hide genuinely blocked work behind a benign label.
+  it('keeps a raw blocked node visibly blocked, not calm waiting', () => {
+    render(
+      <FormulaRunNode
+        node={{ ...nodeFor('step'), status: 'blocked' }}
+        selected
+        onToggle={vi.fn()}
+      />,
+    );
+
+    const status = screen.getByText(/blocked/i);
+    expect(status.textContent?.trim()).toBe('! blocked');
+    expect(status.className).toContain('text-accent');
+  });
+
+  it('reserves the loud accent and the ! glyph for failed and raw blocked alone', () => {
+    const statuses: RunNodeStatus[] = [
+      'pending',
+      'ready',
+      'running',
+      'active',
+      'done',
+      'completed',
+      'failed',
+      'blocked',
+      'waiting',
+      'skipped',
+    ];
+    const loud = new Set<RunNodeStatus>(['failed', 'blocked']);
+
+    for (const status of statuses) {
+      const { container, unmount } = render(
+        <FormulaRunNode
+          node={{ ...nodeFor('step'), status }}
+          selected={false}
+          onToggle={vi.fn()}
+        />,
+      );
+      const statusSpan = container.querySelector('span.text-label');
+      expect(statusSpan, status).toBeTruthy();
+      const accented = statusSpan?.className.includes('text-accent') ?? false;
+      const bangGlyph = statusSpan?.textContent?.includes('!') ?? false;
+      expect(accented, `${status} accent`).toBe(loud.has(status));
+      expect(bangGlyph, `${status} glyph`).toBe(loud.has(status));
+      unmount();
+    }
+  });
+
   it('uses distinct shape classes for first-pass graph.v2 constructs', () => {
     const constructs: RunConstructKind[] = [
       'run-root',
