@@ -46,6 +46,14 @@ function formatConsoleArgs(args: unknown[]): string {
 }
 
 function trackProcessWarning(warning: Error): void {
+  // Node 24+ ships an experimental native `localStorage`. When code touches
+  // `globalThis.localStorage` without the runtime being started with a valid
+  // `--localstorage-file` path, Node emits a benign, environment-only process
+  // warning. Drop only that known warning so it cannot fatalize the suite,
+  // while keeping every other process warning fatal via the afterEach guard.
+  if (warning.message.includes('--localstorage-file')) {
+    return;
+  }
   processWarnings.push(`${warning.name}: ${warning.message}`);
 }
 

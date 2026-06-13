@@ -2,7 +2,9 @@ import { test, describe } from 'node:test';
 import assert from 'node:assert/strict';
 
 import { buildRunDisplayNode, type RunNodeGroup } from './execution-instances.js';
+import { applyDisplayNodeStates } from './display-state.js';
 import type { RunSnapshotBead } from '../run-snapshot.js';
+import type { RunDisplayEdge } from '../run-detail.js';
 
 // Audit finding M7: when a logical node has multiple physical execution
 // instances tied on (iteration, attempt) — the retry-shell-plus-attempt-bead
@@ -136,6 +138,27 @@ describe('preferred execution instance — M7 tiebreak', () => {
     assert.equal(node.status, 'active');
   });
 
+  test('blocked attempt wins over pending retry shell when the blocked id sorts first', () => {
+    // The same id-order class of bug as the completed case, residual for one
+    // status: a blocked attempt is operator-actionable and must not hide behind
+    // a pending retry shell whose id sorts later. 'n3cf3y' < 'o5x581', so while
+    // 'pending' and 'blocked' share a progress rank the id tiebreak elects the
+    // pending shell and the node renders a non-actionable pending/ready state
+    // instead of the blocked attempt. Collapse blocked back to pending's rank
+    // and this assertion fails.
+    const node = buildRunDisplayNode(
+      group([
+        retryShell('ga-wisp-o5x581', 'pending'),
+        attemptBead('ga-wisp-n3cf3y', 'ga-wisp-o5x581', 'blocked'),
+      ]),
+      [],
+      undefined,
+    );
+    assert.equal(node.visibleExecutionInstanceId, 'ga-wisp-n3cf3y');
+    assert.equal(node.currentBeadId, 'ga-wisp-n3cf3y');
+    assert.equal(node.status, 'blocked');
+  });
+
   test('terminal instance wins over an active one at the same iteration and attempt', () => {
     // Most-progressed ordering: terminal > active > pending. The node-level
     // status still reports active via aggregateStatus when anything runs.
@@ -175,5 +198,40 @@ describe('preferred execution instance — M7 tiebreak', () => {
       undefined,
     );
     assert.equal(node.visibleExecutionInstanceId, 'ga-wisp-bbbbbb');
+  });
+
+  test('M7 node stays completed through applyDisplayNodeStates instead of promoting to ready', () => {
+    // The reported '· ready' symptom surfaced one layer past buildRunDisplayNode:
+    // applyDisplayNodeStates promotes a pending node whose blockers are all
+    // terminal to 'ready'. With the tiebreak fixed the node is 'completed', so
+    // the promotion path can never relabel a review that already passed. Revert
+    // the tiebreak and the visible shell makes this node pending, the satisfied
+    // terminal blocker promotes it to 'ready', and this assertion fails.
+    const upstream = buildRunDisplayNode(
+      {
+        semanticNodeId: 'review-loop.iteration.1.review-pipeline.review-claude',
+        title: 'Code review: Claude',
+        kind: 'task',
+        constructKind: 'retry',
+        scopeRef: 'review-loop.iteration.1',
+        beads: [attemptBead('ga-wisp-claude', 'ga-wisp-claude-shell', 'completed', 'pass')],
+      },
+      [],
+      undefined,
+    );
+    const reviewNode = buildRunDisplayNode(
+      group([
+        retryShell('ga-wisp-o5x581', 'pending'),
+        attemptBead('ga-wisp-n3cf3y', 'ga-wisp-o5x581', 'completed', 'pass'),
+      ]),
+      [],
+      undefined,
+    );
+    const edges: RunDisplayEdge[] = [{ from: upstream.id, to: reviewNode.id, kind: 'dep' }];
+
+    const resolved = applyDisplayNodeStates([upstream, reviewNode], edges);
+    const reviewResolved = resolved.find((node) => node.id === reviewNode.id);
+
+    assert.equal(reviewResolved?.status, 'completed');
   });
 });

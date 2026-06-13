@@ -11,7 +11,10 @@ interface RunNodeSessionPanelProps {
 
 export function RunNodeSessionPanel({ node, visible }: RunNodeSessionPanelProps) {
   const instances = useMemo(() => node?.executionInstances.sort(compareInstances) ?? [], [node]);
-  const defaultInstance = useMemo(() => preferredInstance(instances), [instances]);
+  const defaultInstance = useMemo(
+    () => preferredInstance(instances, node?.visibleExecutionInstanceId),
+    [instances, node?.visibleExecutionInstanceId],
+  );
   const [selectedKey, setSelectedKey] = useState<string | null>(null);
 
   useEffect(() => {
@@ -229,15 +232,42 @@ function isRunningStatus(status: RunExecutionInstance['status']): boolean {
   return status === 'active' || status === 'running';
 }
 
-function preferredInstance(instances: RunExecutionInstance[]): RunExecutionInstance | undefined {
+// The default selection aligns with the shared visible-instance contract
+// (RunDisplayNode.visibleExecutionInstanceId, computed status-aware in
+// shared/src/runs/execution-instances.ts) so the inspector and the graph node
+// header agree on the current attempt, while still surfacing an available
+// transcript instead of an empty "no session" panel. The order encodes three
+// deliberate defaults:
+//   1. A live, attached-streamable session wins outright: when a node is
+//      actively streaming the operator wants that transcript first, even when
+//      the most-progressed terminal sibling is the visible instance.
+//   2. The shared visible instance wins when it carries its own session
+//      evidence — the common completed-node case, and the M7 fix that keeps a
+//      stale pending retry shell from becoming the default over the completed
+//      attempt the graph already shows.
+//   3. When the visible instance is session-less, fall back to the
+//      most-progressed *attached* sibling so an available historical transcript
+//      is surfaced rather than hidden behind a not-started current instance.
+//      Only when nothing is attached does the visible instance, then the id
+//      tiebreak, decide — which preserves the M7 tied-shell behavior for nodes
+//      where no sibling has a resolvable session.
+function preferredInstance(
+  instances: RunExecutionInstance[],
+  visibleExecutionInstanceId: string | undefined,
+): RunExecutionInstance | undefined {
+  const visibleInstance = instances.find(
+    (instance) => instance.id === visibleExecutionInstanceId,
+  );
   return (
     instances.find(
       (instance) => instance.session.kind === 'attached' && instance.session.streamable,
     ) ??
+    (visibleInstance?.session.kind === 'attached' ? visibleInstance : undefined) ??
     [...instances]
       .filter((instance) => instance.session.kind === 'attached')
       .sort(compareInstances)
       .at(-1) ??
+    visibleInstance ??
     [...instances].sort(compareInstances).at(-1)
   );
 }

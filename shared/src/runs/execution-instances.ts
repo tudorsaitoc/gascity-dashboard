@@ -166,20 +166,27 @@ function compareVisiblePreference(left: RunExecutionInstance, right: RunExecutio
   );
 }
 
+// Lifecycle progress rank for the visible-instance tiebreak above. `blocked`
+// outranks `pending`: a blocked attempt is an operator-actionable state, so when
+// it ties (iteration, attempt) with its pending retry shell it must surface
+// instead of hiding behind the shell on the id tiebreak — the same id-order bug
+// (M7) this comparator removes for terminal/active/ready attempts. `blocked`
+// still ranks below `ready` because it is not yet runnable.
 function statusProgressOrder(status: RunExecutionInstance['status']): number {
   switch (status) {
     case 'completed':
     case 'done':
     case 'failed':
     case 'skipped':
-      return 3;
+      return 4;
     case 'active':
     case 'running':
-      return 2;
+      return 3;
     case 'ready':
+      return 2;
+    case 'blocked':
       return 1;
     case 'pending':
-    case 'blocked':
       return 0;
   }
 }
