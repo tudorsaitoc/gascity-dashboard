@@ -2,6 +2,7 @@ import { act, cleanup, render, screen, waitFor } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi, type Mock } from 'vitest';
 import {
   GC_EVENT_PREFIX,
+  type RunHistory,
   type RunSummary,
   type SourceStatus,
   type RunLane,
@@ -16,6 +17,7 @@ import { RunSummaryProvider } from '../runs/runSummarySubscription';
 import { MemoryRouter } from 'react-router-dom';
 import { NowProvider } from '../contexts/NowContext';
 import {
+  loadSupervisorRunHistorySource,
   loadSupervisorRunSummaryActiveSource,
   loadSupervisorRunSummaryPreviewSource,
   loadSupervisorRunSummarySource,
@@ -42,6 +44,7 @@ vi.mock('../supervisor/runSummary', () => ({
   loadSupervisorRunSummaryPreviewSource: vi.fn(),
   loadSupervisorRunSummarySource: vi.fn(),
   loadSupervisorRunSummaryActiveSource: vi.fn(),
+  loadSupervisorRunHistorySource: vi.fn(),
 }));
 
 // Capture the prefixes + onMatch passed to useGcEventRefresh so each
@@ -65,6 +68,19 @@ const mockLoadRunSummary = loadSupervisorRunSummarySource as Mock;
 // gascity-dashboard: SSE-driven refreshes route through the CHEAP active source;
 // only the manual Refresh button + one-time first upgrade use the wide source.
 const mockLoadRunSummaryActive = loadSupervisorRunSummaryActiveSource as Mock;
+// Header-first: the lazy history loader behind the ?history=1 toggle.
+const mockLoadRunHistory = loadSupervisorRunHistorySource as Mock;
+
+function buildHistorySource(lanes: RunLane[] = [], totalHistorical = lanes.length) {
+  return {
+    source: 'runs',
+    status: 'fresh',
+    fetchedAt: '2026-05-25T00:00:00.000Z',
+    staleAt: '2026-05-25T00:01:00.000Z',
+    error: { kind: 'none' },
+    data: { totalHistorical, lanes },
+  } satisfies SourceState<RunHistory>;
+}
 
 function buildRunSource(
   runsStatus: Exclude<SourceStatus, 'error'> = 'fresh',
@@ -77,8 +93,6 @@ function buildRunSource(
     error: { kind: 'none' },
     data: {
       totalActive: 0,
-      totalHistorical: 0,
-      historicalLanes: [],
       blockedLanes: [],
       runCounts: {
         total: 0,
@@ -187,9 +201,12 @@ beforeEach(() => {
   lastHookCall.prefixes = null;
   lastHookCall.onMatch = null;
   invalidateKey('runs:summary:racoon-city');
+  invalidateKey('runs:history:racoon-city');
   mockLoadRunSummaryPreview.mockResolvedValue(buildRunSource('fresh'));
   mockLoadRunSummary.mockResolvedValue(buildRunSource('fresh'));
   mockLoadRunSummaryActive.mockResolvedValue(buildRunSource('fresh'));
+  mockLoadRunHistory.mockReset();
+  mockLoadRunHistory.mockResolvedValue(buildHistorySource());
 });
 
 afterEach(() => {
@@ -375,62 +392,64 @@ describe('RunsPage — SSE wiring (gascity-dashboard-bqn)', () => {
     expect(screen.queryByText(/^0 active runs/i)).toBeNull();
   });
 
-  // yh5i: completed lanes now land in historicalLanes (toggle-visible),
-  // not the default-visible `lanes`. The test below pins the new contract;
-  // see the toggle tests further down for the ?history=1 reveal path.
+  // yh5i, header-first: completed lanes live in the LAZY history source behind
+  // the ?history=1 toggle. The summary carries none, and the expensive
+  // closed-history fan-out fires only when the section opens.
   it('yh5i: hides completed formula runs from default view, shows them under ?history=1', async () => {
-    const source = buildRunSource('fresh');
-    const lane = completedLane();
-    const runs = requireRunData(source);
-    runs.totalActive = 0;
-    runs.totalHistorical = 1;
-    runs.lanes = [];
-    runs.historicalLanes = [lane];
-    runs.census = {
-      status: 'available',
-      data: {
-        byPhase: {
-          intake: 0,
-          implementation: 0,
-          review: 0,
-          approval: 0,
-          finalization: 0,
-          blocked: 0,
-          complete: 1,
-          active: 0,
-        },
-        totalInFlight: 0,
-        unverifiable: 0,
-        knownDenominator: 0,
-        thrashing: 0,
-      },
-    };
-    mockLoadRunSummary.mockResolvedValue(source);
+    mockLoadRunHistory.mockResolvedValue(buildHistorySource([completedLane()]));
 
-    // Default view (/runs): historical lane is hidden, empty-state
-    // trailer hints at the count.
+    // Default view (/runs): no historical lane, and (header-first) the lazy
+    // history fan-out has NOT been paid for the hidden section.
     mount();
     await waitForMount();
     expect(screen.queryByText('Completed formula run')).toBeNull();
-    expect(await screen.findByText(/No active formula runs\. \(1 completed\.\)/i)).toBeTruthy();
-    // The toggle button is enabled (totalHistorical > 0) and labeled
-    // with the count.
+    expect(await screen.findByText(/No active formula runs\./i)).toBeTruthy();
+    expect(mockLoadRunHistory).not.toHaveBeenCalled();
+    // The toggle button is enabled even before the count is known: opening IS
+    // the fetch.
     const toggleDefault = (await screen.findByRole('button', {
-      name: /show 1 completed/i,
+      name: /show completed formula runs/i,
     })) as HTMLButtonElement;
-    await waitFor(() => expect(toggleDefault.disabled).toBe(false));
+    expect(toggleDefault.disabled).toBe(false);
     expect(toggleDefault.getAttribute('aria-expanded')).toBe('false');
     cleanup();
 
-    // History view (?history=1): the historical section renders the lane.
+    // History view (?history=1): the lazy read fires and the historical
+    // section renders the lane.
+    invalidateKey('runs:summary:racoon-city');
     mount('/runs?history=1');
     await waitForMount();
     expect(await screen.findByText('Completed formula run')).toBeTruthy();
+    expect(mockLoadRunHistory).toHaveBeenCalledTimes(1);
+    expect(mockLoadRunHistory).toHaveBeenCalledWith({ forceFresh: false });
     const toggleHistory = (await screen.findByRole('button', {
       name: /hide historical/i,
     })) as HTMLButtonElement;
     expect(toggleHistory.getAttribute('aria-expanded')).toBe('true');
     expect(toggleHistory.getAttribute('aria-controls')).toBeTruthy();
+  });
+
+  it('header-first: shows the history loading state while the lazy read is in flight', async () => {
+    let resolveHistory: (value: SourceState<RunHistory>) => void = () => {};
+    mockLoadRunHistory.mockImplementationOnce(
+      () =>
+        new Promise<SourceState<RunHistory>>((resolve) => {
+          resolveHistory = resolve;
+        }),
+    );
+
+    mount('/runs?history=1');
+
+    // The section announces the in-flight lazy read instead of blanking. Settle
+    // on this cue rather than waitForMount: the Refresh button is now disabled
+    // while the open-history fan-out is in flight (anti-stacking), so it never
+    // re-enables until this read resolves.
+    expect(await screen.findByText(/Loading completed runs\./i)).toBeTruthy();
+
+    await act(async () => {
+      resolveHistory(buildHistorySource([completedLane()]));
+    });
+    expect(await screen.findByText('Completed formula run')).toBeTruthy();
   });
 
   it('7hek: groups active lanes by rig under section headers and shows each root bead id', async () => {
@@ -469,24 +488,24 @@ describe('RunsPage — SSE wiring (gascity-dashboard-bqn)', () => {
     expect(await screen.findByText('gc-bbb')).toBeTruthy();
   });
 
-  it('yh5i: toggle button is disabled when totalHistorical is 0', async () => {
-    // Default run source has totalHistorical = 0.
+  it('yh5i, header-first: toggle is enabled before the count is known (opening IS the fetch)', async () => {
     mount();
     await waitForMount();
     const toggle = (await screen.findByRole('button', {
-      name: /no completed formula runs in the current window/i,
+      name: /show completed formula runs/i,
     })) as HTMLButtonElement;
-    expect(toggle.disabled).toBe(true);
+    expect(toggle.disabled).toBe(false);
     expect(toggle.getAttribute('aria-expanded')).toBe('false');
     // aria-controls must NOT reference a non-existent DOM id when the
     // historical section is not rendered (WAI-ARIA spec).
     expect(toggle.getAttribute('aria-controls')).toBeNull();
+    // Header-first: merely rendering the page never fires the history fan-out.
+    expect(mockLoadRunHistory).not.toHaveBeenCalled();
   });
 
-  it('yh5i: toggle stays enabled when showHistory=true even if totalHistorical drops to 0', async () => {
-    // Reachable via back-button + SSE refresh: URL has ?history=1 but the
-    // last historical lane has since rolled out. The user must still be
-    // able to dismiss the historical section.
+  it('yh5i: toggle stays enabled when showHistory=true even if the loaded history is empty', async () => {
+    // Reachable via back-button: URL has ?history=1 but the lazy read finds no
+    // completed runs. The user must still be able to dismiss the section.
     mount('/runs?history=1');
     await waitForMount();
     const toggle = (await screen.findByRole('button', {
@@ -494,6 +513,78 @@ describe('RunsPage — SSE wiring (gascity-dashboard-bqn)', () => {
     })) as HTMLButtonElement;
     expect(toggle.disabled).toBe(false);
     expect(await screen.findByText(/No completed runs in the current window/i)).toBeTruthy();
+  });
+
+  it('header-first: Refresh refetches history (cache-bypassing) only while the section is open', async () => {
+    mount('/runs?history=1');
+    await waitForMount();
+    await waitFor(() => expect(mockLoadRunHistory).toHaveBeenCalledTimes(1));
+    expect(mockLoadRunHistory).toHaveBeenLastCalledWith({ forceFresh: false });
+
+    const btn = screen.getByRole('button', { name: /refresh/i }) as HTMLButtonElement;
+    await act(async () => {
+      btn.click();
+    });
+
+    // The operator's explicit Refresh re-runs the open history fan-out with the
+    // proxy cache bypass (gascity-dashboard-i3dz).
+    await waitFor(() => expect(mockLoadRunHistory).toHaveBeenCalledTimes(2));
+    expect(mockLoadRunHistory).toHaveBeenLastCalledWith({ forceFresh: true });
+    cleanup();
+
+    // With the section closed, Refresh refreshes only the summary.
+    invalidateKey('runs:summary:racoon-city');
+    mockLoadRunHistory.mockClear();
+    mount();
+    await waitForMount();
+    const btn2 = screen.getByRole('button', { name: /refresh/i }) as HTMLButtonElement;
+    await act(async () => {
+      btn2.click();
+    });
+    expect(mockLoadRunHistory).not.toHaveBeenCalled();
+  });
+
+  it('disables Refresh while the open-history fan-out is in flight, so multi-clicks cannot stack the expensive read', async () => {
+    // Opening history starts the heaviest fan-out in the view but never sets the
+    // summary `loading` flag, so settle the summary FIRST (section closed,
+    // button enabled), then open history with a hanging lazy read. That isolates
+    // the history gate: anything that disables Refresh now is the history load,
+    // not the summary's own (fast) refresh.
+    const pendingHistory = deferred<SourceState<RunHistory>>();
+    mockLoadRunHistory.mockReturnValueOnce(pendingHistory.promise);
+
+    mount();
+    await waitForMount();
+    const btn = screen.getByRole('button', { name: /refresh/i }) as HTMLButtonElement;
+    expect(btn.disabled).toBe(false);
+    expect(mockLoadRunHistory).not.toHaveBeenCalled();
+
+    const toggle = screen.getByRole('button', { name: /show completed formula runs/i });
+    await act(async () => {
+      toggle.click();
+    });
+    await waitFor(() => expect(mockLoadRunHistory).toHaveBeenCalledTimes(1));
+    expect(await screen.findByText(/Loading completed runs\./i)).toBeTruthy();
+
+    // The Refresh button is disabled and reads "Refreshing" while that ~10-20s
+    // closed-history scan runs, even though the summary refresh already settled —
+    // otherwise an impatient operator stacks concurrent history fan-outs, the
+    // exact connection-pool saturation this view set out to remove.
+    await waitFor(() => expect(btn.disabled).toBe(true));
+    expect(btn.textContent).toMatch(/refreshing/i);
+
+    // A click while disabled is a no-op: no second history fan-out is issued.
+    await act(async () => {
+      btn.click();
+    });
+    expect(mockLoadRunHistory).toHaveBeenCalledTimes(1);
+
+    // Once the fan-out resolves the button re-enables.
+    await act(async () => {
+      pendingHistory.resolve(buildHistorySource([completedLane()]));
+      await pendingHistory.promise;
+    });
+    await waitFor(() => expect(btn.disabled).toBe(false));
   });
 
   it('manual Refresh button refetches the direct supervisor run summary', async () => {

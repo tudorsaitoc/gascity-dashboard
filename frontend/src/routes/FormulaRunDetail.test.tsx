@@ -831,8 +831,6 @@ function runSummarySource(lanes: RunLane[] = []): SourceState<RunSummary> {
     error: { kind: 'none' },
     data: {
       totalActive: lanes.length,
-      totalHistorical: 0,
-      historicalLanes: [],
       blockedLanes: [],
       runCounts: {
         total: lanes.length,

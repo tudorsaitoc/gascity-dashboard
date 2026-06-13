@@ -11,6 +11,7 @@ import { resetSupervisorApiForTests, setSupervisorApiForTests, type SupervisorAp
 import { SupervisorApiError } from './errors';
 import {
   CORE_RUN_SUMMARY_TIMEOUT_MS,
+  loadSupervisorRunHistorySource,
   loadSupervisorRunSummaryActiveSource,
   loadSupervisorRunSummaryMountSource,
   loadSupervisorRunSummaryPreviewSource,
@@ -70,7 +71,12 @@ describe('loadSupervisorRunSummaryPreviewSource', () => {
     vi.clearAllMocks();
   });
 
-  it('builds a first-paint summary from bounded active and recent run reads', async () => {
+  it('builds a first-paint summary from the cheap core read + feed only (header-first)', async () => {
+    // Header-first restructure: the default summary path pays ONLY the core
+    // active read (measured ~0.02s) and the formula-feed discovery. The
+    // molecule(all=true) history scan (measured 9.9s) and the per-rig
+    // task(all=true) closed-history reads (measured 10.9s on the largest rig)
+    // exist solely for the lazy history payload and must never fire here.
     const listBeads = vi.fn(async () => beadList([runRoot()]));
     const formulaFeed = vi.fn(async () => feed([feedRun()]));
     const listSessions = vi.fn(async () => sessionList());
@@ -88,19 +94,8 @@ describe('loadSupervisorRunSummaryPreviewSource', () => {
     expect(source.data.totalActive).toBe(1);
     expect(source.data.lanes[0]?.id).toBe('run-1');
     expect(source.data.lanes[0]?.health.status).toBe('unavailable');
-    expect(listBeads).toHaveBeenCalledTimes(3);
+    expect(listBeads).toHaveBeenCalledTimes(1);
     expect(listBeads).toHaveBeenCalledWith('test-city', { limit: 500 });
-    expect(listBeads).toHaveBeenCalledWith('test-city', {
-      limit: 500,
-      type: 'molecule',
-      all: true,
-    });
-    expect(listBeads).toHaveBeenCalledWith('test-city', {
-      limit: 500,
-      type: 'task',
-      rig: 'rig-a',
-      all: true,
-    });
     expect(formulaFeed).toHaveBeenCalledWith('test-city', {
       scope_kind: 'city',
       scope_ref: 'test-city',
@@ -108,23 +103,21 @@ describe('loadSupervisorRunSummaryPreviewSource', () => {
     expect(listSessions).not.toHaveBeenCalled();
   });
 
-  it('marks the summary partial when a slow enrichment read exceeds the tight first-paint budget (gascity-dashboard-4bol)', async () => {
+  it('marks the summary partial when the slow feed exceeds the tight first-paint budget (gascity-dashboard-4bol)', async () => {
     // First paint blocks on the preview load, so it keeps a tight 2.5s budget: a
-    // rig read that takes 10s on a slow supervisor degrades to partial rather
+    // city feed that takes 14s on a slow supervisor degrades to partial rather
     // than holding the tab blank. The wider refresh budget then clears it.
-    const listBeads = vi.fn(async (_cityName: string, query?: Record<string, unknown>) => {
-      if (query?.type === 'molecule') return beadList([]);
-      if (query?.rig === 'rig-a') {
-        return new Promise<ListBodyBead>((resolve) => {
-          setTimeout(() => resolve(beadList([])), 10_000);
-        });
-      }
-      return beadList([runRoot()]);
-    });
+    const listBeads = vi.fn(async () => beadList([runRoot()]));
+    const formulaFeed = vi.fn(
+      async () =>
+        new Promise<FormulaFeedBody>((resolve) => {
+          setTimeout(() => resolve(feed([feedRun()])), 14_000);
+        }),
+    );
     setSupervisorApiForTests({
       ...baseApi,
       listBeads,
-      formulaFeed: vi.fn(async () => feed([feedRun()])),
+      formulaFeed,
       listSessions: vi.fn(async () => sessionList()),
     });
 
@@ -155,28 +148,27 @@ describe('loadSupervisorRunSummarySource', () => {
     vi.clearAllMocks();
   });
 
-  it('builds the run summary from direct supervisor beads, feed, and sessions', async () => {
+  it('builds the run summary from the core read, feed, and sessions (header-first)', async () => {
     const fetchSpy = vi.fn();
     vi.stubGlobal('fetch', fetchSpy);
-    const listBeads = vi.fn(async (_cityName: string, query?: Record<string, unknown>) => {
-      if (query?.type === 'molecule') return beadList([]);
-      if (query?.rig === 'rig-a') {
-        return beadList([
-          bead({
-            id: 'run-1-step-1',
-            title: 'Implementation patch',
-            status: 'in_progress',
-            metadata: {
-              'gc.kind': 'step',
-              'gc.root_bead_id': 'run-1',
-              'gc.parent_bead_id': 'run-1',
-              'gc.step_id': 'implementation.patch',
-            },
-          }),
-        ]);
-      }
-      return beadList([runRoot()]);
-    });
+    // The active run's open/in-progress step beads ride the SAME core active
+    // read — no per-rig all=true fan-out is needed for phase derivation.
+    const listBeads = vi.fn(async () =>
+      beadList([
+        runRoot(),
+        bead({
+          id: 'run-1-step-1',
+          title: 'Implementation patch',
+          status: 'in_progress',
+          metadata: {
+            'gc.kind': 'step',
+            'gc.root_bead_id': 'run-1',
+            'gc.parent_bead_id': 'run-1',
+            'gc.step_id': 'implementation.patch',
+          },
+        }),
+      ]),
+    );
     const formulaFeed = vi.fn(async () => feed([feedRun()]));
     const listSessions = vi.fn(async () => sessionList());
     setSupervisorApiForTests({
@@ -206,18 +198,10 @@ describe('loadSupervisorRunSummarySource', () => {
       statusCounts: { open: 1, in_progress: 1 },
     });
     expect(source.data.census.status).toBe('available');
+    // Header-first: ONLY the cheap core read — no molecule(all=true) scan and
+    // no per-rig task(all=true) reads on the refresh path.
+    expect(listBeads).toHaveBeenCalledTimes(1);
     expect(listBeads).toHaveBeenCalledWith('test-city', { limit: 500 });
-    expect(listBeads).toHaveBeenCalledWith('test-city', {
-      limit: 500,
-      type: 'molecule',
-      all: true,
-    });
-    expect(listBeads).toHaveBeenCalledWith('test-city', {
-      limit: 500,
-      type: 'task',
-      rig: 'rig-a',
-      all: true,
-    });
     expect(formulaFeed).toHaveBeenCalledWith('test-city', {
       scope_kind: 'city',
       scope_ref: 'test-city',
@@ -226,11 +210,8 @@ describe('loadSupervisorRunSummarySource', () => {
     expect(fetchSpy).not.toHaveBeenCalled();
   });
 
-  it('forceFresh marks ONLY the proxy-cached molecule + feed reads for cache bypass (gascity-dashboard-i3dz)', async () => {
-    const listBeads = vi.fn(async (_cityName: string, query?: Record<string, unknown>) => {
-      if (query?.type === 'molecule') return beadList([]);
-      return beadList([runRoot()]);
-    });
+  it('forceFresh marks ONLY the proxy-cached feed read for cache bypass (gascity-dashboard-i3dz)', async () => {
+    const listBeads = vi.fn(async () => beadList([runRoot()]));
     const formulaFeed = vi.fn(async () => feed([feedRun()]));
     const listSessions = vi.fn(async () => sessionList());
     setSupervisorApiForTests({ ...baseApi, listBeads, formulaFeed, listSessions });
@@ -238,33 +219,19 @@ describe('loadSupervisorRunSummarySource', () => {
     const source = await loadSupervisorRunSummarySource({ forceFresh: true });
     expect(source.status).toBe('fresh');
 
-    // The two proxy-cached city-wide reads carry the bypass option...
-    expect(listBeads).toHaveBeenCalledWith(
-      'test-city',
-      { limit: 500, type: 'molecule', all: true },
-      { cacheBypass: true },
-    );
+    // The proxy-cached city-wide feed read carries the bypass option...
     expect(formulaFeed).toHaveBeenCalledWith(
       'test-city',
       { scope_kind: 'city', scope_ref: 'test-city' },
       { cacheBypass: true },
     );
-    // ...while the uncached core-active and per-rig reads keep the plain
-    // two-arg call (no options object), so they are never marked for bypass.
+    // ...while the uncached core-active read keeps the plain two-arg call (no
+    // options object), so it is never marked for bypass.
     expect(listBeads).toHaveBeenCalledWith('test-city', { limit: 500 });
-    expect(listBeads).toHaveBeenCalledWith('test-city', {
-      limit: 500,
-      type: 'task',
-      rig: 'rig-a',
-      all: true,
-    });
   });
 
-  it('a normal (non-forceFresh) wide refresh leaves the cacheable reads on the plain cacheable call', async () => {
-    const listBeads = vi.fn(async (_cityName: string, query?: Record<string, unknown>) => {
-      if (query?.type === 'molecule') return beadList([]);
-      return beadList([runRoot()]);
-    });
+  it('a normal (non-forceFresh) wide refresh leaves the cacheable feed on the plain cacheable call', async () => {
+    const listBeads = vi.fn(async () => beadList([runRoot()]));
     const formulaFeed = vi.fn(async () => feed([feedRun()]));
     const listSessions = vi.fn(async () => sessionList());
     setSupervisorApiForTests({ ...baseApi, listBeads, formulaFeed, listSessions });
@@ -273,11 +240,6 @@ describe('loadSupervisorRunSummarySource', () => {
 
     // No bypass option is attached, so the proxy keeps serving its amortized
     // cache for preview/SSE/upgrade reads.
-    expect(listBeads).toHaveBeenCalledWith('test-city', {
-      limit: 500,
-      type: 'molecule',
-      all: true,
-    });
     expect(formulaFeed).toHaveBeenCalledWith('test-city', {
       scope_kind: 'city',
       scope_ref: 'test-city',
@@ -298,11 +260,7 @@ describe('loadSupervisorRunSummarySource', () => {
         'gc.formula_contract': 'graph.v2',
       },
     });
-    const listBeads = vi.fn(async (_cityName: string, query?: Record<string, unknown>) => {
-      if (query?.type === 'molecule') return beadList([]);
-      if (query?.rig !== undefined) return beadList([]);
-      return beadList([rootNoScope]);
-    });
+    const listBeads = vi.fn(async () => beadList([rootNoScope]));
     const cityScopedFeedRun = feedRun({
       id: 'run-2',
       root_bead_id: 'run-2',
@@ -344,11 +302,7 @@ describe('loadSupervisorRunSummarySource', () => {
         'gc.formula_contract': 'graph.v2',
       },
     });
-    const listBeads = vi.fn(async (_cityName: string, query?: Record<string, unknown>) => {
-      if (query?.type === 'molecule') return beadList([]);
-      if (query?.rig !== undefined) return beadList([]);
-      return beadList([rootNoScope]);
-    });
+    const listBeads = vi.fn(async () => beadList([rootNoScope]));
     const malformedFeedRun = feedRun({
       id: 'run-3',
       root_bead_id: 'run-3',
@@ -383,10 +337,8 @@ describe('loadSupervisorRunSummarySource', () => {
     // gc-1920 repro: a stale blocked formula latch must land in
     // blockedLanes (with derived health, so attention still sees it),
     // never in lanes/totalActive.
-    const listBeads = vi.fn(async (_cityName: string, query?: Record<string, unknown>) => {
-      if (query?.type === 'molecule') return beadList([]);
-      if (query?.rig === 'rig-a') return beadList([]);
-      return beadList([
+    const listBeads = vi.fn(async () =>
+      beadList([
         runRoot(),
         runRoot({
           id: 'gc-1920',
@@ -400,8 +352,8 @@ describe('loadSupervisorRunSummarySource', () => {
             'gc.root_store_ref': 'city:test-city',
           },
         }),
-      ]);
-    });
+      ]),
+    );
     setSupervisorApiForTests({
       ...baseApi,
       listBeads,
@@ -442,25 +394,23 @@ describe('loadSupervisorRunSummarySource', () => {
   }
 
   it('demotes a stale session-less approval latch out of the Active set (gascity-dashboard-s4rp)', async () => {
-    const listBeads = vi.fn(async (_cityName: string, query?: Record<string, unknown>) => {
-      if (query?.type === 'molecule') return beadList([]);
-      if (query?.rig === 'rig-a') {
-        return beadList([
-          bead({
-            id: 'run-1-step-1',
-            title: 'Implementation patch',
-            status: 'in_progress',
-            updated_at: '2026-06-01T11:55:00.000Z',
-            metadata: {
-              'gc.kind': 'step',
-              'gc.root_bead_id': 'run-1',
-              'gc.step_id': 'implementation.patch',
-            },
-          }),
-        ]);
-      }
-      return beadList([runRoot(), staleLatch()]);
-    });
+    const listBeads = vi.fn(async () =>
+      beadList([
+        runRoot(),
+        staleLatch(),
+        bead({
+          id: 'run-1-step-1',
+          title: 'Implementation patch',
+          status: 'in_progress',
+          updated_at: '2026-06-01T11:55:00.000Z',
+          metadata: {
+            'gc.kind': 'step',
+            'gc.root_bead_id': 'run-1',
+            'gc.step_id': 'implementation.patch',
+          },
+        }),
+      ]),
+    );
     setSupervisorApiForTests({
       ...baseApi,
       listBeads,
@@ -473,22 +423,19 @@ describe('loadSupervisorRunSummarySource', () => {
     expect(source.status).toBe('fresh');
     if (source.status === 'error') throw new Error(source.error);
     // run-1 has an in_progress step and stays Active; gc-1920 is demoted out of
-    // the Active set, count, AND the blocked/historical buckets (dropped).
+    // the Active set, count, AND the blocked bucket (dropped).
     expect(source.data.totalActive).toBe(1);
     expect(source.data.lanes.map((lane) => lane.id)).toEqual(['run-1']);
     expect(source.data.blockedLanes).toEqual([]);
-    expect(source.data.historicalLanes.map((lane) => lane.id)).not.toContain('gc-1920');
     expect(source.data.runCounts.total).toBe(1);
   });
 
   it('keeps a session-less recent latch in the Active set (gascity-dashboard-s4rp)', async () => {
-    const listBeads = vi.fn(async (_cityName: string, query?: Record<string, unknown>) => {
-      if (query?.type === 'molecule') return beadList([]);
-      if (query?.rig === 'rig-a') return beadList([]);
-      // Same shape as the stale latch but written 30 minutes ago — a recent
-      // session-less latch must still appear as Active (not demoted by liveness).
-      return beadList([{ ...staleLatch(), updated_at: '2026-06-01T11:30:00.000Z' }]);
-    });
+    // Same shape as the stale latch but written 30 minutes ago — a recent
+    // session-less latch must still appear as Active (not demoted by liveness).
+    const listBeads = vi.fn(async () =>
+      beadList([{ ...staleLatch(), updated_at: '2026-06-01T11:30:00.000Z' }]),
+    );
     setSupervisorApiForTests({
       ...baseApi,
       listBeads,
@@ -530,11 +477,7 @@ describe('loadSupervisorRunSummarySource', () => {
         },
       }),
     );
-    const listBeads = vi.fn(async (_cityName: string, query?: Record<string, unknown>) => {
-      if (query?.type === 'molecule') return beadList([]);
-      if (query?.rig === 'rig-a') return beadList([]);
-      return beadList([...liveRuns, staleLatch()]);
-    });
+    const listBeads = vi.fn(async () => beadList([...liveRuns, staleLatch()]));
     setSupervisorApiForTests({
       ...baseApi,
       listBeads,
@@ -557,16 +500,18 @@ describe('loadSupervisorRunSummarySource', () => {
     expect(source.data.runCounts.visible).toBe(9);
   });
 
-  it('keeps available lanes while marking the summary partial when a recent rig read fails', async () => {
-    const listBeads = vi.fn(async (_cityName: string, query?: Record<string, unknown>) => {
-      if (query?.type === 'molecule') return beadList([]);
-      if (query?.rig === 'rig-a') throw new Error('rig unavailable');
-      return beadList([runRoot()]);
-    });
+  it('keeps available lanes while marking the summary partial when the feed read fails (gascity-dashboard-n6f1)', async () => {
+    // The feed is discovery + scope fallback for the lane set, so its loss means
+    // the lane set may be degraded (scopes unresolved) — flag partial, but the
+    // active lanes from the core read still render. Never required: a feed
+    // failure must not blank the view (live it measured 14.3s city-scoped).
+    const listBeads = vi.fn(async () => beadList([runRoot()]));
     setSupervisorApiForTests({
       ...baseApi,
       listBeads,
-      formulaFeed: vi.fn(async () => feed([feedRun()])),
+      formulaFeed: vi.fn(async () => {
+        throw new Error('feed unavailable');
+      }),
       listSessions: vi.fn(async () => sessionList()),
     });
 
@@ -583,10 +528,7 @@ describe('loadSupervisorRunSummarySource', () => {
     // reports the rest via next_cursor WITHOUT setting partial. Treat a present
     // cursor as partial so saturation surfaces the notice + retry instead of
     // silently dropping lanes at 501+ beads.
-    const listBeads = vi.fn(async (_cityName: string, query?: Record<string, unknown>) => {
-      if (query?.type === 'molecule') return beadList([]);
-      return beadList([runRoot()], false, 'next-page-token');
-    });
+    const listBeads = vi.fn(async () => beadList([runRoot()], false, 'next-page-token'));
     setSupervisorApiForTests({
       ...baseApi,
       listBeads,
@@ -606,11 +548,7 @@ describe('loadSupervisorRunSummarySource', () => {
     // gascity-dashboard-q89b: the primary fetch is bounded; when the upstream
     // total exceeds what one page returned, active runs may be missing and the
     // lanes must read as partial rather than complete.
-    const listBeads = vi.fn(async (_cityName: string, query?: Record<string, unknown>) => {
-      if (query?.type === 'molecule') return beadList([]);
-      if (query?.rig === 'rig-a') return beadList([]);
-      return { ...beadList([runRoot()]), total: 501 };
-    });
+    const listBeads = vi.fn(async () => ({ ...beadList([runRoot()]), total: 501 }));
     setSupervisorApiForTests({
       ...baseApi,
       listBeads,
@@ -626,11 +564,7 @@ describe('loadSupervisorRunSummarySource', () => {
   });
 
   it('does not let optional enrichment reads hold the summary refresh indefinitely', async () => {
-    const listBeads = vi.fn(async (_cityName: string, query?: Record<string, unknown>) => {
-      if (query?.type === 'molecule') return new Promise<ListBodyBead>(() => {});
-      if (query?.rig === 'rig-a') return beadList([]);
-      return beadList([runRoot()]);
-    });
+    const listBeads = vi.fn(async () => beadList([runRoot()]));
     const formulaFeed = vi.fn(async () => new Promise<FormulaFeedBody>(() => {}));
     setSupervisorApiForTests({
       ...baseApi,
@@ -651,28 +585,26 @@ describe('loadSupervisorRunSummarySource', () => {
     expect(source.data.lanesPartial).toBe(true);
   });
 
-  it('clears the spurious partial when a slow-but-available enrichment read lands within the wider refresh budget (gascity-dashboard-4bol)', async () => {
-    // The background refresh tolerates a slow supervisor: a rig read that takes
-    // 10s — past the 2.5s first-paint budget but inside the 30s refresh budget —
+  it('clears the spurious partial when the slow feed lands within the wider refresh budget (gascity-dashboard-4bol)', async () => {
+    // The background refresh tolerates a slow supervisor: a city feed that takes
+    // 14s — past the 2.5s first-paint budget but inside the 30s refresh budget —
     // lands, so the lanes are NOT latched partial (upstream gascity-dashboard#88).
-    const listBeads = vi.fn(async (_cityName: string, query?: Record<string, unknown>) => {
-      if (query?.type === 'molecule') return beadList([]);
-      if (query?.rig === 'rig-a') {
-        return new Promise<ListBodyBead>((resolve) => {
-          setTimeout(() => resolve(beadList([])), 10_000);
-        });
-      }
-      return beadList([runRoot()]);
-    });
+    const listBeads = vi.fn(async () => beadList([runRoot()]));
+    const formulaFeed = vi.fn(
+      async () =>
+        new Promise<FormulaFeedBody>((resolve) => {
+          setTimeout(() => resolve(feed([feedRun()])), 14_000);
+        }),
+    );
     setSupervisorApiForTests({
       ...baseApi,
       listBeads,
-      formulaFeed: vi.fn(async () => feed([feedRun()])),
+      formulaFeed,
       listSessions: vi.fn(async () => sessionList()),
     });
 
     const pending = loadSupervisorRunSummarySource();
-    await vi.advanceTimersByTimeAsync(10_000);
+    await vi.advanceTimersByTimeAsync(14_000);
     const source = await pending;
 
     expect(source.status).toBe('fresh');
@@ -682,23 +614,21 @@ describe('loadSupervisorRunSummarySource', () => {
   });
 
   it('keeps the tight first-paint budget on the mount source so Home/Formula Run Detail never block on a slow read (gascity-dashboard-4bol)', async () => {
-    // Same 10s rig read as the refresh test above, but the mount source (Home,
+    // Same 14s feed as the refresh test above, but the mount source (Home,
     // Formula Run Detail first paint) runs on the 2.5s budget — the read does NOT
     // land, so the lanes are latched partial rather than blocking ~30s on a cold
     // navigation. This is the regression guard for the refresh-budget leak.
-    const listBeads = vi.fn(async (_cityName: string, query?: Record<string, unknown>) => {
-      if (query?.type === 'molecule') return beadList([]);
-      if (query?.rig === 'rig-a') {
-        return new Promise<ListBodyBead>((resolve) => {
-          setTimeout(() => resolve(beadList([])), 10_000);
-        });
-      }
-      return beadList([runRoot()]);
-    });
+    const listBeads = vi.fn(async () => beadList([runRoot()]));
+    const formulaFeed = vi.fn(
+      async () =>
+        new Promise<FormulaFeedBody>((resolve) => {
+          setTimeout(() => resolve(feed([feedRun()])), 14_000);
+        }),
+    );
     setSupervisorApiForTests({
       ...baseApi,
       listBeads,
-      formulaFeed: vi.fn(async () => feed([feedRun()])),
+      formulaFeed,
       listSessions: vi.fn(async () => sessionList()),
     });
 
@@ -712,70 +642,10 @@ describe('loadSupervisorRunSummarySource', () => {
     expect(source.data.lanesPartial).toBe(true);
   });
 
-  it('keeps active lanes and marks partial when the molecule-history read rejects (gascity-dashboard-9rk2)', async () => {
-    // The molecule(all=true) scan surfaces historical run roots only; it is
-    // best-effort. A rejection must fold to `partial` with the active lanes still
-    // present — never escalate to a whole-view error/"Run data unavailable".
-    const listBeads = vi.fn(async (_cityName: string, query?: Record<string, unknown>) => {
-      if (query?.type === 'molecule') throw new Error('molecule history unavailable');
-      if (query?.rig === 'rig-a') return beadList([]);
-      return beadList([runRoot()]);
-    });
-    setSupervisorApiForTests({
-      ...baseApi,
-      listBeads,
-      formulaFeed: vi.fn(async () => feed([feedRun()])),
-      listSessions: vi.fn(async () => sessionList()),
-    });
-
-    const source = await loadSupervisorRunSummarySource();
-
-    expect(source.status).toBe('fresh');
-    if (source.status === 'error') throw new Error(source.error);
-    expect(source.data.totalActive).toBe(1);
-    expect(source.data.lanes.map((lane) => lane.id)).toEqual(['run-1']);
-    expect(source.data.lanesPartial).toBe(true);
-  });
-
-  it('bounds a slow molecule-history read to its own timeout and folds it to partial (gascity-dashboard-9rk2)', async () => {
-    // Live the molecule scan runs ~6.8s — past the 5s required-fetch budget. On
-    // the wide 30s refresh it would otherwise stall the whole refresh; its own
-    // 3s bound caps it so the active set still paints and only the historical
-    // lanes degrade to partial.
-    const listBeads = vi.fn(async (_cityName: string, query?: Record<string, unknown>) => {
-      if (query?.type === 'molecule') {
-        return new Promise<ListBodyBead>((resolve) => {
-          setTimeout(() => resolve(beadList([])), 6_800);
-        });
-      }
-      if (query?.rig === 'rig-a') return beadList([]);
-      return beadList([runRoot()]);
-    });
-    setSupervisorApiForTests({
-      ...baseApi,
-      listBeads,
-      formulaFeed: vi.fn(async () => feed([feedRun()])),
-      listSessions: vi.fn(async () => sessionList()),
-    });
-
-    const pending = loadSupervisorRunSummarySource();
-    // Advance past the molecule's own 3s bound but well short of its 6.8s
-    // completion: the bound fires, the active set still resolves.
-    await vi.advanceTimersByTimeAsync(3_000);
-    const source = await pending;
-
-    expect(source.status).toBe('fresh');
-    if (source.status === 'error') throw new Error(source.error);
-    expect(source.data.totalActive).toBe(1);
-    expect(source.data.lanes.map((lane) => lane.id)).toEqual(['run-1']);
-    expect(source.data.lanesPartial).toBe(true);
-  });
-
   it('returns an error source when the active bead list fails', async () => {
     setSupervisorApiForTests({
       ...baseApi,
-      listBeads: vi.fn(async (_cityName: string, query?: Record<string, unknown>) => {
-        if (query?.type === 'molecule') return beadList([]);
+      listBeads: vi.fn(async () => {
         throw new Error('beads unavailable');
       }),
       formulaFeed: vi.fn(async () => feed([])),
@@ -796,9 +666,7 @@ describe('loadSupervisorRunSummarySource', () => {
   // snapshot yet). The core active-bead read retries once before giving up.
   it('retries the core active-bead read once on a transient timeout and resolves to data', async () => {
     let coreAttempts = 0;
-    const listBeads = vi.fn(async (_cityName: string, query?: Record<string, unknown>) => {
-      if (query?.type === 'molecule') return beadList([]);
-      if (query?.rig === 'rig-a') return beadList([]);
+    const listBeads = vi.fn(async () => {
       coreAttempts += 1;
       if (coreAttempts === 1) {
         throw new SupervisorApiError(
@@ -830,8 +698,7 @@ describe('loadSupervisorRunSummarySource', () => {
 
   it('surfaces an error when the core active-bead read times out on every attempt', async () => {
     let coreAttempts = 0;
-    const listBeads = vi.fn(async (_cityName: string, query?: Record<string, unknown>) => {
-      if (query?.type === 'molecule') return beadList([]);
+    const listBeads = vi.fn(async () => {
       coreAttempts += 1;
       throw new SupervisorApiError(
         undefined,
@@ -860,8 +727,7 @@ describe('loadSupervisorRunSummarySource', () => {
 
   it('does not retry the core read on a non-transient (4xx) failure', async () => {
     let coreAttempts = 0;
-    const listBeads = vi.fn(async (_cityName: string, query?: Record<string, unknown>) => {
-      if (query?.type === 'molecule') return beadList([]);
+    const listBeads = vi.fn(async () => {
       coreAttempts += 1;
       throw new SupervisorApiError(400, 'bad request', undefined);
     });
@@ -933,9 +799,6 @@ describe('loadSupervisorRunSummaryActiveSource — cheap SSE-burst path', () => 
     // gc.root_store_ref metadata — no feed needed.
     expect(source.data.lanes.map((lane) => lane.id)).toEqual(['run-1']);
     expect(source.data.lanes[0]?.scope).toMatchObject({ status: 'available', kind: 'rig' });
-    // No history reads on the cheap path.
-    expect(source.data.historicalLanes).toEqual([]);
-    expect(source.data.totalHistorical).toBe(0);
     // The expensive reads were never issued.
     expect(formulaFeed).not.toHaveBeenCalled();
     expect(
@@ -943,6 +806,194 @@ describe('loadSupervisorRunSummaryActiveSource — cheap SSE-burst path', () => 
     ).toBe(true);
     expect(listBeads.mock.calls.some(([, query]) => query?.type === 'molecule')).toBe(false);
     expect(listBeads.mock.calls.some(([, query]) => query?.rig !== undefined)).toBe(false);
+  });
+});
+
+// Header-first restructure: the closed-history fan-out (molecule all=true scan,
+// measured 9.9s vs the old 3s bound; per-rig task all=true reads, measured
+// 10.9s on a 29.8k-issue rig store) moved OFF the default refresh path onto
+// this lazy, on-demand history source with its own wide budget.
+describe('loadSupervisorRunHistorySource — lazy closed-history fan-out', () => {
+  beforeEach(() => {
+    setActiveCity('test-city');
+    resetSupervisorRunSummaryStateForTests();
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2026-06-01T12:00:00.000Z'));
+  });
+
+  afterEach(() => {
+    resetSupervisorApiForTests();
+    resetSupervisorRunSummaryStateForTests();
+    vi.useRealTimers();
+    vi.clearAllMocks();
+  });
+
+  function closedMoleculeRoot(id: string): Bead {
+    return bead({
+      id,
+      title: `Done run ${id}`,
+      issue_type: 'molecule',
+      status: 'closed',
+      updated_at: '2026-06-01T10:00:00.000Z',
+      metadata: { 'gc.kind': 'run', 'gc.root_store_ref': 'rig:rig-a' },
+    });
+  }
+
+  it('builds completed lanes from the molecule scan + per-rig closed reads', async () => {
+    const listBeads = vi.fn(async (_cityName: string, query?: Record<string, unknown>) => {
+      if (query?.type === 'molecule') return beadList([closedMoleculeRoot('hist-1')]);
+      if (query?.rig === 'rig-a') return beadList([]);
+      return beadList([runRoot()]);
+    });
+    const formulaFeed = vi.fn(async () => feed([feedRun()]));
+    setSupervisorApiForTests({ ...baseApi, listBeads, formulaFeed });
+
+    const source = await loadSupervisorRunHistorySource();
+
+    expect(source.status).toBe('fresh');
+    if (source.status === 'error') throw new Error(source.error);
+    // Only the COMPLETED run becomes a history lane; the active run-1 does not.
+    expect(source.data.lanes.map((lane) => lane.id)).toEqual(['hist-1']);
+    expect(source.data.totalHistorical).toBe(1);
+    expect(source.data.lanesPartial).toBeUndefined();
+    // The full fan-out fires here, on demand: core read, molecule scan, feed,
+    // and the per-rig closed read discovered from the active set + feed.
+    expect(listBeads).toHaveBeenCalledWith('test-city', { limit: 500 });
+    expect(listBeads).toHaveBeenCalledWith('test-city', {
+      limit: 500,
+      type: 'molecule',
+      all: true,
+    });
+    expect(listBeads).toHaveBeenCalledWith('test-city', {
+      limit: 500,
+      type: 'task',
+      rig: 'rig-a',
+      all: true,
+    });
+    expect(formulaFeed).toHaveBeenCalledWith('test-city', {
+      scope_kind: 'city',
+      scope_ref: 'test-city',
+    });
+  });
+
+  it('lets the measured-slow molecule scan land within the wide history budget (no 3s bound)', async () => {
+    // Live the molecule(all=true) scan measured 9.9s — past the old 3s
+    // MOLECULE_HISTORY_TIMEOUT_MS, which made it time out on EVERY refresh and
+    // chronically latch "runs partial". On the lazy history path the scan is the
+    // payload, so it rides the 30s history budget and lands.
+    const listBeads = vi.fn(async (_cityName: string, query?: Record<string, unknown>) => {
+      if (query?.type === 'molecule') {
+        return new Promise<ListBodyBead>((resolve) => {
+          setTimeout(() => resolve(beadList([closedMoleculeRoot('hist-1')])), 9_900);
+        });
+      }
+      if (query?.rig !== undefined) return beadList([]);
+      return beadList([runRoot()]);
+    });
+    setSupervisorApiForTests({
+      ...baseApi,
+      listBeads,
+      formulaFeed: vi.fn(async () => feed([feedRun()])),
+    });
+
+    const pending = loadSupervisorRunHistorySource();
+    await vi.advanceTimersByTimeAsync(9_900);
+    const source = await pending;
+
+    expect(source.status).toBe('fresh');
+    if (source.status === 'error') throw new Error(source.error);
+    expect(source.data.lanes.map((lane) => lane.id)).toEqual(['hist-1']);
+    expect(source.data.lanesPartial).toBeUndefined();
+  });
+
+  it('marks the history partial when the molecule scan rejects, keeping per-rig lanes', async () => {
+    const listBeads = vi.fn(async (_cityName: string, query?: Record<string, unknown>) => {
+      if (query?.type === 'molecule') throw new Error('molecule history unavailable');
+      if (query?.rig === 'rig-a') return beadList([closedMoleculeRoot('hist-rig')]);
+      return beadList([runRoot()]);
+    });
+    setSupervisorApiForTests({
+      ...baseApi,
+      listBeads,
+      formulaFeed: vi.fn(async () => feed([feedRun()])),
+    });
+
+    const source = await loadSupervisorRunHistorySource();
+
+    expect(source.status).toBe('fresh');
+    if (source.status === 'error') throw new Error(source.error);
+    expect(source.data.lanes.map((lane) => lane.id)).toEqual(['hist-rig']);
+    expect(source.data.lanesPartial).toBe(true);
+  });
+
+  it('marks the history partial when a per-rig closed read fails', async () => {
+    const listBeads = vi.fn(async (_cityName: string, query?: Record<string, unknown>) => {
+      if (query?.type === 'molecule') return beadList([closedMoleculeRoot('hist-1')]);
+      if (query?.rig === 'rig-a') throw new Error('rig unavailable');
+      return beadList([runRoot()]);
+    });
+    setSupervisorApiForTests({
+      ...baseApi,
+      listBeads,
+      formulaFeed: vi.fn(async () => feed([feedRun()])),
+    });
+
+    const source = await loadSupervisorRunHistorySource();
+
+    expect(source.status).toBe('fresh');
+    if (source.status === 'error') throw new Error(source.error);
+    expect(source.data.lanes.map((lane) => lane.id)).toEqual(['hist-1']);
+    expect(source.data.lanesPartial).toBe(true);
+  });
+
+  it('forceFresh marks ONLY the proxy-cached molecule + feed reads for cache bypass (gascity-dashboard-i3dz)', async () => {
+    const listBeads = vi.fn(async (_cityName: string, query?: Record<string, unknown>) => {
+      if (query?.type === 'molecule') return beadList([]);
+      return beadList([runRoot()]);
+    });
+    const formulaFeed = vi.fn(async () => feed([feedRun()]));
+    setSupervisorApiForTests({ ...baseApi, listBeads, formulaFeed });
+
+    const source = await loadSupervisorRunHistorySource({ forceFresh: true });
+    expect(source.status).toBe('fresh');
+
+    expect(listBeads).toHaveBeenCalledWith(
+      'test-city',
+      { limit: 500, type: 'molecule', all: true },
+      { cacheBypass: true },
+    );
+    expect(formulaFeed).toHaveBeenCalledWith(
+      'test-city',
+      { scope_kind: 'city', scope_ref: 'test-city' },
+      { cacheBypass: true },
+    );
+    // The uncached core-active and per-rig reads keep the plain two-arg call.
+    expect(listBeads).toHaveBeenCalledWith('test-city', { limit: 500 });
+    expect(listBeads).toHaveBeenCalledWith('test-city', {
+      limit: 500,
+      type: 'task',
+      rig: 'rig-a',
+      all: true,
+    });
+  });
+
+  it('returns an error source when the core active-bead read fails', async () => {
+    setSupervisorApiForTests({
+      ...baseApi,
+      listBeads: vi.fn(async (_cityName: string, query?: Record<string, unknown>) => {
+        if (query?.type === 'molecule') return beadList([]);
+        throw new Error('beads unavailable');
+      }),
+      formulaFeed: vi.fn(async () => feed([])),
+    });
+
+    const source = await loadSupervisorRunHistorySource();
+
+    expect(source).toEqual({
+      source: 'runs',
+      status: 'error',
+      error: 'beads unavailable',
+    });
   });
 });
 
