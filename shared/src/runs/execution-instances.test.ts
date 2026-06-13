@@ -43,7 +43,12 @@ function retryShell(id: string, status: string): RunSnapshotBead {
 }
 
 // Shaped like /tmp/wf-x0tank.json: the attempt bead spawned by the shell.
-function attemptBead(id: string, shellId: string, status: string, outcome?: string): RunSnapshotBead {
+function attemptBead(
+  id: string,
+  shellId: string,
+  status: string,
+  outcome?: string,
+): RunSnapshotBead {
   return bead({
     id,
     status,

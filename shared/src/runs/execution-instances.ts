@@ -157,10 +157,7 @@ function compareExecutionInstances(
 // spawned — the visible instance must be the most-progressed one, not whichever
 // bead id sorts last. Otherwise a completed step renders as pending/ready for
 // the entire shell-close lag window (audit finding M7).
-function compareVisiblePreference(
-  left: RunExecutionInstance,
-  right: RunExecutionInstance,
-): number {
+function compareVisiblePreference(left: RunExecutionInstance, right: RunExecutionInstance): number {
   return (
     iterationOrder(left.iteration) - iterationOrder(right.iteration) ||
     attemptOrder(left.attempt) - attemptOrder(right.attempt) ||
