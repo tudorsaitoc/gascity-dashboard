@@ -12,7 +12,11 @@ describe('FormulaRunNode', () => {
   // alarming (DESIGN.md One Mark Rule).
   it('renders derived blocked as a calm waiting state, not a failure', () => {
     render(
-      <FormulaRunNode node={{ ...nodeFor('step'), status: 'blocked' }} selected onToggle={vi.fn()} />,
+      <FormulaRunNode
+        node={{ ...nodeFor('step'), status: 'blocked' }}
+        selected
+        onToggle={vi.fn()}
+      />,
     );
 
     const status = screen.getByText(/waiting/i);
@@ -36,7 +40,11 @@ describe('FormulaRunNode', () => {
 
     for (const status of statuses) {
       const { container, unmount } = render(
-        <FormulaRunNode node={{ ...nodeFor('step'), status }} selected={false} onToggle={vi.fn()} />,
+        <FormulaRunNode
+          node={{ ...nodeFor('step'), status }}
+          selected={false}
+          onToggle={vi.fn()}
+        />,
       );
       const statusSpan = container.querySelector('span.text-label');
       expect(statusSpan, status).toBeTruthy();
