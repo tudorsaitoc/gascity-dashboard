@@ -94,8 +94,7 @@ function reviewClaudeBeads(): RunSnapshotBead[] {
       title: 'Finalize scope for Code review: Claude (reasoning-heavy)',
       status: 'completed',
       kind: 'scope-check',
-      step_ref:
-        'mol-adopt-pr-v2.review-loop.iteration.1.review-pipeline.review-claude-scope-check',
+      step_ref: 'mol-adopt-pr-v2.review-loop.iteration.1.review-pipeline.review-claude-scope-check',
       scope_ref: 'review-loop.iteration.1',
       metadata: {
         'gc.kind': 'scope-check',
@@ -160,17 +159,14 @@ function repairStepBeads(): RunSnapshotBead[] {
 
 describe('groupRunBeads — scope-check badge targeting (audit M5)', () => {
   test('scope-checks for a nested-pipeline step attach to the merged retry-bead node', () => {
-    const { groups, badgesByTarget } = groupRunBeads(
-      [rootBead(), ...reviewClaudeBeads()],
-      ROOT_ID,
-    );
+    const { groups, badgesByTarget } = groupRunBeads([rootBead(), ...reviewClaudeBeads()], ROOT_ID);
 
     const reviewNode = groups.find((group) => group.semanticNodeId === 'ga-wisp-dftrbb');
     assert.ok(reviewNode, 'retry + attempt beads merge into one node keyed by the retry bead id');
-    assert.deepEqual(
-      reviewNode.beads.map((b) => b.id).sort(),
-      ['ga-wisp-dftrbb', 'ga-wisp-ov9nus'],
-    );
+    assert.deepEqual(reviewNode.beads.map((b) => b.id).sort(), [
+      'ga-wisp-dftrbb',
+      'ga-wisp-ov9nus',
+    ]);
 
     const badges = badgesByTarget.get('ga-wisp-dftrbb') ?? [];
     assert.deepEqual(
