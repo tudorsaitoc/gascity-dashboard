@@ -5,6 +5,7 @@ import {
   buildRunSummary,
   emptyRunSummary,
   runLane,
+  statusCounts,
   MAX_HISTORICAL_LANES,
   MAX_VISIBLE_ACTIVE_LANES,
 } from './summary.js';
@@ -515,5 +516,164 @@ describe('runLane scope sanitisation — gascity-dashboard-5e5v', () => {
     assert.equal(lane.scope.rootStoreRef, 'rig:demoapp');
     assert.ok(!lane.scope.ref.includes('\x1b'), 'no ESC byte may survive in ref');
     assert.ok(!lane.scope.rootStoreRef.includes('\x1b'), 'no ESC byte may survive in rootStoreRef');
+  });
+});
+
+// M2 audit propagation: the lane's active-step filter must accept the full
+// in-flight status vocabulary (in_progress/active/running), exactly like
+// structuredPhase. With a raw 'in_progress'-only filter, a supervisor wire
+// 'active' primary step left activeStepId null and degraded progress to
+// stage_only ('active run step unavailable') while the stage ladder showed an
+// active stage.
+describe('runLane — wire in-flight statuses resolve the active step (M2)', () => {
+  function wireRun(stepStatus: string): RunIssue[] {
+    return [
+      runIssue({
+        id: 'run-wire',
+        title: 'Adopt PR #124',
+        status: 'pending',
+        updated_at: '',
+        metadata: { 'gc.formula_contract': 'graph.v2', 'gc.kind': 'run' },
+      }),
+      runIssue({
+        id: 'run-wire-step-1',
+        title: 'Implementation patch',
+        status: stepStatus,
+        updated_at: '',
+        metadata: {
+          'gc.kind': 'step',
+          'gc.root_bead_id': 'run-wire',
+          'gc.step_id': 'implementation.patch',
+        },
+      }),
+    ];
+  }
+
+  for (const status of ['active', 'running'] as const) {
+    test(`a wire '${status}' primary step produces progress.status === 'active_step'`, () => {
+      const lane = runLane('run-wire', wireRun(status), new Map());
+
+      assert.equal(lane.phase, 'implementation');
+      assert.equal(lane.progress.status, 'active_step');
+      if (lane.progress.status !== 'active_step') return;
+      assert.equal(lane.progress.stepId, 'implementation.patch');
+    });
+  }
+});
+
+// PR #124 review fix (attempt-2 blocker): runLane broadened the active-STEP
+// filter to the supervisor wire in-flight vocabulary, but activeAssignees still
+// filtered status !== 'closed'. So the assignee of a wire completed/done/failed/
+// skipped step surfaced as an ACTIVE assignee on the lane — and that lane field
+// feeds blockedRunRemedy (no-worker vs open-detail) and health session matching.
+// activeAssignees must reuse the same resolved-status vocabulary the rest of the
+// builder does.
+describe('runLane — activeAssignees excludes resolved wire statuses (PR #124)', () => {
+  function mixedRun(resolvedStatus: string): RunIssue[] {
+    return [
+      runIssue({
+        id: 'run-mixed',
+        title: 'Adopt PR #124',
+        status: 'pending',
+        updated_at: '',
+        metadata: { 'gc.formula_contract': 'graph.v2', 'gc.kind': 'run' },
+      }),
+      runIssue({
+        id: 'run-mixed-resolved',
+        title: 'Implementation patch',
+        status: resolvedStatus,
+        assignee: 'app/resolved-worker',
+        updated_at: '',
+        metadata: {
+          'gc.kind': 'step',
+          'gc.root_bead_id': 'run-mixed',
+          'gc.step_id': 'implement-change',
+        },
+      }),
+      runIssue({
+        id: 'run-mixed-active',
+        title: 'Review',
+        status: 'active',
+        assignee: 'app/active-worker',
+        updated_at: '',
+        metadata: {
+          'gc.kind': 'step',
+          'gc.root_bead_id': 'run-mixed',
+          'gc.step_id': 'review-pipeline.synthesize',
+        },
+      }),
+    ];
+  }
+
+  // 'closed' already worked under the old filter — it is the regression guard
+  // that the fix does not change well-formed ledger behavior. The wire spellings
+  // are the ones the old `!== 'closed'` filter wrongly reported as active.
+  for (const resolved of ['closed', 'completed', 'done', 'failed', 'skipped'] as const) {
+    test(`a '${resolved}' assigned step is excluded; the active step's assignee remains`, () => {
+      const lane = runLane('run-mixed', mixedRun(resolved), new Map());
+      assert.deepEqual(lane.activeAssignees, ['app/active-worker']);
+    });
+  }
+});
+
+// PR #124 review fix: stageProgress maps an attempt-suffixed retry work bead
+// (apply-fixes.attempt.1) to its base formula stage by stripping `.attempt.N`,
+// but formulaStageResolved compared the raw suffixed progress.stepId against the
+// base formula step ids, so a known retry step read as unresolved and downgraded
+// the lane health phaseConfidence to 'inferred'. The resolution must normalize
+// the step id the same way stage cohorting does.
+describe('runLane — formulaStageResolved normalizes attempt-suffixed retry steps (PR #124)', () => {
+  function retryRun(): RunIssue[] {
+    return [
+      runIssue({
+        id: 'run-retry',
+        title: 'Adopt PR #124',
+        status: 'pending',
+        updated_at: '',
+        metadata: {
+          'gc.formula_contract': 'graph.v2',
+          'gc.kind': 'run',
+          'gc.formula': 'mol-adopt-pr-v2',
+        },
+      }),
+      runIssue({
+        id: 'run-retry-apply-fixes',
+        title: 'Apply review fixes',
+        status: 'active',
+        assignee: 'app/fixer',
+        updated_at: '',
+        metadata: {
+          'gc.kind': 'work',
+          'gc.root_bead_id': 'run-retry',
+          'gc.step_id': 'apply-fixes.attempt.1',
+        },
+      }),
+    ];
+  }
+
+  test('an active apply-fixes.attempt.1 step resolves to a known formula stage', () => {
+    const lane = runLane('run-retry', retryRun(), new Map());
+    assert.equal(lane.progress.status, 'active_step');
+    if (lane.progress.status === 'active_step') {
+      assert.equal(lane.progress.stepId, 'apply-fixes.attempt.1');
+    }
+    assert.equal(lane.formulaStageResolved, true);
+  });
+});
+
+// PR #124 review fix (F2): statusCounts keys feed blocked-run consumers that
+// look them up by canonical lowercase spelling (blocked.ts reads
+// statusCounts['blocked']). The wire status is not enum-typed, so a cased or
+// padded spelling must aggregate under the same canonical key it would render
+// as, never silently fall into a raw key the consumer never reads.
+describe('statusCounts — canonical key normalization (PR #124)', () => {
+  test('cased and padded spellings collapse onto the canonical lowercase key', () => {
+    const counts = statusCounts([
+      runIssue({ id: 'a', status: 'blocked' }),
+      runIssue({ id: 'b', status: 'Blocked' }),
+      runIssue({ id: 'c', status: ' blocked ' }),
+    ]);
+    assert.equal(counts['blocked'], 3);
+    assert.equal(counts['Blocked'], undefined);
   });
 });

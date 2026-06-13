@@ -163,11 +163,12 @@ export function buildRunningFormulaRun(input: RunningFormulaRunInput): RunningFo
  * Adapt a supervisor run-snapshot bead to the phase classifier's
  * RunIssue input. The phase pipeline's own fromDashboardBead adapter consumes the
  * city-wide DashboardBead shape (issue_type, created_at); the run-snapshot wire row
- * is a different shape (kind, no created_at). mapRunPhase only reads
- * status / title / metadata / issue_type / parent, so this maps the run-bead
- * `kind` onto `issue_type` and leaves updated_at empty (the snapshot carries
- * no per-bead timestamp — latestStepId's ordering degrades gracefully to
- * input order, which the phase classifier does not depend on).
+ * is a different shape (kind, no created_at). mapRunPhase reads
+ * status / title / metadata / issue_type / parent plus the step_ref / scope_ref
+ * retry signals, so this maps the run-bead `kind` onto `issue_type`, carries the
+ * first-class refs, and leaves updated_at empty (the snapshot carries no per-bead
+ * timestamp — latestStepId's ordering degrades gracefully to input order, which
+ * the phase classifier does not depend on).
  */
 function fromRunSnapshotBead(bead: RunSnapshotBead): RunIssue {
   const parent = meta(bead, 'gc.parent_bead_id');
@@ -181,6 +182,13 @@ function fromRunSnapshotBead(bead: RunSnapshotBead): RunIssue {
   };
   if (bead.assignee !== undefined) issue.assignee = bead.assignee;
   if (parent !== undefined) issue.parent = parent;
+  // Carry the first-class run-snapshot refs so retry/iteration cohorting reads the
+  // canonical step_ref/scope_ref, not only their metadata mirror — some snapshot
+  // rows populate the first-class field without the gc.* mirror. The `.attempt.N`
+  // / `.iteration.N` segments here are how latestAttempt drops a stale failed
+  // attempt of a retried step (see phaseMapping.attemptRank).
+  if (bead.step_ref !== undefined) issue.step_ref = bead.step_ref;
+  if (bead.scope_ref !== undefined) issue.scope_ref = bead.scope_ref;
   return issue;
 }
 

@@ -39,8 +39,13 @@ export function externalizeId(id: string): string {
   return id.replace(/(^|[^A-Za-z0-9])ralph(?=$|[^A-Za-z0-9])/gi, '$1check-loop');
 }
 
-function numericRefSegment(bead: RunSnapshotBead, marker: string): number | undefined {
-  const ref = normalizedStepRef(bead);
+/**
+ * Parse the positive integer following `marker` in a dotted ref string, e.g.
+ * refSegment('mol-adopt-pr-v2.review-loop.iteration.6.apply-fixes.attempt.1',
+ * 'attempt') === 1. Returns undefined when the marker is absent or is not
+ * followed by a positive integer.
+ */
+export function refSegment(ref: string | null | undefined, marker: string): number | undefined {
   if (!ref) return undefined;
   const parts = ref.split('.');
   for (let i = 0; i < parts.length - 1; i += 1) {
@@ -49,6 +54,10 @@ function numericRefSegment(bead: RunSnapshotBead, marker: string): number | unde
     if (parsed !== undefined) return parsed;
   }
   return undefined;
+}
+
+function numericRefSegment(bead: RunSnapshotBead, marker: string): number | undefined {
+  return refSegment(normalizedStepRef(bead), marker);
 }
 
 function numericMeta(bead: RunSnapshotBead, key: string): number | undefined {

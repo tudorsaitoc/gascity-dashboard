@@ -1,3 +1,10 @@
+import {
+  isBlockedStatus,
+  isClosedStatus,
+  isInFlightStatus,
+  isOpenStatus,
+  isResolvedStatus,
+} from 'gas-city-dashboard-shared';
 import type { SupervisorBead } from '../supervisor/beadReads';
 
 // Pure dependency-graph + kanban-column builder for the Beads board
@@ -93,17 +100,16 @@ function blockingNeedIds(bead: SupervisorBead): readonly string[] {
 }
 
 function columnFor(node: { bead: SupervisorBead; ready: boolean }): BoardColumnId {
-  switch (node.bead.status) {
-    case 'in_progress':
-      return 'in_progress';
-    case 'blocked':
-      return 'blocked';
-    case 'closed':
-      return 'done';
-    case 'open':
-    default:
-      return node.ready ? 'ready' : 'open';
-  }
+  // Status may arrive as a bd ledger spelling (in_progress/closed) or a
+  // supervisor wire spelling (active/running, completed/done/failed/skipped); the
+  // shared predicates accept both so a wire bead is not mis-columned into
+  // open/ready. failed and skipped are terminal — no work remains — so they land
+  // in done via isResolvedStatus, never the open/ready fallback.
+  const status = node.bead.status;
+  if (isInFlightStatus(status)) return 'in_progress';
+  if (isBlockedStatus(status)) return 'blocked';
+  if (isResolvedStatus(status)) return 'done';
+  return node.ready ? 'ready' : 'open';
 }
 
 function byPriorityThenId(a: BeadNode, b: BeadNode): number {
@@ -130,7 +136,13 @@ export function buildBeadGraph(beads: readonly SupervisorBead[]): BeadGraph {
     const hasUnresolvedDeps = deps.some((d) => d.bead === null);
 
     const needs = blockingNeedIds(b);
-    const ready = b.status === 'open' && needs.every((id) => byId.get(id)?.status === 'closed');
+    // A blocking need clears only when its bead completed SUCCESSFULLY — closed,
+    // or the supervisor wire spellings completed/done. Readiness is a success
+    // gate, NOT the terminal/no-work-remains test used for columns: a failed or
+    // skipped blocker is resolved yet did not pass, so it must not mark the
+    // dependent ready (use isClosedStatus here, never isResolvedStatus).
+    const ready =
+      isOpenStatus(b.status) && needs.every((id) => isClosedStatus(byId.get(id)?.status ?? ''));
 
     const node: BeadNode = {
       bead: b,

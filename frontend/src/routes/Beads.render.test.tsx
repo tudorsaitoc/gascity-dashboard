@@ -121,6 +121,26 @@ describe('BeadsPage supervisor reads', () => {
     expect(within(actions as HTMLElement).getByText('Read-only')).toBeTruthy();
   });
 
+  it('disables the Close action for a terminal failed/skipped bead even when writable', async () => {
+    // failed/skipped are terminal in the shared status vocabulary — no work
+    // remains, so there is nothing to Close. The guard must fire on resolved
+    // status, not only bd 'closed'. Writable mode (no Read-only affordance) plus
+    // an enabled Nudge prove the disable is the resolved-status guard, not
+    // read-only or in-flight busy state.
+    renderPage('/beads?bead=td-failed-resolved');
+
+    const dialog = await screen.findByRole('dialog');
+    const actions = (within(dialog).getByRole('button', { name: 'Nudge' }) as HTMLButtonElement)
+      .parentElement;
+    expect(actions).not.toBeNull();
+    const scope = within(actions as HTMLElement);
+    expect(scope.queryByText('Read-only')).toBeNull();
+    expect((scope.getByRole('button', { name: 'Nudge' }) as HTMLButtonElement).disabled).toBe(
+      false,
+    );
+    expect((scope.getByRole('button', { name: 'Close' }) as HTMLButtonElement).disabled).toBe(true);
+  });
+
   it('keeps the New bead control active when the dashboard is writable', async () => {
     renderPage('/beads');
 
@@ -197,6 +217,16 @@ function stubFetch() {
             title: 'direct supervisor bead',
             assignee: 'mayor',
             needs: ['td-parent-1'],
+          }),
+        );
+      }
+      if (url.pathname === '/gc-supervisor/v0/city/test-city/bead/td-failed-resolved') {
+        return jsonResponse(
+          bead({
+            id: 'td-failed-resolved',
+            title: 'failed resolved bead',
+            status: 'failed',
+            assignee: 'mayor',
           }),
         );
       }

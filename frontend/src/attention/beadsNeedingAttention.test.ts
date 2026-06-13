@@ -32,6 +32,17 @@ describe('selectBeadsNeedingAttention (gascity-dashboard-2j8e.3)', () => {
     ]);
   });
 
+  it('surfaces a ready-unclaimed bead under a cased / padded open wire spelling', () => {
+    // readyUnclaimedRow normalizes the status, so a wire-cased 'Open' (or padded
+    // ' open ') is still recognized as claimable work rather than silently dropped.
+    const rows = select({
+      beads: [bead({ id: 'B-cased', status: ' Open ', created_at: '2026-06-05T11:00:00.000Z' })],
+    });
+    expect(rows).toEqual([
+      expect.objectContaining({ beadId: 'B-cased', reason: 'ready-unclaimed' }),
+    ]);
+  });
+
   it('escalates a long-stale ready-unclaimed bead to attention', () => {
     const rows = select({
       beads: [bead({ id: 'B-stale', status: 'open', created_at: '2026-06-01T11:00:00.000Z' })],
@@ -90,6 +101,34 @@ describe('selectBeadsNeedingAttention (gascity-dashboard-2j8e.3)', () => {
       escalations: [bead({ id: 'B-done', status: 'closed', labels: ['gc:escalation'] })],
     });
     expect(rows).toEqual([]);
+  });
+
+  it('excludes a wire-resolved escalation (completed/done), not only bd closed', () => {
+    expect(
+      select({
+        escalations: [bead({ id: 'B-completed', status: 'completed', labels: ['gc:escalation'] })],
+      }),
+    ).toEqual([]);
+    expect(
+      select({
+        escalations: [bead({ id: 'B-wire-done', status: 'done', labels: ['gc:escalation'] })],
+      }),
+    ).toEqual([]);
+  });
+
+  it('excludes a terminal failed/skipped escalation (resolved, no longer needs the operator)', () => {
+    // failed and skipped are terminal/resolved — the escalation is over, so it
+    // must drop out of attention rather than linger as actionable work.
+    expect(
+      select({
+        escalations: [bead({ id: 'B-failed', status: 'failed', labels: ['gc:escalation'] })],
+      }),
+    ).toEqual([]);
+    expect(
+      select({
+        escalations: [bead({ id: 'B-skipped', status: 'skipped', labels: ['gc:escalation'] })],
+      }),
+    ).toEqual([]);
   });
 
   it('does not count a P1 high-priority open bead just for its priority', () => {

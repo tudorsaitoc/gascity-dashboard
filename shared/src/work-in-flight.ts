@@ -74,9 +74,3 @@ export function parseAssignee(assignee: string): ParsedAssignee {
   // the separator boundary, so slice up to match.index.
   return { role: trimmed.slice(0, match.index), sessionId };
 }
-
-/**
- * The bead status that means "actively being worked on". A single literal so
- * the work-in-flight filter and the status badge stay in lockstep.
- */
-export const IN_PROGRESS_STATUS = 'in_progress';

@@ -1,3 +1,4 @@
+import { isOpenStatus, isResolvedStatus } from 'gas-city-dashboard-shared';
 import type { Bead } from 'gas-city-dashboard-shared/gc-supervisor';
 import { elapsedSince, formatElapsed } from './elapsed';
 
@@ -74,9 +75,12 @@ export function selectBeadsNeedingAttention(
 }
 
 // Escalated / help-requested: an open escalation bead is abnormal blocking —
-// counted immediately, regardless of age. A resolved (closed) escalation is not.
+// counted immediately, regardless of age. A resolved escalation is not.
 function escalatedRow(bead: Bead): BeadAttentionRow | null {
-  if (bead.status === 'closed') return null;
+  // A resolved escalation no longer needs the operator — accept every terminal
+  // spelling (bd closed and the supervisor wire completed/done/failed/skipped)
+  // via isResolvedStatus, or a finished escalation lingers in the attention rows.
+  if (isResolvedStatus(bead.status)) return null;
   return {
     beadId: bead.id,
     reason: 'escalated',
@@ -91,7 +95,7 @@ function escalatedRow(bead: Bead): BeadAttentionRow | null {
 // `blocked` = "blocked by a dependency") and in-progress/closed work are not
 // surfaced — only genuinely-claimable open beads.
 function readyUnclaimedRow(bead: Bead, nowMs: number): BeadAttentionRow | null {
-  if (bead.status !== 'open' || hasAssignee(bead)) return null;
+  if (!isOpenStatus(bead.status) || hasAssignee(bead)) return null;
   const ageMs = elapsedSince(bead.created_at, nowMs);
   if (ageMs === null || ageMs < READY_UNCLAIMED_WATCH_MS) return null;
   const stale = ageMs >= READY_UNCLAIMED_STALE_MS;

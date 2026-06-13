@@ -72,6 +72,50 @@ describe('buildBeadGraph — column placement', () => {
     expect(columnOf([bead('A', 'closed')], 'A')).toBe('done');
   });
 
+  it('maps supervisor wire spellings to columns too (active/running, completed/done)', () => {
+    // A board fed supervisor-wire beads must not mis-column an in-flight or
+    // finished bead into open/ready just because it is not the bd spelling.
+    expect(columnOf([bead('A', 'active')], 'A')).toBe('in_progress');
+    expect(columnOf([bead('A', 'running')], 'A')).toBe('in_progress');
+    expect(columnOf([bead('A', 'completed')], 'A')).toBe('done');
+    expect(columnOf([bead('A', 'done')], 'A')).toBe('done');
+  });
+
+  it('normalizes cased / padded blocked spellings into the blocked column', () => {
+    // The board must column a blocked bead the same way the status badge and
+    // filter chip classify it — both via isBlockedStatus (normalized trim +
+    // lowercase). A raw === 'blocked' here would mis-column a 'Blocked' or
+    // ' blocked ' wire spelling into open/ready, an internally inconsistent board.
+    expect(columnOf([bead('A', 'Blocked')], 'A')).toBe('blocked');
+    expect(columnOf([bead('A', ' blocked ')], 'A')).toBe('blocked');
+  });
+
+  it('columns terminal failed/skipped wire spellings into done (no work remains)', () => {
+    // failed and skipped are terminal/resolved — they belong in done, not left in
+    // open/ready as if work still remained on them.
+    expect(columnOf([bead('A', 'failed')], 'A')).toBe('done');
+    expect(columnOf([bead('A', 'skipped')], 'A')).toBe('done');
+  });
+
+  it('does NOT call a bead ready when its blocking need failed/skipped (readiness is a success gate)', () => {
+    // Distinct from column placement: a failed or skipped blocker is resolved (no
+    // work remains on it) but did NOT pass, so its dependent is not ready. The
+    // ready gate stays on successful completion, never the terminal/resolved test.
+    const failed = buildBeadGraph([bead('A', 'failed'), bead('B', 'open', { needs: ['A'] })]);
+    expect(failed.nodes.get('B')?.ready).toBe(false);
+    expect(failed.nodes.get('B')?.column).toBe('open');
+    const skipped = buildBeadGraph([bead('A', 'skipped'), bead('C', 'open', { needs: ['A'] })]);
+    expect(skipped.nodes.get('C')?.ready).toBe(false);
+    expect(skipped.nodes.get('C')?.column).toBe('open');
+  });
+
+  it('treats a wire-completed/done blocking need as resolved (the open bead becomes ready)', () => {
+    expect(columnOf([bead('A', 'completed'), bead('B', 'open', { needs: ['A'] })], 'B')).toBe(
+      'ready',
+    );
+    expect(columnOf([bead('A', 'done'), bead('C', 'open', { needs: ['A'] })], 'C')).toBe('ready');
+  });
+
   it('places an open bead with no needs in the ready column', () => {
     const graph = buildBeadGraph([bead('A', 'open')]);
     expect(graph.nodes.get('A')?.column).toBe('ready');
