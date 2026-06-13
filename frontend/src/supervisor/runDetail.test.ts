@@ -301,7 +301,7 @@ describe('loadSupervisorFormulaRunDetail', () => {
       if (attempts === 1) {
         throw new SupervisorApiError(
           undefined,
-          'gc supervisor request timed out after 15000ms',
+          'gc supervisor request timed out after 60000ms',
           undefined,
         );
       }
