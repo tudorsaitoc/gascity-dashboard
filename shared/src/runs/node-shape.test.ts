@@ -126,6 +126,6 @@ describe('enrichFormulaRun — workflow-finalize does not leak into the graph (M
     const detail = enrichFormulaRun(snapshot(), {});
     const root = detail.nodes.find((node) => node.id === ROOT_ID);
     assert.ok(root, 'run root node present');
-    assert.notEqual(root.status, 'blocked');
+    assert.equal(root.status, 'ready');
   });
 });

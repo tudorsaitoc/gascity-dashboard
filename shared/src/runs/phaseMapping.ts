@@ -921,5 +921,12 @@ export function stepIssues(issues: RunIssue[], step: string): RunIssue[] {
 
 export function isPrimaryStepIssue(issue: RunIssue): boolean {
   const kind = stringValue(issue.metadata?.['gc.kind']);
-  return kind !== 'spec' && kind !== 'scope-check' && kind !== 'workflow-finalize';
+  // Both finalize spellings demote to the hidden run-finalize construct in
+  // constructKindFor (node-shape.ts); keep the exclusion set aligned.
+  return (
+    kind !== 'spec' &&
+    kind !== 'scope-check' &&
+    kind !== 'workflow-finalize' &&
+    kind !== 'run-finalize'
+  );
 }

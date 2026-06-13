@@ -1,7 +1,13 @@
 import { test, describe } from 'node:test';
 import assert from 'node:assert/strict';
 
-import { mapRunPhase, stageProgress, stepIdPhase, type RunIssue } from './phaseMapping.js';
+import {
+  isPrimaryStepIssue,
+  mapRunPhase,
+  stageProgress,
+  stepIdPhase,
+  type RunIssue,
+} from './phaseMapping.js';
 
 // gascity-dashboard-q3p1: phase is derived from the run's CURRENT step
 // (structured-first), not from a keyword scan over title+description+metadata.
@@ -1111,5 +1117,34 @@ describe('mapRunPhase — finalization is the furthest lifecycle stage (Residual
       snapshotStep('human-approval', 'closed'),
     ]);
     assert.equal(phase.phase, 'approval');
+  });
+});
+
+// Both finalize wire spellings demote to the hidden run-finalize construct in
+// constructKindFor (node-shape.ts), so neither may count as a primary step
+// issue: a finalize control hidden from the graph must not surface in the
+// phase ladder either.
+describe('isPrimaryStepIssue — control constructs are not primary steps', () => {
+  function issueWithKind(kind: string): RunIssue {
+    return {
+      id: `issue-${kind}`,
+      title: 'issue',
+      status: 'open',
+      issue_type: 'task',
+      updated_at: '',
+      metadata: { 'gc.kind': kind, 'gc.step_id': kind },
+    };
+  }
+
+  test('an ordinary step issue is primary', () => {
+    assert.equal(isPrimaryStepIssue(issueWithKind('step')), true);
+  });
+
+  test("the wire spelling 'workflow-finalize' is excluded", () => {
+    assert.equal(isPrimaryStepIssue(issueWithKind('workflow-finalize')), false);
+  });
+
+  test("the legacy spelling 'run-finalize' is excluded", () => {
+    assert.equal(isPrimaryStepIssue(issueWithKind('run-finalize')), false);
   });
 });
