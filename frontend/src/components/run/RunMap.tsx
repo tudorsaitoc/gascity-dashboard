@@ -75,11 +75,21 @@ export function RunMap({
   }
 
   const summary = source.data;
+  // Reconcile the lazy history payload against the live summary before it feeds
+  // either the count hint or the Historical section (see reconcileHistory): the
+  // two sources refresh on independent clocks, so a completed run that has since
+  // reactivated must render and count in the live Active/Blocked set only.
+  const reconciledHistory: SourceState<RunHistory> | undefined =
+    history !== undefined && history.status !== 'error'
+      ? { ...history, data: reconcileHistory(history.data, summary) }
+      : history;
   // The "(N completed.)" hint on the active empty state needs the lazy history
   // payload; before it loads the count is honestly unknown, so the hint is
   // omitted rather than rendered as a fabricated zero.
   const completedCount =
-    history !== undefined && history.status !== 'error' ? history.data.totalHistorical : null;
+    reconciledHistory !== undefined && reconciledHistory.status !== 'error'
+      ? reconciledHistory.data.totalHistorical
+      : null;
 
   return (
     <section>
@@ -97,7 +107,7 @@ export function RunMap({
       />
       {showHistory && (
         <HistoricalSection
-          history={history}
+          history={reconciledHistory}
           historyLoading={historyLoading}
           now={now}
           {...(attentionSeverity === undefined ? {} : { attentionSeverity })}
@@ -105,6 +115,35 @@ export function RunMap({
       )}
     </section>
   );
+}
+
+/**
+ * Reconcile the lazy history payload against the live summary at the render
+ * boundary. History (loaded on open / explicit Refresh) and the active+blocked
+ * summary (refreshed on every SSE burst) run on independent clocks, so a run
+ * that was `complete` when history last loaded can reactivate into the live set
+ * before history is refreshed. Drop any history lane whose run is now live and
+ * subtract those from `totalHistorical`, so the live set wins and a single run
+ * is never rendered or counted in both regions.
+ *
+ * Only the rendered (MAX_HISTORICAL_LANES-capped) lanes can be reconciled here;
+ * a reactivation of a run beyond that window is invisible at the render
+ * boundary. The operator-facing double-render — a run live in Active while still
+ * listed under Historical — is what this restores, holding the invariant the
+ * pre-split single summary maintained continuously.
+ */
+function reconcileHistory(history: RunHistory, summary: RunSummary): RunHistory {
+  if (summary.lanes.length === 0 && summary.blockedLanes.length === 0) return history;
+  const liveIds = new Set<string>();
+  for (const lane of summary.lanes) liveIds.add(lane.id);
+  for (const lane of summary.blockedLanes) liveIds.add(lane.id);
+  const lanes = history.lanes.filter((lane) => !liveIds.has(lane.id));
+  if (lanes.length === history.lanes.length) return history;
+  return {
+    ...history,
+    lanes,
+    totalHistorical: history.totalHistorical - (history.lanes.length - lanes.length),
+  };
 }
 
 function ActiveSection({
@@ -309,12 +348,37 @@ function HistoricalSection({
     <section id={HISTORICAL_SECTION_ID} aria-label="Historical runs" className="mt-12">
       <h2 className="text-label uppercase tracking-wider text-fg-faint">
         Historical
-        {history !== undefined && history.status !== 'error' && history.data.lanesPartial && (
+        {/* One mark per region (DESIGN.md): partial and stale are mutually
+            exclusive cues. Stale (a failed refresh re-publishing the last-good
+            set) outranks partial here — it is the more urgent "this is behind,
+            press Refresh" signal — so the partial notice yields when both
+            apply, and the two never stack in the same header. */}
+        {history !== undefined &&
+          history.status !== 'error' &&
+          history.status !== 'stale' &&
+          history.data.lanesPartial && (
+            <span className="ml-3 normal-case tracking-normal">
+              <PartialDataNotice
+                glyph="◐"
+                label="history partial"
+                title="one or more closed-history reads were unavailable; the completed set may be incomplete"
+              />
+            </span>
+          )}
+        {/* A failed explicit refresh AFTER a good load keeps serving the last
+            good payload re-published as 'stale' (last-good retention in
+            useRunHistory). Surface that as a glyph+word cue so stale completed
+            lanes never read as a fresh load — the operator sees the refresh
+            failed and can Refresh again rather than trusting silently-behind
+            data. Honest-degradation rule (gascity-dashboard-n6f1); reopen
+            reuses the cache, so this visible warning is what keeps the
+            suppressed retry honest. */}
+        {history !== undefined && history.status === 'stale' && (
           <span className="ml-3 normal-case tracking-normal">
             <PartialDataNotice
               glyph="◐"
-              label="history partial"
-              title="one or more closed-history reads were unavailable; the completed set may be incomplete"
+              label="history stale"
+              title="the last history refresh failed; showing the most recent completed runs that loaded (use Refresh to retry)"
             />
           </span>
         )}

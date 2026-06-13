@@ -49,11 +49,16 @@ export function useRunHistory(enabled: boolean): RunHistorySubscription {
   const runIdRef = useRef(0);
   const keyRef = useRef(key);
   keyRef.current = key;
+  // The cache key whose read is currently in flight, or null. The lazy edge
+  // checks this so a closed -> open toggle BEFORE the first (uncached) read
+  // resolves does not start a second copy of the heaviest fan-out in the view.
+  const inFlightKeyRef = useRef<string | null>(null);
 
   const refresh = useCallback(async (options?: { forceFresh?: boolean }) => {
     const runId = runIdRef.current + 1;
     runIdRef.current = runId;
     const cacheKey = keyRef.current;
+    inFlightKeyRef.current = cacheKey;
     setLoading(true);
     try {
       const result = await loadSupervisorRunHistorySource({
@@ -80,7 +85,12 @@ export function useRunHistory(enabled: boolean): RunHistorySubscription {
       if (published.status !== 'error') setCached(cacheKey, published);
       setSource(published);
     } finally {
-      if (runIdRef.current === runId) setLoading(false);
+      // Only the latest read clears the in-flight marker; a superseded read
+      // (newer runId already started) leaves it set for the read that owns it.
+      if (runIdRef.current === runId) {
+        inFlightKeyRef.current = null;
+        setLoading(false);
+      }
     }
   }, []);
 
@@ -92,10 +102,13 @@ export function useRunHistory(enabled: boolean): RunHistorySubscription {
 
   // The lazy edge: fetch when the section opens with no cached payload for
   // this city. Reopens reuse the cache; staleness is the operator's Refresh
-  // button's concern, not an automatic refetch.
+  // button's concern, not an automatic refetch. The in-flight guard makes the
+  // open self-idempotent: while the first (uncached) read is still running, a
+  // closed -> open toggle must not start a duplicate fan-out.
   useEffect(() => {
     if (!enabled) return;
     if (getCached<SourceState<RunHistory>>(key) !== undefined) return;
+    if (inFlightKeyRef.current === key) return;
     void refresh();
   }, [enabled, key, refresh]);
 

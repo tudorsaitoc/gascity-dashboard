@@ -81,12 +81,25 @@ export function RunsPage() {
   // The operator's explicit Refresh re-fetches the summary fan-out, and — when
   // the history section is open — the lazy history fan-out too, both with the
   // proxy cache bypass (gascity-dashboard-i3dz). A closed history section costs
-  // nothing.
+  // nothing. With history open the two fan-outs overlap: each issues the core
+  // active read and the city feed, and under forceFresh both feed reads carry
+  // cacheBypass so the proxy cannot dedupe them. That bounded, operator-
+  // initiated duplicate burst is the deliberate cost of decoupling the summary
+  // and history sources (intentional, not accidental); a future optimization
+  // could let the history source reuse the summary's just-fetched active/feed.
   const historyRefresh = history.refresh;
   const refreshAll = useCallback(() => {
     void manualRefresh();
     if (showHistory) void historyRefresh({ forceFresh: true });
   }, [manualRefresh, historyRefresh, showHistory]);
+
+  // Opening history fires the heaviest fan-out in the view, and (unlike the
+  // summary) it does not raise the summary `loading` flag — so gate the Refresh
+  // button on the open-history read too. Without this, the button stays enabled
+  // through the ~10-20s closed-history scan and each impatient click stacks
+  // another concurrent fan-out, the exact connection-pool saturation this view
+  // removed. Closed history can't be refreshed by this button, so it never gates.
+  const refreshing = loading || (showHistory && history.loading);
 
   const synopsis = runSynopsis(data);
 
@@ -172,9 +185,9 @@ export function RunsPage() {
                 size="sm"
                 className="w-full justify-center"
                 onClick={refreshAll}
-                disabled={loading}
+                disabled={refreshing}
               >
-                {loading ? 'Refreshing' : 'Refresh'}
+                {refreshing ? 'Refreshing' : 'Refresh'}
               </Button>
             </div>
           </>

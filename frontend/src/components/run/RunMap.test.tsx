@@ -147,8 +147,40 @@ function activeLane(id: string): RunLane {
   };
 }
 
+function blockedLane(id: string): RunLane {
+  return { ...activeLane(id), title: `Blocked run ${id}`, phase: 'blocked', phaseLabel: 'blocked' };
+}
+
 function makeActiveLanes(count: number): RunLane[] {
   return Array.from({ length: count }, (_, i) => activeLane(`gc-active-${i}`));
+}
+
+function summarySource(lanes: RunLane[], blockedLanes: RunLane[] = []): SourceState<RunSummary> {
+  return {
+    source: 'runs',
+    status: 'fresh',
+    fetchedAt: '2026-05-24T12:00:00Z',
+    staleAt: '2026-05-24T12:01:00Z',
+    error: { kind: 'none' },
+    data: { ...emptyRunSummary(), totalActive: lanes.length, lanes, blockedLanes },
+  };
+}
+
+function renderRunMap(
+  summary: SourceState<RunSummary>,
+  history: SourceState<RunHistory> | undefined,
+) {
+  return render(
+    <MemoryRouter future={{ v7_relativeSplatPath: true, v7_startTransition: true }}>
+      <RunMap
+        source={summary}
+        now={Date.parse('2026-05-24T12:01:00Z')}
+        showHistory={true}
+        history={history}
+        historyLoading={false}
+      />
+    </MemoryRouter>,
+  );
 }
 
 function renderActive(lanes: RunLane[]) {
@@ -298,6 +330,29 @@ describe('RunMap historical lazy-source states (header-first)', () => {
     expect(within(section).getAllByRole('listitem')).toHaveLength(2);
   });
 
+  it('flags stale history with a glyph+word cue when a refresh fails after a good load', () => {
+    // useRunHistory re-publishes the last good payload as 'stale' when an
+    // explicit refresh fails after a good load (last-good retention). The
+    // section must NOT render that indistinguishably from a fresh read: a
+    // visible stale cue is what keeps the silently-behind data honest and the
+    // reopen-reuses-cache retry suppression operator-visible.
+    renderHistorySource({
+      source: 'runs',
+      status: 'stale',
+      fetchedAt: '2026-05-24T12:00:00Z',
+      staleAt: '2026-05-24T12:01:00Z',
+      error: { kind: 'none' },
+      data: { totalHistorical: 2, lanes: makeLanes(2) },
+    });
+
+    const section = screen.getByRole('region', { name: /historical runs/i });
+    const marker = within(section).getByRole('status');
+    expect(marker.textContent).toContain('◐');
+    expect(marker.textContent).toContain('history stale');
+    // Last-good completed lanes still render alongside the stale signal.
+    expect(within(section).getAllByRole('listitem')).toHaveLength(2);
+  });
+
   it('omits the partial notice on a clean history read', () => {
     renderHistory(makeLanes(2));
 
@@ -310,5 +365,98 @@ describe('RunMap historical lazy-source states (header-first)', () => {
 
     const section = screen.getByRole('region', { name: /historical runs/i });
     expect(within(section).getByText(/No completed runs in the current window\./i)).toBeTruthy();
+  });
+
+  it('renders a single status cue when stale history is also partial (one mark per region)', () => {
+    // DESIGN.md "One mark per region": a payload that is both stale (a failed
+    // refresh re-published the last-good set) AND partial (a degraded fan-out)
+    // must not stack "history stale" beside "history partial". The stale cue —
+    // the more urgent "this is behind, press Refresh" signal — wins.
+    renderHistorySource({
+      source: 'runs',
+      status: 'stale',
+      fetchedAt: '2026-05-24T12:00:00Z',
+      staleAt: '2026-05-24T12:01:00Z',
+      error: { kind: 'none' },
+      data: { totalHistorical: 2, lanes: makeLanes(2), lanesPartial: true },
+    });
+
+    const section = screen.getByRole('region', { name: /historical runs/i });
+    expect(within(section).getAllByRole('status')).toHaveLength(1);
+    expect(within(section).getByRole('status').textContent).toContain('history stale');
+    expect(within(section).queryByText(/history partial/i)).toBeNull();
+  });
+});
+
+// Header-first split the formerly-single run summary into a live active+blocked
+// source (SSE-refreshed) and a lazy, cache-backed history source (refreshed only
+// on open / explicit Refresh). The two now run on independent clocks, so a run
+// that was `complete` when history last loaded can reactivate into the live set
+// before history is refreshed. RunMap reconciles at the render boundary so the
+// live set always wins and a run is never double-rendered or double-counted.
+describe('RunMap reconciles lazy history against the live summary (header-first skew)', () => {
+  it('drops a completed run that is active again so it never renders in both sections', () => {
+    renderRunMap(
+      summarySource([activeLane('gc-shared'), activeLane('gc-other')]),
+      historySource([historicalLane('gc-shared'), historicalLane('gc-keep')], 2),
+    );
+
+    const historical = screen.getByRole('region', { name: /historical runs/i });
+    // The reactivated run is gone from Historical...
+    expect(within(historical).queryByText(/Completed run gc-shared/i)).toBeNull();
+    // ...the still-complete run remains...
+    expect(within(historical).getByText(/Completed run gc-keep/i)).toBeTruthy();
+    // ...and the reactivated run renders only in the live Active set.
+    expect(screen.getByText(/Active run gc-shared/i)).toBeTruthy();
+  });
+
+  it('reconciles against blocked lanes and subtracts them from the completed count', () => {
+    // A completed run that is now BLOCKED leaves Active empty, so the
+    // "(N completed.)" hint shows — and must show the decremented count, not the
+    // raw totalHistorical that still includes the now-live run.
+    renderRunMap(
+      summarySource([], [blockedLane('gc-blocked')]),
+      historySource([historicalLane('gc-blocked'), historicalLane('gc-keep')], 2),
+    );
+
+    // 2 completed minus the 1 now-blocked run = 1.
+    expect(screen.getByText(/No active formula runs\. \(1 completed\.\)/i)).toBeTruthy();
+    const historical = screen.getByRole('region', { name: /historical runs/i });
+    expect(within(historical).queryByText(/Completed run gc-blocked/i)).toBeNull();
+    expect(within(historical).getByText(/Completed run gc-keep/i)).toBeTruthy();
+  });
+
+  it('leaves history untouched when no completed run is live', () => {
+    renderRunMap(
+      summarySource([activeLane('gc-active-only')]),
+      historySource([historicalLane('gc-h1'), historicalLane('gc-h2')], 2),
+    );
+
+    const historical = screen.getByRole('region', { name: /historical runs/i });
+    expect(within(historical).getAllByRole('listitem')).toHaveLength(2);
+  });
+
+  it('reconciles a STALE history payload, dropping a now-live run while keeping the stale cue', () => {
+    // The skew is worst for a STALE payload: a failed refresh is serving an old
+    // completed set while the live summary has already moved the run back to
+    // Active. Reconciliation must run on the stale path too, and the stale cue
+    // must still surface alongside the reconciled set.
+    const staleHistory: SourceState<RunHistory> = {
+      source: 'runs',
+      status: 'stale',
+      fetchedAt: '2026-05-24T12:00:00Z',
+      staleAt: '2026-05-24T12:01:00Z',
+      error: { kind: 'none' },
+      data: {
+        totalHistorical: 2,
+        lanes: [historicalLane('gc-shared'), historicalLane('gc-keep')],
+      },
+    };
+    renderRunMap(summarySource([activeLane('gc-shared')]), staleHistory);
+
+    const historical = screen.getByRole('region', { name: /historical runs/i });
+    expect(within(historical).queryByText(/Completed run gc-shared/i)).toBeNull();
+    expect(within(historical).getByText(/Completed run gc-keep/i)).toBeTruthy();
+    expect(within(historical).getByRole('status').textContent).toContain('history stale');
   });
 });

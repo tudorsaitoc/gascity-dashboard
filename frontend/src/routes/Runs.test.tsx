@@ -439,9 +439,11 @@ describe('RunsPage — SSE wiring (gascity-dashboard-bqn)', () => {
     );
 
     mount('/runs?history=1');
-    await waitForMount();
 
-    // The section announces the in-flight lazy read instead of blanking.
+    // The section announces the in-flight lazy read instead of blanking. Settle
+    // on this cue rather than waitForMount: the Refresh button is now disabled
+    // while the open-history fan-out is in flight (anti-stacking), so it never
+    // re-enables until this read resolves.
     expect(await screen.findByText(/Loading completed runs\./i)).toBeTruthy();
 
     await act(async () => {
@@ -540,6 +542,49 @@ describe('RunsPage — SSE wiring (gascity-dashboard-bqn)', () => {
       btn2.click();
     });
     expect(mockLoadRunHistory).not.toHaveBeenCalled();
+  });
+
+  it('disables Refresh while the open-history fan-out is in flight, so multi-clicks cannot stack the expensive read', async () => {
+    // Opening history starts the heaviest fan-out in the view but never sets the
+    // summary `loading` flag, so settle the summary FIRST (section closed,
+    // button enabled), then open history with a hanging lazy read. That isolates
+    // the history gate: anything that disables Refresh now is the history load,
+    // not the summary's own (fast) refresh.
+    const pendingHistory = deferred<SourceState<RunHistory>>();
+    mockLoadRunHistory.mockReturnValueOnce(pendingHistory.promise);
+
+    mount();
+    await waitForMount();
+    const btn = screen.getByRole('button', { name: /refresh/i }) as HTMLButtonElement;
+    expect(btn.disabled).toBe(false);
+    expect(mockLoadRunHistory).not.toHaveBeenCalled();
+
+    const toggle = screen.getByRole('button', { name: /show completed formula runs/i });
+    await act(async () => {
+      toggle.click();
+    });
+    await waitFor(() => expect(mockLoadRunHistory).toHaveBeenCalledTimes(1));
+    expect(await screen.findByText(/Loading completed runs\./i)).toBeTruthy();
+
+    // The Refresh button is disabled and reads "Refreshing" while that ~10-20s
+    // closed-history scan runs, even though the summary refresh already settled —
+    // otherwise an impatient operator stacks concurrent history fan-outs, the
+    // exact connection-pool saturation this view set out to remove.
+    await waitFor(() => expect(btn.disabled).toBe(true));
+    expect(btn.textContent).toMatch(/refreshing/i);
+
+    // A click while disabled is a no-op: no second history fan-out is issued.
+    await act(async () => {
+      btn.click();
+    });
+    expect(mockLoadRunHistory).toHaveBeenCalledTimes(1);
+
+    // Once the fan-out resolves the button re-enables.
+    await act(async () => {
+      pendingHistory.resolve(buildHistorySource([completedLane()]));
+      await pendingHistory.promise;
+    });
+    await waitFor(() => expect(btn.disabled).toBe(false));
   });
 
   it('manual Refresh button refetches the direct supervisor run summary', async () => {
