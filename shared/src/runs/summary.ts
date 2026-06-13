@@ -11,6 +11,7 @@ import { stripNonPrintable } from '../strip-non-printable.js';
 import { resolveRunFormulaIdentity } from './formula-name.js';
 import { isDanglingRootGroup } from './liveness.js';
 import {
+  baseStepId,
   isPrimaryStepIssue,
   latestStepId,
   mapRunPhase,
@@ -21,6 +22,7 @@ import {
   stringValue,
   type RunIssue,
 } from './phaseMapping.js';
+import { isInFlightStatus, isResolvedStatus, normalizeStatus } from './status.js';
 
 // Default collapsed active-lane count (component-controlled). The wire carries
 // the FULL active set in `lanes`; RunMap renders this many by default and offers
@@ -217,16 +219,22 @@ export function runLane(rootId: string, issues: RunIssue[], feedScopes: RunFeedS
   const activeStage = foundStageIndex >= 0 ? stages[foundStageIndex] : undefined;
 
   const primaryInProgress = issues.filter(
-    (issue) => isPrimaryStepIssue(issue) && issue.status === 'in_progress',
+    (issue) => isPrimaryStepIssue(issue) && isInFlightStatus(issue.status),
   );
   const activeStepId = latestStepId(primaryInProgress);
   const progress = runProgress(stages, foundStageIndex, activeStepId, issues);
 
   const formulaStages = stagesForFormula(formulaName);
+  // Normalize the active step id with the same base-step-id logic stage
+  // cohorting uses (strip a trailing `.attempt.N`): a retried step materializes
+  // its work bead under a suffixed gc.step_id (apply-fixes.attempt.1) while the
+  // formula stage table lists the base id, so without this an active retry step
+  // reads as an unknown stage and downgrades lane health confidence to inferred.
+  const activeBaseStepId = progress.status === 'active_step' ? baseStepId(progress.stepId) : null;
   const formulaStageResolved =
     formulaStages.length > 0 &&
-    progress.status === 'active_step' &&
-    formulaStages.some((stage) => stage.steps.includes(progress.stepId));
+    activeBaseStepId !== null &&
+    formulaStages.some((stage) => stage.steps.includes(activeBaseStepId));
   const scope = runScope(rootId, issues, feedScopes);
 
   return {
@@ -361,17 +369,26 @@ export function displayTitle(rootId: string, issues: RunIssue[]): string {
 }
 
 export function statusCounts(issues: RunIssue[]): Record<string, number> {
+  // Normalize keys with the same trim/lowercase canonicalization the status
+  // predicates use, so downstream consumers that look up canonical keys (e.g.
+  // blocked.ts reading statusCounts['blocked']) still match a cased or padded
+  // wire spelling like 'Blocked' instead of silently counting it under a raw key.
   return issues.reduce<Record<string, number>>((counts, i) => {
-    counts[i.status] = (counts[i.status] ?? 0) + 1;
+    const status = normalizeStatus(i.status);
+    counts[status] = (counts[status] ?? 0) + 1;
     return counts;
   }, {});
 }
 
 export function activeAssignees(issues: RunIssue[]): string[] {
+  // gascity-dashboard (PR #124): exclude every RESOLVED step, not just the
+  // bd-only `closed` spelling. runLane carries supervisor wire statuses too, so
+  // a completed/done/failed/skipped step's assignee is not active — surfacing it
+  // would mislead the lane UI, blocked-run remedy, and health session matching.
   return Array.from(
     new Set(
       issues
-        .filter((i) => i.status !== 'closed')
+        .filter((i) => !isResolvedStatus(i.status))
         .map((i) => i.assignee?.trim())
         .filter((a): a is string => Boolean(a)),
     ),

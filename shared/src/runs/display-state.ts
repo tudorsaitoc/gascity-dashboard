@@ -1,6 +1,5 @@
 import type { RunDisplayEdge, RunDisplayNode, RunNodeStatus } from '../run-detail.js';
-
-const TERMINAL_STATUSES = new Set<RunNodeStatus>(['completed', 'done', 'failed', 'skipped']);
+import { isTerminalNodeStatus } from './status.js';
 
 /**
  * Convert raw bead state into graph presentation state. The supervisor exposes
@@ -47,7 +46,7 @@ function displayStatusFor(
   if (blockers.length === 0) return 'ready';
   const allDone = blockers.every((blockerId) => {
     const blocker = byId.get(blockerId);
-    return blocker ? TERMINAL_STATUSES.has(blocker.status) : false;
+    return blocker ? isTerminalNodeStatus(blocker.status) : false;
   });
   return allDone ? 'ready' : 'waiting';
 }

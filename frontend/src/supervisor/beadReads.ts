@@ -3,6 +3,7 @@ import type {
   GetV0CityByCityNameBeadsData,
   ListBodyBead,
 } from 'gas-city-dashboard-shared/gc-supervisor';
+import { isResolvedStatus } from 'gas-city-dashboard-shared';
 import { activeCityOrThrow } from '../api/cityBase';
 import { SupervisorApiError, supervisorApi } from './client';
 
@@ -59,7 +60,9 @@ export async function listSupervisorBeads(
   };
   const list = await supervisorApi().listBeads(cityName, baseQuery);
   const items = uniqueById(list.items ?? []);
-  const statusFiltered = includeClosed ? items : items.filter((bead) => bead.status !== 'closed');
+  const statusFiltered = includeClosed
+    ? items
+    : items.filter((bead) => !isResolvedStatus(bead.status));
   const filtered = includeBookkeeping ? statusFiltered : statusFiltered.filter(defaultBeadFilter);
   const upstreamTotal = countAsNumber(list.total);
   return {

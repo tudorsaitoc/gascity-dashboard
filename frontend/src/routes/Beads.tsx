@@ -1,6 +1,12 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
-import { GC_EVENT_PREFIX } from 'gas-city-dashboard-shared';
+import {
+  GC_EVENT_PREFIX,
+  isBlockedStatus,
+  isInFlightStatus,
+  isOpenStatus,
+  isResolvedStatus,
+} from 'gas-city-dashboard-shared';
 import { formatApiError } from '../api/client';
 import { getActiveCity } from '../api/cityBase';
 import { useAttentionModel } from '../attention/context';
@@ -50,11 +56,11 @@ interface ActionMessage {
   text: string;
 }
 
-const BEAD_CHIPS: ReadonlyArray<FilterChip<SupervisorBead>> = [
-  { id: 'open', label: 'open', match: (b) => b.status === 'open' },
-  { id: 'in_progress', label: 'in progress', match: (b) => b.status === 'in_progress' },
-  { id: 'blocked', label: 'blocked', match: (b) => b.status === 'blocked' },
-  { id: CLOSED_CHIP_ID, label: 'closed', match: (b) => b.status === 'closed' },
+export const BEAD_CHIPS: ReadonlyArray<FilterChip<SupervisorBead>> = [
+  { id: 'open', label: 'open', match: (b) => isOpenStatus(b.status) },
+  { id: 'in_progress', label: 'in progress', match: (b) => isInFlightStatus(b.status) },
+  { id: 'blocked', label: 'blocked', match: (b) => isBlockedStatus(b.status) },
+  { id: CLOSED_CHIP_ID, label: 'closed', match: (b) => isResolvedStatus(b.status) },
 ];
 
 const BEAD_SEARCH_FIELDS = (b: SupervisorBead): ReadonlyArray<string | undefined> => [
@@ -328,7 +334,7 @@ export function BeadsPage() {
             size="sm"
             tone="quiet"
             title={roTitle}
-            disabled={readOnly || busy || bead.status === 'closed'}
+            disabled={readOnly || busy || isResolvedStatus(bead.status)}
             onClick={() => {
               setCloseReason('');
               setActionMessage(null);
@@ -678,15 +684,15 @@ function normalizeSelectedBeadParam(value: string | null): string | null {
   return clean && clean.length > 0 ? clean : null;
 }
 
-function buildSynopsis(
+export function buildSynopsis(
   filtered: ReadonlyArray<SupervisorBead>,
   totalShown: number,
   rigFilter: string,
 ): string {
   if (rigFilter !== RIG_FILTER_ALL && filtered.length === 0) return `No beads on ${rigFilter}.`;
-  const open = filtered.filter((bead) => bead.status === 'open').length;
-  const inProgress = filtered.filter((bead) => bead.status === 'in_progress').length;
-  const blocked = filtered.filter((bead) => bead.status === 'blocked').length;
+  const open = filtered.filter((bead) => isOpenStatus(bead.status)).length;
+  const inProgress = filtered.filter((bead) => isInFlightStatus(bead.status)).length;
+  const blocked = filtered.filter((bead) => isBlockedStatus(bead.status)).length;
   const parts: string[] = [];
   if (open > 0) parts.push(`${open} open`);
   if (inProgress > 0) parts.push(`${inProgress} in progress`);

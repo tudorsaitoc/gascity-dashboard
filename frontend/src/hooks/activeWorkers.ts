@@ -1,4 +1,4 @@
-import { parseAssignee, IN_PROGRESS_STATUS } from 'gas-city-dashboard-shared';
+import { parseAssignee, isInFlightStatus } from 'gas-city-dashboard-shared';
 import type { SupervisorBead } from '../supervisor/beadReads';
 import type { SupervisorSession } from '../supervisor/sessionReads';
 import { canonicalRigLabel, cleanWorkerName, isWorkerSession, sessionProject } from './projectOf';
@@ -80,7 +80,10 @@ export function deriveActiveWorkers(
   // Map a live session id -> the in-progress bead assigned to it (if any).
   const beadBySession = new Map<string, SupervisorBead>();
   for (const bead of beads) {
-    if (bead.status !== IN_PROGRESS_STATUS) continue;
+    // Supervisor wire beads spell in-flight 'active'/'running', not only the bd
+    // ledger's 'in_progress'; the shared predicate accepts every spelling so a
+    // live worker's current bead is not dropped here.
+    if (!isInFlightStatus(bead.status)) continue;
     const assignee = bead.assignee?.trim();
     if (!assignee) continue;
     const { sessionId } = parseAssignee(assignee);

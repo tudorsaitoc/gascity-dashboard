@@ -75,6 +75,66 @@ describe('supervisor bead reads', () => {
     expect(result.upstream_total).toBe(4);
   });
 
+  it('drops wire-resolved spellings (completed/done) like closed, keeps in-flight wire spellings', async () => {
+    // The city bead list can emit supervisor-wire status spellings. The default
+    // (includeClosed: false) read must filter out the wire-closed spellings
+    // (completed/done), not only the bd-ledger 'closed', or resolved beads would
+    // linger on the board; in-flight wire spellings (active/running) must stay.
+    const listBeads = vi.fn(async () => ({
+      items: [
+        bead({ id: 'td-open', status: 'open' }),
+        bead({ id: 'td-active', status: 'active' }),
+        bead({ id: 'td-running', status: 'running' }),
+        bead({ id: 'td-completed', status: 'completed' }),
+        bead({ id: 'td-done', status: 'done' }),
+        bead({ id: 'td-closed', status: 'closed' }),
+      ],
+      total: 6,
+    }));
+    setSupervisorApiForTests({ ...baseApi, listBeads });
+
+    const result = await listSupervisorBeads();
+
+    expect(result.items.map((item) => item.id)).toEqual(['td-open', 'td-active', 'td-running']);
+  });
+
+  it('keeps wire-resolved spellings when includeClosed is set', async () => {
+    const listBeads = vi.fn(async () => ({
+      items: [
+        bead({ id: 'td-open', status: 'open' }),
+        bead({ id: 'td-completed', status: 'completed' }),
+        bead({ id: 'td-done', status: 'done' }),
+      ],
+      total: 3,
+    }));
+    setSupervisorApiForTests({ ...baseApi, listBeads });
+
+    const result = await listSupervisorBeads({ includeClosed: true });
+
+    expect(result.items.map((item) => item.id)).toEqual(['td-open', 'td-completed', 'td-done']);
+    expect(listBeads).toHaveBeenCalledWith('test-city', { limit: 1000, all: true });
+  });
+
+  it('drops terminal failed/skipped wire spellings from the default list (no work remains)', async () => {
+    // failed and skipped are terminal in the shared status vocabulary — no work
+    // remains — so the default (includeClosed: false) board read must filter them
+    // out alongside completed/done/closed, or a finished-but-not-'closed' bead
+    // lingers on the open board.
+    const listBeads = vi.fn(async () => ({
+      items: [
+        bead({ id: 'td-open', status: 'open' }),
+        bead({ id: 'td-failed', status: 'failed' }),
+        bead({ id: 'td-skipped', status: 'skipped' }),
+      ],
+      total: 3,
+    }));
+    setSupervisorApiForTests({ ...baseApi, listBeads });
+
+    const result = await listSupervisorBeads();
+
+    expect(result.items.map((item) => item.id)).toEqual(['td-open']);
+  });
+
   // gascity-dashboard-sg9o: a "needs you" decision alert can deep-link to a
   // bead the supervisor has since pruned (e.g. gc-316879). fetchSupervisorBead
   // is the data edge the deep-link modal sits on: it must surface a true 404 as

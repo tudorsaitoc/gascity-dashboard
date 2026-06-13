@@ -1,4 +1,5 @@
 import type { ReactNode } from 'react';
+import { isBlockedStatus, isClosedStatus, isInFlightStatus } from 'gas-city-dashboard-shared';
 
 // Status is always carried by glyph + word + color, in that order of
 // importance. Strip color (the greyscale test) and the badge still
@@ -56,19 +57,17 @@ export function StatusBadge({
   );
 }
 
+// Route the raw bead status through the shared, normalized status vocabulary so
+// supervisor wire spellings tone the same way they classify: in-flight
+// (in_progress / active / running) → ok, closed (closed / completed / done) →
+// neutral, blocked → stuck. Cased or padded spellings ('Active', ' completed ',
+// 'Blocked') resolve correctly instead of falling through to the warn default
+// reserved for open / deferred / ready / unknown.
 export function beadStatusTone(status: string): StatusTone {
-  switch (status) {
-    case 'closed':
-      return 'neutral';
-    case 'in_progress':
-      return 'ok';
-    case 'blocked':
-      return 'stuck';
-    case 'open':
-    case 'deferred':
-    default:
-      return 'warn';
-  }
+  if (isInFlightStatus(status)) return 'ok';
+  if (isClosedStatus(status)) return 'neutral';
+  if (isBlockedStatus(status)) return 'stuck';
+  return 'warn';
 }
 
 // Single source of truth for session/agent state → tone mapping. Aligned with

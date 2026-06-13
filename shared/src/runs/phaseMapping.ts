@@ -17,6 +17,15 @@
 
 import type { DashboardBead } from '../dashboard-beads.js';
 import type { RunPhase as SharedRunPhase, RunStage } from '../snapshot/types.js';
+import {
+  isBlockedStatus,
+  isClosedStatus,
+  isFailedStatus,
+  isInFlightStatus,
+  isResolvedStatus,
+  isSkippedStatus,
+} from './status.js';
+import { refSegment } from './bead-fields.js';
 
 export interface RunIssue {
   id: string;
@@ -28,6 +37,14 @@ export interface RunIssue {
   updated_at: string;
   /** Populated from DashboardBead.parent or metadata['gc.parent_bead_id']. */
   parent?: string;
+  /**
+   * First-class graph.v2 run-snapshot refs (run-detail adapter only). They encode
+   * the review-loop iteration and per-step retry attempt as `.iteration.N` /
+   * `.attempt.N` segments — the canonical signal latestAttempt cohorts on. The
+   * summary/dashboard adapter has no equivalent and leaves them undefined.
+   */
+  step_ref?: string;
+  scope_ref?: string;
   metadata?: Record<string, string>;
 }
 
@@ -39,11 +56,16 @@ export interface PhaseMapping {
 
 export function mapRunPhase(issues: RunIssue[]): PhaseMapping {
   // Status-based branches first — these are authoritative and correct.
-  if (issues.some((i) => i.status === 'blocked' || textForIssue(i).includes('blocked'))) {
+  if (issues.some((i) => isBlockedStatus(i.status) || textForIssue(i).includes('blocked'))) {
     return { phase: 'blocked', label: 'blocked', reviewRound: null };
   }
 
-  if (issues.length > 0 && issues.every((i) => i.status === 'closed')) {
+  // Resolved-with-failure intentionally reports lane phase 'complete': isResolvedStatus
+  // covers failed/skipped, so an all-resolved run buckets here even when a step failed.
+  // The detail ladder still surfaces that failure as a 'blocked' stage (formulaStageProgress),
+  // so "no work remains" (lane) and the visible failure (ladder) coexist by design — the
+  // M2-guarded choice. Don't narrow this to closed-only without a terminal-failure lane phase.
+  if (issues.length > 0 && issues.every((i) => isResolvedStatus(i.status))) {
     return { phase: 'complete', label: 'complete', reviewRound: null };
   }
 
@@ -70,15 +92,17 @@ export function mapRunPhase(issues: RunIssue[]): PhaseMapping {
 /**
  * gascity-dashboard-q3p1: derive the phase from the run's current step.
  *
- * The active step is the latest in_progress primary step; if none is in_progress
- * (e.g. between steps) it is the latest primary step that carries a gc.step_id.
- * The step-id is classified into a generic RunPhase by stepIdPhase. Returns null
- * when no primary step carries a gc.step_id (no structured signal to use).
+ * The active step is the latest in-flight primary step; if none is in flight
+ * (e.g. between steps) it is the furthest-ADVANCED primary step that carries a
+ * gc.step_id (started or completed — never a merely materialized pending
+ * shell). The step-id is classified into a generic RunPhase by stepIdPhase.
+ * Returns null when no primary step carries a gc.step_id (no structured signal
+ * to use).
  */
 function structuredPhase(issues: RunIssue[]): PhaseMapping | null {
   const primary = issues.filter(isPrimaryStepIssue);
-  const inProgressStep = latestStepId(primary.filter((i) => i.status === 'in_progress'));
-  // gascity-dashboard (Major 3): when no step is in_progress, the current step
+  const inProgressStep = latestStepId(primary.filter((i) => isInFlightStatus(i.status)));
+  // gascity-dashboard (Major 3): when no step is in flight, the current step
   // is the FURTHEST-ADVANCED step by stage rank — a deterministic, order- and
   // timestamp-independent signal. The run-detail snapshot adapter sets every
   // bead updated_at='' (the snapshot carries no per-bead timestamp), so a
@@ -86,17 +110,44 @@ function structuredPhase(issues: RunIssue[]): PhaseMapping | null {
   // summary lane. Stage rank is derived from gc.step_id alone, so the summary
   // context (real timestamps) and the detail context (empty timestamps) resolve
   // the same run to the same phase.
-  const activeStepId = inProgressStep ?? furthestStageStepId(primary);
-  if (activeStepId === null) {
-    return null;
+  //
+  // M2 audit (ga-wisp-x0tank): only ADVANCED steps — in flight or resolved
+  // (closed/failed/skipped, exactly what hasAdvanced admits) — may rank here.
+  // graph.v2 runs materialize their full DAG at pour time, so
+  // pending shells for late steps (finalize, cleanup-worktree) exist from the
+  // start; ranking them drove phase='finalization' while the run was
+  // mid-review.
+  const activeStepId = inProgressStep ?? furthestStageStepId(primary.filter(hasAdvanced));
+  if (activeStepId !== null) {
+    const phase = stepIdPhase(activeStepId);
+    if (phase === 'review') {
+      const resolved = reviewRoundForIssues(issues) ?? fallbackReviewRound(issues);
+      return { phase: 'review', label: `review round ${resolved}`, reviewRound: resolved };
+    }
+    return { phase, label: phase, reviewRound: null };
   }
 
-  const phase = stepIdPhase(activeStepId);
-  if (phase === 'review') {
-    const resolved = reviewRoundForIssues(issues) ?? fallbackReviewRound(issues);
-    return { phase: 'review', label: `review round ${resolved}`, reviewRound: resolved };
+  // Structured signal exists (some primary step carries a gc.step_id) but no
+  // step has advanced yet — a freshly poured run. Stay conservative instead of
+  // falling through to the keyword scan, which would match late-stage words in
+  // the materialized step titles/ids (e.g. 'approval' in pre-approval-ci).
+  if (furthestStageStepId(primary) !== null) {
+    return { phase: 'active', label: 'active', reviewRound: null };
   }
-  return { phase, label: phase, reviewRound: null };
+  return null;
+}
+
+// ── Step advancement ────────────────────────────────────────────────────────
+//
+// The raw bead-status vocabulary (in-flight / closed / resolved) lives in
+// status.ts so presentationStatus and this derivation share one source of truth.
+// The M2 audit found a divergent in_progress-only filter here that made
+// structured phase detection unable to ever fire on the run-detail page's
+// supervisor wire statuses; centralizing the predicates removes that drift class.
+
+/** True when the step has actually advanced (started or resolved). */
+function hasAdvanced(issue: RunIssue): boolean {
+  return isInFlightStatus(issue.status) || isResolvedStatus(issue.status);
 }
 
 /**
@@ -261,7 +312,7 @@ function fallbackPhase(issues: RunIssue[]): PhaseMapping {
  * summary_for_human value, a "ship gate" mention) never drive the phase.
  */
 function stepSignalText(issue: RunIssue): string {
-  const stepId = stringValue(issue.metadata?.['gc.step_id']);
+  const stepId = stepIdOf(issue);
   return [issue.title, stepId].filter(Boolean).join(' ').toLowerCase();
 }
 
@@ -399,7 +450,7 @@ export function stageProgress(
 ): RunStage[] {
   const formulaStages = stagesForFormula(formula);
   if (formulaStages.length > 0) {
-    return formulaStageProgress(formulaStages, issues);
+    return formulaStageProgress(formulaStages, issues, phase.phase === 'complete');
   }
 
   if (phase.phase === 'blocked') {
@@ -574,26 +625,197 @@ export function stagesForFormula(
   return [];
 }
 
+// ── Stage completion vs resolution ──────────────────────────────────────────
+//
+// The formula ladder needs a STRICTER predicate than isResolvedStatus. Resolved
+// folds in failed and skipped — correct for "no work remains", wrong for "this
+// stage passed". A failed or skipped step must not advance the ladder as if its
+// stage completed, or it reintroduces the M2 overstatement class (the failed
+// stage rendering complete while a later materialized pending shell renders
+// active). These per-step helpers split successful completion from failure and
+// skip, reading the raw status AND the gc.outcome a closed bd step carries
+// (closed + gc.outcome=fail / skipped), so the bd summary lane and the
+// supervisor-wire run-detail page classify a failed stage the same way.
+
+function stepOutcome(issue: RunIssue): string {
+  return stringValue(issue.metadata?.['gc.outcome']).toLowerCase();
+}
+
+/** A step that ran but FAILED: raw 'failed', or a closed step whose gc.outcome is a failure. */
+function isFailedStep(issue: RunIssue): boolean {
+  const outcome = stepOutcome(issue);
+  if (outcome === 'fail' || outcome === 'failed') return true;
+  return isFailedStatus(issue.status);
+}
+
+/** A step that was SKIPPED and never ran: raw 'skipped', or a closed step whose gc.outcome is skipped. */
+function isSkippedStep(issue: RunIssue): boolean {
+  if (stepOutcome(issue) === 'skipped') return true;
+  return isSkippedStatus(issue.status);
+}
+
+/** A step that completed SUCCESSFULLY: closed/completed/done, and neither failed nor skipped. */
+function isSucceededStep(issue: RunIssue): boolean {
+  return isClosedStatus(issue.status) && !isFailedStep(issue) && !isSkippedStep(issue);
+}
+
+/** The richest canonical ref for a run bead: the first-class step_ref, else its
+ *  gc.step_ref metadata mirror, else the (possibly attempt-suffixed) gc.step_id. */
+function stepRefOf(issue: RunIssue): string {
+  return (
+    stringValue(issue.step_ref) ||
+    stringValue(issue.metadata?.['gc.step_ref']) ||
+    stringValue(issue.metadata?.['gc.step_id'])
+  );
+}
+
+/** The scope ref for a run bead (carries the review-loop `.iteration.N`). */
+function scopeRefOf(issue: RunIssue): string {
+  return stringValue(issue.scope_ref) || stringValue(issue.metadata?.['gc.scope_ref']);
+}
+
+/**
+ * The canonical step id for a run bead. Step identity is the gc.step_id metadata
+ * mirror when present (the summary/dashboard projection always carries it). The
+ * run-detail snapshot adapter, however, preserves first-class step_ref/scope_ref
+ * for rows the supervisor emits WITHOUT that gc.* mirror (see
+ * formula-run.fromRunSnapshotBead); for those, derive the step id by stripping
+ * the enclosing `scope_ref + "."` prefix off step_ref — exactly the identity the
+ * mirror would have held (scope `…review-loop.iteration.8` + step
+ * `…iteration.8.apply-fixes.attempt.1` → `apply-fixes.attempt.1`). Without a
+ * resolvable mirror or scoped ref there is no step identity, so return ''. Every
+ * step-identity reader (latestStepId, furthestStageStepId, byMostRecentThenStage,
+ * stepIssues, the fallback step-signal scan) routes through here so first-class-
+ * only run-detail rows classify the same as their mirrored summary-lane twins.
+ */
+function stepIdOf(issue: RunIssue): string {
+  const mirrored = stringValue(issue.metadata?.['gc.step_id']);
+  if (mirrored) return mirrored;
+  const ref = stepRefOf(issue);
+  const scope = scopeRefOf(issue);
+  if (ref && scope) {
+    const prefix = `${scope}.`;
+    if (ref.startsWith(prefix)) return ref.slice(prefix.length);
+  }
+  return '';
+}
+
+/**
+ * A step's [iteration, attempt] cohort rank. The per-step retry attempt is the
+ * `.attempt.N` segment of the step ref — NOT gc.attempt, which graph.v2 sets to
+ * the enclosing review-loop ITERATION (identical across every step and attempt of
+ * that iteration; captured from a live mol-adopt-pr-v2 run, where the in-flight
+ * apply-fixes work bead carries gc.step_id `apply-fixes.attempt.1` and gc.attempt
+ * `6` == `…review-loop.iteration.6`). Un-suffixed beads (single-attempt steps and
+ * the base-id retry/scope-check latches) rank attempt 0.
+ */
+function attemptRank(issue: RunIssue): readonly [number, number] {
+  const ref = stepRefOf(issue);
+  const iteration = refSegment(ref, 'iteration') ?? refSegment(scopeRefOf(issue), 'iteration') ?? 0;
+  const attempt = refSegment(ref, 'attempt') ?? 0;
+  return [iteration, attempt];
+}
+
+function rankIsBefore(a: readonly [number, number], b: readonly [number, number]): boolean {
+  return a[0] < b[0] || (a[0] === b[0] && a[1] < b[1]);
+}
+
+/**
+ * Narrow one step's beads to its LATEST attempt. A retried step materializes a
+ * fresh work bead per attempt, distinguished by the `.attempt.N` suffix of its
+ * gc.step_id / gc.step_ref (apply-fixes.attempt.1 failed, then
+ * apply-fixes.attempt.2 passed). Stage success and failure must read only the
+ * latest attempt, or an older failed attempt keeps the stage blocked after the
+ * retry has passed. Cohorts rank by [iteration, attempt] (see attemptRank), so a
+ * later loop pass and a later in-pass retry both win; the base-id retry/scope
+ * latches rank attempt 0 and a real attempt bead supersedes them.
+ */
+function latestAttempt(stepBeads: RunIssue[]): RunIssue[] {
+  if (stepBeads.length <= 1) return stepBeads;
+  const ranked = stepBeads.map((bead) => ({ bead, rank: attemptRank(bead) }));
+  const max = ranked.reduce((hi, candidate) =>
+    rankIsBefore(hi.rank, candidate.rank) ? candidate : hi,
+  );
+  return ranked
+    .filter((r) => r.rank[0] === max.rank[0] && r.rank[1] === max.rank[1])
+    .map((r) => r.bead);
+}
+
 function formulaStageProgress(
   stages: Array<{ key: string; label: string; steps: string[] }>,
   issues: RunIssue[],
+  runComplete: boolean,
 ): RunStage[] {
   const primary = issues.filter(isPrimaryStepIssue);
-  const activeStepId = latestStepId(primary.filter((i) => i.status === 'in_progress'));
-  const activeIndex = activeStepId
-    ? stages.findIndex((s) => s.steps.includes(activeStepId))
-    : firstOpenStageIndex(stages, primary);
-  const furthestClosedIndex = furthestClosedStageIndex(stages, primary);
+  const activeStepId = latestStepId(primary.filter((i) => isInFlightStatus(i.status)));
 
-  const stageHasClosed = (stage: { steps: string[] }): boolean =>
-    stage.steps.some((step) => stepIssues(primary, step).some((i) => i.status === 'closed'));
+  // Per stage, the beads that decide its state: each of its steps narrowed to
+  // that step's LATEST attempt (latestAttempt), so an older failed attempt of a
+  // retried step cannot mask a later successful retry.
+  const summaries = stages.map((stage) => {
+    const steps = stage.steps.flatMap((step) => latestAttempt(stepIssues(primary, step)));
+    return {
+      // Succeeded: at least one step passed and EVERY materialized step resolved
+      // as a success or a skip — a still-pending or in-flight required sibling
+      // (review-pipeline.synthesize / apply-fixes while the reviewers completed)
+      // or a failed step keeps the multi-step stage from completing, while a
+      // conditional skip alongside a real success (repair-ci-failures skipped
+      // after pre-approval-ci passed) still completes it.
+      succeeded:
+        steps.some(isSucceededStep) &&
+        steps.every((step) => isSucceededStep(step) || isSkippedStep(step)),
+      failed: steps.some(isFailedStep),
+      // Advanced = real forward progress: a success, a failure, or a step in
+      // flight. A fully skipped, all-pending, or unmaterialized stage has NOT
+      // advanced, so a later "bypassed" stage cannot claim the run moved past it.
+      advanced:
+        steps.some(isSucceededStep) ||
+        steps.some(isFailedStep) ||
+        steps.some((step) => isInFlightStatus(step.status)),
+      // Bypassed = every materialized step skipped, or the stage never
+      // materialized (empty). While the run is in flight such a stage is behind
+      // the run ONLY once a later stage has advanced; a bypassed TAIL with
+      // nothing advanced after it stays the current/parked stage. Once the whole
+      // run has resolved (runComplete) that exception lifts — a skipped tail is
+      // final, not parked (see stageComplete).
+      bypassed: steps.length === 0 || steps.every(isSkippedStep),
+    };
+  });
+
+  const laterStageAdvanced = (idx: number): boolean =>
+    summaries.slice(idx + 1).some((s) => s.advanced);
+  // A stage is behind the run when it succeeded outright, or it was bypassed and
+  // either the run has already advanced into a later stage OR the whole run has
+  // resolved. The runComplete arm fixes the bypassed-TAIL case: when mapRunPhase
+  // buckets an all-resolved run as complete, a skipped or unmaterialized tail
+  // must render complete, not park as the current 'active' stage — there is no
+  // work left to be current. A failed stage is neither succeeded nor bypassed,
+  // so it still surfaces as the current/blocked point even in a resolved run; the
+  // failure is never swallowed into a green complete.
+  const stageComplete = (idx: number): boolean => {
+    const s = summaries[idx]!;
+    return s.succeeded || (s.bypassed && (laterStageAdvanced(idx) || runComplete));
+  };
+
+  // The current stage is the in-flight step's stage; with nothing in flight it is
+  // the FIRST stage the run has not moved past. That keeps a failed stage as the
+  // current problem point and holds a bypassed TAIL as current while the run is
+  // in flight, yet advances over a bypassed MIDDLE stage that a later succeeded
+  // stage proves the run passed (and over a bypassed tail once the run resolves).
+  const inFlightIndex = activeStepId
+    ? stages.findIndex((s) => s.steps.includes(baseStepId(activeStepId)))
+    : -1;
+  const currentIndex =
+    inFlightIndex >= 0 ? inFlightIndex : summaries.findIndex((_s, idx) => !stageComplete(idx));
 
   return stages.map((stage, idx) => {
     let status: RunStage['status'];
-    if (activeIndex >= 0) {
-      status = idx < activeIndex ? 'complete' : idx === activeIndex ? 'active' : 'pending';
-    } else if (stageHasClosed(stage) || idx < furthestClosedIndex) {
+    if (currentIndex < 0 || idx < currentIndex) {
       status = 'complete';
+    } else if (idx === currentIndex) {
+      // A failed current stage with nothing in flight renders blocked — the real
+      // failure point — rather than a misleading 'active'.
+      status = inFlightIndex < 0 && summaries[idx]!.failed ? 'blocked' : 'active';
     } else {
       status = 'pending';
     }
@@ -601,27 +823,11 @@ function formulaStageProgress(
   });
 }
 
-function firstOpenStageIndex(stages: Array<{ steps: string[] }>, issues: RunIssue[]): number {
-  return stages.findIndex((s) =>
-    s.steps.some((step) => stepIssues(issues, step).some((i) => i.status !== 'closed')),
-  );
-}
-
-function furthestClosedStageIndex(stages: Array<{ steps: string[] }>, issues: RunIssue[]): number {
-  let furthest = -1;
-  stages.forEach((s, idx) => {
-    if (s.steps.some((step) => stepIssues(issues, step).some((i) => i.status === 'closed'))) {
-      furthest = idx;
-    }
-  });
-  return furthest;
-}
-
 export function latestStepId(issues: RunIssue[]): string | null {
   return (
     [...issues]
       .sort(byMostRecentThenStage)
-      .map((i) => stringValue(i.metadata?.['gc.step_id']))
+      .map((i) => stepIdOf(i))
       .find(Boolean) ?? null
   );
 }
@@ -637,9 +843,7 @@ export function latestStepId(issues: RunIssue[]): string | null {
  * rank break on the step id string for total determinism.
  */
 function furthestStageStepId(issues: RunIssue[]): string | null {
-  const stepIds = issues
-    .map((i) => stringValue(i.metadata?.['gc.step_id']))
-    .filter((id): id is string => id.length > 0);
+  const stepIds = issues.map((i) => stepIdOf(i)).filter((id): id is string => id.length > 0);
   if (stepIds.length === 0) return null;
   return [...stepIds].sort((a, b) => {
     const rankDelta = stageRank(stepIdPhase(b)) - stageRank(stepIdPhase(a));
@@ -686,8 +890,8 @@ function stageRank(phase: SharedRunPhase): number {
 function byMostRecentThenStage(a: RunIssue, b: RunIssue): number {
   const timeDelta = parseTimestamp(b.updated_at) - parseTimestamp(a.updated_at);
   if (timeDelta !== 0) return timeDelta;
-  const aStep = stringValue(a.metadata?.['gc.step_id']);
-  const bStep = stringValue(b.metadata?.['gc.step_id']);
+  const aStep = stepIdOf(a);
+  const bStep = stepIdOf(b);
   const rankDelta = stageRank(stepIdPhase(bStep)) - stageRank(stepIdPhase(aStep));
   if (rankDelta !== 0) return rankDelta;
   return aStep < bStep ? -1 : aStep > bStep ? 1 : 0;
@@ -698,8 +902,21 @@ function parseTimestamp(value: string): number {
   return Number.isNaN(parsed) ? 0 : parsed;
 }
 
+const ATTEMPT_SUFFIX = /\.attempt\.\d+$/;
+
+/**
+ * A step id with any trailing `.attempt.N` retry suffix removed
+ * (apply-fixes.attempt.1 → apply-fixes). graph.v2 materializes a retried step's
+ * work bead under a suffixed gc.step_id, while stagesForFormula and the
+ * retry/scope-check latches use the base id, so cohorting must compare base ids.
+ */
+export function baseStepId(stepId: string): string {
+  return stepId.replace(ATTEMPT_SUFFIX, '');
+}
+
 export function stepIssues(issues: RunIssue[], step: string): RunIssue[] {
-  return issues.filter((i) => stringValue(i.metadata?.['gc.step_id']) === step);
+  const base = baseStepId(step);
+  return issues.filter((i) => baseStepId(stepIdOf(i)) === base);
 }
 
 export function isPrimaryStepIssue(issue: RunIssue): boolean {

@@ -90,6 +90,26 @@ describe('deriveActiveWorkers', () => {
     expect(result.workers[0]?.bead).toBeUndefined();
   });
 
+  it('attaches a supervisor wire in-flight bead (active/running), not only bd in_progress', () => {
+    const sessions = [session({ id: 'gc-9001', template: 'polecat', rig: 'gascity' })];
+    const active = deriveActiveWorkers(sessions, [
+      bead({ id: 'gc-active', status: 'active', assignee: 'polecat-gc-9001' }),
+    ]);
+    expect(active.workers[0]?.bead?.id).toBe('gc-active');
+    const running = deriveActiveWorkers(sessions, [
+      bead({ id: 'gc-running', status: 'running', assignee: 'polecat-gc-9001' }),
+    ]);
+    expect(running.workers[0]?.bead?.id).toBe('gc-running');
+  });
+
+  it('does not attach a resolved wire bead (completed/done) to a worker', () => {
+    const sessions = [session({ id: 'gc-9002', template: 'polecat', rig: 'gascity' })];
+    const result = deriveActiveWorkers(sessions, [
+      bead({ id: 'gc-completed', status: 'completed', assignee: 'polecat-gc-9002' }),
+    ]);
+    expect(result.workers[0]?.bead).toBeUndefined();
+  });
+
   it('orders worker rows by most-recent activity first', () => {
     const sessions = [
       session({ id: 'gc-1', rig: 'gascity', last_active: '2026-06-03T10:00:00Z' }),
