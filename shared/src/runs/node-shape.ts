@@ -60,6 +60,9 @@ export function constructKindFor(bead: RunSnapshotBead, rootBeadId: string): Run
     case 'scope-check':
       return 'scope-check';
     case 'run-finalize':
+    // The graph.v2 compiler emits the finalize control as 'workflow-finalize'
+    // on the wire; both spellings demote to the hidden run-finalize root badge.
+    case 'workflow-finalize':
       return 'run-finalize';
     case 'spec':
       return 'spec';
