@@ -2,6 +2,7 @@ import type { RunSnapshotBead } from '../run-snapshot.js';
 import type { DashboardSession } from '../dashboard-sessions.js';
 import type { RunNodeStatus, RunSessionLink } from '../run-detail.js';
 import { SESSION_ID_RE } from '../session-id.js';
+import { supervisorSessionIdFrom } from '../session-handle.js';
 import { meta, nonEmpty } from './bead-fields.js';
 
 export interface RunSessionIndex {
@@ -74,42 +75,6 @@ export function runSessionLinkFor(
   // leaking an unvalidated handle into the route.
   if (!SESSION_ID_RE.test(link.sessionId)) return undefined;
   return link;
-}
-
-// The recorded handle is frequently the pool-qualified session NAME the
-// supervisor built as `{sanitized template base}-{session bead id}` (gascity
-// cmd/gc/pool_session_name.go PoolSessionName) — e.g.
-// `gc__implementation-worker-mc-wisp-08fqjv` for the supervisor session id
-// `mc-wisp-08fqjv`. The session bead id is a bd issue id: a short lowercase
-// store prefix (2-4 letters, per-deployment — `mc`, `gc`, `fddc`, ...), an
-// optional `wisp-`/`mol-` tier marker, and a numeric or base36-hash suffix
-// (beads internal/utils/issue_id.go). Anchor on that full trailing shape: the
-// role/template part before it is arbitrary and can itself contain 2-4 letter
-// hyphenated words (`design-test-risk-reviewer`), so any looser "short token
-// + tail" parse latches onto the role and mangles the id.
-const TRAILING_SESSION_BEAD_ID_RE = /(?:^|[-_/])([a-z]{2,4}-(?:(?:wisp|mol)-)?([a-z0-9]{1,32}))$/;
-
-function supervisorSessionIdFrom(value: string | undefined): string | undefined {
-  const clean = nonEmpty(value);
-  if (!clean) return undefined;
-  if (SESSION_ID_RE.test(clean)) return clean;
-  const match = clean.match(TRAILING_SESSION_BEAD_ID_RE);
-  const candidate = match?.[1];
-  const suffix = match?.[2];
-  if (!candidate || !suffix || !isBeadIdSuffix(suffix)) return undefined;
-  if (!SESSION_ID_RE.test(candidate)) return undefined;
-  return candidate;
-}
-
-// Mirrors bd's suffix heuristic (beads internal/utils/issue_id.go isNumeric /
-// isLikelyHash): a bead-id suffix is all digits, or a 3-8 char lowercase
-// base36 hash. 4-8 char hashes must carry a digit so English words in role
-// names ("lead", "worker") never read as session ids; 3-char suffixes get the
-// same free pass bd gives them.
-function isBeadIdSuffix(suffix: string): boolean {
-  if (/^[0-9]+$/.test(suffix)) return true;
-  if (!/^[a-z0-9]{3,8}$/.test(suffix)) return false;
-  return suffix.length === 3 || /[0-9]/.test(suffix);
 }
 
 function resolveRunSessionLink(

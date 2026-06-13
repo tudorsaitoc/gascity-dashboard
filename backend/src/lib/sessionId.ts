@@ -1,14 +1,10 @@
 // Session-id validator for routes that read or stream a gc session.
 //
-// Supervisor session ids seen by this dashboard include gc-/td-/th-prefixed
-// handles and city-scoped short prefixes such as mc-* and fddc-*. The 2-4
-// letter prefix stays general because city codes are derived per-deployment
-// and can't be enumerated here (a session id is the session bead's id, so the
-// prefix is the city store's bead prefix — 2-letter codes like mc- are real).
-// Everything else is a strict, lowercase-only gate: session ids are lowercase
-// by supervisor convention, so the pattern is case-sensitive (no /i) to avoid
-// widening the allow-list to mixed-case look-alikes. Keep this shared between
-// peek and stream routes so both session surfaces accept the same id alphabet
-// before any supervisor call.
+// `shared` is the single source of truth for the dashboard's session-id
+// alphabet — peek, stream, run-detail linking, and the supervisor session
+// routes all gate on the same shape — so re-export it here instead of keeping a
+// second copy that can silently drift on the next format change. See
+// gas-city-dashboard-shared `session-id.ts` for the contract and the
+// lowercase-only / 2-4-letter-prefix rationale.
 
-export const SESSION_ID_RE = /^[a-z]{2,4}-[a-z0-9-]{1,32}$/;
+export { SESSION_ID_RE } from 'gas-city-dashboard-shared';

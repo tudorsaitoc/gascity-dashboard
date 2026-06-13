@@ -9,6 +9,7 @@ export type * from './run-snapshot.js';
 export * from './run-scope.js';
 export * from './strip-non-printable.js';
 export * from './session-id.js';
+export * from './session-handle.js';
 export * from './work-in-flight.js';
 export type * from './viewing-as.js';
 export * from './agents/needsYou.js';

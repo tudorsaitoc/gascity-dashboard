@@ -112,11 +112,56 @@ describe('runSessionLinkFor — supervisor session id extraction from gc__<role>
     assert.equal(link?.sessionId, 'mc-wisp-08fqjv');
   });
 
+  test('keeps a tiered bead id whose hash is all letters', () => {
+    // bd hashes are base36 with no digit forced, so ~1-in-5 are all-letter
+    // (`gd-wisp-uuafv` is a real dependency bead of this workflow). The matched
+    // `wisp-` tier proves the trailing token is a real bead id, so the digit
+    // gate must not drop it and leave the Session link unresolved.
+    const bead = {
+      assignee: 'gc__implementation-worker-mc-wisp-uuafv',
+      metadata: { 'gc.session_name': 'gc__implementation-worker-mc-wisp-uuafv' },
+    } as never;
+    const link = runSessionLinkFor(bead, 'done');
+    assert.equal(link?.sessionId, 'mc-wisp-uuafv');
+  });
+
   test('degrades when the trailing tokens are role words, not a bead id', () => {
     // `crew-lead` is shaped like `<prefix>-<suffix>` but `lead` is an
     // English word, not a bead-id hash — bd requires a digit in 4-8 char
     // hash suffixes. The old regex extracted `crew-lead` as a session id.
     const bead = { assignee: 'polecat-crew-lead' } as never;
     assert.equal(runSessionLinkFor(bead, 'done'), undefined);
+  });
+
+  test('does not fabricate a stripped session id from a short hyphenated role', () => {
+    // audit M8 follow-up: a recorded handle like `city-api-web` must NOT be
+    // stripped to a fabricated `api-web` by the shared parser. Its whole form is
+    // a valid id shape, so the clean-id fallback links it through unchanged —
+    // the link carries the recorded `city-api-web`, never the shorter `api-web`.
+    const bead = { assignee: 'city-api-web' } as never;
+    const link = runSessionLinkFor(bead, 'done');
+    assert.equal(link?.sessionId, 'city-api-web');
+    assert.notEqual(link?.sessionId, 'api-web');
+  });
+
+  test('drops the Session link for an assignee-only no-tier all-letter <=3-char id', () => {
+    // audit M8 follow-up, assignee/session-name-only path: a completed run whose
+    // only session signal is an assignee like `claude-mc-xyz` (no session_id
+    // metadata, absent from the live index) carries a real bead-id shape but no
+    // tier and no digit. The no-tier gate refuses to fabricate `mc-xyz`, and the
+    // 6-letter `claude-` prefix means the whole string also fails SESSION_ID_RE,
+    // so the link degrades to a clean "session not available" state rather than
+    // feeding an unvalidated handle to the route.
+    const bead = { assignee: 'claude-mc-xyz' } as never;
+    assert.equal(runSessionLinkFor(bead, 'done'), undefined);
+  });
+
+  test('still links an assignee-only handle whose embedded id carries a digit', () => {
+    // The contrast that proves the drop above is the digit gate, not a blanket
+    // refusal of short ids: the same `claude-` role with a digit-bearing id
+    // (`mc-9ab`) extracts and links cleanly.
+    const bead = { assignee: 'claude-mc-9ab' } as never;
+    const link = runSessionLinkFor(bead, 'done');
+    assert.equal(link?.sessionId, 'mc-9ab');
   });
 });
