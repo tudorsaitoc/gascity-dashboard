@@ -14,7 +14,7 @@ const STATUS_LABEL: Record<RunNodeStatus, string> = {
   done: 'done',
   completed: 'done',
   failed: 'failed',
-  blocked: 'blocked',
+  blocked: 'waiting',
   skipped: 'skipped',
 };
 
@@ -128,10 +128,13 @@ function shapeClassFor(constructKind: RunConstructKind): string {
   }
 }
 
+// 'blocked' is client-derived (a pending node waiting on upstream deps,
+// shared/src/runs/display-state.ts), not a store fact and not a failure.
+// It reads calm; the maroon accent stays reserved for failed (DESIGN.md
+// One Mark Rule).
 function statusClassFor(status: RunNodeStatus): string {
   switch (status) {
     case 'failed':
-    case 'blocked':
       return 'text-accent';
     case 'active':
     case 'running':
@@ -141,6 +144,7 @@ function statusClassFor(status: RunNodeStatus): string {
     case 'done':
       return 'text-fg-muted';
     case 'pending':
+    case 'blocked':
     case 'skipped':
       return 'text-fg-faint';
   }
@@ -155,8 +159,9 @@ function statusGlyph(status: RunNodeStatus): string {
     case 'running':
       return '●';
     case 'failed':
-    case 'blocked':
       return '!';
+    case 'blocked':
+      return '◌';
     case 'skipped':
       return '∅';
     case 'pending':

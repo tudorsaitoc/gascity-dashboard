@@ -1,11 +1,53 @@
 import { cleanup, render, screen } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import type { RunConstructKind, RunDisplayNode } from 'gas-city-dashboard-shared';
+import type { RunConstructKind, RunDisplayNode, RunNodeStatus } from 'gas-city-dashboard-shared';
 import { FormulaRunNode } from './FormulaRunNode';
 
 afterEach(() => cleanup());
 
 describe('FormulaRunNode', () => {
+  // M13: 'blocked' is client-derived (a pending node waiting on upstream
+  // deps, shared/src/runs/display-state.ts), not a failure. It must not wear
+  // the failure accent or the failure glyph, or a healthy idle run reads as
+  // alarming (DESIGN.md One Mark Rule).
+  it('renders derived blocked as a calm waiting state, not a failure', () => {
+    render(
+      <FormulaRunNode node={{ ...nodeFor('step'), status: 'blocked' }} selected onToggle={vi.fn()} />,
+    );
+
+    const status = screen.getByText(/waiting/i);
+    expect(status.textContent?.trim()).toBe('◌ waiting');
+    expect(status.className).not.toContain('text-accent');
+    expect(status.textContent).not.toContain('!');
+  });
+
+  it('reserves the failure accent and the ! glyph for failed alone', () => {
+    const statuses: RunNodeStatus[] = [
+      'pending',
+      'ready',
+      'running',
+      'active',
+      'done',
+      'completed',
+      'failed',
+      'blocked',
+      'skipped',
+    ];
+
+    for (const status of statuses) {
+      const { container, unmount } = render(
+        <FormulaRunNode node={{ ...nodeFor('step'), status }} selected={false} onToggle={vi.fn()} />,
+      );
+      const statusSpan = container.querySelector('span.text-label');
+      expect(statusSpan, status).toBeTruthy();
+      const accented = statusSpan?.className.includes('text-accent') ?? false;
+      const bangGlyph = statusSpan?.textContent?.includes('!') ?? false;
+      expect(accented, `${status} accent`).toBe(status === 'failed');
+      expect(bangGlyph, `${status} glyph`).toBe(status === 'failed');
+      unmount();
+    }
+  });
+
   it('uses distinct shape classes for first-pass graph.v2 constructs', () => {
     const constructs: RunConstructKind[] = [
       'run-root',
