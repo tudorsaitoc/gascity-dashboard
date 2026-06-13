@@ -181,7 +181,8 @@ function statusProgressOrder(status: RunExecutionInstance['status']): number {
       return 2;
     case 'ready':
       return 1;
-    default:
+    case 'pending':
+    case 'blocked':
       return 0;
   }
 }
