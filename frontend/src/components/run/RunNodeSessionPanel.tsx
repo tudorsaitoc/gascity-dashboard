@@ -255,9 +255,7 @@ function preferredInstance(
   instances: RunExecutionInstance[],
   visibleExecutionInstanceId: string | undefined,
 ): RunExecutionInstance | undefined {
-  const visibleInstance = instances.find(
-    (instance) => instance.id === visibleExecutionInstanceId,
-  );
+  const visibleInstance = instances.find((instance) => instance.id === visibleExecutionInstanceId);
   return (
     instances.find(
       (instance) => instance.session.kind === 'attached' && instance.session.streamable,

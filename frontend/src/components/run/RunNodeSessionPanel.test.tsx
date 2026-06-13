@@ -120,9 +120,7 @@ describe('RunNodeSessionPanel — visible-instance alignment', () => {
   });
 });
 
-function instance(
-  overrides: Partial<RunExecutionInstance> & { id: string },
-): RunExecutionInstance {
+function instance(overrides: Partial<RunExecutionInstance> & { id: string }): RunExecutionInstance {
   return {
     semanticNodeId: 'node',
     beadId: overrides.id,
@@ -164,7 +162,11 @@ function m7TiedNode(): RunDisplayNode {
     id: 'review-gemini',
     visibleExecutionInstanceId: 'ga-wisp-n3cf3y',
     executionInstances: [
-      instance({ id: 'ga-wisp-o5x581', status: 'pending', session: { kind: 'none', reason: 'not_started' } }),
+      instance({
+        id: 'ga-wisp-o5x581',
+        status: 'pending',
+        session: { kind: 'none', reason: 'not_started' },
+      }),
       instance({
         id: 'ga-wisp-n3cf3y',
         status: 'completed',
@@ -258,7 +260,11 @@ function attachedVisibleTiedNode(): RunDisplayNode {
         status: 'completed',
         session: {
           kind: 'attached',
-          link: { sessionId: 'sess-sibling', sessionName: 'synthesize sibling', assignee: 'worker' },
+          link: {
+            sessionId: 'sess-sibling',
+            sessionName: 'synthesize sibling',
+            assignee: 'worker',
+          },
           streamable: false,
         },
       }),

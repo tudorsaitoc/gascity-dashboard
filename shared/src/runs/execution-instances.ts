@@ -171,7 +171,10 @@ function compareVisiblePreference(left: RunExecutionInstance, right: RunExecutio
 // it ties (iteration, attempt) with its pending retry shell it must surface
 // instead of hiding behind the shell on the id tiebreak — the same id-order bug
 // (M7) this comparator removes for terminal/active/ready attempts. `blocked`
-// still ranks below `ready` because it is not yet runnable.
+// still ranks below `ready` because it is not yet runnable. `waiting` is the
+// client-derived calm relabel of a `pending` instance still gated on upstream
+// deps (applyDisplayNodeStates, shared/src/runs/display-state.ts), so it carries
+// no extra progress and ranks with `pending` at the bottom.
 function statusProgressOrder(status: RunExecutionInstance['status']): number {
   switch (status) {
     case 'completed':
@@ -187,6 +190,7 @@ function statusProgressOrder(status: RunExecutionInstance['status']): number {
     case 'blocked':
       return 1;
     case 'pending':
+    case 'waiting':
       return 0;
   }
 }
