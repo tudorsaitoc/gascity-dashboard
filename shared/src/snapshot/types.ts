@@ -128,25 +128,19 @@ export interface RunSummary {
    *  operator attention; they are simply not part of the Active set or
    *  the headline `activeRuns` metric. */
   totalActive: number;
-  /** TRUE count of HISTORICAL lanes (phase === 'complete'). gascity-dashboard-yh5i:
-   *  /runs defaults to showing the active set; toggling `?history=1`
-   *  reveals the historical section so the user can see recently-completed
-   *  runs without complete lanes crowding active out of the 8-cap window.
-   *  gascity-dashboard-9w3k: this is the full completed-lane count and may
-   *  EXCEED historicalLanes.length when the MAX_HISTORICAL_LANES cap applies,
-   *  so the operator sees the real number behind the recency window. */
-  totalHistorical: number;
   runCounts: RunCounts;
   /** Active lanes, sorted by compareLanes (newest-first). The FULL active set —
    *  `totalActive === lanes.length`. The rendered collapsed window
    *  (MAX_VISIBLE_ACTIVE_LANES) and its "Show N more runs" expander are applied
-   *  by the consumer (RunMap), mirroring historicalLanes/MAX_HISTORICAL_LANES. */
+   *  by the consumer (RunMap), mirroring RunHistory/MAX_HISTORICAL_LANES.
+   *
+   *  Header-first restructure: the summary deliberately carries NO historical
+   *  (phase === 'complete') lanes. Surfacing them required the expensive
+   *  closed-history fan-out (molecule all=true scan + per-rig all=true reads,
+   *  measured 9.9s + 10.9s against second-scale budgets) on every refresh, for
+   *  data hidden behind ?history=1 by default. Completed runs live in
+   *  {@link RunHistory}, loaded lazily by the /runs history toggle. */
   lanes: RunLane[];
-  /** Historical (phase === 'complete') lanes, sorted by compareLanes, capped at
-   *  MAX_HISTORICAL_LANES (most-recent-first). Frontend renders these only when
-   *  the user toggles ?history=1; backend always returns the array. When the cap
-   *  trims older lanes, totalHistorical still reports the true count. */
-  historicalLanes: RunLane[];
   /** Blocked (phase === 'blocked') lanes, sorted by compareLanes
    *  (gascity-dashboard-4xcv). Rendered as their own section so a blocked
    *  run stays visible for the operator without being misread as Active.
@@ -175,6 +169,31 @@ export interface RunSummary {
    * (gascity-dashboard-19w.1.1): the collector only ever assigns `true`
    * (else leaves the field absent), so consumers must check
    * truthiness/presence, never `=== false`.
+   */
+  lanesPartial?: true;
+}
+
+/**
+ * Completed (phase === 'complete') run lanes, the lazy /runs history payload
+ * (header-first restructure). Deriving these requires the expensive closed-
+ * history fan-out (molecule all=true scan + per-rig all=true task reads), so
+ * the data is fetched on demand when the operator opens the history section,
+ * never on the default run-summary refresh path.
+ */
+export interface RunHistory {
+  /** TRUE count of completed lanes. gascity-dashboard-9w3k: may EXCEED
+   *  `lanes.length` when the MAX_HISTORICAL_LANES cap applies, so the operator
+   *  sees the real number behind the recency window. */
+  totalHistorical: number;
+  /** Completed lanes, sorted by compareLanes (newest-first), capped at
+   *  MAX_HISTORICAL_LANES. When the cap trims older lanes, totalHistorical
+   *  still reports the true count. */
+  lanes: RunLane[];
+  /**
+   * True when one or more closed-history reads failed or truncated during the
+   * fan-out, so the completed set may be incomplete. Optional literal `true`
+   * per the lanesPartial / rigsPartial convention (gascity-dashboard-19w.1.1):
+   * consumers check truthiness/presence, never `=== false`.
    */
   lanesPartial?: true;
 }

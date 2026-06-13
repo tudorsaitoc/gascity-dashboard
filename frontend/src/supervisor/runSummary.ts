@@ -3,6 +3,7 @@ import type {
   DashboardSession,
   RunFeedScope,
   RunFeedScopeMap,
+  RunHistory,
   RunSummary,
   SourceAvailableState,
   SourceState,
@@ -10,6 +11,7 @@ import type {
 import {
   advanceProgressMarks,
   buildCensus,
+  buildRunHistory,
   buildRunSummary,
   deriveRunHealth,
   fromFeedScope,
@@ -40,7 +42,8 @@ const RUNS_FETCH_LIMIT = 500;
 // missing most completed runs (a busy rig store holds hundreds of closed
 // task beads). 500 covers the largest observed store with headroom; if a
 // store outgrows it the symptom returns as silently missing lanes, so a
-// real fix beyond raising the cap means cursor pagination.
+// real fix beyond raising the cap means cursor pagination. Used only by the
+// lazy history fan-out now (header-first).
 const RECENT_RUN_FETCH_LIMIT = 500;
 const RUNS_STALE_AFTER_MS = 60 * 1000;
 // The CORE active-bead read is the one fetch whose failure blanks the whole runs
@@ -68,18 +71,17 @@ const REQUIRED_RUN_SUMMARY_TIMEOUT_MS = 15_000;
 // first-paint spinner a single global raise would cause.
 const PREVIEW_ENRICHMENT_TIMEOUT_MS = 2_500;
 const REFRESH_ENRICHMENT_TIMEOUT_MS = 30_000;
-// gascity-dashboard-9rk2: the molecule(all=true) read scans the full (large,
-// ~340k-row) molecule history purely to surface HISTORICAL run roots, which the
-// view already caps at MAX_HISTORICAL_LANES (50). Live it runs ~6.8s — past the
-// 5s required-fetch budget — and the supervisor exposes no recency-ordered or
-// bounded molecule query, so it cannot be made cheaper server-side without a new
-// endpoint. It is therefore the FIRST optional read to dominate the wider refresh
-// budget. Bound it well under REQUIRED_RUN_SUMMARY_TIMEOUT_MS so a slow scan
-// degrades the historical lanes to "partial" fast instead of holding the refresh
-// (and so it can never out-wait the active set, which paints from the fast
-// open/active read). It still rides the surrounding enrichment budget too via the
-// min() at the call site, so the tight first-paint path is never loosened.
-const MOLECULE_HISTORY_TIMEOUT_MS = 3_000;
+// Header-first restructure (supersedes the gascity-dashboard-9rk2 3s molecule
+// bound): the closed-history fan-out — the molecule(all=true) scan over the
+// ~340k-row history (measured 9.9s live, so it timed out against the old 3s
+// bound on EVERY refresh and chronically latched the "runs partial" badge) plus
+// the per-rig task(all=true) closed reads (measured 10.9s on a 29.8k-issue rig
+// store) — now runs ONLY on the lazy history source, fetched when the operator
+// opens the /runs history section. There it IS the payload, so it rides this
+// wide budget (matching the refresh budget / the 30s background samplers) and
+// the measured reads land instead of degrading. A genuinely slow scan still
+// folds to history-partial, never an error.
+const HISTORY_ENRICHMENT_TIMEOUT_MS = 30_000;
 
 interface LoadedRunBeads {
   beads: DashboardBead[];
@@ -101,23 +103,30 @@ interface ProgressState {
 const progressStateByCity = new Map<string, ProgressState>();
 
 // The wide-budget run-summary source (gascity-dashboard-4bol): the wide
-// enrichment budget lets slow-but-available list/feed reads land and clear the
-// spurious "runs partial" badge (upstream gascity-dashboard#88). It is the
-// authoritative refresh snapshot for the shared run-summary subscription
-// (runs/runSummarySubscription), which both the /runs page and the nav attention
-// badge read — so the badge counts the same genuinely-blocked runs the page
-// shows, by construction, off a single fan-out (gascity-dashboard-2j8e.7).
+// enrichment budget lets the slow-but-available city feed (measured 14.3s) land
+// and clear the spurious "runs partial" badge (upstream gascity-dashboard#88).
+// It is the authoritative refresh snapshot for the shared run-summary
+// subscription (runs/runSummarySubscription), which both the /runs page and the
+// nav attention badge read — so the badge counts the same genuinely-blocked runs
+// the page shows, by construction, off a single fan-out (gascity-dashboard-2j8e.7).
+//
+// Header-first restructure: this no longer fires the closed-history fan-out
+// (molecule all=true scan + per-rig task all=true reads). The active/blocked set
+// builds entirely from the cheap core active read (measured ~0.02s; active runs'
+// open step beads ride the same read) plus the feed for discovery/scope
+// fallback. Historical lanes are the lazy loadSupervisorRunHistorySource
+// payload, fetched when the operator opens the /runs history section.
 //
 // Do NOT use this as a ROUTE first-paint fetcher — it can block a route view for
 // up to REFRESH_ENRICHMENT_TIMEOUT_MS; route mount consumers (Home, Formula Run
 // Detail) use loadSupervisorRunSummaryMountSource on the tight budget instead.
 // The shared subscription is exempt: it is cache-backed and the always-mounted
 // header reads its result, so its latency never blocks a route view.
-// `forceFresh` flows down to the two cacheable city-wide reads (molecule history
-// + city feed) as the proxy cache-bypass marker. The shared subscription sets it
-// ONLY for the operator's explicit Refresh (gascity-dashboard-i3dz); the one-time
-// preview→full upgrade and SSE refreshes leave it false so they keep serving the
-// proxy's amortized cache.
+// `forceFresh` flows down to the cacheable city-wide feed read as the proxy
+// cache-bypass marker. The shared subscription sets it ONLY for the operator's
+// explicit Refresh (gascity-dashboard-i3dz); the one-time preview→full upgrade
+// and SSE refreshes leave it false so they keep serving the proxy's amortized
+// cache.
 export async function loadSupervisorRunSummarySource(options?: {
   forceFresh?: boolean;
 }): Promise<SourceState<RunSummary>> {
@@ -169,17 +178,16 @@ async function loadRunSummarySource(
   }
 }
 
-// gascity-dashboard: the CHEAP SSE-refresh source. The wide source's loadRunBeads
-// fires the two expensive HISTORICAL/discovery reads (molecule(all=true) ~6.8s,
-// city formulaFeed ~10s) plus per-rig task reads on every SSE burst, saturating
+// gascity-dashboard: the CHEAP SSE-refresh source. Even with the closed-history
+// fan-out gone from the wide source (header-first), the city feed (measured
+// 14.3s) is still too heavy to re-fire on every SSE burst — it would saturate
 // the browser ~6-conn/host cap so the run-detail's fast workflowRun read queues
-// behind them. The active/blocked set and its scope/health/counts/census do NOT
-// need those reads: runScope takes the bead's own gc.root_store_ref/gc.scope_ref
-// metadata first (feedScopes is only a fallback), and runRigNames derives the
-// active rig set from that same per-bead metadata. So this fetches only the core
-// active read + sessions, skipping molecule + city feed + per-rig task reads.
-// historicalLanes/totalHistorical come back empty here; the subscription merges
-// them from the last wide snapshot so History is never blanked.
+// behind it. The active/blocked set and its scope/health/counts/census do NOT
+// need the feed: runScope takes the bead's own gc.root_store_ref/gc.scope_ref
+// metadata first (feedScopes is only a fallback). So this fetches only the core
+// active read + sessions. A missing feed is not flagged partial here — the lane
+// SET is complete from the core read; only a minority scope fallback degrades
+// until the next wide refresh repairs it.
 export async function loadSupervisorRunSummaryActiveSource(): Promise<SourceState<RunSummary>> {
   const cityName = activeCityOrThrow('load supervisor run summary active');
   const fetchedAt = new Date().toISOString();
@@ -258,6 +266,42 @@ export async function loadSupervisorRunSummaryPreviewSource(): Promise<SourceSta
   }
 }
 
+// The lazy history source (header-first restructure): the completed-run lanes
+// behind the /runs ?history=1 toggle. This is the ONLY caller of the expensive
+// closed-history fan-out (molecule all=true scan + per-rig task all=true reads),
+// so the default refresh path never pays it for data hidden by default. Fetched
+// on demand by the history hook (runs/runHistory) when the operator opens the
+// section; `forceFresh` carries the operator's explicit Refresh through to the
+// proxy-cached molecule + feed reads (gascity-dashboard-i3dz).
+export async function loadSupervisorRunHistorySource(options?: {
+  forceFresh?: boolean;
+}): Promise<SourceState<RunHistory>> {
+  const cityName = activeCityOrThrow('load supervisor run history');
+  const fetchedAt = new Date().toISOString();
+  try {
+    const loaded = await loadHistoryBeads(cityName, options?.forceFresh === true);
+    const history = buildRunHistory(
+      loaded.beads.filter(runBeadFilter).map(fromDashboardBead),
+      loaded.feedScopes,
+      loaded.partial,
+    );
+    return {
+      source: 'runs',
+      status: 'fresh',
+      fetchedAt,
+      staleAt: new Date(Date.parse(fetchedAt) + RUNS_STALE_AFTER_MS).toISOString(),
+      error: { kind: 'none' },
+      data: history,
+    };
+  } catch (err) {
+    return {
+      source: 'runs',
+      status: 'error',
+      error: errorMessage(err, 'formula run history unavailable'),
+    };
+  }
+}
+
 export function resetSupervisorRunSummaryStateForTests(): void {
   progressStateByCity.clear();
 }
@@ -283,18 +327,45 @@ function optionalRunSummaryApi(budgetMs: number) {
   return supervisorApiForRequestBudget(budgetMs);
 }
 
+// Header-first: the default run-summary fan-out is the cheap core active read
+// (required) plus the city feed (optional discovery/scope fallback, degrade-to-
+// partial). The closed-history reads live in loadHistoryBeads, paid only by the
+// lazy history source.
 async function loadRunBeads(
   cityName: string,
   limit: number,
   enrichmentBudgetMs: number,
   forceFresh = false,
 ): Promise<LoadedRunBeads> {
-  // The molecule-history read gets its own tight bound (gascity-dashboard-9rk2),
-  // capped to the surrounding enrichment budget so the first-paint path is never
-  // loosened: a slow scan folds to `partial` instead of dominating the refresh.
-  // forceFresh rides the two proxy-cached reads (molecule + feed) so an explicit
-  // Refresh re-scans upstream within the TTL window (gascity-dashboard-i3dz). The
-  // per-rig task reads are not proxy-cached, so they need no bypass.
+  // forceFresh rides the proxy-cached feed read so an explicit Refresh re-scans
+  // upstream within the TTL window (gascity-dashboard-i3dz).
+  const [activeList, feedDiscovery] = await Promise.all([
+    fetchCoreActiveBeads(cityName, limit),
+    discoverFromFeed(cityName, enrichmentBudgetMs, forceFresh),
+  ]);
+  const active = normalizeBeads(activeList.items ?? []);
+  // Truncation at the bounded fetch reads as partial lanes, not complete
+  // (gascity-dashboard-q89b). A failed/slow feed also reads as partial: the lane
+  // set itself is complete from the core read, but lanes whose beads carry no
+  // scope metadata lose their feed fallback, so the snapshot is honestly flagged
+  // (gascity-dashboard-n6f1).
+  return {
+    beads: active,
+    feedScopes: feedDiscovery.scopes,
+    partial: feedDiscovery.partial || listIsIncomplete(activeList, active.length),
+  };
+}
+
+// The lazy closed-history fan-out (header-first): core active read (grouping
+// context + rig discovery), city feed (scope fallback + rig discovery), the
+// molecule(all=true) history scan, and per-rig task(all=true) closed reads.
+// Everything except the core read degrades to `partial`.
+async function loadHistoryBeads(cityName: string, forceFresh: boolean): Promise<LoadedRunBeads> {
+  const budgetMs = HISTORY_ENRICHMENT_TIMEOUT_MS;
+  // forceFresh rides the two proxy-cached city-wide reads (molecule + feed) so
+  // an explicit Refresh re-scans upstream within the TTL window
+  // (gascity-dashboard-i3dz). The per-rig task reads are not proxy-cached, so
+  // they need no bypass.
   const moleculeFetch = settledRecentFetch(
     cityName,
     {
@@ -302,12 +373,12 @@ async function loadRunBeads(
       type: 'molecule',
       all: true,
     },
-    Math.min(MOLECULE_HISTORY_TIMEOUT_MS, enrichmentBudgetMs),
+    budgetMs,
     forceFresh,
   );
   const [activeList, feedDiscovery] = await Promise.all([
-    fetchCoreActiveBeads(cityName, limit),
-    discoverFromFeed(cityName, enrichmentBudgetMs, forceFresh),
+    fetchCoreActiveBeads(cityName, RUNS_FETCH_LIMIT),
+    discoverFromFeed(cityName, budgetMs, forceFresh),
   ]);
   const active = normalizeBeads(activeList.items ?? []);
   const rigNames = unionRigNames(runRigNames(active), feedDiscovery.rigNames);
@@ -321,14 +392,12 @@ async function loadRunBeads(
         rig,
         all: true,
       },
-      enrichmentBudgetMs,
+      budgetMs,
     ),
   );
 
   const settled = await Promise.all([moleculeFetch, ...rigFetches]);
   const recentItems: DashboardBead[] = [];
-  // Truncation at the bounded fetch reads as partial lanes, not complete
-  // (gascity-dashboard-q89b).
   let partial = feedDiscovery.partial || listIsIncomplete(activeList, active.length);
 
   for (const outcome of settled) {
