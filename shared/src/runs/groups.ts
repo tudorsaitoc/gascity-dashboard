@@ -319,13 +319,20 @@ function resolveBadgeTarget(
 }
 
 function hiddenBadgeTargetCandidates(bead: RunSnapshotBead, fallback: string | null): string[] {
-  // gc.step_id sits between the full runtime ref and the bare-segment
-  // fallback in specificity: for steps nested inside a pipeline (e.g.
-  // 'review-pipeline.review-claude') it is the alias the visible node
-  // actually registers, while the bare last segment is not (audit M5).
+  // Specificity order, most to least specific. The iteration-qualified
+  // identity strips the leading runtime segment from the control/step ref via
+  // the same normalization the visible node uses (fullStepRefIdentity), so it
+  // matches that node's alias 1:1. It sits above gc.step_id because a check
+  // loop reuses the same gc.step_id ('review-pipeline.review-claude') on every
+  // pass: once a step runs more than once that alias resolves to multiple
+  // visible nodes and is dropped as ambiguous, leaving the iteration-qualified
+  // key as the only thing that still targets the right per-iteration retry node
+  // (audit M5). gc.step_id still resolves single-occurrence nested steps, and
+  // the bare last segment remains the final fallback.
   return [
     meta(bead, 'gc.control_for'),
     hiddenBadgeFullTargetFor(bead),
+    hiddenBadgeIterationTargetFor(bead),
     meta(bead, 'gc.step_id'),
     fallback ?? undefined,
   ]
@@ -351,6 +358,16 @@ function hiddenBadgeFullTargetFor(bead: RunSnapshotBead): string | undefined {
   const controlFor = meta(bead, 'gc.control_for');
   if (controlFor) return externalizeId(stripControlSuffix(controlFor));
   return fullStepRefIdentity(stripControlSuffix(normalizedStepRef(bead) ?? ''));
+}
+
+// The iteration-qualified target: the control/step ref reduced through the
+// same normalization the visible node registers (fullStepRefIdentity drops the
+// leading runtime segment), so 'review-loop.iteration.2.review-pipeline.
+// review-claude.attempt.1' resolves to 'iteration.2.review-pipeline.
+// review-claude.attempt.1' and lands on that iteration's retry node even when
+// the shared gc.step_id alias has been dropped as ambiguous (audit M5).
+function hiddenBadgeIterationTargetFor(bead: RunSnapshotBead): string | undefined {
+  return fullStepRefIdentity(meta(bead, 'gc.control_for') ?? normalizedStepRef(bead));
 }
 
 function fullStepRefIdentity(ref: string | null | undefined): string | undefined {

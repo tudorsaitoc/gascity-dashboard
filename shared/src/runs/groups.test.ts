@@ -38,74 +38,104 @@ function rootBead(): RunSnapshotBead {
   });
 }
 
+interface ReviewClaudeIterationIds {
+  retry: string;
+  attempt: string;
+  scopeCheckAttempt: string;
+  scopeCheckStep: string;
+}
+
 // Shapes mirror the live ga-wisp-x0tank supervisor payload: a kind=retry
 // logical bead plus a kind=task attempt bead pointing at it, and two
 // scope-check beads (one per runtime ref form, with and without .attempt.N).
-function reviewClaudeBeads(): RunSnapshotBead[] {
+// Parameterized by iteration so the same step can appear more than once: a
+// check loop reuses the same gc.step_id ('review-pipeline.review-claude')
+// every pass, and only the iteration index in the step/control refs keeps the
+// iterations apart.
+function reviewClaudeIterationBeads(
+  iteration: number,
+  ids: ReviewClaudeIterationIds,
+): RunSnapshotBead[] {
+  const loop = `review-loop.iteration.${iteration}`;
   return [
     bead({
-      id: 'ga-wisp-dftrbb',
+      id: ids.retry,
       title: 'Code review: Claude (reasoning-heavy)',
       status: 'completed',
       kind: 'retry',
-      step_ref: 'review-loop.iteration.1.review-pipeline.review-claude',
-      scope_ref: 'review-loop.iteration.1',
+      step_ref: `${loop}.review-pipeline.review-claude`,
+      scope_ref: loop,
       metadata: {
         'gc.kind': 'retry',
-        'gc.scope_ref': 'review-loop.iteration.1',
+        'gc.scope_ref': loop,
         'gc.step_id': 'review-pipeline.review-claude',
-        'gc.step_ref': 'review-loop.iteration.1.review-pipeline.review-claude',
+        'gc.step_ref': `${loop}.review-pipeline.review-claude`,
       },
     }),
     bead({
-      id: 'ga-wisp-ov9nus',
+      id: ids.attempt,
       title: 'Code review: Claude (reasoning-heavy)',
       status: 'completed',
       kind: 'task',
-      step_ref: 'review-loop.iteration.1.review-pipeline.review-claude.attempt.1',
-      logical_bead_id: 'ga-wisp-dftrbb',
-      scope_ref: 'review-loop.iteration.1',
+      step_ref: `${loop}.review-pipeline.review-claude.attempt.1`,
+      logical_bead_id: ids.retry,
+      scope_ref: loop,
       metadata: {
-        'gc.logical_bead_id': 'ga-wisp-dftrbb',
-        'gc.scope_ref': 'review-loop.iteration.1',
+        'gc.logical_bead_id': ids.retry,
+        'gc.scope_ref': loop,
         'gc.step_id': 'review-pipeline.review-claude',
-        'gc.step_ref': 'review-loop.iteration.1.review-pipeline.review-claude.attempt.1',
+        'gc.step_ref': `${loop}.review-pipeline.review-claude.attempt.1`,
       },
     }),
     bead({
-      id: 'ga-wisp-k2xt12',
+      id: ids.scopeCheckAttempt,
       title: 'Finalize scope for Code review: Claude (reasoning-heavy)',
       status: 'completed',
       kind: 'scope-check',
-      step_ref:
-        'mol-adopt-pr-v2.review-loop.iteration.1.review-pipeline.review-claude.attempt.1-scope-check',
-      scope_ref: 'review-loop.iteration.1',
+      step_ref: `mol-adopt-pr-v2.${loop}.review-pipeline.review-claude.attempt.1-scope-check`,
+      scope_ref: loop,
       metadata: {
         'gc.kind': 'scope-check',
-        'gc.control_for': 'review-loop.iteration.1.review-pipeline.review-claude.attempt.1',
-        'gc.scope_ref': 'review-loop.iteration.1',
+        'gc.control_for': `${loop}.review-pipeline.review-claude.attempt.1`,
+        'gc.scope_ref': loop,
         'gc.step_id': 'review-pipeline.review-claude',
-        'gc.step_ref':
-          'mol-adopt-pr-v2.review-loop.iteration.1.review-pipeline.review-claude.attempt.1-scope-check',
+        'gc.step_ref': `mol-adopt-pr-v2.${loop}.review-pipeline.review-claude.attempt.1-scope-check`,
       },
     }),
     bead({
-      id: 'ga-wisp-u6zevb',
+      id: ids.scopeCheckStep,
       title: 'Finalize scope for Code review: Claude (reasoning-heavy)',
       status: 'completed',
       kind: 'scope-check',
-      step_ref: 'mol-adopt-pr-v2.review-loop.iteration.1.review-pipeline.review-claude-scope-check',
-      scope_ref: 'review-loop.iteration.1',
+      step_ref: `mol-adopt-pr-v2.${loop}.review-pipeline.review-claude-scope-check`,
+      scope_ref: loop,
       metadata: {
         'gc.kind': 'scope-check',
-        'gc.control_for': 'review-loop.iteration.1.review-pipeline.review-claude',
-        'gc.scope_ref': 'review-loop.iteration.1',
+        'gc.control_for': `${loop}.review-pipeline.review-claude`,
+        'gc.scope_ref': loop,
         'gc.step_id': 'review-pipeline.review-claude',
-        'gc.step_ref':
-          'mol-adopt-pr-v2.review-loop.iteration.1.review-pipeline.review-claude-scope-check',
+        'gc.step_ref': `mol-adopt-pr-v2.${loop}.review-pipeline.review-claude-scope-check`,
       },
     }),
   ];
+}
+
+const ITERATION_1_IDS: ReviewClaudeIterationIds = {
+  retry: 'ga-wisp-dftrbb',
+  attempt: 'ga-wisp-ov9nus',
+  scopeCheckAttempt: 'ga-wisp-k2xt12',
+  scopeCheckStep: 'ga-wisp-u6zevb',
+};
+
+const ITERATION_2_IDS: ReviewClaudeIterationIds = {
+  retry: 'ga-wisp-e7h2kp',
+  attempt: 'ga-wisp-r3m8qd',
+  scopeCheckAttempt: 'ga-wisp-w9b4xt',
+  scopeCheckStep: 'ga-wisp-z5c1nf',
+};
+
+function reviewClaudeBeads(): RunSnapshotBead[] {
+  return reviewClaudeIterationBeads(1, ITERATION_1_IDS);
 }
 
 // A step whose gc.step_id has no pipeline prefix (mirrors the live
@@ -183,6 +213,48 @@ describe('groupRunBeads — scope-check badge targeting (audit M5)', () => {
       badgesByTarget.has('review-claude'),
       false,
       'no badges may be stranded under the bare semantic segment, which no group carries',
+    );
+  });
+
+  test('scope-checks for a repeated nested-pipeline step attach to each iteration’s own retry node', () => {
+    // A review loop re-runs the same review-pipeline step when the first pass
+    // finds blockers. Both iterations register gc.step_id
+    // 'review-pipeline.review-claude', so that alias resolves to two visible
+    // nodes and is dropped as ambiguous. Resolution must fall through to the
+    // iteration-qualified step-ref identity (audit M5); otherwise every
+    // scope-check strands under the shared bare 'review-claude' key again.
+    const { groups, badgesByTarget } = groupRunBeads(
+      [
+        rootBead(),
+        ...reviewClaudeIterationBeads(1, ITERATION_1_IDS),
+        ...reviewClaudeIterationBeads(2, ITERATION_2_IDS),
+      ],
+      ROOT_ID,
+    );
+
+    const iteration1Node = groups.find((group) => group.semanticNodeId === ITERATION_1_IDS.retry);
+    const iteration2Node = groups.find((group) => group.semanticNodeId === ITERATION_2_IDS.retry);
+    assert.ok(iteration1Node, 'iteration 1 retry + attempt beads merge into their own node');
+    assert.ok(
+      iteration2Node,
+      'iteration 2 retry + attempt beads merge into a separate node, not the iteration 1 node',
+    );
+
+    assert.deepEqual(
+      (badgesByTarget.get(ITERATION_1_IDS.retry) ?? []).map((badge) => badge.id).sort(),
+      [ITERATION_1_IDS.scopeCheckStep, ITERATION_1_IDS.scopeCheckAttempt].sort(),
+      'iteration 1 scope-checks attach to the iteration 1 node',
+    );
+    assert.deepEqual(
+      (badgesByTarget.get(ITERATION_2_IDS.retry) ?? []).map((badge) => badge.id).sort(),
+      [ITERATION_2_IDS.scopeCheckStep, ITERATION_2_IDS.scopeCheckAttempt].sort(),
+      'iteration 2 scope-checks attach to the iteration 2 node, not bleeding onto iteration 1',
+    );
+
+    assert.equal(
+      badgesByTarget.has('review-claude'),
+      false,
+      'the ambiguous bare segment shared by both iterations must not strand badges',
     );
   });
 
