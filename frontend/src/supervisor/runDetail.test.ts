@@ -2,10 +2,23 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import {
   resetSupervisorApiForTests,
   setSupervisorApiForTests,
+  supervisorApiForRequestBudget,
   SupervisorApiError,
   type SupervisorApi,
 } from './client';
+import type * as SupervisorClient from './client';
 import { loadSupervisorFormulaRunDetail } from './runDetail';
+
+// Pass-through spy: supervisorApiForRequestBudget returns the injected test API
+// before it ever constructs a budgeted client, so the requested budget value is
+// observable only at this call boundary.
+vi.mock('./client', async (importOriginal) => {
+  const actual = await importOriginal<typeof SupervisorClient>();
+  return {
+    ...actual,
+    supervisorApiForRequestBudget: vi.fn(actual.supervisorApiForRequestBudget),
+  };
+});
 
 vi.mock('../api/cityBase', () => ({
   getActiveCity: () => 'test-city',
@@ -312,6 +325,16 @@ describe('loadSupervisorFormulaRunDetail', () => {
 
     expect(attempts).toBe(2);
     expect(detail.completeness).toEqual({ kind: 'complete' });
+  });
+
+  // Audit M21: the workflow snapshot read must request the raised 60s budget.
+  // The retry test above cannot pin this — its injected timeout message is a
+  // literal, and isTransientSupervisorError matches any "timed out after Nms" —
+  // so this assertion is what fails if the budget regresses to 15_000.
+  it('requests the 60s core-read budget for the workflow snapshot read', async () => {
+    await loadSupervisorFormulaRunDetail('wf-1', 'rig', 'app');
+
+    expect(supervisorApiForRequestBudget).toHaveBeenCalledWith(60_000);
   });
 
   it('does not retry the workflow core read on a non-transient (4xx) failure', async () => {
