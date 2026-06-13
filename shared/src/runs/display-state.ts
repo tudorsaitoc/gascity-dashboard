@@ -4,8 +4,12 @@ const TERMINAL_STATUSES = new Set<RunNodeStatus>(['completed', 'done', 'failed',
 
 /**
  * Convert raw bead state into graph presentation state. The supervisor exposes
- * durable bead status, while the dashboard needs to show whether a waiting node
- * is actually ready to be claimed or still blocked by upstream work.
+ * durable bead status, while the dashboard needs to show whether a pending node
+ * is actually ready to be claimed or still waiting on upstream work. Only
+ * `pending` nodes are reinterpreted: a pending node with unfinished upstream
+ * dependencies becomes the derived `waiting` state, distinct from a raw
+ * supervisor `blocked` bead (which is preserved as-is and stays
+ * operator-actionable).
  */
 export function applyDisplayNodeStates(
   nodes: readonly RunDisplayNode[],
@@ -45,7 +49,7 @@ function displayStatusFor(
     const blocker = byId.get(blockerId);
     return blocker ? TERMINAL_STATUSES.has(blocker.status) : false;
   });
-  return allDone ? 'ready' : 'blocked';
+  return allDone ? 'ready' : 'waiting';
 }
 
 function buildInboundEdges(

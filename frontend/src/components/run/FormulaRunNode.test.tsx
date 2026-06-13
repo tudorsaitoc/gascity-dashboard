@@ -6,14 +6,14 @@ import { FormulaRunNode } from './FormulaRunNode';
 afterEach(() => cleanup());
 
 describe('FormulaRunNode', () => {
-  // M13: 'blocked' is client-derived (a pending node waiting on upstream
-  // deps, shared/src/runs/display-state.ts), not a failure. It must not wear
-  // the failure accent or the failure glyph, or a healthy idle run reads as
-  // alarming (DESIGN.md One Mark Rule).
-  it('renders derived blocked as a calm waiting state, not a failure', () => {
+  // PR #120 review: 'waiting' is client-derived (a pending node waiting on
+  // upstream deps, shared/src/runs/display-state.ts), not a failure. It must
+  // not wear the failure accent or the failure glyph, or a healthy idle run
+  // reads as alarming (DESIGN.md One Mark Rule).
+  it('renders the derived waiting state as calm, not a failure', () => {
     render(
       <FormulaRunNode
-        node={{ ...nodeFor('step'), status: 'blocked' }}
+        node={{ ...nodeFor('step'), status: 'waiting' }}
         selected
         onToggle={vi.fn()}
       />,
@@ -25,7 +25,25 @@ describe('FormulaRunNode', () => {
     expect(status.textContent).not.toContain('!');
   });
 
-  it('reserves the failure accent and the ! glyph for failed alone', () => {
+  // A raw supervisor 'blocked' bead is operator-actionable and must stay
+  // visibly blocked (DESIGN.md "Stuck Maroon", always paired with the word),
+  // separate from the calm derived 'waiting' state — collapsing the two would
+  // hide genuinely blocked work behind a benign label.
+  it('keeps a raw blocked node visibly blocked, not calm waiting', () => {
+    render(
+      <FormulaRunNode
+        node={{ ...nodeFor('step'), status: 'blocked' }}
+        selected
+        onToggle={vi.fn()}
+      />,
+    );
+
+    const status = screen.getByText(/blocked/i);
+    expect(status.textContent?.trim()).toBe('! blocked');
+    expect(status.className).toContain('text-accent');
+  });
+
+  it('reserves the loud accent and the ! glyph for failed and raw blocked alone', () => {
     const statuses: RunNodeStatus[] = [
       'pending',
       'ready',
@@ -35,8 +53,10 @@ describe('FormulaRunNode', () => {
       'completed',
       'failed',
       'blocked',
+      'waiting',
       'skipped',
     ];
+    const loud = new Set<RunNodeStatus>(['failed', 'blocked']);
 
     for (const status of statuses) {
       const { container, unmount } = render(
@@ -50,8 +70,8 @@ describe('FormulaRunNode', () => {
       expect(statusSpan, status).toBeTruthy();
       const accented = statusSpan?.className.includes('text-accent') ?? false;
       const bangGlyph = statusSpan?.textContent?.includes('!') ?? false;
-      expect(accented, `${status} accent`).toBe(status === 'failed');
-      expect(bangGlyph, `${status} glyph`).toBe(status === 'failed');
+      expect(accented, `${status} accent`).toBe(loud.has(status));
+      expect(bangGlyph, `${status} glyph`).toBe(loud.has(status));
       unmount();
     }
   });

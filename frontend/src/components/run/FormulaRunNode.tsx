@@ -14,7 +14,8 @@ const STATUS_LABEL: Record<RunNodeStatus, string> = {
   done: 'done',
   completed: 'done',
   failed: 'failed',
-  blocked: 'waiting',
+  blocked: 'blocked',
+  waiting: 'waiting',
   skipped: 'skipped',
 };
 
@@ -128,13 +129,15 @@ function shapeClassFor(constructKind: RunConstructKind): string {
   }
 }
 
-// 'blocked' is client-derived (a pending node waiting on upstream deps,
-// shared/src/runs/display-state.ts), not a store fact and not a failure.
-// It reads calm; the maroon accent stays reserved for failed (DESIGN.md
-// One Mark Rule).
+// The maroon accent is reserved for genuinely loud states: `failed` and a raw
+// supervisor `blocked` bead (DESIGN.md "Stuck Maroon", always paired with the
+// word). The client-derived `waiting` state (a pending node waiting on upstream
+// deps, shared/src/runs/display-state.ts) is the calm, normal case and reads
+// faint — collapsing it into `blocked` would hide actionable blocked work.
 function statusClassFor(status: RunNodeStatus): string {
   switch (status) {
     case 'failed':
+    case 'blocked':
       return 'text-accent';
     case 'active':
     case 'running':
@@ -144,7 +147,7 @@ function statusClassFor(status: RunNodeStatus): string {
     case 'done':
       return 'text-fg-muted';
     case 'pending':
-    case 'blocked':
+    case 'waiting':
     case 'skipped':
       return 'text-fg-faint';
   }
@@ -159,8 +162,9 @@ function statusGlyph(status: RunNodeStatus): string {
     case 'running':
       return '●';
     case 'failed':
-      return '!';
     case 'blocked':
+      return '!';
+    case 'waiting':
       return '◌';
     case 'skipped':
       return '∅';

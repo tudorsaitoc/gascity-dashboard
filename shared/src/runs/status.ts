@@ -13,6 +13,10 @@ export function presentationStatus(bead: RunSnapshotBead): RunNodeStatus {
   if (raw === 'in_progress' || raw === 'active' || raw === 'running') {
     return 'active';
   }
+  // A raw supervisor `blocked` bead is an operator-actionable store fact and is
+  // preserved as `blocked` here. The calm, derived "waiting on upstream" state
+  // is produced separately by `applyDisplayNodeStates` as `waiting` — do not
+  // collapse the two, or genuinely blocked work renders as benign.
   if (raw === 'blocked') return 'blocked';
   if (raw === 'ready') return 'ready';
   if (raw === 'failed') return 'failed';

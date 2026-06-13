@@ -37,6 +37,7 @@ const NON_TERMINAL_STATUSES: readonly RunNodeStatus[] = [
   'running',
   'active',
   'blocked',
+  'waiting',
 ];
 
 export function FormulaRunDetailPage() {
@@ -445,8 +446,11 @@ function summarizeNodeStatuses(progress: FormulaRunProgress): string {
     statusSummaryPart(progress, ['active', 'running'], 'running'),
     statusSummaryPart(progress, ['completed', 'done'], 'done'),
     statusSummaryPart(progress, 'ready', 'ready'),
-    // 'blocked' is client-derived (waiting on upstream deps), so the calm word.
-    statusSummaryPart(progress, 'blocked', 'waiting'),
+    // `waiting` is client-derived (a pending node waiting on upstream deps) and
+    // reads calm; raw supervisor `blocked` stays its own operator-actionable
+    // word so genuinely blocked work is not hidden behind "waiting".
+    statusSummaryPart(progress, 'waiting', 'waiting'),
+    statusSummaryPart(progress, 'blocked', 'blocked'),
     statusSummaryPart(progress, 'failed', 'failed'),
     statusSummaryPart(progress, 'skipped', 'skipped'),
     statusSummaryPart(progress, 'pending', 'pending'),

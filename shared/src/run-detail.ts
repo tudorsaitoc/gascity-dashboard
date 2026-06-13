@@ -10,6 +10,18 @@ export type RunScopeKind = 'city' | 'rig';
  */
 export const SCOPE_REF_RE = /^[A-Za-z0-9][A-Za-z0-9_.:/-]{0,127}$/;
 
+/**
+ * `blocked` and `waiting` are deliberately distinct:
+ *
+ * - `blocked` is a raw supervisor fact — a bead the supervisor reports as
+ *   `blocked` (see `presentationStatus`). It is operator-actionable and reads
+ *   loud (DESIGN.md "Stuck Maroon", always paired with the word).
+ * - `waiting` is client-derived — a `pending` node whose upstream dependencies
+ *   are not yet terminal (see `applyDisplayNodeStates`). It is the calm, normal
+ *   "waiting its turn" case and must not borrow the failure/blocked accent.
+ *
+ * Collapsing the two would hide genuinely blocked work behind a calm label.
+ */
 export type RunNodeStatus =
   | 'pending'
   | 'ready'
@@ -19,6 +31,7 @@ export type RunNodeStatus =
   | 'completed'
   | 'failed'
   | 'blocked'
+  | 'waiting'
   | 'skipped';
 
 export type RunConstructKind =

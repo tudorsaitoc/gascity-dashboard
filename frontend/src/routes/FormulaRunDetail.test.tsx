@@ -288,24 +288,25 @@ describe('FormulaRunDetailPage', () => {
     expect(screen.getByText(/99 nodes\. 99 pending/i)).toBeTruthy();
   });
 
-  it('summarizes derived blocked nodes as waiting, not blocked', async () => {
-    // M13: 'blocked' here is client-derived (pending nodes awaiting upstream
-    // completion in a healthy run), so the synopsis uses the calm word.
-    // Counts mirror the audited live run ga-wisp-x0tank.
+  it('summarizes derived waiting nodes as waiting and raw blocked nodes as blocked', async () => {
+    // PR #120 review: a pending node awaiting upstream completion is counted as
+    // the derived `waiting` state (the audited live run ga-wisp-x0tank had 12)
+    // and reads calm; a raw supervisor `blocked` bead is counted separately and
+    // keeps its operator-actionable word. Both can appear on one run, so the
+    // synopsis must distinguish them rather than collapse blocked into waiting.
     currentDetail = {
       ...detail,
       progress: {
         ...detail.progress,
-        visibleNodeCount: 19,
-        statusCounts: { completed: 6, ready: 1, blocked: 12 },
+        visibleNodeCount: 21,
+        statusCounts: { completed: 6, ready: 1, waiting: 12, blocked: 2 },
       },
     };
 
     renderPage();
     await screen.findByRole('heading', { name: /adopt pr #42/i });
 
-    expect(screen.getByText(/19 nodes\. 6 done, 1 ready, 12 waiting/i)).toBeTruthy();
-    expect(screen.queryByText(/12 blocked/i)).toBeNull();
+    expect(screen.getByText(/21 nodes\. 6 done, 1 ready, 12 waiting, 2 blocked/i)).toBeTruthy();
   });
 
   it('clears query-driven selection when the node query is removed', async () => {
