@@ -1,7 +1,7 @@
 import { test, describe } from 'node:test';
 import assert from 'node:assert/strict';
 
-import { mapRunPhase, stepIdPhase, type RunIssue } from './phaseMapping.js';
+import { mapRunPhase, stageProgress, stepIdPhase, type RunIssue } from './phaseMapping.js';
 
 // gascity-dashboard-q3p1: phase is derived from the run's CURRENT step
 // (structured-first), not from a keyword scan over title+description+metadata.
@@ -266,6 +266,160 @@ describe('mapRunPhase — tightened keyword fallback (no structured steps)', () 
     assert.notEqual(phase.phase, 'approval');
     assert.notEqual(phase.phase, 'finalization');
     assert.equal(phase.phase, 'active');
+  });
+});
+
+// M2 audit (run ga-wisp-x0tank): the run-detail page feeds phase derivation
+// SUPERVISOR WIRE statuses (pending/active/completed via fromRunSnapshotBead),
+// not bd ledger statuses (open/in_progress/closed). Two layered defects:
+//   (1) structuredPhase matched only status==='in_progress', so the in-flight
+//       step detection could NEVER fire on the run-detail page — a live
+//       'active' bead was invisible to it.
+//   (2) the no-in-flight fallback (furthestStageStepId) ranked ALL materialized
+//       steps, including pending/unstarted shells. graph.v2 runs materialize
+//       the full DAG at pour time, so a pending 'cleanup-worktree' wisp drove
+//       phase='finalization' (ladder: Intake/Implementation/Review/Approval
+//       all complete) for the run's ENTIRE life while it was mid-review.
+describe('mapRunPhase — supervisor wire status vocabulary (M2)', () => {
+  function wireStep(stepId: string, status: string, overrides: Partial<RunIssue> = {}): RunIssue {
+    // Run-detail snapshot shape: wire statuses, no per-bead timestamp.
+    return {
+      id: `step-${stepId}`,
+      title: 'step',
+      status,
+      issue_type: 'task',
+      updated_at: '',
+      metadata: { 'gc.kind': 'step', 'gc.step_id': stepId },
+      ...overrides,
+    };
+  }
+
+  test("an 'active' (wire) step drives the structured phase, exactly like 'in_progress'", () => {
+    const phase = mapRunPhase([
+      root({ id: 'w1', updated_at: '', status: 'pending' }),
+      wireStep('implement-change', 'active'),
+      wireStep('cleanup-worktree', 'pending'),
+    ]);
+    assert.equal(phase.phase, 'implementation');
+  });
+
+  test('fallback ignores materialized pending shells — only ADVANCED steps rank', () => {
+    // Nothing in flight; implementation completed; the post-review wave
+    // (approval gate, finalize, cleanup) is materialized but unstarted.
+    const phase = mapRunPhase([
+      root({ id: 'w2', updated_at: '', status: 'pending' }),
+      wireStep('implement-change', 'completed'),
+      wireStep('human-approval', 'pending'),
+      wireStep('finalize', 'pending'),
+      wireStep('cleanup-worktree', 'pending'),
+    ]);
+    assert.equal(phase.phase, 'implementation');
+  });
+
+  test('ga-wisp-x0tank shape: review wave done, synthesize active, post-review wave pending → review', () => {
+    // Mirrors the captured supervisor payload for ga-wisp-x0tank: the review
+    // pipeline is mid-flight, yet the deployed pipeline derived 'finalization'.
+    const issues = [
+      root({ id: 'ga-wisp-x0tank', updated_at: '', status: 'pending' }),
+      wireStep('preflight', 'completed'),
+      wireStep('rebase-check', 'completed'),
+      wireStep('pre-review-ci', 'completed'),
+      wireStep('repair-pre-review-ci-failures', 'completed'),
+      wireStep('review-pipeline.review-claude', 'completed'),
+      wireStep('review-pipeline.review-codex', 'completed'),
+      wireStep('review-pipeline.review-gemini', 'completed'),
+      wireStep('review-pipeline.synthesize', 'active'),
+      wireStep('apply-fixes', 'pending'),
+      wireStep('review-pipeline.quality-scorecard', 'pending'),
+      wireStep('review-loop', 'pending'),
+      wireStep('pre-approval-ci', 'pending'),
+      wireStep('repair-pre-approval-ci-failures', 'pending'),
+      wireStep('finalize', 'pending'),
+      wireStep('cleanup-worktree', 'pending'),
+    ];
+    const phase = mapRunPhase(issues);
+    assert.equal(phase.phase, 'review');
+  });
+
+  test('ga-wisp-x0tank shape between steps (nothing active) still reads review, not finalization', () => {
+    const issues = [
+      root({ id: 'ga-wisp-x0tank', updated_at: '', status: 'pending' }),
+      wireStep('preflight', 'completed'),
+      wireStep('rebase-check', 'completed'),
+      wireStep('review-pipeline.review-claude', 'completed'),
+      wireStep('review-pipeline.review-codex', 'completed'),
+      wireStep('review-pipeline.review-gemini', 'completed'),
+      wireStep('review-pipeline.synthesize', 'pending'),
+      wireStep('apply-fixes', 'pending'),
+      wireStep('pre-approval-ci', 'pending'),
+      wireStep('finalize', 'pending'),
+      wireStep('cleanup-worktree', 'pending'),
+    ];
+    const phase = mapRunPhase(issues);
+    assert.equal(phase.phase, 'review');
+    // The generic ladder must not mark Approval/Finalization-preceding stages
+    // complete past the truth.
+    const stages = stageProgress(phase, null, issues);
+    const byKey = new Map(stages.map((s) => [s.key, s.status]));
+    assert.equal(byKey.get('review'), 'active');
+    assert.equal(byKey.get('approval'), 'pending');
+    assert.equal(byKey.get('finalization'), 'pending');
+  });
+
+  test("all steps 'completed' (wire) → complete, like all 'closed'", () => {
+    const phase = mapRunPhase([
+      root({ id: 'w3', updated_at: '', status: 'completed' }),
+      wireStep('implement-change', 'completed'),
+      wireStep('finalize', 'completed'),
+    ]);
+    assert.equal(phase.phase, 'complete');
+  });
+
+  test('freshly poured run (full DAG materialized, all pending) stays conservative', () => {
+    const phase = mapRunPhase([
+      root({ id: 'w4', updated_at: '', status: 'pending' }),
+      wireStep('preflight', 'pending'),
+      wireStep('review-loop', 'pending'),
+      wireStep('pre-approval-ci', 'pending'),
+      wireStep('finalize', 'pending'),
+      wireStep('cleanup-worktree', 'pending'),
+    ]);
+    assert.notEqual(phase.phase, 'approval');
+    assert.notEqual(phase.phase, 'finalization');
+    assert.equal(phase.phase, 'active');
+  });
+
+  test('formula-specific ladder (mol-adopt-pr-v2) reads wire statuses too', () => {
+    const issues = [
+      root({ id: 'w5', updated_at: '', status: 'pending' }),
+      wireStep('preflight', 'completed'),
+      wireStep('rebase-check', 'completed'),
+      wireStep('review-pipeline.review-claude', 'completed'),
+      wireStep('review-pipeline.synthesize', 'active'),
+      wireStep('pre-approval-ci', 'pending'),
+      wireStep('human-approval', 'pending'),
+      wireStep('finalize', 'pending'),
+      wireStep('cleanup-worktree', 'pending'),
+    ];
+    const stages = stageProgress(mapRunPhase(issues), 'mol-adopt-pr-v2', issues);
+    const byKey = new Map(stages.map((s) => [s.key, s.status]));
+    assert.equal(byKey.get('preflight'), 'complete');
+    assert.equal(byKey.get('rebase'), 'complete');
+    assert.equal(byKey.get('review'), 'active');
+    assert.equal(byKey.get('ci'), 'pending');
+    assert.equal(byKey.get('approval'), 'pending');
+    assert.equal(byKey.get('finalize'), 'pending');
+    assert.equal(byKey.get('cleanup'), 'pending');
+  });
+
+  test('bd-fed summary lane: fallback skips OPEN shells too, not only wire-pending ones', () => {
+    const phase = mapRunPhase([
+      root({ id: 'w6' }),
+      step('w6-s1', 'implement-change', 'closed'),
+      step('w6-s2', 'human-approval', 'open'),
+      step('w6-s3', 'cleanup-worktree', 'open'),
+    ]);
+    assert.equal(phase.phase, 'implementation');
   });
 });
 
