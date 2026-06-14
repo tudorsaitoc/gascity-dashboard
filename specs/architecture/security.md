@@ -126,7 +126,7 @@ Every privileged invocation routes through `backend/src/exec.ts`. **No general-p
 
 - **Param schemas** enforced before any privileged call:
   - Bead id: `^(td|th|jt)-[a-z0-9-]{3,32}$`
-  - Session id: `^(gc|td|th|[a-z]{4})-[a-z0-9-]{1,32}$` (case-sensitive, no `/i`; validated via the shared `SESSION_ID_RE` in `lib/sessionId.ts` for run/session linking). The `[a-z]{4}` alternation admits city-scoped prefixes (e.g. `fddc-*`) whose codes are derived per-deployment and can't be enumerated here; the lowercase-only, hyphen-and-alphanumeric body keeps the gate strict.
+  - Session id: `^[a-z]{2,4}-[a-z0-9-]{1,32}$` (case-sensitive, no `/i`; validated via the shared `SESSION_ID_RE`, re-exported by `lib/sessionId.ts`, for run/session linking). A session id is the session bead's id, so the 2-4-letter prefix is the city store's bead prefix — it admits the `gc`/`td`/`th` cores and per-deployment city codes that can't be enumerated here, both 2-letter (e.g. `mc-*`) and 4-letter (e.g. `fddc-*`); the lowercase-only, hyphen-and-alphanumeric body keeps the gate strict.
   - Agent alias: `^[a-z][a-z0-9_./-]{1,63}$`
 - **Spawn options**:
   - `shell: false` — non-negotiable. No `sh -c`, no command injection vectors.

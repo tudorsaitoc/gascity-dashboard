@@ -1,4 +1,5 @@
 import type { DashboardSession } from 'gas-city-dashboard-shared';
+import { matchSessionHandle } from 'gas-city-dashboard-shared';
 import { getActiveCity } from '../api/cityBase';
 import type { AgentResponse } from 'gas-city-dashboard-shared/gc-supervisor';
 import type { SupervisorBead } from '../supervisor/beadReads';
@@ -245,31 +246,30 @@ export function canonicalRigLabel(name: string): string {
   return name.endsWith('-main') ? name.slice(0, -'-main'.length) : name;
 }
 
-// Trailing `-gc-XXXXX` (or other 2/4-letter-prefixed) live-session handle that
-// leaks into a worker name when the supervisor labels a dynamically-spawned
-// slot by its session (e.g. `polecat-gc-335825`). Mirrors the session-id
-// alphabet; anchored to the END so only a real suffix is cut. The id body is
-// hyphen-free (`gc-335825`, not `gc-33-5825`) so the match binds to the minimal
-// trailing handle. The body MUST contain a digit (mirroring BARE_SESSION_ID_RX
-// in shared/work-in-flight.ts): live session ids always carry a numeric handle,
-// so requiring a digit stops the `[a-z]{4}` prefix branch from false-stripping a
-// hyphenated role whose penultimate segment is four letters (e.g. the `-scix-`
-// in `*-scix-worker`, which has no digit in `worker`).
-const WORKER_SESSION_SUFFIX_RX = /-(?:gc|td|th|[a-z]{4})-[a-z0-9]*[0-9][a-z0-9]*$/;
-
 /**
  * Clean a worker/agent/assignee name for display: strip any leading filesystem
- * path (keep the basename) and any trailing `-gc-XXXXX` live-session suffix, so
+ * path (keep the basename) and any trailing live-session suffix, so
  * `/home/ds/gas-city/city-infra-polecat` shows as `city-infra-polecat` and
- * `polecat-gc-335825` shows as `polecat`. Returns the trimmed input unchanged
- * when neither a path nor a session suffix is present.
+ * `polecat-gc-335825` shows as `polecat`. Returns the basename unchanged when
+ * neither a path nor a role-prefixed session suffix is present.
+ *
+ * Suffix detection routes through the shared session-handle primitive, so this
+ * display surface, the Workers-active assignee parser, and the run-detail
+ * Session link all strip the same id alphabet — keeping the 2-letter `mc-`
+ * store prefix and the `wisp-`/`mol-` tier the old local regex dropped (audit
+ * finding M8), while still leaving digit-less role words like `scix-worker`
+ * intact.
  */
 export function cleanWorkerName(name: string): string {
   const trimmed = name.trim();
   // basename — handle both '/' and '\' for cross-platform safety.
   const parts = trimmed.split(/[\\/]/).filter(Boolean);
   const basename = parts[parts.length - 1] ?? trimmed;
-  const stripped = basename.replace(WORKER_SESSION_SUFFIX_RX, '');
+  const handle = matchSessionHandle(basename);
+  // Strip the trailing `-<session-id>` only when a role prefix precedes it; a
+  // basename that is itself a bare session id has no role to recover, keep it.
+  if (!handle || !handle.prefixed) return basename;
+  const stripped = basename.slice(0, handle.roleEnd);
   return stripped.length > 0 ? stripped : basename;
 }
 

@@ -4,7 +4,19 @@ import { SESSION_ID_RE } from '../src/lib/sessionId.js';
 
 describe('SESSION_ID_RE', () => {
   test('accepts supervisor session handles used by peek and stream routes', () => {
-    for (const id of ['gc-1', 'gc-session-b', 'td-7t24i6', 'th-abc-123', 'fddc-g3v', 'fddc-pe6']) {
+    for (const id of [
+      'gc-1',
+      'gc-session-b',
+      'td-7t24i6',
+      'th-abc-123',
+      'fddc-g3v',
+      'fddc-pe6',
+      // 2-letter per-deployment city prefixes are real (the session id is the
+      // session bead's id, so the prefix is the city store's bead prefix) —
+      // audit finding M8.
+      'mc-wisp-08fqjv',
+      'mc-wisp-nw0w7v',
+    ]) {
       assert.equal(SESSION_ID_RE.test(id), true, id);
     }
   });

@@ -350,6 +350,26 @@ describe('cleanWorkerName', () => {
     expect(cleanWorkerName('city-scix-worker-gc-335812')).toBe('city-scix-worker');
   });
 
+  it('does NOT strip a short hyphenated role with an all-letter 3-char tail', () => {
+    // audit M8 follow-up: `-api-web` is shaped like `<prefix>-<suffix>` but
+    // `web` is an English word with no digit, so it is part of the role, not a
+    // live-session handle. The 3-char all-letter suffix gets no free pass, so
+    // the label is kept whole instead of being truncated to `city`.
+    expect(cleanWorkerName('city-api-web')).toBe('city-api-web');
+    expect(cleanWorkerName('ops-qa-run')).toBe('ops-qa-run');
+  });
+
+  it('does NOT strip a no-tier all-letter 3-char embedded id from the role label', () => {
+    // Cosmetic side of the same intentional boundary: a real but all-letter
+    // short bead id embedded behind a role prefix is not recognized as a session
+    // suffix, so the label is kept whole rather than truncated to the role.
+    // `claude-mc-xyz` stays `claude-mc-xyz` (not `claude`) and `worker-fddc-abc`
+    // stays whole (not `worker`) — contrast `worker-fddc-12xy` above, whose digit
+    // body strips cleanly.
+    expect(cleanWorkerName('claude-mc-xyz')).toBe('claude-mc-xyz');
+    expect(cleanWorkerName('worker-fddc-abc')).toBe('worker-fddc-abc');
+  });
+
   it('leaves a clean name unchanged', () => {
     expect(cleanWorkerName('polecat-1')).toBe('polecat-1');
     expect(cleanWorkerName('mayor')).toBe('mayor');

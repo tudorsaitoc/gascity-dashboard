@@ -2,6 +2,7 @@ import type { RunSnapshotBead } from '../run-snapshot.js';
 import type { DashboardSession } from '../dashboard-sessions.js';
 import type { RunNodeStatus, RunSessionLink } from '../run-detail.js';
 import { SESSION_ID_RE } from '../session-id.js';
+import { supervisorSessionIdFrom } from '../session-handle.js';
 import { meta, nonEmpty } from './bead-fields.js';
 
 export interface RunSessionIndex {
@@ -74,15 +75,6 @@ export function runSessionLinkFor(
   // leaking an unvalidated handle into the route.
   if (!SESSION_ID_RE.test(link.sessionId)) return undefined;
   return link;
-}
-
-function supervisorSessionIdFrom(value: string | undefined): string | undefined {
-  const clean = nonEmpty(value);
-  if (!clean) return undefined;
-  if (SESSION_ID_RE.test(clean)) return clean;
-  const suffix = clean.match(/(?:^|[-_/])((?:gc|td|th|[a-z]{4})-[a-z0-9-]{1,32})$/)?.[1];
-  if (!suffix || !SESSION_ID_RE.test(suffix)) return undefined;
-  return suffix;
 }
 
 function resolveRunSessionLink(
