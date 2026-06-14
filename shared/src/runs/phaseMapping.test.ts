@@ -1193,6 +1193,18 @@ describe('mapRunPhase — zero step progress never invents a mid-run phase (gasc
     assert.equal(phase.phase, 'intake');
   });
 
+  test('cased/padded open step spellings still count as zero progress → intake', () => {
+    // The supervisor wire is not case/trim-guaranteed (status.ts). A raw
+    // === 'open' clamp would let a ' Open '/'OPEN' orphan slip into a
+    // live-looking phase; isOpenStatus normalizes, so it stays intake.
+    const phase = mapRunPhase([
+      root({ id: 'z5' }),
+      step('z5-s1', 'read-issue', ' Open '),
+      step('z5-s2', 'plan-implementation', 'OPEN'),
+    ]);
+    assert.equal(phase.phase, 'intake');
+  });
+
   test('a single closed step among open ones keeps the existing furthest-stage pick', () => {
     const phase = mapRunPhase([
       root({ id: 'z3' }),

@@ -1,4 +1,5 @@
 import { stepIdCarriers, type RunIssue } from './phaseMapping.js';
+import { isOpenStatus } from './status.js';
 import type { RunLane } from '../snapshot/types.js';
 
 // gascity-dashboard-s4rp: a run can be echoed by the supervisor long after it
@@ -133,7 +134,12 @@ export function isStrandedRun(
 
   const stepCarriers = stepIdCarriers(issues);
   if (stepCarriers.length === 0) return false;
-  if (stepCarriers.some((issue) => issue.status !== 'open')) return false;
+  // isOpenStatus (not a raw !== 'open'): the supervisor wire is not
+  // case/trim-guaranteed (status.ts), so any advanced step — including a
+  // cased/padded non-open spelling — must disable stranding; a raw compare
+  // would wrongly read a ' Closed ' step as "still open" and strand a
+  // progressed run (gascity-dashboard-uxvk).
+  if (stepCarriers.some((issue) => !isOpenStatus(issue.status))) return false;
 
   const lastWriteMs = issues
     .map((issue) => Date.parse(issue.updated_at))

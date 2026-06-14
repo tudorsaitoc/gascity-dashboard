@@ -22,6 +22,7 @@ import {
   isClosedStatus,
   isFailedStatus,
   isInFlightStatus,
+  isOpenStatus,
   isResolvedStatus,
   isSkippedStatus,
 } from './status.js';
@@ -112,7 +113,11 @@ function structuredPhase(issues: RunIssue[]): PhaseMapping | null {
   // and falls through to the existing pinned derivation.
   if (inProgressStep === null) {
     const carriers = stepIdCarriers(primary);
-    if (carriers.length > 0 && carriers.every((i) => i.status === 'open')) {
+    // isOpenStatus (not a raw === 'open') so a cased/padded wire spelling
+    // ('Open', ' open ') still counts as zero progress — the supervisor wire is
+    // not case/trim-guaranteed (status.ts), and a raw compare would let such an
+    // orphan slip past the clamp into a live-looking phase (gascity-dashboard-uxvk).
+    if (carriers.length > 0 && carriers.every((i) => isOpenStatus(i.status))) {
       return { phase: 'intake', label: 'intake', reviewRound: null };
     }
   }

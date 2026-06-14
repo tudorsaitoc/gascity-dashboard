@@ -168,6 +168,11 @@ function citySummary(cityName: string, loaded: LoadedRunBeads): RunSummary {
   // partial or root-incomplete — proves PRESENCE for the roots it lists. Merge
   // them in so a stranded lane recovers the moment any read shows the
   // supervisor knows its root, instead of waiting for the next complete read.
+  // When there is no cached complete observation yet (preview/cheap source
+  // before any complete feed read), the overlay is useless without the cached
+  // observedAtMs anchor for the absence grace — so we pass `cached` (undefined)
+  // and every lane starts 'unknown'. A non-null feedRootIds only RECOVERS a
+  // stranded lane (presence), never strands one, so discarding it here is safe.
   const observation =
     cached !== undefined && loaded.feedRootIds !== null && loaded.feedRootIds.size > 0
       ? {

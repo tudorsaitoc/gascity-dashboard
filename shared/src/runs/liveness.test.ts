@@ -272,6 +272,27 @@ describe('isStrandedRun — gascity-dashboard-uxvk', () => {
     assert.equal(isStrandedRun('gc-floor', groupInside, observation([])), false);
   });
 
+  test('cased/padded open step spellings still read as zero progress → stranded', () => {
+    // The supervisor wire is not case/trim-guaranteed (status.ts). A raw
+    // !== 'open' check would treat ' Open '/'OPEN' as advanced and wrongly clear
+    // the stranded judgment; isOpenStatus normalizes, so the orphan still strands.
+    const group = [
+      orphanRoot('gc-cased'),
+      orphanStep('gc-cased', 'read-issue', ' Open '),
+      orphanStep('gc-cased', 'plan-implementation', 'OPEN'),
+    ];
+    assert.equal(isStrandedRun('gc-cased', group, observation([])), true);
+  });
+
+  test('a cased/padded non-open step (advanced) still clears stranding', () => {
+    const group = [
+      orphanRoot('gc-adv'),
+      orphanStep('gc-adv', 'read-issue', ' Closed '),
+      orphanStep('gc-adv', 'plan-implementation', 'open'),
+    ];
+    assert.equal(isStrandedRun('gc-adv', group, observation([])), false);
+  });
+
   test('age is judged off the most recent bead write in the group', () => {
     // Root is old, but a step bead was written recently (e.g. a metadata
     // refresh): the group is not conclusively abandoned yet.
