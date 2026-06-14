@@ -1199,10 +1199,13 @@ describe('mapRunPhase — zero step progress never invents a mid-run phase (gasc
       step('z3-s1', 'implement-change', 'closed'),
       step('z3-s2', 'code-review-loop', 'open'),
     ]);
-    // Not zero progress: the deterministic furthest pick stays as pinned by the
-    // Major 3 suite (review here, since the open review step outranks the
-    // closed implementation step).
-    assert.equal(phase.phase, 'review');
+    // Not zero progress (one step closed), so the intake clamp does NOT fire and
+    // the run falls through to the normal furthest-stage pick. Under the M2 audit
+    // only ADVANCED steps rank (hasAdvanced = in-flight | resolved), so the OPEN
+    // review step is not counted and the closed implementation step is the
+    // furthest advanced → implementation. The guard here is that the clamp does
+    // not hijack a progressed run to intake.
+    assert.equal(phase.phase, 'implementation');
   });
 
   test('an in_progress step always wins over the zero-progress clamp', () => {

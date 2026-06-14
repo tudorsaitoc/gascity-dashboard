@@ -375,6 +375,16 @@ async function loadRunBeads(
     fetchCoreActiveBeads(cityName, limit),
     discoverFromFeed(cityName, enrichmentBudgetMs, forceFresh),
   ]);
+  // gascity-dashboard-uxvk: the default header-first fan-out reads the feed too,
+  // so a COMPLETE read here is registration evidence — cache it (anchored to the
+  // observation time) exactly as the lazy history fan-out does, or the common
+  // /runs path would never strand an orphaned molecule.
+  if (!feedDiscovery.partial && feedDiscovery.rootIdsComplete) {
+    feedObservationByCity.set(cityName, {
+      rootIds: feedDiscovery.rootIds,
+      observedAtMs: Date.now(),
+    });
+  }
   const active = normalizeBeads(activeList.items ?? []);
   // Truncation at the bounded fetch reads as partial lanes, not complete
   // (gascity-dashboard-q89b). A failed/slow feed also reads as partial: the lane
@@ -384,6 +394,10 @@ async function loadRunBeads(
   return {
     beads: active,
     feedScopes: feedDiscovery.scopes,
+    // The default fan-out reads the feed, so its root-id presence observation is
+    // available for the stranded/recovery overlay (gascity-dashboard-uxvk); only
+    // the feed-less cheap source carries a null (no observation) here.
+    feedRootIds: feedDiscovery.presenceRootIds,
     partial: feedDiscovery.partial || listIsIncomplete(activeList, active.length),
   };
 }

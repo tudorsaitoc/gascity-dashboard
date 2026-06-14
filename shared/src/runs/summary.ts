@@ -63,7 +63,7 @@ export function buildRunSummary(
   // 'unknown' — a feed outage must never strand the whole board.
   registry?: RunRegistryObservation,
 ): RunSummary {
-  const { laneIssues, sortedLanes } = buildSortedRunLanes(issues, feedScopes);
+  const { laneIssues, sortedLanes } = buildSortedRunLanes(issues, feedScopes, registry);
 
   // gascity-dashboard-4xcv: blocked lanes are split out of Active. A stale
   // blocked formula latch (gc-1920 repro) is not progressing; it surfaces in
@@ -123,6 +123,10 @@ export function buildRunHistory(
 function buildSortedRunLanes(
   issues: RunIssue[],
   feedScopes: RunFeedScopeMap,
+  // gascity-dashboard-uxvk: forwarded to runLane so each lane derives its
+  // registration (registered/stranded/unknown) from the same complete-feed
+  // observation; omitted → every lane is 'unknown'.
+  registry?: RunRegistryObservation,
 ): { laneIssues: RunIssue[]; sortedLanes: RunLane[] } {
   const groups = new Map<string, RunIssue[]>();
 
