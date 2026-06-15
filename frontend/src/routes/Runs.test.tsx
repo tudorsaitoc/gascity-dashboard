@@ -145,6 +145,7 @@ function completedLane(): RunLane {
       error: 'active run step unavailable',
     },
     formulaStageResolved: false,
+    registration: 'unknown',
     health: {
       status: 'available',
       data: {

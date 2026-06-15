@@ -45,6 +45,11 @@ function phaseLabelTone(phase: RunLane['phase']): 'text-accent' | 'text-fg-muted
 }
 
 export function LaneCard({ lane, now, attentionSeverity = null, blocked }: LaneCardProps) {
+  // gascity-dashboard-uxvk: an orphaned molecule (no supervisor workflow
+  // record, never executed) must not read as a live run. Stranded lanes swap
+  // the phase label for a glyph + word and the stage ladder for an
+  // explanation — a run that never started has no live stage to show.
+  const stranded = lane.registration === 'stranded';
   const statusEntries = Object.entries(lane.statusCounts).sort((a, b) =>
     statusSortKey(a[0]).localeCompare(statusSortKey(b[0])),
   );
@@ -58,7 +63,13 @@ export function LaneCard({ lane, now, attentionSeverity = null, blocked }: LaneC
     >
       <div className="flex items-baseline justify-between gap-4">
         <span className={`text-label uppercase tracking-wider ${phaseLabelTone(lane.phase)}`}>
-          {lane.phaseLabel}
+          {stranded ? (
+            <>
+              <span aria-hidden="true">(!)</span> stranded
+            </>
+          ) : (
+            lane.phaseLabel
+          )}
         </span>
         <span
           className="text-label uppercase tracking-wider text-fg-faint tnum tabular-nums"
@@ -96,7 +107,14 @@ export function LaneCard({ lane, now, attentionSeverity = null, blocked }: LaneC
         </div>
       )}
 
-      <StageLadder stages={lane.stages} label={lane.title} />
+      {stranded ? (
+        <p className="mt-2 text-body text-fg-muted leading-snug">
+          Dispatched but never registered with the supervisor, likely a supervisor restart or crash
+          at dispatch time. This run never executed.
+        </p>
+      ) : (
+        <StageLadder stages={lane.stages} label={lane.title} />
+      )}
 
       <div className="mt-2 flex items-baseline gap-x-4 gap-y-1 flex-wrap text-label">
         <span className="text-fg-faint tnum" title="run root bead">

@@ -26,6 +26,7 @@ function lane(overrides: Partial<RunLane> = {}): RunLane {
     stages: [],
     progress: { status: 'unavailable', error: 'run progress unavailable' },
     formulaStageResolved: false,
+    registration: 'unknown',
     health: { status: 'unavailable', error: 'run health has not been derived' },
     ...overrides,
   };

@@ -95,6 +95,7 @@ function lane(id: string): RunLane {
     stages: [],
     progress: { status: 'unavailable', error: 'run progress unavailable in test' },
     formulaStageResolved: false,
+    registration: 'unknown',
     health: { status: 'unavailable', error: 'run health has not been derived' },
   };
 }

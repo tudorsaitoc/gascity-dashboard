@@ -197,7 +197,17 @@ export function FormulaRunDetailPage() {
       {loading && !routeError && !detail ? (
         skeletonLane ? (
           <>
-            <StageLadder stages={skeletonLane.stages} label={skeletonLane.title} />
+            {/* A stranded lane must not flash a live stage ladder while the
+                detail loads — mirror the LaneCard stranded treatment. */}
+            {skeletonLane.registration === 'stranded' ? (
+              <p className="text-body text-fg-muted leading-snug" role="status">
+                <span aria-hidden="true">(!)</span> stranded: dispatched but never registered with
+                the supervisor, likely a supervisor restart or crash at dispatch time. This run
+                never executed.
+              </p>
+            ) : (
+              <StageLadder stages={skeletonLane.stages} label={skeletonLane.title} />
+            )}
             <p className="text-body text-fg-muted italic mt-8">Loading run detail.</p>
           </>
         ) : (
@@ -205,13 +215,15 @@ export function FormulaRunDetailPage() {
         )
       ) : unsupported ? (
         <p className="text-body text-fg-muted" role="status">
-          Detailed step view isn&rsquo;t available for this run (v1/wisp runs are list-only) — this
-          run appears in the run list only.
+          Detailed step view isn&rsquo;t available for this run (v1/wisp runs are list-only); it
+          appears in the run list only.
         </p>
       ) : notFound ? (
         <p className="text-body text-fg-muted" role="status">
           This run&rsquo;s detail snapshot was not found. It may be a v1/wisp run, a completed run
-          whose snapshot wasn&rsquo;t retained, or no longer available.
+          whose snapshot wasn&rsquo;t retained, no longer available, or a run that was dispatched
+          but never registered with the supervisor (a supervisor restart or crash at dispatch time
+          strands a run before it executes).
         </p>
       ) : pageError && !detail ? (
         <p className="text-body text-accent" role="alert">

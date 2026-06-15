@@ -33,6 +33,7 @@ describe('LaneCard navigation', () => {
         error: 'run progress unavailable in test',
       },
       formulaStageResolved: false,
+      registration: 'unknown',
       health: { status: 'unavailable', error: 'run health has not been derived' },
     };
 
@@ -67,6 +68,7 @@ describe('LaneCard navigation', () => {
         error: 'run progress unavailable in test',
       },
       formulaStageResolved: false,
+      registration: 'unknown',
       health: { status: 'unavailable', error: 'run health has not been derived' },
     };
 
@@ -113,6 +115,7 @@ describe('LaneCard historical-lane render', () => {
         error: 'workflow progress unavailable in test',
       },
       formulaStageResolved: false,
+      registration: 'unknown',
       health: {
         status: 'unavailable',
         error: 'workflow health has not been derived',
@@ -169,5 +172,81 @@ describe('LaneCard historical-lane render', () => {
     const label = screen.getByText('complete');
     expect(label.className).toContain('text-fg-muted');
     expect(label.className).not.toContain('text-accent');
+  });
+});
+
+// gascity-dashboard-uxvk: an orphaned molecule (no supervisor workflow record,
+// zero step progress) used to render as a LIVE run with a stage ladder and a
+// phase label — a false-alive signal the operator cannot distinguish from a
+// working run. A lane whose registration is 'stranded' must read as stranded:
+// glyph + word per DESIGN.md, an explanation, and no live stage ladder.
+describe('LaneCard stranded runs (gascity-dashboard-uxvk)', () => {
+  function strandedLane(overrides: Partial<RunLane> = {}): RunLane {
+    return {
+      id: 'gc-odssky',
+      title: 'mol-pr-start: gascity issue #3192',
+      formula: { status: 'known', name: 'mol-pr-start' },
+      scope: { status: 'available', kind: 'rig', ref: 'gascity', rootStoreRef: 'rig:gascity' },
+      external: { status: 'unavailable', error: 'external unavailable in test' },
+      phase: 'intake',
+      phaseLabel: 'intake',
+      statusCounts: { open: 7 },
+      activeAssignees: [],
+      updatedAt: { status: 'available', at: '2026-06-12T01:20:05Z' },
+      stages: [
+        { key: 'intake', label: 'Intake', status: 'active' },
+        { key: 'implementation', label: 'Implementation', status: 'pending' },
+      ],
+      progress: {
+        status: 'stage_only',
+        stage: { status: 'available', index: 0, key: 'intake', label: 'Intake' },
+        error: 'active run step unavailable',
+      },
+      formulaStageResolved: false,
+      health: { status: 'unavailable', error: 'run health has not been derived' },
+      registration: 'stranded',
+      ...overrides,
+    };
+  }
+
+  function renderLane(lane: RunLane) {
+    render(
+      <MemoryRouter future={{ v7_relativeSplatPath: true, v7_startTransition: true }}>
+        <LaneCard lane={lane} now={Date.parse('2026-06-12T08:20:00Z')} />
+      </MemoryRouter>,
+    );
+  }
+
+  it('renders the stranded glyph + word in place of the phase label', () => {
+    renderLane(strandedLane());
+    const label = screen.getByText(/stranded/i);
+    expect(label.textContent).toMatch(/\(!\)\s*stranded/i);
+    // The live phase label must NOT render alongside it.
+    expect(screen.queryByText(/^intake$/i)).toBeNull();
+  });
+
+  it('explains the stranded state instead of rendering a live stage ladder', () => {
+    renderLane(strandedLane());
+    expect(screen.getByText(/never registered with the supervisor/i)).toBeTruthy();
+    // No stage ladder: a run that never executed has no live stage.
+    expect(screen.queryByLabelText(/stages$/i)).toBeNull();
+  });
+
+  it('keeps the stage ladder and phase label for a non-stranded lane', () => {
+    renderLane(strandedLane({ registration: 'registered' }));
+    // Matches both the phase label and the ladder's Intake stage word.
+    expect(screen.getAllByText(/^intake$/i).length).toBeGreaterThan(0);
+    expect(screen.getByLabelText(/stages$/i)).toBeTruthy();
+    expect(screen.queryByText(/never registered with the supervisor/i)).toBeNull();
+  });
+
+  it('an unknown registration renders exactly like a registered lane (no stranded claim)', () => {
+    renderLane(
+      strandedLane({
+        registration: 'unknown',
+      }),
+    );
+    expect(screen.queryByText(/stranded/i)).toBeNull();
+    expect(screen.getByLabelText(/stages$/i)).toBeTruthy();
   });
 });

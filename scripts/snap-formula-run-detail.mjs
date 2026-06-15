@@ -275,7 +275,10 @@ async function runTheme(browser, theme) {
       waitUntil: 'domcontentloaded',
       timeout: 5_000,
     });
-    await page.getByText(/run is not a graph\.v2 run/i).waitFor({ timeout: 5_000 });
+    // gascity-dashboard-9w3k: a snapshot that loads but has no graph is the
+    // reliable v1/wisp signal; the page renders the honest list-only copy, not
+    // the raw UnsupportedRunError text.
+    await page.getByText(/v1\/wisp runs are list-only/i).waitFor({ timeout: 5_000 });
 
     await page.goto(`${CITY_BASE}/runs/gc-not-git`, {
       waitUntil: 'domcontentloaded',
@@ -813,6 +816,14 @@ function sessionListFixture() {
   };
 }
 
+// The lane root's recency is load-bearing, not cosmetic: the run-summary
+// pipeline demotes a session-less lane with no in_progress step once its last
+// write is older than STALE_LATCH_AFTER_MS (24h, gascity-dashboard-s4rp). A
+// pinned absolute date rots past that window and silently empties the Active
+// set, timing the whole journey out at the first click — so the fixture is
+// stamped relative to the run.
+const FIXTURE_LANE_UPDATED_AT = new Date(Date.now() - 5 * 60_000).toISOString();
+
 function runRootBeadFixture() {
   return {
     id: 'gc-adopt-pr-active',
@@ -820,8 +831,8 @@ function runRootBeadFixture() {
     status: 'in_progress',
     issue_type: 'molecule',
     priority: null,
-    created_at: '2026-05-25T00:00:00.000Z',
-    updated_at: '2026-05-25T00:00:00.000Z',
+    created_at: FIXTURE_LANE_UPDATED_AT,
+    updated_at: FIXTURE_LANE_UPDATED_AT,
     metadata: {
       'gc.kind': 'run',
       'gc.formula': 'mol-adopt-pr-v2',

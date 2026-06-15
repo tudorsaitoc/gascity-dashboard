@@ -1072,6 +1072,7 @@ function runLane({
     stages: [],
     progress: { status: 'unavailable', error: 'run progress unavailable' },
     formulaStageResolved: false,
+    registration: 'unknown',
     health: {
       status: 'available',
       data: {

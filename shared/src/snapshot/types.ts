@@ -337,7 +337,26 @@ export interface RunLane {
    * it with available health facts.
    */
   health: RunLaneHealthState;
+  /**
+   * Supervisor-registry fact (gascity-dashboard-uxvk). Lanes are built from
+   * rig-store molecule root beads, so a molecule orphaned by a supervisor crash
+   * at dispatch time (bead graph persisted, workflow registry has no entry,
+   * zero step progress) is otherwise indistinguishable from a live run.
+   * 'stranded' is only asserted from a COMPLETE formula-feed observation plus
+   * the dispatch grace (see isStrandedRun); anything weaker stays 'unknown' so
+   * a feed outage can never strand every lane.
+   */
+  registration: RunLaneRegistration;
 }
+
+/**
+ * 'unknown' covers both "no complete feed observation yet" and "absent from
+ * the feed but not conclusively stranded" (inside the dispatch grace, or
+ * showing step progress so it merely aged out of the feed window) — neither
+ * is evidence either way, so consumers must never read 'unknown' as
+ * registered.
+ */
+export type RunLaneRegistration = 'registered' | 'stranded' | 'unknown';
 
 export type RunLaneUpdatedAt = Avail<{
   at: string;

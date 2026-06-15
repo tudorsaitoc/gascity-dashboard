@@ -22,6 +22,7 @@ import {
   isClosedStatus,
   isFailedStatus,
   isInFlightStatus,
+  isOpenStatus,
   isResolvedStatus,
   isSkippedStatus,
 } from './status.js';
@@ -102,6 +103,24 @@ export function mapRunPhase(issues: RunIssue[]): PhaseMapping {
 function structuredPhase(issues: RunIssue[]): PhaseMapping | null {
   const primary = issues.filter(isPrimaryStepIssue);
   const inProgressStep = latestStepId(primary.filter((i) => isInFlightStatus(i.status)));
+  // gascity-dashboard-uxvk: ZERO step progress — every gc.step_id carrier is
+  // still open (none in flight, none closed). The furthest-stage pick below
+  // runs over ALL carriers, open ones included, so a never-executed run (the
+  // orphaned-molecule repro gc-odssky, all six step children open) would read
+  // as whatever mid-run stage its step VOCABULARY ranks highest. With no
+  // progress signal at all the run is at its start: intake, never a later
+  // stage. Any non-open carrier (closed, blocked, unknown) disables the clamp
+  // and falls through to the existing pinned derivation.
+  if (inProgressStep === null) {
+    const carriers = stepIdCarriers(primary);
+    // isOpenStatus (not a raw === 'open') so a cased/padded wire spelling
+    // ('Open', ' open ') still counts as zero progress — the supervisor wire is
+    // not case/trim-guaranteed (status.ts), and a raw compare would let such an
+    // orphan slip past the clamp into a live-looking phase (gascity-dashboard-uxvk).
+    if (carriers.length > 0 && carriers.every((i) => isOpenStatus(i.status))) {
+      return { phase: 'intake', label: 'intake', reviewRound: null };
+    }
+  }
   // gascity-dashboard (Major 3): when no step is in flight, the current step
   // is the FURTHEST-ADVANCED step by stage rank — a deterministic, order- and
   // timestamp-independent signal. The run-detail snapshot adapter sets every
@@ -928,5 +947,18 @@ export function isPrimaryStepIssue(issue: RunIssue): boolean {
     kind !== 'scope-check' &&
     kind !== 'workflow-finalize' &&
     kind !== 'run-finalize'
+  );
+}
+
+/**
+ * The run's structured step graph: primary step issues carrying a non-empty
+ * gc.step_id. This is the SINGLE definition of the carrier set behind the
+ * "zero step progress" fact (gascity-dashboard-uxvk) — the intake phase clamp
+ * and isStrandedRun must judge the same issues or a stranded lane could stop
+ * reading as intake (and vice versa).
+ */
+export function stepIdCarriers(issues: readonly RunIssue[]): RunIssue[] {
+  return issues.filter(
+    (issue) => isPrimaryStepIssue(issue) && stringValue(issue.metadata?.['gc.step_id']) !== '',
   );
 }

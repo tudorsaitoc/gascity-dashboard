@@ -4,6 +4,7 @@ import type {
   RunFeedScope,
   RunFeedScopeMap,
   RunHistory,
+  RunRegistryObservation,
   RunSummary,
   SourceAvailableState,
   SourceState,
@@ -86,6 +87,13 @@ const HISTORY_ENRICHMENT_TIMEOUT_MS = 30_000;
 interface LoadedRunBeads {
   beads: DashboardBead[];
   feedScopes: RunFeedScopeMap;
+  /**
+   * Root ids the feed listed in THIS load, regardless of the read's
+   * completeness — a partial or root-incomplete read cannot prove absence,
+   * but it still proves presence for every root it lists. Null when the load
+   * never read the feed (the cheap active source).
+   */
+  feedRootIds: ReadonlySet<string> | null;
   partial: boolean;
 }
 
@@ -101,6 +109,15 @@ interface ProgressState {
 }
 
 const progressStateByCity = new Map<string, ProgressState>();
+
+// gascity-dashboard-uxvk: the last COMPLETE formula-feed observation per city,
+// the evidence behind the stranded-run judgment (orphaned molecule with no
+// supervisor workflow record). Only the wide sources read the feed; caching the
+// observation here lets the cheap SSE-burst source judge lanes off the same
+// evidence instead of flapping every stranded lane back to 'unknown' on each
+// burst. A partial or failed feed read never updates the cache — the last
+// known-good observation keeps serving until a complete read replaces it.
+const feedObservationByCity = new Map<string, RunRegistryObservation>();
 
 // The wide-budget run-summary source (gascity-dashboard-4bol): the wide
 // enrichment budget lets the slow-but-available city feed (measured 14.3s) land
@@ -141,6 +158,36 @@ export async function loadSupervisorRunSummaryMountSource(): Promise<SourceState
   return loadRunSummarySource(PREVIEW_ENRICHMENT_TIMEOUT_MS);
 }
 
+// Single place the lane summary is built from a bead load, so every source
+// (wide refresh, cheap active, preview) derives registration from the same
+// per-city feed observation.
+function citySummary(cityName: string, loaded: LoadedRunBeads): RunSummary {
+  const cached = feedObservationByCity.get(cityName);
+  // Presence overlay (review iter 2): the stranded judgment's ABSENCE evidence
+  // must come from the cached complete observation, but any feed read — even
+  // partial or root-incomplete — proves PRESENCE for the roots it lists. Merge
+  // them in so a stranded lane recovers the moment any read shows the
+  // supervisor knows its root, instead of waiting for the next complete read.
+  // When there is no cached complete observation yet (preview/cheap source
+  // before any complete feed read), the overlay is useless without the cached
+  // observedAtMs anchor for the absence grace — so we pass `cached` (undefined)
+  // and every lane starts 'unknown'. A non-null feedRootIds only RECOVERS a
+  // stranded lane (presence), never strands one, so discarding it here is safe.
+  const observation =
+    cached !== undefined && loaded.feedRootIds !== null && loaded.feedRootIds.size > 0
+      ? {
+          rootIds: new Set([...cached.rootIds, ...loaded.feedRootIds]),
+          observedAtMs: cached.observedAtMs,
+        }
+      : cached;
+  return buildRunSummary(
+    loaded.beads.filter(runBeadFilter).map(fromDashboardBead),
+    loaded.feedScopes,
+    loaded.partial,
+    observation,
+  );
+}
+
 async function loadRunSummarySource(
   enrichmentBudgetMs: number,
   forceFresh = false,
@@ -152,11 +199,7 @@ async function loadRunSummarySource(
       loadRunBeads(cityName, RUNS_FETCH_LIMIT, enrichmentBudgetMs, forceFresh),
       loadRunSessions(cityName, enrichmentBudgetMs),
     ]);
-    const summary = buildRunSummary(
-      loaded.beads.filter(runBeadFilter).map(fromDashboardBead),
-      loaded.feedScopes,
-      loaded.partial,
-    );
+    const summary = citySummary(cityName, loaded);
     const source: SourceAvailableState<RunSummary> = {
       source: 'runs',
       status: 'fresh',
@@ -196,11 +239,7 @@ export async function loadSupervisorRunSummaryActiveSource(): Promise<SourceStat
       loadActiveRunBeads(cityName, RUNS_FETCH_LIMIT),
       loadRunSessions(cityName, PREVIEW_ENRICHMENT_TIMEOUT_MS),
     ]);
-    const summary = buildRunSummary(
-      loaded.beads.filter(runBeadFilter).map(fromDashboardBead),
-      loaded.feedScopes,
-      loaded.partial,
-    );
+    const summary = citySummary(cityName, loaded);
     const source: SourceAvailableState<RunSummary> = {
       source: 'runs',
       status: 'fresh',
@@ -233,6 +272,7 @@ async function loadActiveRunBeads(cityName: string, limit: number): Promise<Load
   return {
     beads: active,
     feedScopes: new Map(),
+    feedRootIds: null,
     partial: listIsIncomplete(activeList, active.length),
   };
 }
@@ -242,11 +282,7 @@ export async function loadSupervisorRunSummaryPreviewSource(): Promise<SourceSta
   const fetchedAt = new Date().toISOString();
   try {
     const loaded = await loadRunBeads(cityName, RUNS_FETCH_LIMIT, PREVIEW_ENRICHMENT_TIMEOUT_MS);
-    const summary = buildRunSummary(
-      loaded.beads.filter(runBeadFilter).map(fromDashboardBead),
-      loaded.feedScopes,
-      loaded.partial,
-    );
+    const summary = citySummary(cityName, loaded);
     return {
       source: 'runs',
       status: 'fresh',
@@ -304,6 +340,7 @@ export async function loadSupervisorRunHistorySource(options?: {
 
 export function resetSupervisorRunSummaryStateForTests(): void {
   progressStateByCity.clear();
+  feedObservationByCity.clear();
 }
 
 // Exposed for tests: the raised core-read budget that absorbs a CPU-burst spike.
@@ -343,6 +380,16 @@ async function loadRunBeads(
     fetchCoreActiveBeads(cityName, limit),
     discoverFromFeed(cityName, enrichmentBudgetMs, forceFresh),
   ]);
+  // gascity-dashboard-uxvk: the default header-first fan-out reads the feed too,
+  // so a COMPLETE read here is registration evidence — cache it (anchored to the
+  // observation time) exactly as the lazy history fan-out does, or the common
+  // /runs path would never strand an orphaned molecule.
+  if (!feedDiscovery.partial && feedDiscovery.rootIdsComplete) {
+    feedObservationByCity.set(cityName, {
+      rootIds: feedDiscovery.rootIds,
+      observedAtMs: Date.now(),
+    });
+  }
   const active = normalizeBeads(activeList.items ?? []);
   // Truncation at the bounded fetch reads as partial lanes, not complete
   // (gascity-dashboard-q89b). A failed/slow feed also reads as partial: the lane
@@ -352,6 +399,10 @@ async function loadRunBeads(
   return {
     beads: active,
     feedScopes: feedDiscovery.scopes,
+    // The default fan-out reads the feed, so its root-id presence observation is
+    // available for the stranded/recovery overlay (gascity-dashboard-uxvk); only
+    // the feed-less cheap source carries a null (no observation) here.
+    feedRootIds: feedDiscovery.presenceRootIds,
     partial: feedDiscovery.partial || listIsIncomplete(activeList, active.length),
   };
 }
@@ -380,6 +431,15 @@ async function loadHistoryBeads(cityName: string, forceFresh: boolean): Promise<
     fetchCoreActiveBeads(cityName, RUNS_FETCH_LIMIT),
     discoverFromFeed(cityName, budgetMs, forceFresh),
   ]);
+  // gascity-dashboard-uxvk: a COMPLETE feed read is the registration evidence;
+  // record when it was taken so the stranded judgment's dispatch grace is
+  // anchored to the observation, never to a later clock read.
+  if (!feedDiscovery.partial && feedDiscovery.rootIdsComplete) {
+    feedObservationByCity.set(cityName, {
+      rootIds: feedDiscovery.rootIds,
+      observedAtMs: Date.now(),
+    });
+  }
   const active = normalizeBeads(activeList.items ?? []);
   const rigNames = unionRigNames(runRigNames(active), feedDiscovery.rigNames);
 
@@ -412,6 +472,7 @@ async function loadHistoryBeads(cityName: string, forceFresh: boolean): Promise<
   return {
     beads: uniqueBeads([...active, ...recentItems]),
     feedScopes: feedDiscovery.scopes,
+    feedRootIds: feedDiscovery.presenceRootIds,
     partial,
   };
 }
@@ -445,6 +506,27 @@ async function settledRecentFetch(
 interface FeedDiscovery {
   rigNames: string[];
   scopes: RunFeedScopeMap;
+  /**
+   * Every run root id the feed listed, regardless of scope resolvability —
+   * the registration evidence (gascity-dashboard-uxvk). Deliberately a
+   * superset of `scopes` keys: a feed item whose scope cannot be resolved
+   * still proves the supervisor knows the run.
+   */
+  rootIds: ReadonlySet<string>;
+  /**
+   * Only the authoritative run.root_bead_id values — no workflow_id fallback.
+   * This is the set that may prove a bead root's PRESENCE (the overlay in
+   * citySummary); the broader `rootIds` set above is only ever conservative
+   * (extra ids prevent stranding) and stays confined to the absence evidence.
+   */
+  presenceRootIds: ReadonlySet<string>;
+  /**
+   * False when any feed item lacked root_bead_id: such an item may cover a
+   * root under a key the bead store never sees (workflow_id), so this read can
+   * prove a root's presence but no longer prove any root's ABSENCE. A stranded
+   * judgment must not be cached from an incomplete root-id set.
+   */
+  rootIdsComplete: boolean;
   partial: boolean;
 }
 
@@ -472,13 +554,19 @@ async function discoverFromFeed(
     );
     const rigNames = new Set<string>();
     const scopes = new Map<string, RunFeedScope>();
+    const rootIds = new Set<string>();
+    const presenceRootIds = new Set<string>();
+    let rootIdsComplete = true;
     for (const run of runs.items ?? []) {
+      const rootId = run.root_bead_id ?? run.workflow_id ?? null;
+      if (rootId !== null) rootIds.add(rootId);
+      if (run.root_bead_id == null) rootIdsComplete = false;
+      else presenceRootIds.add(run.root_bead_id);
       if (run.type !== 'formula') continue;
       const storeScope = fromStoreRef(run.root_store_ref ?? null);
       if (storeScope?.scopeKind === 'rig') {
         rigNames.add(storeScope.scopeRef);
       }
-      const rootId = run.root_bead_id ?? run.workflow_id ?? null;
       // gascity-dashboard-q89b (detail scope leak): the feed's top-level
       // scope_kind is always 'city', so fromFeedScope alone makes a rig lane's
       // detail href drop to city scope — and a city-scoped workflow fetch hits
@@ -504,9 +592,23 @@ async function discoverFromFeed(
         });
       }
     }
-    return { rigNames: [...rigNames], scopes, partial: feedIsPartial(runs) };
+    return {
+      rigNames: [...rigNames],
+      scopes,
+      rootIds,
+      presenceRootIds,
+      rootIdsComplete,
+      partial: feedIsPartial(runs),
+    };
   } catch {
-    return { rigNames: [], scopes: new Map(), partial: true };
+    return {
+      rigNames: [],
+      scopes: new Map(),
+      rootIds: new Set(),
+      presenceRootIds: new Set(),
+      rootIdsComplete: false,
+      partial: true,
+    };
   }
 }
 

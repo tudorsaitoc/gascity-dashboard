@@ -1,7 +1,14 @@
 import { test, describe } from 'node:test';
 import assert from 'node:assert/strict';
 
-import { isDanglingRootGroup, isStaleSessionlessLatch, STALE_LATCH_AFTER_MS } from './liveness.js';
+import {
+  isDanglingRootGroup,
+  isStaleSessionlessLatch,
+  isStrandedRun,
+  STALE_LATCH_AFTER_MS,
+  STRANDED_DISPATCH_GRACE_MS,
+  type RunRegistryObservation,
+} from './liveness.js';
 import type { RunIssue } from './phaseMapping.js';
 import type { RunLane, RunLaneHealth } from '../snapshot/types.js';
 
@@ -54,6 +61,7 @@ function lane(overrides: Partial<RunLane> = {}): RunLane {
     stages: [],
     progress: { status: 'unavailable', error: 'run progress unavailable' },
     formulaStageResolved: false,
+    registration: 'unknown',
     health: health('unresolved'),
     ...overrides,
   };
@@ -149,5 +157,151 @@ describe('isDanglingRootGroup — gascity-dashboard-s4rp', () => {
       isDanglingRootGroup('gc-1920', [issue('gc-1920'), issue('gc-1920-step-1')]),
       false,
     );
+  });
+});
+
+// gascity-dashboard-uxvk: an orphaned molecule — its bead graph persisted in
+// the rig store but the supervisor's workflow registry has NO entry (the
+// gc-odssky repro: dispatched during a supervisor orphan-PID crash-loop, every
+// step child still open, absent from a COMPLETE formula feed). Such a run never
+// executed and never will; it must read as stranded, not live. The predicate
+// must NOT strand: a run the feed knows, a run with any step progress (it
+// executed; feed absence just means it aged out of the feed window), a freshly
+// dispatched run racing the feed read, or a group with no step graph to judge.
+describe('isStrandedRun — gascity-dashboard-uxvk', () => {
+  const OBSERVED_AT_MS = Date.parse('2026-06-12T08:20:00.000Z');
+  // The repro dispatch time: ~7h before the feed observation.
+  const DISPATCHED_AT = '2026-06-12T01:20:05.000Z';
+
+  function orphanRoot(id: string, overrides: Partial<RunIssue> = {}): RunIssue {
+    return {
+      id,
+      title: 'mol-pr-start: gascity issue #3192',
+      status: 'open',
+      issue_type: 'molecule',
+      updated_at: DISPATCHED_AT,
+      metadata: { 'gc.formula_contract': 'graph.v2', 'gc.kind': 'run' },
+      ...overrides,
+    };
+  }
+
+  function orphanStep(
+    rootId: string,
+    stepId: string,
+    status = 'open',
+    overrides: Partial<RunIssue> = {},
+  ): RunIssue {
+    return {
+      id: `${rootId}-${stepId}`,
+      title: stepId,
+      status,
+      issue_type: 'task',
+      updated_at: DISPATCHED_AT,
+      metadata: { 'gc.kind': 'step', 'gc.root_bead_id': rootId, 'gc.step_id': stepId },
+      ...overrides,
+    };
+  }
+
+  function observation(rootIds: string[]): RunRegistryObservation {
+    return { rootIds: new Set(rootIds), observedAtMs: OBSERVED_AT_MS };
+  }
+
+  function orphanGroup(id: string): RunIssue[] {
+    return [
+      orphanRoot(id),
+      orphanStep(id, 'read-issue'),
+      orphanStep(id, 'plan-implementation'),
+      orphanStep(id, 'conventions-audit'),
+    ];
+  }
+
+  test('zero step progress + absent from a complete feed + past the grace → stranded', () => {
+    assert.equal(isStrandedRun('gc-odssky', orphanGroup('gc-odssky'), observation([])), true);
+  });
+
+  test('a run present in the feed observation is never stranded', () => {
+    assert.equal(
+      isStrandedRun('gc-odssky', orphanGroup('gc-odssky'), observation(['gc-odssky'])),
+      false,
+    );
+  });
+
+  test('a freshly dispatched run inside the grace window is not stranded', () => {
+    const recent = new Date(OBSERVED_AT_MS - 60_000).toISOString();
+    const group = [
+      orphanRoot('gc-fresh', { updated_at: recent }),
+      orphanStep('gc-fresh', 'read-issue', 'open', { updated_at: recent }),
+    ];
+    assert.equal(isStrandedRun('gc-fresh', group, observation([])), false);
+  });
+
+  test('a run with a closed step executed; feed absence is not stranding', () => {
+    const group = [
+      orphanRoot('gc-old'),
+      orphanStep('gc-old', 'read-issue', 'closed'),
+      orphanStep('gc-old', 'plan-implementation', 'open'),
+    ];
+    assert.equal(isStrandedRun('gc-old', group, observation([])), false);
+  });
+
+  test('a run with an in_progress step is live, not stranded', () => {
+    const group = [
+      orphanRoot('gc-live'),
+      orphanStep('gc-live', 'read-issue', 'in_progress'),
+      orphanStep('gc-live', 'plan-implementation', 'open'),
+    ];
+    assert.equal(isStrandedRun('gc-live', group, observation([])), false);
+  });
+
+  test('a group with no step beads cannot be judged → not stranded', () => {
+    assert.equal(isStrandedRun('gc-bare', [orphanRoot('gc-bare')], observation([])), false);
+  });
+
+  test('the grace boundary is inclusive at the floor', () => {
+    const atFloor = new Date(OBSERVED_AT_MS - STRANDED_DISPATCH_GRACE_MS).toISOString();
+    const justInside = new Date(OBSERVED_AT_MS - STRANDED_DISPATCH_GRACE_MS + 1_000).toISOString();
+    const groupAt = [
+      orphanRoot('gc-floor', { updated_at: atFloor }),
+      orphanStep('gc-floor', 'read-issue', 'open', { updated_at: atFloor }),
+    ];
+    const groupInside = [
+      orphanRoot('gc-floor', { updated_at: justInside }),
+      orphanStep('gc-floor', 'read-issue', 'open', { updated_at: justInside }),
+    ];
+    assert.equal(isStrandedRun('gc-floor', groupAt, observation([])), true);
+    assert.equal(isStrandedRun('gc-floor', groupInside, observation([])), false);
+  });
+
+  test('cased/padded open step spellings still read as zero progress → stranded', () => {
+    // The supervisor wire is not case/trim-guaranteed (status.ts). A raw
+    // !== 'open' check would treat ' Open '/'OPEN' as advanced and wrongly clear
+    // the stranded judgment; isOpenStatus normalizes, so the orphan still strands.
+    const group = [
+      orphanRoot('gc-cased'),
+      orphanStep('gc-cased', 'read-issue', ' Open '),
+      orphanStep('gc-cased', 'plan-implementation', 'OPEN'),
+    ];
+    assert.equal(isStrandedRun('gc-cased', group, observation([])), true);
+  });
+
+  test('a cased/padded non-open step (advanced) still clears stranding', () => {
+    const group = [
+      orphanRoot('gc-adv'),
+      orphanStep('gc-adv', 'read-issue', ' Closed '),
+      orphanStep('gc-adv', 'plan-implementation', 'open'),
+    ];
+    assert.equal(isStrandedRun('gc-adv', group, observation([])), false);
+  });
+
+  test('age is judged off the most recent bead write in the group', () => {
+    // Root is old, but a step bead was written recently (e.g. a metadata
+    // refresh): the group is not conclusively abandoned yet.
+    const group = [
+      orphanRoot('gc-mixed'),
+      orphanStep('gc-mixed', 'read-issue', 'open', {
+        updated_at: new Date(OBSERVED_AT_MS - 60_000).toISOString(),
+      }),
+    ];
+    assert.equal(isStrandedRun('gc-mixed', group, observation([])), false);
   });
 });

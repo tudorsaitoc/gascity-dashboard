@@ -8,7 +8,7 @@
 #   - generated gc supervisor OpenAPI client drift check
 #   - shared tests (node --test via tsx)
 #   - backend tests (node --test via tsx loader)
-#   - frontend tests (vitest in jsdom)
+#   - frontend tests (vitest in jsdom, with v8 coverage ratchet thresholds)
 #
 # Not yet in CI (file a separate bead if you want to change this):
 #   - scripts/snap.mjs (Playwright visual snaps — too heavy, no golden source)
@@ -105,5 +105,9 @@ jobs:
       - name: Backend tests
         run: npm --workspace backend test
 
-      - name: Frontend tests
-        run: npm --workspace frontend test
+      # Coverage variant of `vitest run`: same tests, plus the v8 coverage
+      # ratchet thresholds in frontend/vitest.config.ts (set ~5 points below
+      # the measured baseline, so they catch regressions without blocking
+      # normal work). Raise the thresholds as real coverage rises.
+      - name: Frontend tests (with coverage)
+        run: npm --workspace frontend run test:coverage

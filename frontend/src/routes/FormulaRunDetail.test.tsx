@@ -166,6 +166,32 @@ describe('FormulaRunDetailPage', () => {
     expect(screen.queryByText(/^Loading formula run\.$/i)).toBeNull();
   });
 
+  it('the optimistic skeleton for a STRANDED lane shows the stranded notice, not a live ladder', async () => {
+    // A stranded lane must not flash a live stage ladder while the detail
+    // loads — the false-alive cue the run list suppresses would otherwise
+    // reappear on the detail route during the optimistic loading window.
+    const source = runSummarySourceWithActiveLane();
+    if (source.status === 'error') throw new Error(source.error);
+    source.data.lanes = source.data.lanes.map((lane) => ({
+      ...lane,
+      registration: 'stranded' as const,
+    }));
+    setCached('runs:summary:test-city', source);
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(() => new Promise<Response>(() => {})),
+    );
+    loadSupervisorFormulaRunDetail.mockImplementationOnce(
+      () => new Promise<FormulaRunDetail>(() => {}),
+    );
+
+    renderPage();
+
+    expect(await screen.findByText(/never registered with the supervisor/i)).toBeTruthy();
+    expect(screen.getByText(/^Loading run detail\.$/i)).toBeTruthy();
+    expect(screen.queryByRole('list', { name: /pending adoption run stages/i })).toBeNull();
+  });
+
   it('fires NO run-summary mount read on a cold cache, consuming a warm hit only (gascity-dashboard-i60u)', async () => {
     // i60u cold-load stopgap: a direct/refresh load arrives with the run-summary
     // cache cold. The detail page must NOT fire its own heavy molecule(all=true)
@@ -716,6 +742,9 @@ describe('FormulaRunDetailPage', () => {
     renderPage();
 
     await screen.findByText(/this run’s detail snapshot was not found/i);
+    // gascity-dashboard-uxvk: the copy must name the orphaned-molecule cause —
+    // dispatched but never registered with the supervisor — alongside v1/wisp.
+    expect(screen.getByText(/never registered with the supervisor/i)).toBeTruthy();
     // Does not over-claim v1.
     expect(screen.queryByText(/v1\/wisp runs are list-only/i)).toBeNull();
     // Not the generic dead-end, and not an error alert.
@@ -875,6 +904,7 @@ function runSummarySourceWithActiveLane(): SourceState<RunSummary> {
     ],
     progress: { status: 'unavailable', error: 'active run step unavailable' },
     formulaStageResolved: false,
+    registration: 'unknown',
     health: {
       status: 'available',
       data: {

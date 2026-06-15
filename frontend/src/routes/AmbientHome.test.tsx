@@ -133,6 +133,7 @@ function lane(f: LaneFixture): RunLane {
     stages: [],
     progress: { status: 'unavailable', error: 'unused' },
     formulaStageResolved: false,
+    registration: 'unknown',
     health,
   };
 }

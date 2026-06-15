@@ -719,3 +719,91 @@ describe('statusCounts — canonical key normalization (PR #124)', () => {
     assert.equal(counts['Blocked'], undefined);
   });
 });
+
+// gascity-dashboard-uxvk: the Runs view builds rows from rig-store molecule
+// root beads, so an orphaned molecule (bead graph persisted, supervisor
+// workflow registry has NO entry, zero step progress — the gc-odssky repro)
+// rendered as a LIVE run with a stage and a relative time. The lane builder now
+// carries an explicit registration fact derived from the last COMPLETE
+// supervisor formula-feed observation, so the UI can render the stranded state
+// instead of a live stage.
+describe('buildRunSummary — orphaned molecules carry a stranded registration (gascity-dashboard-uxvk)', () => {
+  const OBSERVED_AT_MS = Date.parse('2026-06-12T08:20:00.000Z');
+  const DISPATCHED_AT = '2026-06-12T01:20:05.000Z';
+
+  function orphanGroup(id: string): RunIssue[] {
+    return [
+      {
+        id,
+        title: 'mol-pr-start: gascity issue #3192',
+        status: 'open',
+        issue_type: 'molecule',
+        updated_at: DISPATCHED_AT,
+        metadata: { 'gc.formula_contract': 'graph.v2', 'gc.kind': 'run' },
+      },
+      {
+        id: `${id}-s1`,
+        title: 'read issue',
+        status: 'open',
+        issue_type: 'task',
+        updated_at: DISPATCHED_AT,
+        metadata: { 'gc.kind': 'step', 'gc.root_bead_id': id, 'gc.step_id': 'read-issue' },
+      },
+      {
+        id: `${id}-s2`,
+        title: 'plan implementation',
+        status: 'open',
+        issue_type: 'task',
+        updated_at: DISPATCHED_AT,
+        metadata: {
+          'gc.kind': 'step',
+          'gc.root_bead_id': id,
+          'gc.step_id': 'plan-implementation',
+        },
+      },
+    ];
+  }
+
+  function observation(rootIds: string[]) {
+    return { rootIds: new Set(rootIds), observedAtMs: OBSERVED_AT_MS };
+  }
+
+  test('absent from a complete feed observation → registration stranded', () => {
+    const summary = buildRunSummary(orphanGroup('gc-odssky'), new Map(), false, observation([]));
+    const lane = summary.lanes.find((l) => l.id === 'gc-odssky');
+    assert.ok(lane);
+    assert.equal(lane.registration, 'stranded');
+    // The false-alive part of the repro: the orphan must never read as a
+    // mid-run stage.
+    assert.equal(lane.phase, 'intake');
+    assert.notEqual(lane.phaseLabel.toLowerCase(), 'implementation');
+  });
+
+  test('present in the feed observation → registered', () => {
+    const summary = buildRunSummary(
+      orphanGroup('gc-known'),
+      new Map(),
+      false,
+      observation(['gc-known']),
+    );
+    const lane = summary.lanes.find((l) => l.id === 'gc-known');
+    assert.ok(lane);
+    assert.equal(lane.registration, 'registered');
+  });
+
+  test('no feed observation → registration unknown, lane renders as before', () => {
+    const summary = buildRunSummary(orphanGroup('gc-blind'));
+    const lane = summary.lanes.find((l) => l.id === 'gc-blind');
+    assert.ok(lane);
+    assert.equal(lane.registration, 'unknown');
+  });
+
+  test('a progressed run absent from the observation is unknown, not stranded', () => {
+    const group = orphanGroup('gc-aged');
+    group[1] = { ...group[1]!, status: 'closed' };
+    const summary = buildRunSummary(group, new Map(), false, observation([]));
+    const lane = summary.lanes.find((l) => l.id === 'gc-aged');
+    assert.ok(lane);
+    assert.equal(lane.registration, 'unknown');
+  });
+});
