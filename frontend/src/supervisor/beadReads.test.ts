@@ -9,6 +9,7 @@ import {
   type SupervisorApi,
 } from './client';
 import {
+  fetchBeadSubtreeIds,
   fetchSupervisorBead,
   listSupervisorBeads,
   listSupervisorBeadsAssignedTo,
@@ -183,6 +184,38 @@ describe('supervisor bead reads', () => {
 
     await expect(fetchSupervisorBead('rc-decision')).rejects.toMatchObject({ status: 503 });
     expect(listBeads).not.toHaveBeenCalled();
+  });
+
+  // gascity-dashboard-3i31: fetchBeadSubtreeIds is the authoritative completeness
+  // walk behind the convoy "Partial convoy" notice. Its root-exclusion, dedup,
+  // and `beads ?? []` guard were previously only reached through a hoisted module
+  // mock — exercise the real impl here.
+  it('returns the graph descendant ids, excluding the root and de-duplicating', async () => {
+    const beadsGraph = vi.fn(async () => ({
+      root: bead({ id: 'root' }),
+      beads: [
+        bead({ id: 'root' }),
+        bead({ id: 'a' }),
+        bead({ id: 'b' }),
+        bead({ id: 'a' }),
+      ],
+      deps: [],
+    }));
+    setSupervisorApiForTests({ ...baseApi, beadsGraph });
+
+    const ids = await fetchBeadSubtreeIds('root');
+
+    expect(beadsGraph).toHaveBeenCalledWith('test-city', 'root');
+    expect(ids).toEqual(['a', 'b']);
+  });
+
+  it('treats a root-only / null-beads graph response as an empty descendant set', async () => {
+    // The generated BeadGraphResponse types `beads` as nullable; a graph.v2 root
+    // collapses to root-only, so the walk must yield [] rather than throw.
+    const beadsGraph = vi.fn(async () => ({ root: bead({ id: 'root' }), beads: null, deps: [] }));
+    setSupervisorApiForTests({ ...baseApi, beadsGraph });
+
+    await expect(fetchBeadSubtreeIds('root')).resolves.toEqual([]);
   });
 
   it('does not flag the assigned-bead union partial when assignees merely share a bead', async () => {
