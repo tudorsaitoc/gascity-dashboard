@@ -193,12 +193,7 @@ describe('supervisor bead reads', () => {
   it('returns the graph descendant ids, excluding the root and de-duplicating', async () => {
     const beadsGraph = vi.fn(async () => ({
       root: bead({ id: 'root' }),
-      beads: [
-        bead({ id: 'root' }),
-        bead({ id: 'a' }),
-        bead({ id: 'b' }),
-        bead({ id: 'a' }),
-      ],
+      beads: [bead({ id: 'root' }), bead({ id: 'a' }), bead({ id: 'b' }), bead({ id: 'a' })],
       deps: [],
     }));
     setSupervisorApiForTests({ ...baseApi, beadsGraph });

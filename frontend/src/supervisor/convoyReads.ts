@@ -90,16 +90,19 @@ export async function loadConvoyView(rootBeadId: string): Promise<ConvoyLoad> {
  *    cannot be hiding its steps — but the empty parent-scan is NOT itself the
  *    proof of that (an empty scan looks the same whether the steps don't exist
  *    or were truncated away). The proof is upstream and was verified live
- *    (against the live supervisor, 2026-06-16): the supervisor bead wire shape carries no
- *    `parent` field at all, so graph.v2 steps are never parent-linked city beads
- *    in the first place, and `beads/graph/{root}` collapses graph.v2 snapshots to
- *    the root alone (the gascity-dashboard-jl3c hole) — neither the list nor the
- *    authoritative walk can surface a graph.v2 step, so there is no descendant a
- *    truncated page could drop. The steps live only in the workflow snapshot
- *    (jl3c, out of scope here). Were that to change upstream (parent-linked
- *    graph.v2 steps materialized in the city page), this short-circuit would no
- *    longer hold and the walk below would have to decide — but the walk would
- *    also need beads/graph to stop collapsing, so revisit jl3c together.
+ *    (against the live supervisor, 2026-06-16): the supervisor does not
+ *    materialize graph.v2 step beads as city beads at all (the
+ *    gascity-dashboard-jl3c hole) — they never appear as `parent`-linked rows in
+ *    the city page (the `parent` field exists on the wire and `descendantsOf`
+ *    uses it, but no graph.v2 step is ever present to carry it), and
+ *    `beads/graph/{root}` collapses graph.v2 snapshots to the root alone —
+ *    neither the list nor the authoritative walk can surface a graph.v2 step, so
+ *    there is no descendant a truncated page could drop. The steps live only in
+ *    the workflow snapshot (jl3c, out of scope here). Were that to change
+ *    upstream (parent-linked graph.v2 steps materialized in the city page), this
+ *    short-circuit would no longer hold and the walk below would have to decide —
+ *    but the walk would also need beads/graph to stop collapsing, so revisit
+ *    jl3c together.
  *  - Otherwise (materialized steps, or a leaf a truncated page might be hiding
  *    children behind) the authoritative graph walk reports the true descendant
  *    set; the convoy is partial only when that set holds an id the bounded page
