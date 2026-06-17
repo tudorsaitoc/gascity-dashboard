@@ -498,7 +498,6 @@ describe('loadSupervisorRunSummarySource', () => {
     // The phantom (the 10th, session-less latch) is demoted; all 9 live runs survive.
     expect(source.data.lanes.map((lane) => lane.id)).toEqual(liveRuns.map((_, i) => `live-${i}`));
     expect(source.data.runCounts.total).toBe(9);
-    expect(source.data.runCounts.visible).toBe(9);
   });
 
   it('keeps available lanes while marking the summary partial when the feed read fails (gascity-dashboard-n6f1)', async () => {

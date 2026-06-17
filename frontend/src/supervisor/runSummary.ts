@@ -34,10 +34,8 @@ import { listIsIncomplete, listIsPartial } from './listPartial';
 import { normalizeBeads } from './normalizeBead';
 import { normalizeSessions } from './sessionReads';
 
-// Pre-exposure load bound (gascity-dashboard-q89b): the primary in-flight
-// bead fetch refreshes on SSE bursts (10s debounce floor in the shared
-// run-summary subscription) per client. listIsIncomplete keeps truncation
-// visible in the lanes-partial signal.
+// Bounded in-flight bead fetch (gascity-dashboard-q89b); truncation stays
+// visible via listIsIncomplete in the lanes-partial signal.
 const RUNS_FETCH_LIMIT = 500;
 // gascity-dashboard-4xcv: the supervisor's bead list has no sort/recency
 // guarantee, so a small `all=true` window can drop run roots and step beads
@@ -74,16 +72,11 @@ const REQUIRED_RUN_SUMMARY_TIMEOUT_MS = 15_000;
 // first-paint spinner a single global raise would cause.
 const PREVIEW_ENRICHMENT_TIMEOUT_MS = 2_500;
 const REFRESH_ENRICHMENT_TIMEOUT_MS = 30_000;
-// Header-first restructure (supersedes the gascity-dashboard-9rk2 3s molecule
-// bound): the closed-history fan-out — the molecule(all=true) scan over the
-// ~340k-row history (measured 9.9s live, so it timed out against the old 3s
-// bound on EVERY refresh and chronically latched the "runs partial" badge) plus
-// the per-rig task(all=true) closed reads (measured 10.9s on a 29.8k-issue rig
-// store) — now runs ONLY on the lazy history source, fetched when the operator
-// opens the /runs history section. There it IS the payload, so it rides this
-// wide budget (matching the refresh budget / the 30s background samplers) and
-// the measured reads land instead of degrading. A genuinely slow scan still
-// folds to history-partial, never an error.
+// The closed-history fan-out (molecule + per-rig task all=true scans, ~10s live
+// on a large store) runs only on the lazy history source, where it IS the
+// payload, so it rides this wide budget; a genuinely slow scan folds to
+// history-partial, never an error (gascity-dashboard-9rk2 superseded the old 3s
+// bound that chronically latched a spurious "runs partial" badge).
 const HISTORY_ENRICHMENT_TIMEOUT_MS = 30_000;
 
 interface LoadedRunBeads {
@@ -691,14 +684,11 @@ function enrichRunSummary(
     (lane) => lane.phase !== 'blocked' && lane.registration !== 'stranded',
   );
 
-  // gascity-dashboard-s4rp: sessions only resolve here at enrichment, so this is
-  // the earliest seam with enough information to demote stale session-less
-  // latches (the gc-1920 phantom: no live session, no in_progress step, days
-  // stale) out of the Active set. buildRunSummary hands us the FULL active set
-  // (not the capped window), so totalActive is recomputed exactly from the
-  // surviving lanes — a phantom past the 8th slot is demoted too. Staleness is
-  // judged against the snapshot generation time, not a live clock, so the result
-  // is stable for a snapshot.
+  // gascity-dashboard-s4rp: sessions resolve only here at enrichment, so this is
+  // the earliest seam to demote stale sessionless latches (the gc-1920 phantom)
+  // out of the Active set. The FULL active set is handed in, so totalActive is
+  // recomputed from the survivors; staleness is judged against the snapshot
+  // generation time, not a live clock, so the result is stable per snapshot.
   const liveActive = activeEnriched.filter(
     (lane) => !isStaleSessionlessLatch(lane, generationMs, sessionsAvailable),
   );
@@ -723,7 +713,7 @@ function enrichRunSummary(
     lanes: liveActive,
     blockedLanes,
     strandedLanes: liveStranded,
-    runCounts: runCounts(liveActive, liveActive.length, blockedLanes.length, liveStranded.length),
+    runCounts: runCounts(liveActive, blockedLanes.length, liveStranded.length),
     census: { status: 'available', data: census },
   };
 }

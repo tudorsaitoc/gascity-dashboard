@@ -97,7 +97,6 @@ function buildRunSource(
       strandedLanes: [],
       runCounts: {
         total: 0,
-        visible: 0,
         prReview: 0,
         designReview: 0,
         bugfix: 0,
@@ -281,7 +280,6 @@ describe('RunsPage — SSE wiring (gascity-dashboard-bqn)', () => {
     const previewRuns = requireRunData(preview);
     previewRuns.totalActive = 1;
     previewRuns.runCounts.total = 1;
-    previewRuns.runCounts.visible = 1;
     previewRuns.lanes = [activeLane({ title: 'Preview formula run' })];
     mockLoadRunSummaryPreview.mockResolvedValue(preview);
     const full = deferred<SourceState<RunSummary>>();
@@ -751,7 +749,7 @@ describe('RunsPage — blocked lanes are not Active (gascity-dashboard-4xcv)', (
       }),
     ];
     runs.blockedLanes = [blockedLane()];
-    runs.runCounts = { ...runs.runCounts, total: 1, visible: 1, blocked: 1 };
+    runs.runCounts = { ...runs.runCounts, total: 1, blocked: 1 };
     mockLoadRunSummary.mockResolvedValue(source);
 
     mount();

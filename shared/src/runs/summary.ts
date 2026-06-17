@@ -100,12 +100,7 @@ export function buildRunSummary(
   // mirroring the historical section — so the wire is never pre-capped.
   const summary: RunSummary = {
     totalActive: activeLanes.length,
-    runCounts: runCounts(
-      activeLanes,
-      activeLanes.length,
-      blockedLanes.length,
-      strandedLanes.length,
-    ),
+    runCounts: runCounts(activeLanes, blockedLanes.length, strandedLanes.length),
     lanes: activeLanes,
     blockedLanes,
     strandedLanes,
@@ -192,15 +187,9 @@ function isRunGroup(rootId: string, issues: RunIssue[]): boolean {
   );
 }
 
-export function runCounts(
-  lanes: RunLane[],
-  visible: number,
-  blocked: number,
-  stranded: number,
-): RunCounts {
+export function runCounts(lanes: RunLane[], blocked: number, stranded: number): RunCounts {
   const counts: RunCounts = {
     total: lanes.length,
-    visible,
     prReview: 0,
     designReview: 0,
     bugfix: 0,
@@ -520,7 +509,6 @@ export function emptyRunSummary(): RunSummary {
     totalActive: 0,
     runCounts: {
       total: 0,
-      visible: 0,
       prReview: 0,
       designReview: 0,
       bugfix: 0,

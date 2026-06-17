@@ -310,12 +310,6 @@ export type RunLaneHealthState = Avail<{
 
 export interface RunCounts {
   total: number;
-  /** @deprecated use total — RunMap owns the rendered collapse; always equals total.
-   *
-   *  Count of active lanes carried on the wire. Now equal to `total` (the full
-   *  active set), since RunMap owns the rendered collapse rather than the wire
-   *  pre-capping at MAX_VISIBLE_ACTIVE_LANES. */
-  visible: number;
   prReview: number;
   designReview: number;
   bugfix: number;
