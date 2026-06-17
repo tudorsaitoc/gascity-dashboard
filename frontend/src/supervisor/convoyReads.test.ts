@@ -175,6 +175,61 @@ describe('loadConvoyView', () => {
     warn.mockRestore();
   });
 
+  it('walks the subtree for a graph.v2 root once any parent-linked step is captured', async () => {
+    // The graph_v2_root_only short-circuit fires ONLY when the captured child
+    // set is empty (gascity-dashboard-3i31). A graph.v2 root that DOES expose a
+    // parent-linked step is `exposed`, not collapsed, so it is not exempt from
+    // the authoritative completeness walk — proving the short-circuit cannot
+    // clear `partial` for a graph.v2 root whose steps the page actually carries.
+    const root = bead('root', {
+      status: 'in_progress',
+      metadata: { 'gc.formula_contract': 'graph.v2', 'gc.run_target': 'city/claude-1' },
+      title: 'mol-focus-review',
+    });
+    mockFetchSupervisorBead.mockResolvedValue(root);
+    mockListSupervisorBeads.mockResolvedValue(
+      list([root, bead('a', { parent: 'root', created_at: '2026-06-12T00:00:01Z' })], {
+        partial: true,
+      }),
+    );
+    // Authoritative walk surfaces a step 'c' the truncated page dropped.
+    mockFetchBeadSubtreeIds.mockResolvedValue(['a', 'c']);
+
+    const load = await loadConvoyView('root');
+
+    expect(load.view.exposure.kind).toBe('exposed');
+    expect(mockFetchBeadSubtreeIds).toHaveBeenCalledWith('root');
+    expect(load.partial).toBe(true);
+  });
+
+  it('walks the subtree for a genuine no_children leaf on a truncated page', async () => {
+    // A non-graph.v2 leaf collapses to `no_children`, NOT `graph_v2_root_only`,
+    // so it is not short-circuited: a truncated page might be hiding children the
+    // leaf actually has, so the authoritative walk must run and over-warn when it
+    // surfaces an uncaptured descendant.
+    mockFetchSupervisorBead.mockResolvedValue(bead('root'));
+    mockListSupervisorBeads.mockResolvedValue(list([bead('root')], { partial: true }));
+    mockFetchBeadSubtreeIds.mockResolvedValue(['hidden-child']);
+
+    const load = await loadConvoyView('root');
+
+    expect(load.view.exposure).toEqual({ kind: 'collapsed', reason: 'no_children' });
+    expect(mockFetchBeadSubtreeIds).toHaveBeenCalledWith('root');
+    expect(load.partial).toBe(true);
+  });
+
+  it('rejects an invalid root bead id at the loader boundary before any supervisor read', async () => {
+    // The `/convoy/:rootBead` route param is untrusted input; a malformed id must
+    // be turned away at the loader edge (as a 404 the route renders as not-found)
+    // rather than reaching a supervisor path param (gascity-dashboard-3i31).
+    await expect(loadConvoyView('../etc/passwd')).rejects.toMatchObject({
+      name: 'SupervisorApiError',
+      status: 404,
+    });
+    expect(mockFetchSupervisorBead).not.toHaveBeenCalled();
+    expect(mockListSupervisorBeads).not.toHaveBeenCalled();
+  });
+
   it('does not treat a self-parent bead as its own child', async () => {
     mockFetchSupervisorBead.mockResolvedValue(bead('root'));
     mockListSupervisorBeads.mockResolvedValue(list([bead('root', { parent: 'root' })]));
