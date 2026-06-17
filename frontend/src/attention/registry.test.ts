@@ -1058,7 +1058,6 @@ function runSummary(lanes: readonly RunLane[]): RunSummary {
     totalActive: activeLanes.length,
     runCounts: {
       total: activeLanes.length,
-      visible: activeLanes.length,
       prReview: 0,
       designReview: 0,
       bugfix: 0,

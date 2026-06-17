@@ -28,7 +28,6 @@ function freshRunsSource(): SourceState<RunSummary> {
       strandedLanes: [],
       runCounts: {
         total: 0,
-        visible: 0,
         prReview: 0,
         designReview: 0,
         bugfix: 0,

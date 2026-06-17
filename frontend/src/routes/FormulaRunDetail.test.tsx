@@ -928,7 +928,6 @@ function runSummarySource(lanes: RunLane[] = []): SourceState<RunSummary> {
       strandedLanes: [],
       runCounts: {
         total: lanes.length,
-        visible: lanes.length,
         prReview: 0,
         designReview: 0,
         bugfix: 0,

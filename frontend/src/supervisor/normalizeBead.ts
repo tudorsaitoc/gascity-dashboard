@@ -11,26 +11,25 @@ import type { Bead } from 'gas-city-dashboard-shared/gc-supervisor';
 // absent on the projection rather than becoming an explicit `undefined`.
 
 export function normalizeBead(bead: Bead): DashboardBead {
-  const normalized: DashboardBead = {
+  return {
     id: bead.id,
     title: bead.title,
     status: bead.status,
     issue_type: bead.issue_type,
     priority: bead.priority ?? null,
     created_at: bead.created_at,
+    ...(bead.description !== undefined && { description: bead.description }),
+    ...(bead.assignee !== undefined && { assignee: bead.assignee }),
+    ...(Array.isArray(bead.labels) && { labels: bead.labels }),
+    ...(bead.metadata !== undefined && { metadata: bead.metadata }),
+    ...(bead.ref !== undefined && { ref: bead.ref }),
+    ...(bead.parent !== undefined && { parent: bead.parent }),
+    ...(bead.from !== undefined && { from: bead.from }),
+    ...(bead.ephemeral !== undefined && { ephemeral: bead.ephemeral }),
+    ...(bead.needs !== undefined && { needs: bead.needs }),
+    ...(bead.dependencies !== undefined && { dependencies: bead.dependencies }),
+    ...(bead.updated_at !== undefined && { updated_at: bead.updated_at }),
   };
-  if (bead.description !== undefined) normalized.description = bead.description;
-  if (bead.assignee !== undefined) normalized.assignee = bead.assignee;
-  if (Array.isArray(bead.labels)) normalized.labels = bead.labels;
-  if (bead.metadata !== undefined) normalized.metadata = bead.metadata;
-  if (bead.ref !== undefined) normalized.ref = bead.ref;
-  if (bead.parent !== undefined) normalized.parent = bead.parent;
-  if (bead.from !== undefined) normalized.from = bead.from;
-  if (bead.ephemeral !== undefined) normalized.ephemeral = bead.ephemeral;
-  if (bead.needs !== undefined) normalized.needs = bead.needs;
-  if (bead.dependencies !== undefined) normalized.dependencies = bead.dependencies;
-  if (bead.updated_at !== undefined) normalized.updated_at = bead.updated_at;
-  return normalized;
 }
 
 export function normalizeBeads(beads: readonly Bead[]): DashboardBead[] {

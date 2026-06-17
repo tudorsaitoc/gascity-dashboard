@@ -321,7 +321,6 @@ describe('buildRunSummary — active lanes carry the full set (component-collaps
     assert.equal(summary.totalActive, count);
     assert.equal(summary.lanes.length, count);
     assert.equal(summary.runCounts.total, count);
-    assert.equal(summary.runCounts.visible, count);
   });
 });
 
