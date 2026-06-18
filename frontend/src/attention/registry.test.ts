@@ -36,6 +36,29 @@ describe('createAttentionContributors', () => {
     expect(new Set(contributors.map((c) => c.id)).size).toBe(ATTENTION_DOMAINS.length);
   });
 
+  it('threads each facts read-freshness onto its contributor and folds it per domain (gascity-dashboard-5t0m)', () => {
+    // A calm domain (agents facts present, no alerting items) must still carry
+    // its read age into byDomain — the spine's whole point.
+    const model = composeAttention(
+      createAttentionContributors({
+        agents: { items: [], provenance: 'stale', fetchedAt: '2026-06-18T09:00:00.000Z' },
+        beads: {
+          decisionLabel: 'needs/stephanie',
+          provenance: 'error',
+          fetchedAt: '2026-06-18T08:00:00.000Z',
+        },
+      }),
+    );
+
+    expect(model.byDomain.agents.severity).toBeNull();
+    expect(model.byDomain.agents.provenance).toBe('stale');
+    expect(model.byDomain.agents.fetchedAt).toBe('2026-06-18T09:00:00.000Z');
+    expect(model.byDomain.beads.provenance).toBe('error');
+    // A domain with no facts at all reports no freshness.
+    expect(model.byDomain.maintainer.provenance).toBeUndefined();
+    expect(model.byDomain.maintainer.fetchedAt).toBeUndefined();
+  });
+
   it('derives health attention from supervisor reachability and critical host pressure', () => {
     const model = composeAttention(
       createAttentionContributors({

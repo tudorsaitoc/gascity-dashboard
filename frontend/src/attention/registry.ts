@@ -39,14 +39,35 @@ export type SupervisorHealthState =
   | { status: 'available'; data: HealthOutputBody }
   | { status: 'unavailable'; error: string };
 
-export interface HealthAttentionFacts {
+/**
+ * Read freshness threaded onto every domain's facts by the live contributor
+ * layer (gascity-dashboard-5t0m, Freshness Spine): the SourceStatus and ISO
+ * `fetchedAt` of the cache read the facts were assembled from. Folded per-domain
+ * into AttentionDomainSummary (worst provenance + oldest fetchedAt) so the board
+ * can answer "is each domain's data CURRENT?" — independent of whether it is
+ * alarming. Every *AttentionFacts extends this so the signal is uniform.
+ */
+export interface ReadFreshnessFacts {
+  provenance?: SourceStatus;
+  fetchedAt?: string;
+  /**
+   * ISO instant after which this read is no longer current
+   * (`fetchedAt + ATTENTION_READ_STALE_AFTER_MS`, gascity-dashboard-fchh). Set
+   * only by polled cache-read domains; the event-driven runs source omits it so
+   * it never age-flips. composeAttention folds the soonest `staleAt` per domain;
+   * boardFreshness flips a domain to `stale` once `now >= staleAt`.
+   */
+  staleAt?: string;
+}
+
+export interface HealthAttentionFacts extends ReadFreshnessFacts {
   system?: SystemHealth;
   supervisor?: SupervisorHealthState;
   trend?: DoltNomsTrend;
   dashboardError?: string;
 }
 
-export interface RunsAttentionFacts {
+export interface RunsAttentionFacts extends ReadFreshnessFacts {
   /**
    * The bead-derived run summary (gascity-dashboard-2j8e.2). The Runs badge
    * counts genuinely-blocked runs from `summary.blockedLanes` — the same
@@ -57,17 +78,9 @@ export interface RunsAttentionFacts {
    */
   summary?: RunSummary;
   error?: string;
-  /**
-   * Freshness of the runs read these facts were assembled from, threaded by the
-   * live contributor layer. Carried onto `unavailable`-tier items so a degraded
-   * read can be aged rather than rendered as current truth.
-   */
-  provenance?: SourceStatus;
-  /** ISO timestamp of the cache read these facts came from (fetch primitive). */
-  fetchedAt?: string;
 }
 
-export interface AgentsAttentionFacts {
+export interface AgentsAttentionFacts extends ReadFreshnessFacts {
   items?: readonly AgentResponse[];
   pendingInteractions?: readonly AgentPendingInteraction[];
   partial?: boolean;
@@ -75,7 +88,7 @@ export interface AgentsAttentionFacts {
   pendingError?: string;
 }
 
-export interface BeadsAttentionFacts {
+export interface BeadsAttentionFacts extends ReadFreshnessFacts {
   items?: readonly Bead[];
   /**
    * The label marking a bead as a mayor-decision (DASHBOARD_DECISION_LABEL,
@@ -110,14 +123,14 @@ export interface BeadsAttentionFacts {
   escalationsError?: string;
 }
 
-export interface MailAttentionFacts {
+export interface MailAttentionFacts extends ReadFreshnessFacts {
   items?: readonly Message[];
   nowMs?: number;
   partial?: boolean;
   error?: string;
 }
 
-export interface ActivityAttentionFacts {
+export interface ActivityAttentionFacts extends ReadFreshnessFacts {
   deploys?: DeployList;
   deploysError?: string;
   events?: readonly TypedEventStreamEnvelope[];
@@ -126,7 +139,7 @@ export interface ActivityAttentionFacts {
   eventsPartial?: boolean;
 }
 
-export interface MaintainerAttentionFacts {
+export interface MaintainerAttentionFacts extends ReadFreshnessFacts {
   enabled?: boolean;
   triage?: MaintainerTriage;
   nowMs?: number;
@@ -204,60 +217,75 @@ function contributorForDomain(
   }
 }
 
-function healthContributor(facts: HealthAttentionFacts | undefined): AttentionContributor {
+/**
+ * Attach a contributor's read freshness from its facts (gascity-dashboard-5t0m).
+ * composeAttention folds `provenance`/`fetchedAt` per-domain into the summary so
+ * a calm domain still reports its read age. exactOptionalPropertyTypes: include
+ * each key only when defined.
+ */
+function withFreshness(
+  base: { id: string; domain: AttentionDomain; getItems: () => readonly AttentionItem[] },
+  facts: ReadFreshnessFacts | undefined,
+): AttentionContributor {
   return {
-    id: 'health:derived',
-    domain: 'health',
-    getItems: () => deriveHealthAttention(facts),
+    ...base,
+    ...(facts?.provenance !== undefined && { provenance: facts.provenance }),
+    ...(facts?.fetchedAt !== undefined && { fetchedAt: facts.fetchedAt }),
+    ...(facts?.staleAt !== undefined && { staleAt: facts.staleAt }),
   };
+}
+
+function healthContributor(facts: HealthAttentionFacts | undefined): AttentionContributor {
+  return withFreshness(
+    { id: 'health:derived', domain: 'health', getItems: () => deriveHealthAttention(facts) },
+    facts,
+  );
 }
 
 function runsContributor(facts: RunsAttentionFacts | undefined): AttentionContributor {
-  return {
-    id: 'runs:derived',
-    domain: 'runs',
-    getItems: () => deriveRunsAttention(facts),
-  };
+  return withFreshness(
+    { id: 'runs:derived', domain: 'runs', getItems: () => deriveRunsAttention(facts) },
+    facts,
+  );
 }
 
 function agentsContributor(facts: AgentsAttentionFacts | undefined): AttentionContributor {
-  return {
-    id: 'agents:derived',
-    domain: 'agents',
-    getItems: () => deriveAgentsAttention(facts),
-  };
+  return withFreshness(
+    { id: 'agents:derived', domain: 'agents', getItems: () => deriveAgentsAttention(facts) },
+    facts,
+  );
 }
 
 function beadsContributor(facts: BeadsAttentionFacts | undefined): AttentionContributor {
-  return {
-    id: 'beads:derived',
-    domain: 'beads',
-    getItems: () => deriveBeadsAttention(facts),
-  };
+  return withFreshness(
+    { id: 'beads:derived', domain: 'beads', getItems: () => deriveBeadsAttention(facts) },
+    facts,
+  );
 }
 
 function mailContributor(facts: MailAttentionFacts | undefined): AttentionContributor {
-  return {
-    id: 'mail:derived',
-    domain: 'mail',
-    getItems: () => deriveMailAttention(facts),
-  };
+  return withFreshness(
+    { id: 'mail:derived', domain: 'mail', getItems: () => deriveMailAttention(facts) },
+    facts,
+  );
 }
 
 function activityContributor(facts: ActivityAttentionFacts | undefined): AttentionContributor {
-  return {
-    id: 'activity:derived',
-    domain: 'activity',
-    getItems: () => deriveActivityAttention(facts),
-  };
+  return withFreshness(
+    { id: 'activity:derived', domain: 'activity', getItems: () => deriveActivityAttention(facts) },
+    facts,
+  );
 }
 
 function maintainerContributor(facts: MaintainerAttentionFacts | undefined): AttentionContributor {
-  return {
-    id: 'maintainer:derived',
-    domain: 'maintainer',
-    getItems: () => deriveMaintainerAttention(facts),
-  };
+  return withFreshness(
+    {
+      id: 'maintainer:derived',
+      domain: 'maintainer',
+      getItems: () => deriveMaintainerAttention(facts),
+    },
+    facts,
+  );
 }
 
 /** The provenance + fetch timestamp carried onto runs `unavailable` items. */

@@ -1,14 +1,19 @@
-import { useMemo } from 'react';
-import { type RunSummary, type SourceState } from 'gas-city-dashboard-shared';
+import { useCallback, useMemo } from 'react';
+import { type RunSummary, type SourceState, type SourceStatus } from 'gas-city-dashboard-shared';
 import { api, formatApiError } from '../api/client';
 import { getActiveCity } from '../api/cityBase';
 import { type OperatorConfig } from '../contexts/OperatorConfigContext';
 import { useCachedData } from '../hooks/useCachedData';
+import { useVisibleRefresh } from '../hooks/useVisibleRefresh';
 import { listAgentPendingInteractions } from '../supervisor/agentPending';
 import { listSupervisorBeads } from '../supervisor/beadReads';
 import { supervisorApi, supervisorApiForRequestBudget } from '../supervisor/client';
 import { DEFAULT_MAIL_HISTORY_LIMIT, listSupervisorMail } from '../supervisor/mailReads';
-import type { AttentionContributor } from './compose';
+import {
+  ATTENTION_READ_REFRESH_INTERVAL_MS,
+  ATTENTION_READ_STALE_AFTER_MS,
+  type AttentionContributor,
+} from './compose';
 import {
   createAttentionContributors,
   GC_ESCALATION_LABEL,
@@ -19,8 +24,44 @@ import {
   type HealthAttentionFacts,
   type MailAttentionFacts,
   type MaintainerAttentionFacts,
+  type ReadFreshnessFacts,
   type RunsAttentionFacts,
 } from './registry';
+
+/**
+ * Thread a cached source's read freshness onto its facts (gascity-dashboard-5t0m,
+ * Freshness Spine). The runs source carries its own SourceState provenance
+ * (runsFactsFromSource); every other domain reads through useCachedData, whose
+ * read state is just `fetchedAt` + `error` — so a failed refresh reports `error`,
+ * a landed read `fresh`, and the ISO `fetchedAt` carries the real age the
+ * per-domain fold ages off. A landed read also gets a `staleAt`
+ * (`fetchedAt + ATTENTION_READ_STALE_AFTER_MS`, gascity-dashboard-fchh) so a
+ * frozen-but-not-erroring poll flips the board liveness line maroon once it ages
+ * past the threshold — these domains re-read on ATTENTION_READ_REFRESH_INTERVAL_MS
+ * (see useLiveAttentionContributors), so a healthy board never reaches it.
+ * Returns undefined facts untouched (a domain with no data yet has no signal).
+ */
+export function withReadFreshness<T extends ReadFreshnessFacts>(
+  facts: T | undefined,
+  fetchedAt: string | undefined,
+  error: string | null,
+): T | undefined {
+  if (facts === undefined) return undefined;
+  const provenance: SourceStatus | undefined =
+    error !== null ? 'error' : fetchedAt !== undefined ? 'fresh' : undefined;
+  // A staleAt only makes sense for a landed read (no error) — a failed refresh
+  // is already 'error', the most degraded state, so it never needs to age.
+  const staleAt =
+    error === null && fetchedAt !== undefined
+      ? new Date(Date.parse(fetchedAt) + ATTENTION_READ_STALE_AFTER_MS).toISOString()
+      : undefined;
+  return {
+    ...facts,
+    ...(provenance !== undefined && { provenance }),
+    ...(fetchedAt !== undefined && { fetchedAt }),
+    ...(staleAt !== undefined && { staleAt }),
+  };
+}
 
 const ATTENTION_LIST_LIMIT = 1000;
 const ACTIVITY_EVENT_FETCH_LIMIT = 100;
@@ -66,20 +107,74 @@ export function useLiveAttentionContributors(
     () => fetchMaintainerAttention(cityName, maintainerEnabled),
   );
 
+  // gascity-dashboard-fchh (Option B): unlike the runs source (whose own
+  // subscription re-reads off the gc event stream), these six domains fetch once
+  // through useCachedData and would otherwise freeze at their mount-time read —
+  // so their freshness `staleAt` would age out on a perfectly healthy board.
+  // Re-read them on a slow visible interval (paused when the tab is hidden) so a
+  // live board keeps advancing fetchedAt and only a genuinely wedged refresh ages
+  // a domain to the maroon stale state. useCachedData owns the data/error state;
+  // this just drives the cadence.
+  // Each useCachedData.refresh is stable (keyed on its cache key), so depend on
+  // the functions directly — the callback only changes when a cache key shifts.
+  const { refresh: refreshAgents } = agents;
+  const { refresh: refreshBeads } = beads;
+  const { refresh: refreshMail } = mail;
+  const { refresh: refreshActivity } = activity;
+  const { refresh: refreshHealth } = health;
+  const { refresh: refreshMaintainer } = maintainer;
+  const refreshPolledReads = useCallback(
+    () =>
+      Promise.all([
+        refreshAgents(),
+        refreshBeads(),
+        refreshMail(),
+        refreshActivity(),
+        refreshHealth(),
+        refreshMaintainer(),
+      ]).then(() => undefined),
+    [refreshAgents, refreshBeads, refreshMail, refreshActivity, refreshHealth, refreshMaintainer],
+  );
+  useVisibleRefresh(refreshPolledReads, ATTENTION_READ_REFRESH_INTERVAL_MS);
+
   return useMemo(
     () =>
       createAttentionContributors(
         compactFacts({
-          activity: activity.data,
-          agents: agents.data,
-          beads: beads.data,
-          health: health.data,
-          mail: mail.data,
-          maintainer: maintainer.data,
+          // gascity-dashboard-5t0m: thread each cache read's fetchedAt + derived
+          // provenance onto the facts so composeAttention can fold a board-wide
+          // read-age/liveness signal. runs already carries its SourceState
+          // provenance via runsFactsFromSource.
+          activity: withReadFreshness(activity.data, activity.fetchedAt, activity.error),
+          agents: withReadFreshness(agents.data, agents.fetchedAt, agents.error),
+          beads: withReadFreshness(beads.data, beads.fetchedAt, beads.error),
+          health: withReadFreshness(health.data, health.fetchedAt, health.error),
+          mail: withReadFreshness(mail.data, mail.fetchedAt, mail.error),
+          maintainer: withReadFreshness(maintainer.data, maintainer.fetchedAt, maintainer.error),
           runs,
         }),
       ),
-    [activity.data, agents.data, beads.data, health.data, mail.data, maintainer.data, runs],
+    [
+      activity.data,
+      activity.fetchedAt,
+      activity.error,
+      agents.data,
+      agents.fetchedAt,
+      agents.error,
+      beads.data,
+      beads.fetchedAt,
+      beads.error,
+      health.data,
+      health.fetchedAt,
+      health.error,
+      mail.data,
+      mail.fetchedAt,
+      mail.error,
+      maintainer.data,
+      maintainer.fetchedAt,
+      maintainer.error,
+      runs,
+    ],
   );
 }
 

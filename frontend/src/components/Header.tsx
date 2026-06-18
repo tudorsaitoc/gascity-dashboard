@@ -3,6 +3,7 @@ import { NavLink, useLocation } from 'react-router-dom';
 import { api } from '../api/client';
 import { getActiveCity } from '../api/cityBase';
 import { NavAttentionIndicator } from '../attention/NavAttentionIndicator';
+import { BoardLiveness, useBoardLiveness } from './BoardLiveness';
 import { useAttentionModel } from '../attention/context';
 import type { AttentionDomain } from '../attention/compose';
 import { useTheme } from '../contexts/ThemeContext';
@@ -56,6 +57,11 @@ export function Header() {
   const { viewingAs } = useViewingAs();
   const { operatorAlias } = useOperatorConfig();
   const attention = useAttentionModel();
+  // gascity-dashboard-fchh major 4 (DESIGN.md One Mark): when the liveness line
+  // is degraded it owns the viewport's single maroon mark, so the other accents
+  // here — the "reading as" indicator and the nav attention badges — drop to
+  // neutral. A frozen/erroring board is the loudest thing on the header.
+  const livenessOwnsMark = useBoardLiveness().degraded;
   const { data: config } = useCachedData('config', () => api.config());
   // City switcher source (gascity-dashboard-ucc). Lists every managed city;
   // selecting one navigates (full reload) to that city's `/city/:name/`
@@ -125,7 +131,11 @@ export function Header() {
             </span>
           )}
           {showReadingAs && (
-            <span className="text-label uppercase tracking-wider text-accent ml-3">
+            <span
+              className={`text-label uppercase tracking-wider ml-3 ${
+                livenessOwnsMark ? 'text-fg-muted' : 'text-accent'
+              }`}
+            >
               · reading as {displayLabel(viewingAs.alias, operatorAlias)}
             </span>
           )}
@@ -151,7 +161,11 @@ export function Header() {
                   >
                     {r.label}
                     {domain !== undefined && (
-                      <NavAttentionIndicator label={r.label} summary={attention.byDomain[domain]} />
+                      <NavAttentionIndicator
+                        label={r.label}
+                        summary={attention.byDomain[domain]}
+                        suppressAccent={livenessOwnsMark}
+                      />
                     )}
                   </NavLink>
                 </li>
@@ -159,6 +173,8 @@ export function Header() {
             })}
           </ul>
         </nav>
+
+        <BoardLiveness />
 
         <button
           type="button"

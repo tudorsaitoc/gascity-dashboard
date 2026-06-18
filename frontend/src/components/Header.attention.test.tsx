@@ -3,6 +3,7 @@ import { MemoryRouter } from 'react-router-dom';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { AttentionProvider } from '../attention/context';
 import type { AttentionContributor, AttentionItem } from '../attention/compose';
+import { NowProvider } from '../contexts/NowContext';
 import { ThemeProvider } from '../contexts/ThemeContext';
 import { ViewingAsProvider } from '../contexts/ViewingAsContext';
 import { Header } from './Header';
@@ -27,6 +28,13 @@ vi.mock('../supervisor/client', () => ({
   }),
 }));
 
+// gascity-dashboard-fchh: the liveness line reads the event-stream state. Drive
+// it from a module var so a test can force a degraded header.
+let mockSseState = 'open';
+vi.mock('../runs/runSummarySubscription', () => ({
+  useRunSummary: () => ({ sseState: mockSseState }),
+}));
+
 describe('Header attention indicators', () => {
   beforeEach(() => {
     Object.defineProperty(window, 'matchMedia', {
@@ -46,6 +54,44 @@ describe('Header attention indicators', () => {
 
   afterEach(() => {
     cleanup();
+    mockSseState = 'open';
+  });
+
+  it('honors DESIGN.md One Mark — a degraded liveness owns the sole header accent; nav badge defers (fchh major 4)', () => {
+    mockSseState = 'closed'; // degraded liveness owns the mark
+    renderHeader([contributor('runs', [item('run-attn', 'runs', 'attention')])]);
+
+    // The nav attention badge renders its count but in NEUTRAL tone, not accent.
+    const badge = screen.getByLabelText(/Runs: 1 attention item/);
+    expect(badge.className).toContain('text-fg-muted');
+    expect(badge.className).not.toContain('text-accent');
+
+    // Exactly one maroon mark in the header viewport — the liveness line.
+    const accents = document.querySelectorAll('.text-accent');
+    expect(accents.length).toBe(1);
+    expect(screen.getByRole('status').textContent).toContain('live updates paused');
+  });
+
+  it('keeps an ochre watch badge while a degraded liveness owns the maroon mark (4q60)', () => {
+    mockSseState = 'closed'; // degraded liveness owns the sole maroon mark
+    renderHeader([
+      contributor('runs', [item('run-attn', 'runs', 'attention')]),
+      contributor('mail', [item('mail-watch', 'mail', 'watch')]),
+    ]);
+
+    // The maroon (attention) badge defers to neutral under the One Mark Rule...
+    const attnBadge = screen.getByLabelText(/Runs: 1 attention item/);
+    expect(attnBadge.className).toContain('text-fg-muted');
+    expect(attnBadge.className).not.toContain('text-accent');
+
+    // ...but Caution Ochre is a separate signal and survives: the watch badge
+    // stays text-warn rather than demoting to neutral.
+    const watchBadge = screen.getByLabelText(/Mail: 1 watch item/);
+    expect(watchBadge.className).toContain('text-warn');
+    expect(watchBadge.className).not.toContain('text-fg-muted');
+
+    // Still exactly one maroon mark in the header viewport — the liveness line.
+    expect(document.querySelectorAll('.text-accent').length).toBe(1);
   });
 
   it('rolls up highest severity and count from the shared attention model', async () => {
@@ -66,14 +112,16 @@ function renderHeader(contributors: readonly AttentionContributor[]) {
   return render(
     <ThemeProvider>
       <ViewingAsProvider>
-        <AttentionProvider contributors={contributors}>
-          <MemoryRouter
-            initialEntries={['/runs']}
-            future={{ v7_relativeSplatPath: true, v7_startTransition: true }}
-          >
-            <Header />
-          </MemoryRouter>
-        </AttentionProvider>
+        <NowProvider>
+          <AttentionProvider contributors={contributors}>
+            <MemoryRouter
+              initialEntries={['/runs']}
+              future={{ v7_relativeSplatPath: true, v7_startTransition: true }}
+            >
+              <Header />
+            </MemoryRouter>
+          </AttentionProvider>
+        </NowProvider>
       </ViewingAsProvider>
     </ThemeProvider>,
   );

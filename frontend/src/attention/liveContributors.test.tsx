@@ -1,12 +1,17 @@
-import { renderHook, waitFor } from '@testing-library/react';
+import { act, renderHook, waitFor } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { buildRunSummary } from 'gas-city-dashboard-shared';
 import type { RunSummary, SourceState } from 'gas-city-dashboard-shared';
 import { invalidate } from '../api/cache';
 import { setActiveCity } from '../api/cityBase';
 import type { OperatorConfig } from '../contexts/OperatorConfigContext';
-import { composeAttention } from './compose';
-import { runsFactsFromSource, useLiveAttentionContributors } from './liveContributors';
+import { ATTENTION_READ_REFRESH_INTERVAL_MS, composeAttention } from './compose';
+import type { AgentsAttentionFacts } from './registry';
+import {
+  runsFactsFromSource,
+  useLiveAttentionContributors,
+  withReadFreshness,
+} from './liveContributors';
 
 // Operator identity the live hook reads from /config (gascity-dashboard-bhvn).
 const testOperator: OperatorConfig = {
@@ -437,5 +442,66 @@ describe('useLiveAttentionContributors', () => {
 
     expect(mockApi.maintainerTriage).not.toHaveBeenCalled();
     expect(composeAttention(result.current).byDomain.maintainer.attention).toBe(0);
+  });
+
+  it('re-reads the polled domains on the visible interval so a healthy board never ages into a false stale (fchh Option B)', async () => {
+    vi.useFakeTimers();
+    try {
+      vi.spyOn(document, 'hidden', 'get').mockReturnValue(false);
+      renderHook(() => useLiveAttentionContributors([], testOperator, undefined));
+
+      // Let the initial mount reads land.
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(0);
+      });
+      const afterMount = mockSupervisorApi.listAgents.mock.calls.length;
+      expect(afterMount).toBeGreaterThanOrEqual(1);
+
+      // One refresh interval later, the polled domains re-read — advancing
+      // fetchedAt — so a live-but-quiet board stays fresh instead of aging to the
+      // maroon stale state the way a mount-only read would.
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(ATTENTION_READ_REFRESH_INTERVAL_MS);
+      });
+      expect(mockSupervisorApi.listAgents.mock.calls.length).toBeGreaterThan(afterMount);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+});
+
+describe('withReadFreshness — cache-read freshness onto facts (gascity-dashboard-fchh)', () => {
+  it('maps a failed read to provenance "error"', () => {
+    expect(withReadFreshness({}, '2026-06-18T12:00:00.000Z', 'boom')).toEqual({
+      provenance: 'error',
+      fetchedAt: '2026-06-18T12:00:00.000Z',
+    });
+  });
+
+  it('maps a landed read to "fresh" with a staleAt = fetchedAt + the stale window, preserving other fields', () => {
+    expect(
+      withReadFreshness<AgentsAttentionFacts>({ partial: false }, '2026-06-18T12:00:00.000Z', null),
+    ).toEqual({
+      partial: false,
+      provenance: 'fresh',
+      fetchedAt: '2026-06-18T12:00:00.000Z',
+      // 2026-06-18T12:00:00 + 90s — the age-flip floor for the liveness line.
+      staleAt: '2026-06-18T12:01:30.000Z',
+    });
+  });
+
+  it('attaches NO staleAt to a failed read — an error is already the most degraded state', () => {
+    const facts = withReadFreshness({}, '2026-06-18T12:00:00.000Z', 'boom');
+    expect(facts).not.toHaveProperty('staleAt');
+  });
+
+  it('omits provenance when there is no error and no fetchedAt yet', () => {
+    expect(withReadFreshness<AgentsAttentionFacts>({ partial: true }, undefined, null)).toEqual({
+      partial: true,
+    });
+  });
+
+  it('leaves undefined facts untouched', () => {
+    expect(withReadFreshness(undefined, '2026-06-18T12:00:00.000Z', null)).toBeUndefined();
   });
 });
