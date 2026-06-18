@@ -197,6 +197,21 @@ describe('composeAttention — read-freshness fold (gascity-dashboard-5t0m)', ()
     expect(model.byDomain.mail.fetchedAt).toBe('2026-06-18T08:00:00.000Z');
   });
 
+  it('folds the SOONEST (earliest) staleAt across a domain so it ages as soon as any read would (fchh)', () => {
+    const model = composeAttention([
+      freshContributor('mail', {
+        fetchedAt: '2026-06-18T12:00:00.000Z',
+        staleAt: '2026-06-18T12:01:30.000Z',
+      }),
+      freshContributor('mail', {
+        fetchedAt: '2026-06-18T11:59:00.000Z',
+        staleAt: '2026-06-18T12:00:30.000Z',
+      }),
+    ]);
+
+    expect(model.byDomain.mail.staleAt).toBe('2026-06-18T12:00:30.000Z');
+  });
+
   it('keeps a defined signal over an undefined one, regardless of order', () => {
     const before = composeAttention([
       freshContributor('beads', {}),
@@ -225,20 +240,26 @@ describe('composeAttention — read-freshness fold (gascity-dashboard-5t0m)', ()
 });
 
 describe('boardFreshness — board-wide fold for the Header liveness line (gascity-dashboard-5t0m)', () => {
-  // For the structural folds, a far-future-proof threshold so the fixed
-  // timestamps are never aged out — staleness-by-age has its own test below.
   const NOW = Date.parse('2026-06-18T12:00:05.000Z');
-  const NEVER_STALE = 24 * 60 * 60 * 1000;
+  // A staleAt comfortably in the future so a landed read still reads as current.
+  const FUTURE_STALE = '2026-06-18T12:01:00.000Z';
 
   it('folds the oldest fetchedAt + worst provenance across domains, with no degraded when all fresh', () => {
     const fresh = boardFreshness(
       composeAttention([
         freshContributor('runs', { provenance: 'fresh', fetchedAt: '2026-06-18T12:00:00.000Z' }),
-        freshContributor('mail', { provenance: 'fresh', fetchedAt: '2026-06-18T08:00:00.000Z' }),
-        freshContributor('agents', { provenance: 'fresh', fetchedAt: '2026-06-18T10:00:00.000Z' }),
+        freshContributor('mail', {
+          provenance: 'fresh',
+          fetchedAt: '2026-06-18T08:00:00.000Z',
+          staleAt: FUTURE_STALE,
+        }),
+        freshContributor('agents', {
+          provenance: 'fresh',
+          fetchedAt: '2026-06-18T10:00:00.000Z',
+          staleAt: FUTURE_STALE,
+        }),
       ]),
       NOW,
-      NEVER_STALE,
     );
 
     expect(fresh.provenance).toBe('fresh');
@@ -251,10 +272,13 @@ describe('boardFreshness — board-wide fold for the Header liveness line (gasci
       composeAttention([
         freshContributor('agents', { provenance: 'error', fetchedAt: '2026-06-18T07:00:00.000Z' }),
         freshContributor('runs', { provenance: 'stale', fetchedAt: '2026-06-18T09:00:00.000Z' }),
-        freshContributor('mail', { provenance: 'fresh', fetchedAt: '2026-06-18T12:00:00.000Z' }),
+        freshContributor('mail', {
+          provenance: 'fresh',
+          fetchedAt: '2026-06-18T12:00:00.000Z',
+          staleAt: FUTURE_STALE,
+        }),
       ]),
       NOW,
-      NEVER_STALE,
     );
 
     // Worst provenance + oldest read across the board.
@@ -267,38 +291,63 @@ describe('boardFreshness — board-wide fold for the Header liveness line (gasci
     ]);
   });
 
-  it('derives stale from read AGE — a frozen "fresh" read flips to the maroon stale state (fchh blocker 1)', () => {
+  it('derives stale from read AGE — a polled "fresh" read past its staleAt flips to maroon stale (fchh blocker 1)', () => {
     const now = Date.parse('2026-06-18T12:00:00.000Z');
     const fresh = boardFreshness(
       composeAttention([
-        // 'fresh' provenance, but the read is 2 minutes old → aged past 60s.
-        freshContributor('agents', { provenance: 'fresh', fetchedAt: '2026-06-18T11:58:00.000Z' }),
-        // 'fresh' and only 2s old → still current.
-        freshContributor('runs', { provenance: 'fresh', fetchedAt: '2026-06-18T11:59:58.000Z' }),
+        // 'fresh' provenance, but its staleAt has already passed → no longer current.
+        freshContributor('agents', {
+          provenance: 'fresh',
+          fetchedAt: '2026-06-18T11:58:00.000Z',
+          staleAt: '2026-06-18T11:59:30.000Z',
+        }),
+        // 'fresh' with a staleAt still in the future → current.
+        freshContributor('mail', {
+          provenance: 'fresh',
+          fetchedAt: '2026-06-18T11:59:58.000Z',
+          staleAt: '2026-06-18T12:01:28.000Z',
+        }),
       ]),
       now,
-      60_000,
     );
 
-    // The frozen agents read flips to stale off its AGE, not an error.
+    // The frozen agents poll flips to stale off its AGE, not an error.
     expect(fresh.degraded).toEqual([{ domain: 'agents', provenance: 'stale' }]);
     expect(fresh.provenance).toBe('stale');
+  });
+
+  it('does NOT age-flip the event-driven runs source — it carries no staleAt even when its read is old (fchh Option B)', () => {
+    const now = Date.parse('2026-06-18T12:00:00.000Z');
+    const fresh = boardFreshness(
+      composeAttention([
+        // runs read is hours old but has no staleAt: its liveness is the gc event
+        // stream (BoardLiveness/sseState), not a read age, so it must not flip.
+        freshContributor('runs', { provenance: 'fresh', fetchedAt: '2026-06-18T08:00:00.000Z' }),
+      ]),
+      now,
+    );
+    expect(fresh.degraded).toEqual([]);
+    expect(fresh.provenance).toBe('fresh');
   });
 
   it('a fixture-only board never ages to stale (demo data is not a staleness alarm)', () => {
     const fresh = boardFreshness(
       composeAttention([
-        freshContributor('runs', { provenance: 'fixture', fetchedAt: '2026-06-18T00:00:00.000Z' }),
+        // Even with a long-passed staleAt, fixture is intentional demo data.
+        freshContributor('runs', {
+          provenance: 'fixture',
+          fetchedAt: '2026-06-18T00:00:00.000Z',
+          staleAt: '2026-06-18T00:01:30.000Z',
+        }),
       ]),
       NOW,
-      60_000, // even far past the threshold, fixture does not degrade
     );
     expect(fresh.provenance).toBe('fixture');
     expect(fresh.degraded).toEqual([]);
   });
 
   it('an empty board reports no freshness and stays silent', () => {
-    const fresh = boardFreshness(composeAttention([]), NOW, NEVER_STALE);
+    const fresh = boardFreshness(composeAttention([]), NOW);
     expect(fresh.provenance).toBeUndefined();
     expect(fresh.fetchedAt).toBeUndefined();
     expect(fresh.degraded).toEqual([]);
@@ -318,7 +367,7 @@ function contributor(
 
 function freshContributor(
   domain: AttentionItem['domain'],
-  freshness: { provenance?: SourceStatus; fetchedAt?: string },
+  freshness: { provenance?: SourceStatus; fetchedAt?: string; staleAt?: string },
   items: readonly AttentionItem[] = [],
 ): AttentionContributor {
   return {
@@ -327,6 +376,7 @@ function freshContributor(
     getItems: () => items,
     ...(freshness.provenance !== undefined && { provenance: freshness.provenance }),
     ...(freshness.fetchedAt !== undefined && { fetchedAt: freshness.fetchedAt }),
+    ...(freshness.staleAt !== undefined && { staleAt: freshness.staleAt }),
   };
 }
 

@@ -50,6 +50,14 @@ export type SupervisorHealthState =
 export interface ReadFreshnessFacts {
   provenance?: SourceStatus;
   fetchedAt?: string;
+  /**
+   * ISO instant after which this read is no longer current
+   * (`fetchedAt + ATTENTION_READ_STALE_AFTER_MS`, gascity-dashboard-fchh). Set
+   * only by polled cache-read domains; the event-driven runs source omits it so
+   * it never age-flips. composeAttention folds the soonest `staleAt` per domain;
+   * boardFreshness flips a domain to `stale` once `now >= staleAt`.
+   */
+  staleAt?: string;
 }
 
 export interface HealthAttentionFacts extends ReadFreshnessFacts {
@@ -223,6 +231,7 @@ function withFreshness(
     ...base,
     ...(facts?.provenance !== undefined && { provenance: facts.provenance }),
     ...(facts?.fetchedAt !== undefined && { fetchedAt: facts.fetchedAt }),
+    ...(facts?.staleAt !== undefined && { staleAt: facts.staleAt }),
   };
 }
 

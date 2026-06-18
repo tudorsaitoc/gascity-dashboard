@@ -59,9 +59,17 @@ export interface AttentionContributor {
    * read age even when it emits zero items — the one question no item-level
    * signal answers ("is the data CURRENT?", not "is it alarming?"). `provenance`
    * is the cache read's SourceStatus; `fetchedAt` is its ISO read time.
+   *
+   * `staleAt` (gascity-dashboard-fchh) is the ISO instant after which this read
+   * is no longer current — `fetchedAt + ATTENTION_READ_STALE_AFTER_MS`, set ONLY
+   * by polled sources (the cache-read domains). The event-driven runs source
+   * leaves it undefined: its liveness is the gc event stream, not a read age, so
+   * it must not age-flip on a quiet-but-live board. {@link boardFreshness} flips
+   * a domain to `stale` once `now >= staleAt`.
    */
   provenance?: SourceStatus;
   fetchedAt?: string;
+  staleAt?: string;
 }
 
 export interface AttentionDomainSummary {
@@ -78,10 +86,13 @@ export interface AttentionDomainSummary {
    * the WORST provenance (most degraded — `fresh` < `fixture` < `stale` <
    * `error`) and the OLDEST (earliest) `fetchedAt`. Undefined when no contributor
    * reported one. Independent of `severity`: a domain can be calm (no items, null
-   * severity) yet stale — that is exactly the signal this carries.
+   * severity) yet stale — that is exactly the signal this carries. `staleAt` is
+   * the EARLIEST (soonest) stale instant across the domain's polled contributors
+   * (gascity-dashboard-fchh); undefined for event-driven sources that do not age.
    */
   provenance?: SourceStatus;
   fetchedAt?: string;
+  staleAt?: string;
 }
 
 export interface AttentionOverflowGroup {
@@ -126,6 +137,7 @@ export function composeAttention(
       byDomain[contributor.domain],
       contributor.provenance,
       contributor.fetchedAt,
+      contributor.staleAt,
     );
     for (const item of contributor.getItems()) {
       indexedItems.push({ item, index });
@@ -188,19 +200,25 @@ const PROVENANCE_RANK: Record<SourceStatus, number> = {
   error: 3,
 };
 
-/** Fold one contributor's provenance + fetchedAt into a domain summary. */
+/** Fold one contributor's provenance + fetchedAt + staleAt into a domain
+ *  summary. The summary takes the worst provenance, the oldest read time, and
+ *  the soonest stale instant — so a domain goes stale as soon as its earliest
+ *  contributor would. */
 function foldFreshness(
   summary: AttentionDomainSummary,
   provenance: SourceStatus | undefined,
   fetchedAt: string | undefined,
+  staleAt: string | undefined,
 ): AttentionDomainSummary {
   const worst = worseProvenance(summary.provenance, provenance);
   const oldest = olderFetchedAt(summary.fetchedAt, fetchedAt);
+  const soonestStale = olderFetchedAt(summary.staleAt, staleAt);
   return {
     ...summary,
     // exactOptionalPropertyTypes: include each key only when defined.
     ...(worst !== undefined && { provenance: worst }),
     ...(oldest !== undefined && { fetchedAt: oldest }),
+    ...(soonestStale !== undefined && { staleAt: soonestStale }),
   };
 }
 
@@ -239,28 +257,13 @@ export interface BoardFreshness {
   degraded: readonly { domain: AttentionDomain; provenance: SourceStatus }[];
 }
 
-export function boardFreshness(
-  model: AttentionModel,
-  nowMs: number,
-  staleAfterMs: number,
-): BoardFreshness {
+export function boardFreshness(model: AttentionModel, nowMs: number): BoardFreshness {
   let provenance: SourceStatus | undefined;
   let fetchedAt: string | undefined;
   const degraded: { domain: AttentionDomain; provenance: SourceStatus }[] = [];
   for (const domain of ATTENTION_DOMAINS) {
     const summary = model.byDomain[domain];
-    // gascity-dashboard-fchh blocker 1: most domains' provenance can only ever
-    // be 'fresh'/'error' (they are polled snapshots, not error-reporting), so a
-    // frozen-but-not-erroring read would never degrade off provenance alone.
-    // Derive 'stale' from read AGE at render time — a read older than the
-    // threshold is no longer current, mirroring the runs SourceState.staleAt
-    // convention — so a frozen source flips to the maroon stale state.
-    const effective = effectiveProvenance(
-      summary.provenance,
-      summary.fetchedAt,
-      nowMs,
-      staleAfterMs,
-    );
+    const effective = effectiveProvenance(summary, nowMs);
     provenance = worseProvenance(provenance, effective);
     fetchedAt = olderFetchedAt(fetchedAt, summary.fetchedAt);
     if (effective === 'stale' || effective === 'error') {
@@ -270,24 +273,42 @@ export function boardFreshness(
   return { provenance, fetchedAt, degraded };
 }
 
-/** A read's effective provenance, ageing a still-fresh read to 'stale' once it
- *  crosses the threshold. 'error' (a hard read failure) and an already-'stale'
- *  source are unchanged; 'fixture' is intentional demo data and never ages. */
+/**
+ * A domain's effective provenance for the liveness line (gascity-dashboard-fchh
+ * blocker 1). Most polled domains can only ever report `fresh`/`error` from a
+ * single read, so a frozen-but-not-erroring cache would never degrade off
+ * provenance alone. A polled domain therefore carries a `staleAt`
+ * (`fetchedAt + ATTENTION_READ_STALE_AFTER_MS`); once `now >= staleAt` its read
+ * is no longer current and ages to `stale`. `error` and an already-`stale`
+ * source are unchanged; `fixture` is intentional demo data and never ages; the
+ * event-driven runs source has no `staleAt`, so it never age-flips (its liveness
+ * is the gc event stream — see BoardLiveness).
+ */
 function effectiveProvenance(
-  provenance: SourceStatus | undefined,
-  fetchedAt: string | undefined,
+  summary: AttentionDomainSummary,
   nowMs: number,
-  staleAfterMs: number,
 ): SourceStatus | undefined {
+  const { provenance, staleAt } = summary;
   if (provenance === 'error' || provenance === 'stale' || provenance === 'fixture') {
     return provenance;
   }
-  if (fetchedAt !== undefined) {
-    const ageMs = nowMs - Date.parse(fetchedAt);
-    if (Number.isFinite(ageMs) && ageMs >= staleAfterMs) return 'stale';
+  if (staleAt !== undefined) {
+    const staleAtMs = Date.parse(staleAt);
+    if (Number.isFinite(staleAtMs) && nowMs >= staleAtMs) return 'stale';
   }
   return provenance;
 }
+
+// gascity-dashboard-fchh (Freshness Spine, Option B): the polled attention
+// domains (everything except the event-driven runs source) re-read on this
+// cadence so a healthy board's reads stay current. A read older than the stale
+// threshold is treated as no-longer-current and flips the board liveness line
+// maroon. INVARIANT: REFRESH_INTERVAL_MS < STALE_AFTER_MS with headroom, so a
+// healthy board re-reads ~3x before any domain can age out — only a genuinely
+// wedged/frozen refresh loop crosses the threshold. Mirrors the runs
+// SourceState.staleAt convention (RUNS_STALE_AFTER_MS = 60s).
+export const ATTENTION_READ_REFRESH_INTERVAL_MS = 30_000;
+export const ATTENTION_READ_STALE_AFTER_MS = 90_000;
 
 function compareAttentionItems(a: AttentionItem, b: AttentionItem): number {
   return (

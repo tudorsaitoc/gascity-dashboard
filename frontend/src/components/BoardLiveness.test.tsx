@@ -3,7 +3,11 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { SourceStatus } from 'gas-city-dashboard-shared';
 import { BoardLiveness } from './BoardLiveness';
 import { AttentionProvider } from '../attention/context';
-import type { AttentionContributor, AttentionDomain } from '../attention/compose';
+import {
+  ATTENTION_READ_STALE_AFTER_MS,
+  type AttentionContributor,
+  type AttentionDomain,
+} from '../attention/compose';
 import { NowProvider } from '../contexts/NowContext';
 import type { GcEventConnState } from '../hooks/useGcEvents';
 
@@ -20,17 +24,25 @@ afterEach(() => {
   mockSseState = 'open';
 });
 
+// Mirrors withReadFreshness: a landed (non-error) read carries a staleAt of
+// fetchedAt + the stale window, so age-flip is driven by a real staleAt exactly
+// as the polled domains do in production.
 function freshContributor(
   domain: AttentionDomain,
   provenance: SourceStatus | undefined,
   fetchedAt: string | undefined,
 ): AttentionContributor {
+  const staleAt =
+    provenance !== 'error' && fetchedAt !== undefined
+      ? new Date(Date.parse(fetchedAt) + ATTENTION_READ_STALE_AFTER_MS).toISOString()
+      : undefined;
   return {
     id: `${domain}:test`,
     domain,
     getItems: () => [],
     ...(provenance !== undefined && { provenance }),
     ...(fetchedAt !== undefined && { fetchedAt }),
+    ...(staleAt !== undefined && { staleAt }),
   };
 }
 
@@ -89,7 +101,7 @@ describe('BoardLiveness (gascity-dashboard-5t0m / fchh)', () => {
   it('labels several degraded domains "N degraded" (mixed stale/error), not "N stale" (minor)', () => {
     renderLiveness([
       freshContributor('agents', 'error', now()),
-      freshContributor('runs', 'fresh', minutesAgo(2)), // aged → stale
+      freshContributor('beads', 'fresh', minutesAgo(2)), // polled read aged → stale
     ]);
     const t = screen.getByRole('status').textContent ?? '';
     expect(t).toContain('2 degraded');

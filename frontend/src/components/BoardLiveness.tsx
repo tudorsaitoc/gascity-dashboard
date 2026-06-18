@@ -22,10 +22,6 @@ import { useRunSummary } from '../runs/runSummarySubscription';
 // arbitrates the viewport's single mark — when this line owns it, the "reading
 // as" indicator and the nav badges drop their accent (see Header.tsx).
 
-// Mirrors the runs SourceState.staleAt convention (RUNS_STALE_AFTER_MS). A read
-// older than this is treated as no longer current.
-const LIVENESS_STALE_AFTER_MS = 60_000;
-
 export interface BoardLivenessState {
   /** True when any domain is stale/errored or the event stream is down. */
   degraded: boolean;
@@ -40,7 +36,7 @@ export function useBoardLiveness(): BoardLivenessState {
   const model = useAttentionModel();
   const now = useNow();
   const { sseState } = useRunSummary();
-  const fresh = boardFreshness(model, now, LIVENESS_STALE_AFTER_MS);
+  const fresh = boardFreshness(model, now);
   // A closed/degraded gc event stream means updates have stopped arriving — the
   // board is freezing regardless of what each cached read's provenance says.
   const streamDown = sseState === 'closed' || sseState === 'degraded';
