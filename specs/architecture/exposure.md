@@ -2,7 +2,8 @@
 
 How to reach this dashboard from anywhere other than the machine it runs on.
 The short version: **you front it with your own authenticated proxy; the
-dashboard itself stays on loopback and ships no auth.**
+dashboard itself stays on loopback and ships no auth.** This surfaces live city
+data — gate it behind your auth front before any request can reach it.
 
 This guide is the deployment counterpart to the posture spec
 [`security.md`](./security.md). That file enumerates the controls and the
@@ -46,10 +47,14 @@ to the dashboard over loopback:
 your client ──TLS+auth──▶ your proxy (auth/SSO/allowlist) ──▶ 127.0.0.1:<port> dashboard
 ```
 
-Any authenticated front works — a reverse proxy with basic-auth or
-forward-auth (nginx, Caddy), a tailnet-scoped share (Tailscale Serve), or a
-zero-trust gateway (Cloudflare Access), among others. The dashboard does not
-care which; it only ever sees a loopback connection.
+Any authenticated front works for **read-only** exposure — a reverse proxy with
+basic-auth or forward-auth (nginx, Caddy), a tailnet-scoped share (Tailscale
+Serve), or a zero-trust gateway (Cloudflare Access), among others. **Read/write
+exposure is narrower:** only a front that rewrites `Origin` (nginx or Caddy, per
+[the load-bearing rewrite](#the-load-bearing-rewrite-host-and-origin) below)
+carries writes; the identity-scoped fronts forward the client's public `Origin`
+and must run `DASHBOARD_READONLY=1`. Either way the dashboard only ever sees a
+loopback connection.
 
 **Never put the raw port on a public interface.** That means no `0.0.0.0`
 bind (the backend refuses it anyway), no port-forward of the listener, and no
@@ -63,10 +68,10 @@ This is the single most common misconfiguration — get it right before anything
 else. Your front must rewrite **two** request headers to loopback before it
 forwards to the backend:
 
-| Header   | Rewrite to                | Why it is required                                                                                                                                                                                              |
-| -------- | ------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `Host`   | `127.0.0.1`               | The host-header allow-list (`middleware/security.ts`) rejects any other value — the DNS-rebinding floor. Applies to **every** request, GETs included.                                                          |
-| `Origin` | `http://127.0.0.1:<port>` | `originCheck` requires the `Origin` on every state-changing request (anything but `GET`/`HEAD`/`OPTIONS`) to be exactly the backend's own loopback origin. The browser sends the *public* origin (`https://dash.example.com`); un-rewritten, every write `403`s with `{"kind":"origin"}`. |
+| Header   | Rewrite to                | Why it is required                                                                                                                                                                                                                                                                        |
+| -------- | ------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `Host`   | `127.0.0.1`               | The host-header allow-list (`middleware/security.ts`) rejects any other value with **`421 Misdirected Request`** — the DNS-rebinding floor. Applies to **every** request, GETs included.                                                                                                  |
+| `Origin` | `http://127.0.0.1:<port>` | `originCheck` requires the `Origin` on every state-changing request (anything but `GET`/`HEAD`/`OPTIONS`) to be exactly the backend's own loopback origin. The browser sends the _public_ origin (`https://dash.example.com`); un-rewritten, every write `403`s with `{"kind":"origin"}`. |
 
 `<port>` is the **backend's bound port** — `8082` for the systemd production
 listener, `8081` for `npm run dev:backend` — **not** your proxy's public `443`.
@@ -76,7 +81,7 @@ reached.
 **Do not "fix" the write `403` by adding your public host to
 `ADMIN_EXTRA_ALLOWED_HOSTS`.** That widens both the host-header and the `Origin`
 allow-lists to your public name, silently dismantling the DNS-rebinding floor
-and the Origin belt — the two controls you are exposing *behind*. Rewrite the
+and the Origin belt — the two controls you are exposing _behind_. Rewrite the
 headers at the proxy instead, and keep `ADMIN_EXTRA_ALLOWED_HOSTS` empty.
 
 Only a front where you control request headers — **nginx** or **Caddy** below —
@@ -142,11 +147,15 @@ dash.example.com {
 
     reverse_proxy 127.0.0.1:8082 {
         header_up Host   127.0.0.1                 # host-allowlist (every request)
-        header_up Origin http://127.0.0.1:8082     # originCheck (writes); backend port, not 443
+        header_up Origin http://127.0.0.1:8082     # SETS/replaces Origin (not append); backend port, not 443
         flush_interval -1                          # never buffer SSE
     }
 }
 ```
+
+`header_up` with a replacement value **sets** the header — it overwrites the
+browser's public `Origin` rather than appending a second one — and requires
+**Caddy v2.4+**.
 
 ### Tailscale Serve — tailnet-only
 
@@ -182,10 +191,9 @@ Transform Rule that sets `Origin: http://127.0.0.1:8082` on requests to the host
 ## Rate-limiting at the front
 
 The dashboard has **no rate limiter of its own**. The only back-pressure in the
-codebase is a global four-slot semaphore around host shell-outs
-(`MAX_CONCURRENT = 4` in `backend/src/exec-core.ts`) — it serialises
-`git`/`gh`/`bd` reads, not HTTP requests, and it is per-process, not per-IP. HTTP
-requests, and especially long-lived streams, hit no ceiling at all.
+codebase is a small in-process exec semaphore around host shell-outs — it
+serialises `git`/`gh`/`bd` reads, not HTTP requests, and it is per-process, not
+per-IP. HTTP requests, and especially long-lived streams, hit no ceiling at all.
 
 This limiting belongs **at the BYO front, never in transit.** The
 `/gc-supervisor/*` proxy is transport-only by contract — it forwards bytes and
@@ -201,8 +209,8 @@ dashboard's costliest traffic is **streams that stay open**, not requests that
 return. Each one pins a socket and a file descriptor for its whole lifetime, so a
 handful of identities holding many streams exhausts the host long before any
 req/s ceiling notices — one stream is a _single_ request that never completes.
-This is the scoping review's risk #7: "resource exhaustion against the supervisor
-via open proxy GETs — long-lived SSE event/session streams especially."
+Resource exhaustion against the supervisor via open proxy `GET`s — long-lived SSE
+event/session streams especially — is the headline exposure risk here.
 
 The streams to bound:
 
@@ -220,11 +228,11 @@ concurrent-connection cap — not a request-rate limit — is what bounds them.
 
 ### The three knobs
 
-| Knob                            | What it bounds                                       | Recommended start, per identity |
-| ------------------------------- | --------------------------------------------------- | ------------------------------- |
-| Per-identity request rate       | reconnect storms, abusive polling, write floods     | 10 req/s, burst 30              |
-| Concurrent-connection cap       | held-open SSE — the real exhaustion vector          | 15 connections                  |
-| GET-rate ceiling                | the only verb that crosses in read-only mode        | 20 req/s, burst 50              |
+| Knob                      | What it bounds                                  | Recommended start, per identity |
+| ------------------------- | ----------------------------------------------- | ------------------------------- |
+| Per-identity request rate | reconnect storms, abusive polling, write floods | 10 req/s, burst 30              |
+| Concurrent-connection cap | held-open SSE — the real exhaustion vector      | 15 connections                  |
+| GET-rate ceiling          | the only verb that crosses in read-only mode    | 20 req/s, burst 50              |
 
 These are starting points for a one-operator (or small, known team) control
 plane — scale them by the number of real operators, not by anticipated load. The
@@ -241,15 +249,22 @@ tighten toward 5 for a strict single-tab operator.
 
 ### Concrete limits per front
 
-**nginx** — `limit_req` for rate, `limit_conn` for the stream cap, both keyed on
-the basic-auth user:
+**nginx** — `limit_req` for rate, `limit_conn` for the stream cap, keyed on the
+client address (see the note below on why not the identity):
 
 ```nginx
 # These two zone directives live in the http{} context (the conf.d files nginx
 # includes are already inside http{}) — NOT inside server{}, where nginx rejects
 # them with "directive is not allowed here".
-limit_req_zone  $remote_user zone=gcd_req:10m  rate=10r/s;
-limit_conn_zone $remote_user zone=gcd_conn:10m;
+#
+# Keyed on $binary_remote_addr, NOT $remote_user: limit_req/limit_conn run in
+# nginx's preaccess phase, BEFORE auth_basic populates $remote_user, so a
+# $remote_user key is empty here and collapses to one shared per-server bucket.
+# Per-identity limiting needs a post-auth mechanism — rate-limit at your
+# SSO/forward-auth layer, or emit the identity from an auth subrequest and key on
+# that. Per-address is the honest nginx-native limit.
+limit_req_zone  $binary_remote_addr zone=gcd_req:10m  rate=10r/s;
+limit_conn_zone $binary_remote_addr zone=gcd_conn:10m;
 
 server {
     # …TLS + auth_basic from the nginx recipe above…
@@ -370,6 +385,7 @@ Before you point an authenticated front at it:
      | grep -q withHostAllowing \
      && echo ">= #2578 ✅" || echo "PRE-#2578 ❌ — redeploy before exposing"
    ```
+
 3. **Your proxy must not fail-open.** If the auth backend is unreachable, the
    front must deny — never pass the request through unauthenticated. The
    dashboard's loopback hard-bind covers the default case, but once you put a
@@ -379,9 +395,13 @@ Before you point an authenticated front at it:
    a concurrent-connection cap, and a GET-rate ceiling at the authenticated edge
    — see [Rate-limiting at the front](#rate-limiting-at-the-front), with the
    concurrent-connection cap doing the load-bearing work against long-lived SSE.
-5. **Keep `ADMIN_EXTRA_ALLOWED_HOSTS` minimal.** Add only the `Host` value your
-   proxy actually forwards. The `127.0.0.1` / `localhost` floor is always
-   allowed; everything else is an opt-in you should keep as small as possible.
+5. **Leave `ADMIN_EXTRA_ALLOWED_HOSTS` empty.** The supported path rewrites
+   `Host` to `127.0.0.1` at the front (see [the load-bearing
+   rewrite](#the-load-bearing-rewrite-host-and-origin)), so the proxy forwards a
+   loopback `Host` and there is nothing to add. Widening the allow-list to your
+   public name dismantles the DNS-rebinding floor and the `Origin` belt — the two
+   controls you are exposing behind — so never do it; rewrite the headers at the
+   front instead.
 
 ## What the dashboard deliberately does not provide
 
