@@ -9,6 +9,18 @@ This guide is the deployment counterpart to the posture spec
 test invariants that block merge; this file is the operator runbook for the one
 decision the dashboard deliberately leaves to you — network exposure.
 
+Two absolutes frame everything below:
+
+- **No exposure without auth.** There is no supported way to put the raw port on
+  a network. If a request can reach the dashboard, an authenticated front must
+  have let it through first.
+- **Read-only is the inner belt, not the auth boundary.** `DASHBOARD_READONLY=1`
+  and the loopback bind shrink the blast radius if the front is breached; they
+  log nobody in. The auth front is the boundary — and it protects the
+  **dashboard**, not the gc supervisor, which stays unauthenticated on loopback
+  (any other process or user on the host reaches it directly, with or without
+  the dashboard).
+
 ## Default posture (zero configuration)
 
 Out of the box, with no flags and no config file:
@@ -45,6 +57,37 @@ Tailscale **Funnel** of the raw port — Funnel publishes to the public internet
 with no auth in front. Tailscale **Serve** (tailnet-only) is fine; Funnel is
 not.
 
+## The load-bearing rewrite: `Host` **and** `Origin`
+
+This is the single most common misconfiguration — get it right before anything
+else. Your front must rewrite **two** request headers to loopback before it
+forwards to the backend:
+
+| Header   | Rewrite to                | Why it is required                                                                                                                                                                                              |
+| -------- | ------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `Host`   | `127.0.0.1`               | The host-header allow-list (`middleware/security.ts`) rejects any other value — the DNS-rebinding floor. Applies to **every** request, GETs included.                                                          |
+| `Origin` | `http://127.0.0.1:<port>` | `originCheck` requires the `Origin` on every state-changing request (anything but `GET`/`HEAD`/`OPTIONS`) to be exactly the backend's own loopback origin. The browser sends the *public* origin (`https://dash.example.com`); un-rewritten, every write `403`s with `{"kind":"origin"}`. |
+
+`<port>` is the **backend's bound port** — `8082` for the systemd production
+listener, `8081` for `npm run dev:backend` — **not** your proxy's public `443`.
+The backend wants its own loopback origin, whatever port the client actually
+reached.
+
+**Do not "fix" the write `403` by adding your public host to
+`ADMIN_EXTRA_ALLOWED_HOSTS`.** That widens both the host-header and the `Origin`
+allow-lists to your public name, silently dismantling the DNS-rebinding floor
+and the Origin belt — the two controls you are exposing *behind*. Rewrite the
+headers at the proxy instead, and keep `ADMIN_EXTRA_ALLOWED_HOSTS` empty.
+
+Only a front where you control request headers — **nginx** or **Caddy** below —
+can rewrite `Origin`, so only those carry **writes**. The identity-scoped fronts
+(Tailscale Serve, Cloudflare Access) forward the client's `Origin`; run them with
+`DASHBOARD_READONLY=1`, where the supervisor write surface is already closed and
+only `GET`/`HEAD` reads — exempt from the `Origin` check — cross the wire, so the
+missing rewrite costs nothing. For read/write exposure, front with nginx or Caddy, or add
+a platform header-transform (e.g. Cloudflare Transform Rules) that sets
+`Origin: http://127.0.0.1:<port>`.
+
 ## Recipes
 
 Four concrete fronts, one per common environment. All assume the dashboard is
@@ -54,9 +97,11 @@ Each terminates TLS and authenticates at the front, then proxies over loopback.
 Pair every one of them with `DASHBOARD_READONLY=1` and the
 [hardening checklist](#hardening-checklist-when-exposing) below.
 
-Forwarding `Host: 127.0.0.1` keeps the backend host-allowlist satisfied without
-touching `ADMIN_EXTRA_ALLOWED_HOSTS`; the SSE streams (`/gc-supervisor/**`
-events, `/api` event stream) need response buffering off or they stall.
+Each rewrites `Host` (and, on the header-controlling fronts, `Origin`) to
+loopback per [the load-bearing rewrite](#the-load-bearing-rewrite-host-and-origin)
+above — without touching `ADMIN_EXTRA_ALLOWED_HOSTS`. The SSE streams
+(`/gc-supervisor/**` events, `/api` event stream) need response buffering off or
+they stall.
 
 ### nginx — basic-auth reverse proxy
 
@@ -74,7 +119,8 @@ server {
         auth_basic_user_file /etc/nginx/.gcd-htpasswd;   # fails closed: no file → 403
 
         proxy_pass         http://127.0.0.1:8082;
-        proxy_set_header   Host 127.0.0.1;               # satisfy the host-allowlist
+        proxy_set_header   Host   127.0.0.1;                  # host-allowlist (every request)
+        proxy_set_header   Origin http://127.0.0.1:8082;     # originCheck (writes); backend port, not 443
         proxy_http_version 1.1;
         proxy_set_header   Connection "";                # keep SSE connections open
         proxy_buffering    off;                          # stream events un-buffered
@@ -95,8 +141,9 @@ dash.example.com {
     }
 
     reverse_proxy 127.0.0.1:8082 {
-        header_up Host 127.0.0.1     # satisfy the host-allowlist
-        flush_interval -1            # never buffer SSE
+        header_up Host   127.0.0.1                 # host-allowlist (every request)
+        header_up Origin http://127.0.0.1:8082     # originCheck (writes); backend port, not 443
+        flush_interval -1                          # never buffer SSE
     }
 }
 ```
@@ -112,6 +159,10 @@ tailscale serve status      # must list the :8082 mapping
 tailscale funnel status     # must show NOTHING for this port
 ```
 
+Serve forwards the client's `Origin`, so writes would fail the `Origin` check.
+Run it with `DASHBOARD_READONLY=1` (the recommended pairing) and that is moot —
+the supervisor write surface is closed and only `GET`/`HEAD` reads cross the wire.
+
 ### Cloudflare Access — zero-trust gateway
 
 ```bash
@@ -123,6 +174,10 @@ cloudflared tunnel --hostname dash.example.com --url http://127.0.0.1:8082
 #    Cloudflare's edge BEFORE traffic reaches the tunnel; an unauthenticated
 #    request never reaches the host.
 ```
+
+The tunnel forwards the client's `Origin`, so pair it with `DASHBOARD_READONLY=1`
+(reads only, `Origin` check exempt). For read/write exposure, add a Cloudflare
+Transform Rule that sets `Origin: http://127.0.0.1:8082` on requests to the host.
 
 ## Hardening checklist when exposing
 
