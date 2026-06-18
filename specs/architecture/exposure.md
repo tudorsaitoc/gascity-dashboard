@@ -179,6 +179,131 @@ The tunnel forwards the client's `Origin`, so pair it with `DASHBOARD_READONLY=1
 (reads only, `Origin` check exempt). For read/write exposure, add a Cloudflare
 Transform Rule that sets `Origin: http://127.0.0.1:8082` on requests to the host.
 
+## Rate-limiting at the front
+
+The dashboard has **no rate limiter of its own**. The only back-pressure in the
+codebase is a global four-slot semaphore around host shell-outs
+(`MAX_CONCURRENT = 4` in `backend/src/exec-core.ts`) — it serialises
+`git`/`gh`/`bd` reads, not HTTP requests, and it is per-process, not per-IP. HTTP
+requests, and especially long-lived streams, hit no ceiling at all.
+
+This limiting belongs **at the BYO front, never in transit.** The
+`/gc-supervisor/*` proxy is transport-only by contract — it forwards bytes and
+nothing else. Putting a rate policy inside it would couple the dashboard to a
+supervisor concern it must not own (the same reason `DASHBOARD_READONLY` gates
+verbs at the proxy's _edge_, not its body). Enforce every limit below at the
+authenticated front, where identity is already known.
+
+### The exhaustion vector: long-lived streams
+
+A request-per-second limiter is necessary but not sufficient, because the
+dashboard's costliest traffic is **streams that stay open**, not requests that
+return. Each one pins a socket and a file descriptor for its whole lifetime, so a
+handful of identities holding many streams exhausts the host long before any
+req/s ceiling notices — one stream is a _single_ request that never completes.
+This is the scoping review's risk #7: "resource exhaustion against the supervisor
+via open proxy GETs — long-lived SSE event/session streams especially."
+
+The streams to bound:
+
+- `GET /api/maintainer/events` — the dashboard's own SSE channel
+  (`text/event-stream`, 30 s heartbeats), registered in an **unbounded**
+  in-memory client set.
+- `GET /gc-supervisor/v0/city/{city}/events` and `…/events/stream` — the
+  supervisor event streams, proxied through verbatim.
+- `GET /gc-supervisor/v0/city/{city}/session/{id}/stream` — one open stream
+  **per session view**, so a single operator with several sessions open already
+  holds several.
+
+All are `GET`s, so all cross the wire even under `DASHBOARD_READONLY=1`. A
+concurrent-connection cap — not a request-rate limit — is what bounds them.
+
+### The three knobs
+
+| Knob                            | What it bounds                                       | Recommended start, per identity |
+| ------------------------------- | --------------------------------------------------- | ------------------------------- |
+| Per-identity request rate       | reconnect storms, abusive polling, write floods     | 10 req/s, burst 30              |
+| Concurrent-connection cap       | held-open SSE — the real exhaustion vector          | 15 connections                  |
+| GET-rate ceiling                | the only verb that crosses in read-only mode        | 20 req/s, burst 50              |
+
+These are starting points for a one-operator (or small, known team) control
+plane — scale them by the number of real operators, not by anticipated load. The
+request rate is the overall per-identity ceiling; the GET-rate ceiling is a
+deliberately looser sub-limit you raise above it **only for `GET`/`HEAD`**, since
+under `DASHBOARD_READONLY=1` reads are the entire (and cheap, polling-heavy)
+surface. Key every limit on the **authenticated identity** the front already
+established
+(basic-auth user, forward-auth `Remote-User`, the Access email), falling back to
+client IP only where no identity header exists. A browser tab holds roughly the
+maintainer stream plus one supervisor event stream plus one stream per open
+session, so 15 concurrent connections leaves headroom for a couple of tabs;
+tighten toward 5 for a strict single-tab operator.
+
+### Concrete limits per front
+
+**nginx** — `limit_req` for rate, `limit_conn` for the stream cap, both keyed on
+the basic-auth user:
+
+```nginx
+# These two zone directives live in the http{} context (the conf.d files nginx
+# includes are already inside http{}) — NOT inside server{}, where nginx rejects
+# them with "directive is not allowed here".
+limit_req_zone  $remote_user zone=gcd_req:10m  rate=10r/s;
+limit_conn_zone $remote_user zone=gcd_conn:10m;
+
+server {
+    # …TLS + auth_basic from the nginx recipe above…
+    location / {
+        limit_req  zone=gcd_req burst=30 nodelay;   # per-identity request rate
+        limit_conn gcd_conn 15;                      # concurrent-connection cap (bounds SSE)
+        # …proxy_pass + Host/Origin rewrite + proxy_buffering off…
+    }
+}
+```
+
+`limit_conn` is the load-bearing one here: it counts a held-open SSE stream as a
+live connection, which a `limit_req` ceiling never sees.
+
+**Caddy** — standard Caddy ships **no** rate limiting; add the third-party
+[`caddy-ratelimit`](https://github.com/mholt/caddy-ratelimit) module via a custom
+`xcaddy` build, then key on the forward-auth identity. `rate_limit` is a handler
+directive — place it inside the `dash.example.com { … }` site block from the
+Caddy recipe above:
+
+```caddy
+rate_limit {
+    zone gcd {
+        key    {http.request.header.Remote-User}
+        events 600                                 # 600 per window…
+        window 60s                                 # …i.e. ~10 req/s per identity
+    }
+}
+```
+
+Caddy has no native concurrent-connection cap; if you need to bound streams
+precisely, terminate the cap with an nginx hop on the host or rely on the tight
+request rate plus the small, authenticated audience.
+
+**Tailscale Serve** — no rate-limiting primitive; tailnet ACLs gate **who**
+connects, not how fast. For a small, trusted tailnet running
+`DASHBOARD_READONLY=1`, that membership boundary is usually enough. If you need
+hard rate or connection caps, put an nginx hop on the host behind `tailscale
+serve` and apply the nginx limits above.
+
+**Cloudflare Access** — add a WAF **Rate Limiting Rule** at the edge, keyed on
+`cf-access-authenticated-user-email` so the budget is per operator, not shared
+across the team's egress IP:
+
+```
+When  http.request.uri.path contains "/"
+Rate  > 600 requests per 60s per cf-access-authenticated-user-email
+Then  Block (or Managed Challenge)
+```
+
+Cloudflare also enforces edge connection limits, but the rule above plus Access
+identity is the per-identity ceiling; note that rate-limiting-rule counts are
+plan-limited on the free tier.
+
 ## Hardening checklist when exposing
 
 Before you point an authenticated front at it:
@@ -217,7 +342,10 @@ Before you point an authenticated front at it:
    dashboard's loopback hard-bind covers the default case, but once you put a
    proxy in front, a fail-open proxy is the whole exposure.
 4. **Rate-limit at your proxy.** The dashboard has no per-IP throttle of its
-   own (only an in-process semaphore); apply limits at the authenticated edge.
+   own (only the in-process exec semaphore); apply a per-identity request rate,
+   a concurrent-connection cap, and a GET-rate ceiling at the authenticated edge
+   — see [Rate-limiting at the front](#rate-limiting-at-the-front), with the
+   concurrent-connection cap doing the load-bearing work against long-lived SSE.
 5. **Keep `ADMIN_EXTRA_ALLOWED_HOSTS` minimal.** Add only the `Host` value your
    proxy actually forwards. The `127.0.0.1` / `localhost` floor is always
    allowed; everything else is an opt-in you should keep as small as possible.
