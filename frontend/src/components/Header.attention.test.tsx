@@ -3,6 +3,7 @@ import { MemoryRouter } from 'react-router-dom';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { AttentionProvider } from '../attention/context';
 import type { AttentionContributor, AttentionItem } from '../attention/compose';
+import { NowProvider } from '../contexts/NowContext';
 import { ThemeProvider } from '../contexts/ThemeContext';
 import { ViewingAsProvider } from '../contexts/ViewingAsContext';
 import { Header } from './Header';
@@ -66,14 +67,16 @@ function renderHeader(contributors: readonly AttentionContributor[]) {
   return render(
     <ThemeProvider>
       <ViewingAsProvider>
-        <AttentionProvider contributors={contributors}>
-          <MemoryRouter
-            initialEntries={['/runs']}
-            future={{ v7_relativeSplatPath: true, v7_startTransition: true }}
-          >
-            <Header />
-          </MemoryRouter>
-        </AttentionProvider>
+        <NowProvider>
+          <AttentionProvider contributors={contributors}>
+            <MemoryRouter
+              initialEntries={['/runs']}
+              future={{ v7_relativeSplatPath: true, v7_startTransition: true }}
+            >
+              <Header />
+            </MemoryRouter>
+          </AttentionProvider>
+        </NowProvider>
       </ViewingAsProvider>
     </ThemeProvider>,
   );

@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import type { SourceStatus } from 'gas-city-dashboard-shared';
 import {
   ATTENTION_DOMAINS,
+  boardFreshness,
   composeAttention,
   type AttentionContributor,
   type AttentionItem,
@@ -220,6 +221,58 @@ describe('composeAttention — read-freshness fold (gascity-dashboard-5t0m)', ()
     // The fold must not disturb the existing counts/severity.
     expect(model.byDomain.runs.attention).toBe(1);
     expect(model.byDomain.runs.severity).toBe('attention');
+  });
+});
+
+describe('boardFreshness — board-wide fold for the Header liveness line (gascity-dashboard-5t0m)', () => {
+  it('folds the oldest fetchedAt + worst provenance across domains, with no degraded when all fresh', () => {
+    const fresh = boardFreshness(
+      composeAttention([
+        freshContributor('runs', { provenance: 'fresh', fetchedAt: '2026-06-18T12:00:00.000Z' }),
+        freshContributor('mail', { provenance: 'fresh', fetchedAt: '2026-06-18T08:00:00.000Z' }),
+        freshContributor('agents', { provenance: 'fresh', fetchedAt: '2026-06-18T10:00:00.000Z' }),
+      ]),
+    );
+
+    expect(fresh.provenance).toBe('fresh');
+    expect(fresh.fetchedAt).toBe('2026-06-18T08:00:00.000Z');
+    expect(fresh.degraded).toEqual([]);
+  });
+
+  it('lists every stale/errored domain as degraded — the maroon trigger — and keeps domain order', () => {
+    const fresh = boardFreshness(
+      composeAttention([
+        freshContributor('agents', { provenance: 'error', fetchedAt: '2026-06-18T07:00:00.000Z' }),
+        freshContributor('runs', { provenance: 'stale', fetchedAt: '2026-06-18T09:00:00.000Z' }),
+        freshContributor('mail', { provenance: 'fresh', fetchedAt: '2026-06-18T12:00:00.000Z' }),
+      ]),
+    );
+
+    // Worst provenance + oldest read across the board.
+    expect(fresh.provenance).toBe('error');
+    expect(fresh.fetchedAt).toBe('2026-06-18T07:00:00.000Z');
+    // degraded follows ATTENTION_DOMAINS order (agents before runs).
+    expect(fresh.degraded).toEqual([
+      { domain: 'agents', provenance: 'error' },
+      { domain: 'runs', provenance: 'stale' },
+    ]);
+  });
+
+  it('a fixture-only board is not degraded (demo data is not a staleness alarm)', () => {
+    const fresh = boardFreshness(
+      composeAttention([
+        freshContributor('runs', { provenance: 'fixture', fetchedAt: '2026-06-18T12:00:00.000Z' }),
+      ]),
+    );
+    expect(fresh.provenance).toBe('fixture');
+    expect(fresh.degraded).toEqual([]);
+  });
+
+  it('an empty board reports no freshness and stays silent', () => {
+    const fresh = boardFreshness(composeAttention([]));
+    expect(fresh.provenance).toBeUndefined();
+    expect(fresh.fetchedAt).toBeUndefined();
+    expect(fresh.degraded).toEqual([]);
   });
 });
 

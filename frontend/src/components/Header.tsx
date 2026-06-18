@@ -3,6 +3,7 @@ import { NavLink, useLocation } from 'react-router-dom';
 import { api } from '../api/client';
 import { getActiveCity } from '../api/cityBase';
 import { NavAttentionIndicator } from '../attention/NavAttentionIndicator';
+import { BoardLiveness } from './BoardLiveness';
 import { useAttentionModel } from '../attention/context';
 import type { AttentionDomain } from '../attention/compose';
 import { useTheme } from '../contexts/ThemeContext';
@@ -159,6 +160,8 @@ export function Header() {
             })}
           </ul>
         </nav>
+
+        <BoardLiveness />
 
         <button
           type="button"

@@ -226,6 +226,34 @@ function olderFetchedAt(current: string | undefined, next: string | undefined): 
   return n < c ? next : current;
 }
 
+/**
+ * Board-wide read freshness, folded across every domain summary
+ * (gascity-dashboard-5t0m, Freshness Spine). Drives the one quiet Header
+ * liveness line: `fetchedAt` is the OLDEST read on the board (the line's "as of
+ * N ago"), `provenance` the WORST, and `degraded` the domains whose read is
+ * stale/errored — the only trigger for the line's single maroon glyph+word.
+ */
+export interface BoardFreshness {
+  provenance: SourceStatus | undefined;
+  fetchedAt: string | undefined;
+  degraded: readonly { domain: AttentionDomain; provenance: SourceStatus }[];
+}
+
+export function boardFreshness(model: AttentionModel): BoardFreshness {
+  let provenance: SourceStatus | undefined;
+  let fetchedAt: string | undefined;
+  const degraded: { domain: AttentionDomain; provenance: SourceStatus }[] = [];
+  for (const domain of ATTENTION_DOMAINS) {
+    const summary = model.byDomain[domain];
+    provenance = worseProvenance(provenance, summary.provenance);
+    fetchedAt = olderFetchedAt(fetchedAt, summary.fetchedAt);
+    if (summary.provenance === 'stale' || summary.provenance === 'error') {
+      degraded.push({ domain, provenance: summary.provenance });
+    }
+  }
+  return { provenance, fetchedAt, degraded };
+}
+
 function compareAttentionItems(a: AttentionItem, b: AttentionItem): number {
   return (
     severityRank(a.severity) - severityRank(b.severity) ||
