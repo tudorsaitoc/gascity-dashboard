@@ -304,9 +304,9 @@ function effectiveProvenance(
 // cadence so a healthy board's reads stay current. A read older than the stale
 // threshold is treated as no-longer-current and flips the board liveness line
 // maroon. INVARIANT: REFRESH_INTERVAL_MS < STALE_AFTER_MS with headroom, so a
-// healthy board re-reads ~3x before any domain can age out — only a genuinely
-// wedged/frozen refresh loop crosses the threshold. Mirrors the runs
-// SourceState.staleAt convention (RUNS_STALE_AFTER_MS = 60s).
+// healthy board re-reads ~3x (90s / 30s) before any domain can age out — only a
+// genuinely wedged/frozen refresh loop crosses the threshold. Follows the same
+// fetchedAt + staleAt convention the runs SourceState uses for its own liveness.
 export const ATTENTION_READ_REFRESH_INTERVAL_MS = 30_000;
 export const ATTENTION_READ_STALE_AFTER_MS = 90_000;
 

@@ -72,6 +72,28 @@ describe('Header attention indicators', () => {
     expect(screen.getByRole('status').textContent).toContain('live updates paused');
   });
 
+  it('keeps an ochre watch badge while a degraded liveness owns the maroon mark (4q60)', () => {
+    mockSseState = 'closed'; // degraded liveness owns the sole maroon mark
+    renderHeader([
+      contributor('runs', [item('run-attn', 'runs', 'attention')]),
+      contributor('mail', [item('mail-watch', 'mail', 'watch')]),
+    ]);
+
+    // The maroon (attention) badge defers to neutral under the One Mark Rule...
+    const attnBadge = screen.getByLabelText(/Runs: 1 attention item/);
+    expect(attnBadge.className).toContain('text-fg-muted');
+    expect(attnBadge.className).not.toContain('text-accent');
+
+    // ...but Caution Ochre is a separate signal and survives: the watch badge
+    // stays text-warn rather than demoting to neutral.
+    const watchBadge = screen.getByLabelText(/Mail: 1 watch item/);
+    expect(watchBadge.className).toContain('text-warn');
+    expect(watchBadge.className).not.toContain('text-fg-muted');
+
+    // Still exactly one maroon mark in the header viewport — the liveness line.
+    expect(document.querySelectorAll('.text-accent').length).toBe(1);
+  });
+
   it('rolls up highest severity and count from the shared attention model', async () => {
     renderHeader([
       contributor('runs', [item('run-1', 'runs', 'attention'), item('run-2', 'runs', 'watch')]),

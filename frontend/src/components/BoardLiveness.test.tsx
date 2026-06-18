@@ -69,7 +69,8 @@ describe('BoardLiveness (gascity-dashboard-5t0m / fchh)', () => {
   });
 
   it('flips to maroon on an AGED-stale read — not just on a hard error (blocker 1)', () => {
-    // 'fresh' provenance, but the read is 2 minutes old → past the 60s floor.
+    // 'fresh' provenance, but the read is 2 minutes old → past the 90s stale
+    // floor (ATTENTION_READ_STALE_AFTER_MS).
     renderLiveness([freshContributor('agents', 'fresh', minutesAgo(2))]);
     const line = screen.getByRole('status');
     expect(line.textContent).toContain('agents stale');
