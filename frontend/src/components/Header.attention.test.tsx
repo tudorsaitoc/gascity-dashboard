@@ -28,6 +28,13 @@ vi.mock('../supervisor/client', () => ({
   }),
 }));
 
+// gascity-dashboard-fchh: the liveness line reads the event-stream state. Drive
+// it from a module var so a test can force a degraded header.
+let mockSseState = 'open';
+vi.mock('../runs/runSummarySubscription', () => ({
+  useRunSummary: () => ({ sseState: mockSseState }),
+}));
+
 describe('Header attention indicators', () => {
   beforeEach(() => {
     Object.defineProperty(window, 'matchMedia', {
@@ -47,6 +54,22 @@ describe('Header attention indicators', () => {
 
   afterEach(() => {
     cleanup();
+    mockSseState = 'open';
+  });
+
+  it('honors DESIGN.md One Mark — a degraded liveness owns the sole header accent; nav badge defers (fchh major 4)', () => {
+    mockSseState = 'closed'; // degraded liveness owns the mark
+    renderHeader([contributor('runs', [item('run-attn', 'runs', 'attention')])]);
+
+    // The nav attention badge renders its count but in NEUTRAL tone, not accent.
+    const badge = screen.getByLabelText(/Runs: 1 attention item/);
+    expect(badge.className).toContain('text-fg-muted');
+    expect(badge.className).not.toContain('text-accent');
+
+    // Exactly one maroon mark in the header viewport — the liveness line.
+    const accents = document.querySelectorAll('.text-accent');
+    expect(accents.length).toBe(1);
+    expect(screen.getByRole('status').textContent).toContain('live updates paused');
   });
 
   it('rolls up highest severity and count from the shared attention model', async () => {

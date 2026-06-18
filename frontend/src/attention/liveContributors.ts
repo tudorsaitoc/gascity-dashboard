@@ -32,7 +32,7 @@ import {
  * per-domain fold ages off. Returns undefined facts untouched (a domain with no
  * data yet has no freshness signal).
  */
-function withReadFreshness<T extends ReadFreshnessFacts>(
+export function withReadFreshness<T extends ReadFreshnessFacts>(
   facts: T | undefined,
   fetchedAt: string | undefined,
   error: string | null,

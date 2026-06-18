@@ -239,19 +239,54 @@ export interface BoardFreshness {
   degraded: readonly { domain: AttentionDomain; provenance: SourceStatus }[];
 }
 
-export function boardFreshness(model: AttentionModel): BoardFreshness {
+export function boardFreshness(
+  model: AttentionModel,
+  nowMs: number,
+  staleAfterMs: number,
+): BoardFreshness {
   let provenance: SourceStatus | undefined;
   let fetchedAt: string | undefined;
   const degraded: { domain: AttentionDomain; provenance: SourceStatus }[] = [];
   for (const domain of ATTENTION_DOMAINS) {
     const summary = model.byDomain[domain];
-    provenance = worseProvenance(provenance, summary.provenance);
+    // gascity-dashboard-fchh blocker 1: most domains' provenance can only ever
+    // be 'fresh'/'error' (they are polled snapshots, not error-reporting), so a
+    // frozen-but-not-erroring read would never degrade off provenance alone.
+    // Derive 'stale' from read AGE at render time — a read older than the
+    // threshold is no longer current, mirroring the runs SourceState.staleAt
+    // convention — so a frozen source flips to the maroon stale state.
+    const effective = effectiveProvenance(
+      summary.provenance,
+      summary.fetchedAt,
+      nowMs,
+      staleAfterMs,
+    );
+    provenance = worseProvenance(provenance, effective);
     fetchedAt = olderFetchedAt(fetchedAt, summary.fetchedAt);
-    if (summary.provenance === 'stale' || summary.provenance === 'error') {
-      degraded.push({ domain, provenance: summary.provenance });
+    if (effective === 'stale' || effective === 'error') {
+      degraded.push({ domain, provenance: effective });
     }
   }
   return { provenance, fetchedAt, degraded };
+}
+
+/** A read's effective provenance, ageing a still-fresh read to 'stale' once it
+ *  crosses the threshold. 'error' (a hard read failure) and an already-'stale'
+ *  source are unchanged; 'fixture' is intentional demo data and never ages. */
+function effectiveProvenance(
+  provenance: SourceStatus | undefined,
+  fetchedAt: string | undefined,
+  nowMs: number,
+  staleAfterMs: number,
+): SourceStatus | undefined {
+  if (provenance === 'error' || provenance === 'stale' || provenance === 'fixture') {
+    return provenance;
+  }
+  if (fetchedAt !== undefined) {
+    const ageMs = nowMs - Date.parse(fetchedAt);
+    if (Number.isFinite(ageMs) && ageMs >= staleAfterMs) return 'stale';
+  }
+  return provenance;
 }
 
 function compareAttentionItems(a: AttentionItem, b: AttentionItem): number {

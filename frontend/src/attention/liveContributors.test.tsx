@@ -6,7 +6,12 @@ import { invalidate } from '../api/cache';
 import { setActiveCity } from '../api/cityBase';
 import type { OperatorConfig } from '../contexts/OperatorConfigContext';
 import { composeAttention } from './compose';
-import { runsFactsFromSource, useLiveAttentionContributors } from './liveContributors';
+import type { AgentsAttentionFacts } from './registry';
+import {
+  runsFactsFromSource,
+  useLiveAttentionContributors,
+  withReadFreshness,
+} from './liveContributors';
 
 // Operator identity the live hook reads from /config (gascity-dashboard-bhvn).
 const testOperator: OperatorConfig = {
@@ -437,5 +442,34 @@ describe('useLiveAttentionContributors', () => {
 
     expect(mockApi.maintainerTriage).not.toHaveBeenCalled();
     expect(composeAttention(result.current).byDomain.maintainer.attention).toBe(0);
+  });
+});
+
+describe('withReadFreshness — cache-read freshness onto facts (gascity-dashboard-fchh)', () => {
+  it('maps a failed read to provenance "error"', () => {
+    expect(withReadFreshness({}, '2026-06-18T12:00:00.000Z', 'boom')).toEqual({
+      provenance: 'error',
+      fetchedAt: '2026-06-18T12:00:00.000Z',
+    });
+  });
+
+  it('maps a landed read with no error to provenance "fresh", preserving other fields', () => {
+    expect(
+      withReadFreshness<AgentsAttentionFacts>({ partial: false }, '2026-06-18T12:00:00.000Z', null),
+    ).toEqual({
+      partial: false,
+      provenance: 'fresh',
+      fetchedAt: '2026-06-18T12:00:00.000Z',
+    });
+  });
+
+  it('omits provenance when there is no error and no fetchedAt yet', () => {
+    expect(withReadFreshness<AgentsAttentionFacts>({ partial: true }, undefined, null)).toEqual({
+      partial: true,
+    });
+  });
+
+  it('leaves undefined facts untouched', () => {
+    expect(withReadFreshness(undefined, '2026-06-18T12:00:00.000Z', null)).toBeUndefined();
   });
 });
