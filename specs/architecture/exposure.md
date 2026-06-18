@@ -63,10 +63,10 @@ This is the single most common misconfiguration — get it right before anything
 else. Your front must rewrite **two** request headers to loopback before it
 forwards to the backend:
 
-| Header   | Rewrite to                | Why it is required                                                                                                                                                                                              |
-| -------- | ------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `Host`   | `127.0.0.1`               | The host-header allow-list (`middleware/security.ts`) rejects any other value — the DNS-rebinding floor. Applies to **every** request, GETs included.                                                          |
-| `Origin` | `http://127.0.0.1:<port>` | `originCheck` requires the `Origin` on every state-changing request (anything but `GET`/`HEAD`/`OPTIONS`) to be exactly the backend's own loopback origin. The browser sends the *public* origin (`https://dash.example.com`); un-rewritten, every write `403`s with `{"kind":"origin"}`. |
+| Header   | Rewrite to                | Why it is required                                                                                                                                                                                                                                                                        |
+| -------- | ------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `Host`   | `127.0.0.1`               | The host-header allow-list (`middleware/security.ts`) rejects any other value — the DNS-rebinding floor. Applies to **every** request, GETs included.                                                                                                                                     |
+| `Origin` | `http://127.0.0.1:<port>` | `originCheck` requires the `Origin` on every state-changing request (anything but `GET`/`HEAD`/`OPTIONS`) to be exactly the backend's own loopback origin. The browser sends the _public_ origin (`https://dash.example.com`); un-rewritten, every write `403`s with `{"kind":"origin"}`. |
 
 `<port>` is the **backend's bound port** — `8082` for the systemd production
 listener, `8081` for `npm run dev:backend` — **not** your proxy's public `443`.
@@ -76,7 +76,7 @@ reached.
 **Do not "fix" the write `403` by adding your public host to
 `ADMIN_EXTRA_ALLOWED_HOSTS`.** That widens both the host-header and the `Origin`
 allow-lists to your public name, silently dismantling the DNS-rebinding floor
-and the Origin belt — the two controls you are exposing *behind*. Rewrite the
+and the Origin belt — the two controls you are exposing _behind_. Rewrite the
 headers at the proxy instead, and keep `ADMIN_EXTRA_ALLOWED_HOSTS` empty.
 
 Only a front where you control request headers — **nginx** or **Caddy** below —
