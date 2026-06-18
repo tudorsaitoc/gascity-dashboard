@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import type { SourceStatus } from 'gas-city-dashboard-shared';
 import {
   ATTENTION_DOMAINS,
   composeAttention,
@@ -129,6 +130,99 @@ describe('composeAttention', () => {
   });
 });
 
+describe('composeAttention — read-freshness fold (gascity-dashboard-5t0m)', () => {
+  it('folds a contributor read provenance + fetchedAt onto its domain summary', () => {
+    const model = composeAttention([
+      freshContributor('runs', { provenance: 'fresh', fetchedAt: '2026-06-18T12:00:00.000Z' }, [
+        item('run-1', 'runs', 'attention'),
+      ]),
+    ]);
+
+    expect(model.byDomain.runs.provenance).toBe('fresh');
+    expect(model.byDomain.runs.fetchedAt).toBe('2026-06-18T12:00:00.000Z');
+  });
+
+  it('records freshness for a CALM domain with zero items — the frozen-but-quiet signal', () => {
+    // The whole point of the spine: a domain can be calm (no items, null
+    // severity) yet stale. The fold is contributor-level, so it captures age
+    // even when nothing alarming was emitted.
+    const model = composeAttention([
+      freshContributor(
+        'agents',
+        { provenance: 'stale', fetchedAt: '2026-06-18T09:00:00.000Z' },
+        [],
+      ),
+    ]);
+
+    expect(model.byDomain.agents.items).toEqual([]);
+    expect(model.byDomain.agents.severity).toBeNull();
+    expect(model.byDomain.agents.provenance).toBe('stale');
+    expect(model.byDomain.agents.fetchedAt).toBe('2026-06-18T09:00:00.000Z');
+  });
+
+  it('folds the WORST provenance across a domain (fresh < fixture < stale < error)', () => {
+    const model = composeAttention([
+      freshContributor('runs', { provenance: 'fresh' }),
+      freshContributor('runs', { provenance: 'stale' }),
+      freshContributor('runs', { provenance: 'error' }),
+      freshContributor('runs', { provenance: 'fixture' }),
+    ]);
+
+    expect(model.byDomain.runs.provenance).toBe('error');
+  });
+
+  it('ranks fixture worse than fresh but better than stale', () => {
+    expect(
+      composeAttention([
+        freshContributor('runs', { provenance: 'fresh' }),
+        freshContributor('runs', { provenance: 'fixture' }),
+      ]).byDomain.runs.provenance,
+    ).toBe('fixture');
+    expect(
+      composeAttention([
+        freshContributor('runs', { provenance: 'fixture' }),
+        freshContributor('runs', { provenance: 'stale' }),
+      ]).byDomain.runs.provenance,
+    ).toBe('stale');
+  });
+
+  it('folds the OLDEST (earliest) fetchedAt across a domain', () => {
+    const model = composeAttention([
+      freshContributor('mail', { fetchedAt: '2026-06-18T12:00:00.000Z' }),
+      freshContributor('mail', { fetchedAt: '2026-06-18T08:00:00.000Z' }),
+      freshContributor('mail', { fetchedAt: '2026-06-18T10:00:00.000Z' }),
+    ]);
+
+    expect(model.byDomain.mail.fetchedAt).toBe('2026-06-18T08:00:00.000Z');
+  });
+
+  it('keeps a defined signal over an undefined one, regardless of order', () => {
+    const before = composeAttention([
+      freshContributor('beads', {}),
+      freshContributor('beads', { provenance: 'error', fetchedAt: '2026-06-18T01:00:00.000Z' }),
+    ]);
+    const after = composeAttention([
+      freshContributor('beads', { provenance: 'error', fetchedAt: '2026-06-18T01:00:00.000Z' }),
+      freshContributor('beads', {}),
+    ]);
+
+    expect(before.byDomain.beads.provenance).toBe('error');
+    expect(after.byDomain.beads.provenance).toBe('error');
+    expect(before.byDomain.beads.fetchedAt).toBe('2026-06-18T01:00:00.000Z');
+    expect(after.byDomain.beads.fetchedAt).toBe('2026-06-18T01:00:00.000Z');
+  });
+
+  it('leaves provenance/fetchedAt undefined when no contributor reports them', () => {
+    const model = composeAttention([contributor('runs', [item('run-1', 'runs', 'attention')])]);
+
+    expect(model.byDomain.runs.provenance).toBeUndefined();
+    expect(model.byDomain.runs.fetchedAt).toBeUndefined();
+    // The fold must not disturb the existing counts/severity.
+    expect(model.byDomain.runs.attention).toBe(1);
+    expect(model.byDomain.runs.severity).toBe('attention');
+  });
+});
+
 function contributor(
   domain: AttentionItem['domain'],
   items: readonly AttentionItem[],
@@ -137,6 +231,20 @@ function contributor(
     id: `${domain}-test`,
     domain,
     getItems: () => items,
+  };
+}
+
+function freshContributor(
+  domain: AttentionItem['domain'],
+  freshness: { provenance?: SourceStatus; fetchedAt?: string },
+  items: readonly AttentionItem[] = [],
+): AttentionContributor {
+  return {
+    id: `${domain}-fresh`,
+    domain,
+    getItems: () => items,
+    ...(freshness.provenance !== undefined && { provenance: freshness.provenance }),
+    ...(freshness.fetchedAt !== undefined && { fetchedAt: freshness.fetchedAt }),
   };
 }
 

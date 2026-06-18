@@ -1,5 +1,5 @@
 import { useMemo } from 'react';
-import { type RunSummary, type SourceState } from 'gas-city-dashboard-shared';
+import { type RunSummary, type SourceState, type SourceStatus } from 'gas-city-dashboard-shared';
 import { api, formatApiError } from '../api/client';
 import { getActiveCity } from '../api/cityBase';
 import { type OperatorConfig } from '../contexts/OperatorConfigContext';
@@ -19,8 +19,33 @@ import {
   type HealthAttentionFacts,
   type MailAttentionFacts,
   type MaintainerAttentionFacts,
+  type ReadFreshnessFacts,
   type RunsAttentionFacts,
 } from './registry';
+
+/**
+ * Thread a cached source's read freshness onto its facts (gascity-dashboard-5t0m,
+ * Freshness Spine). The runs source carries its own SourceState provenance
+ * (runsFactsFromSource); every other domain reads through useCachedData, whose
+ * read state is just `fetchedAt` + `error` — so a failed refresh reports `error`,
+ * a landed read `fresh`, and the ISO `fetchedAt` carries the real age the
+ * per-domain fold ages off. Returns undefined facts untouched (a domain with no
+ * data yet has no freshness signal).
+ */
+function withReadFreshness<T extends ReadFreshnessFacts>(
+  facts: T | undefined,
+  fetchedAt: string | undefined,
+  error: string | null,
+): T | undefined {
+  if (facts === undefined) return undefined;
+  const provenance: SourceStatus | undefined =
+    error !== null ? 'error' : fetchedAt !== undefined ? 'fresh' : undefined;
+  return {
+    ...facts,
+    ...(provenance !== undefined && { provenance }),
+    ...(fetchedAt !== undefined && { fetchedAt }),
+  };
+}
 
 const ATTENTION_LIST_LIMIT = 1000;
 const ACTIVITY_EVENT_FETCH_LIMIT = 100;
@@ -70,16 +95,40 @@ export function useLiveAttentionContributors(
     () =>
       createAttentionContributors(
         compactFacts({
-          activity: activity.data,
-          agents: agents.data,
-          beads: beads.data,
-          health: health.data,
-          mail: mail.data,
-          maintainer: maintainer.data,
+          // gascity-dashboard-5t0m: thread each cache read's fetchedAt + derived
+          // provenance onto the facts so composeAttention can fold a board-wide
+          // read-age/liveness signal. runs already carries its SourceState
+          // provenance via runsFactsFromSource.
+          activity: withReadFreshness(activity.data, activity.fetchedAt, activity.error),
+          agents: withReadFreshness(agents.data, agents.fetchedAt, agents.error),
+          beads: withReadFreshness(beads.data, beads.fetchedAt, beads.error),
+          health: withReadFreshness(health.data, health.fetchedAt, health.error),
+          mail: withReadFreshness(mail.data, mail.fetchedAt, mail.error),
+          maintainer: withReadFreshness(maintainer.data, maintainer.fetchedAt, maintainer.error),
           runs,
         }),
       ),
-    [activity.data, agents.data, beads.data, health.data, mail.data, maintainer.data, runs],
+    [
+      activity.data,
+      activity.fetchedAt,
+      activity.error,
+      agents.data,
+      agents.fetchedAt,
+      agents.error,
+      beads.data,
+      beads.fetchedAt,
+      beads.error,
+      health.data,
+      health.fetchedAt,
+      health.error,
+      mail.data,
+      mail.fetchedAt,
+      mail.error,
+      maintainer.data,
+      maintainer.fetchedAt,
+      maintainer.error,
+      runs,
+    ],
   );
 }
 

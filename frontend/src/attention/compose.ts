@@ -52,6 +52,16 @@ export interface AttentionContributor {
   id: string;
   domain: AttentionDomain;
   getItems(): readonly AttentionItem[];
+  /**
+   * Read freshness of the source backing this contributor
+   * (gascity-dashboard-5t0m, Freshness Spine). Folded per-domain into
+   * {@link AttentionDomainSummary} so a calm-but-frozen domain still reports its
+   * read age even when it emits zero items — the one question no item-level
+   * signal answers ("is the data CURRENT?", not "is it alarming?"). `provenance`
+   * is the cache read's SourceStatus; `fetchedAt` is its ISO read time.
+   */
+  provenance?: SourceStatus;
+  fetchedAt?: string;
 }
 
 export interface AttentionDomainSummary {
@@ -63,6 +73,15 @@ export interface AttentionDomainSummary {
   /** Badge tier — only ever attention/watch/null; `unavailable` never sets it. */
   severity: BadgeSeverity | null;
   items: readonly AttentionItem[];
+  /**
+   * Freshness folded across this domain's contributors (gascity-dashboard-5t0m):
+   * the WORST provenance (most degraded — `fresh` < `fixture` < `stale` <
+   * `error`) and the OLDEST (earliest) `fetchedAt`. Undefined when no contributor
+   * reported one. Independent of `severity`: a domain can be calm (no items, null
+   * severity) yet stale — that is exactly the signal this carries.
+   */
+  provenance?: SourceStatus;
+  fetchedAt?: string;
 }
 
 export interface AttentionOverflowGroup {
@@ -99,12 +118,21 @@ export function composeAttention(
   let index = 0;
 
   for (const contributor of contributors) {
+    // gascity-dashboard-5t0m: fold the contributor's own read freshness FIRST,
+    // before its items — so a calm contributor (zero items) still records its
+    // age/provenance on the domain summary. The item loop preserves these via
+    // the `...summary` spread.
+    byDomain[contributor.domain] = foldFreshness(
+      byDomain[contributor.domain],
+      contributor.provenance,
+      contributor.fetchedAt,
+    );
     for (const item of contributor.getItems()) {
       indexedItems.push({ item, index });
       const summary = byDomain[item.domain];
       const nextItems = [...summary.items, item];
       byDomain[item.domain] = {
-        domain: item.domain,
+        ...summary,
         attention: summary.attention + (item.severity === 'attention' ? 1 : 0),
         watch: summary.watch + (item.severity === 'watch' ? 1 : 0),
         unavailable: summary.unavailable + (item.severity === 'unavailable' ? 1 : 0),
@@ -147,6 +175,55 @@ function emptyDomainSummaries(): Record<AttentionDomain, AttentionDomainSummary>
 function highestSeverity(current: BadgeSeverity | null, next: BadgeSeverity): BadgeSeverity {
   if (current === 'attention' || next === 'attention') return 'attention';
   return 'watch';
+}
+
+// gascity-dashboard-5t0m: read-freshness fold. "Worst" provenance is the most
+// degraded for the liveness question — a live read (`fresh`) is best; `fixture`
+// is intentional demo data (not live but not broken); `stale` is a real source
+// gone old; `error` is a failed read. Higher rank wins.
+const PROVENANCE_RANK: Record<SourceStatus, number> = {
+  fresh: 0,
+  fixture: 1,
+  stale: 2,
+  error: 3,
+};
+
+/** Fold one contributor's provenance + fetchedAt into a domain summary. */
+function foldFreshness(
+  summary: AttentionDomainSummary,
+  provenance: SourceStatus | undefined,
+  fetchedAt: string | undefined,
+): AttentionDomainSummary {
+  const worst = worseProvenance(summary.provenance, provenance);
+  const oldest = olderFetchedAt(summary.fetchedAt, fetchedAt);
+  return {
+    ...summary,
+    // exactOptionalPropertyTypes: include each key only when defined.
+    ...(worst !== undefined && { provenance: worst }),
+    ...(oldest !== undefined && { fetchedAt: oldest }),
+  };
+}
+
+/** The more-degraded of two provenances (undefined = no signal yet). */
+function worseProvenance(
+  current: SourceStatus | undefined,
+  next: SourceStatus | undefined,
+): SourceStatus | undefined {
+  if (current === undefined) return next;
+  if (next === undefined) return current;
+  return PROVENANCE_RANK[next] > PROVENANCE_RANK[current] ? next : current;
+}
+
+/** The older (earlier) of two ISO read times. Unparsable values lose to a
+ *  parsable one, so a real read time always wins over a malformed marker. */
+function olderFetchedAt(current: string | undefined, next: string | undefined): string | undefined {
+  if (current === undefined) return next;
+  if (next === undefined) return current;
+  const c = Date.parse(current);
+  const n = Date.parse(next);
+  if (!Number.isFinite(n)) return current;
+  if (!Number.isFinite(c)) return next;
+  return n < c ? next : current;
 }
 
 function compareAttentionItems(a: AttentionItem, b: AttentionItem): number {
