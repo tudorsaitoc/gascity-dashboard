@@ -336,7 +336,41 @@ Before you point an authenticated front at it:
 2. **Keep the gc supervisor on loopback and patched.** The read-only gate sits
    _upstream_ of the supervisor, so it only protects requests that go through
    the dashboard. The supervisor's own port (`:8372` by default) must not be
-   independently reachable, and it must carry the host-header rebinding fix.
+   independently reachable, and it must carry the host-header rebinding fix
+   (gascity **#2578**, _"Harden supervisor Host handling and request audit"_,
+   merged 2026-06-06). Confirm your **deployed** build carries it before you
+   expose — a build that predates #2578 is a hard blocker, not a note.
+
+   **Behavioral check (preferred — needs no source checkout).** #2578 makes the
+   supervisor reject a Host header that is not loopback or allow-listed with
+   `421 host_not_allowed`. Probe the live supervisor directly:
+
+   ```bash
+   # Disallowed Host MUST be rejected — proves the rebinding guard is live:
+   curl -s -o /dev/null -w '%{http_code}\n' -H 'Host: evil.example.com' \
+     http://127.0.0.1:8372/health        # expect 421 (host_not_allowed)
+   # Loopback Host still passes:
+   curl -s -o /dev/null -w '%{http_code}\n' -H 'Host: 127.0.0.1:8372' \
+     http://127.0.0.1:8372/health        # expect 200
+   ```
+
+   A `200` for the first probe means the deployed build is **pre-#2578** —
+   stop, redeploy the supervisor, do not expose.
+
+   **Build-id audit (for the source-tree-keeping operator).** `/health` reports
+   the deployed commit as `build_id`. Check the deployed tree itself for the
+   fix's distinctive symbol rather than resolving #2578 by commit subject — the
+   merge has been rebased more than once, so two commits share that subject and
+   only one is an ancestor of any given build, which makes a `git log --grep`
+   lookup unreliable:
+
+   ```bash
+   build_id=$(curl -fsS http://127.0.0.1:8372/health | grep -o '"build_id":"[^"]*"' | cut -d'"' -f4)
+   git -C <gascity-source> show "$build_id:internal/api/middleware.go" \
+     | grep -q withHostAllowing \
+     && echo ">= #2578 ✅" || echo "PRE-#2578 ❌ — redeploy before exposing"
+   ```
+
 3. **Your proxy must not fail-open.** If the auth backend is unreachable, the
    front must deny — never pass the request through unauthenticated. The
    dashboard's loopback hard-bind covers the default case, but once you put a
