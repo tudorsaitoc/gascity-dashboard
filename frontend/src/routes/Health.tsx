@@ -312,7 +312,9 @@ function KvList({ children }: { children: ReactNode }) {
   // Two-column typeset list. Label left, value right, hairlines
   // between rows. Tabular numerals for value alignment.
   return (
-    <dl className="grid grid-cols-[max-content_1fr] gap-x-8 gap-y-3 max-w-prose">{children}</dl>
+    <dl className="grid grid-cols-[max-content_minmax(0,1fr)] gap-x-8 gap-y-3 max-w-prose">
+      {children}
+    </dl>
   );
 }
 
@@ -321,7 +323,7 @@ function Kv({ label, value, tone }: { label: string; value: string; tone?: 'warn
   return (
     <>
       <dt className="text-body text-fg-muted">{label}</dt>
-      <dd className={`text-body tnum font-medium ${valueColor}`}>{value}</dd>
+      <dd className={`min-w-0 break-words text-body tnum font-medium ${valueColor}`}>{value}</dd>
     </>
   );
 }
@@ -355,7 +357,7 @@ function ToolVersionsTable({ state }: { state: LocalToolVersionsState | null }) 
     { label: 'dolt', tool: state.data.dolt },
   ];
   return (
-    <div className="grid grid-cols-[1fr_max-content] gap-x-8 gap-y-3 max-w-prose">
+    <div className="grid grid-cols-[minmax(0,1fr)_max-content] gap-x-8 gap-y-3 max-w-prose">
       <div className="text-label uppercase tracking-wider text-fg-muted">Tool</div>
       <div className="text-label uppercase tracking-wider text-fg-muted text-right">Installed</div>
       {rows.map((row) => (
@@ -466,7 +468,7 @@ function RigStoreRow({ rig }: { rig: RigStoreHealth }) {
         <span className="text-body font-medium text-fg">{rig.rig}</span>
         <StatusBadge tone={status.tone} label={status.label} />
       </div>
-      <dl className="grid grid-cols-[max-content_1fr] gap-x-6 gap-y-1">
+      <dl className="grid grid-cols-[max-content_minmax(0,1fr)] gap-x-6 gap-y-1">
         <Kv
           label="Dolt server"
           value={rigDoltServerValue(rig)}
@@ -481,7 +483,7 @@ function RigStoreRow({ rig }: { rig: RigStoreHealth }) {
           {rig.problems.map((p) => (
             <li
               key={`${p.category}/${p.name}`}
-              className={`text-label ${p.status === 'error' ? 'text-accent' : 'text-warn'}`}
+              className={`text-label break-words ${p.status === 'error' ? 'text-accent' : 'text-warn'}`}
             >
               {p.name}: {p.message}
             </li>
@@ -553,7 +555,7 @@ function ConfigComparison({ comparison }: { comparison: DiagnosticDatum<ConfigCo
   return (
     <div className="space-y-2">
       {comparison.stale !== undefined && <StaleNote message={comparison.stale} />}
-      <div className="grid grid-cols-[1fr_max-content_max-content] gap-x-8 gap-y-3 max-w-prose">
+      <div className="grid grid-cols-[minmax(0,1fr)_max-content_max-content] gap-x-8 gap-y-3 max-w-prose">
         <div className="text-label uppercase tracking-wider text-fg-muted">Setting</div>
         <div className="text-label uppercase tracking-wider text-fg-muted text-right">
           Recommended
