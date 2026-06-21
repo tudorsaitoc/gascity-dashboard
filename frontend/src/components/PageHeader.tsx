@@ -18,9 +18,7 @@ export function PageHeader({ title, synopsis, meta, className = '' }: PageHeader
       className={`grid grid-cols-1 items-start gap-x-6 gap-y-4 mb-10 md:grid-cols-[minmax(0,1fr)_auto] md:items-end ${className}`}
     >
       <div className="min-w-0 space-y-2">
-        <h1 className="text-display font-semibold tracking-tighter text-fg leading-[1.05]">
-          {title}
-        </h1>
+        <h1 className="text-headline sm:text-display font-semibold text-fg">{title}</h1>
         {synopsis && <p className="text-body text-fg-muted max-w-prose">{synopsis}</p>}
       </div>
       {meta && (
