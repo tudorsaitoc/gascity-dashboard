@@ -166,8 +166,11 @@ describe('ActivityPage', () => {
   it('renders deploy and commit activity without using supervisor mirrors', async () => {
     renderPage('/activity');
 
-    expect(await screen.findByText('stage: frontend')).toBeTruthy();
-    expect(screen.getByText('wire activity route')).toBeTruthy();
+    const deployTable = await screen.findByRole('table', { name: /deploy history/i });
+    expect(within(deployTable).getByText('stage: frontend')).toBeTruthy();
+    expect(
+      within(screen.getByRole('table', { name: /git commits/i })).getByText('wire activity route'),
+    ).toBeTruthy();
     expect(fetchCalls.some((call) => call.path === '/api/builds')).toBe(true);
     expect(fetchCalls.some((call) => call.path === '/api/git/commits')).toBe(true);
     expect(fetchCalls.some((call) => call.path === '/api/city/test-city/snapshot')).toBe(false);
@@ -178,8 +181,8 @@ describe('ActivityPage', () => {
       eventId: 'activity:event:42:session.crashed',
     });
 
-    const eventText = await screen.findByText('session.crashed');
-    const row = eventText.closest('tr');
+    const table = await screen.findByRole('table', { name: /supervisor events/i });
+    const row = within(table).getByText('session.crashed').closest('tr');
     expect(row?.getAttribute('data-attention-severity')).toBe('attention');
   });
 
@@ -231,8 +234,8 @@ describe('ActivityPage', () => {
       deploys: true,
     });
 
-    const deployText = await screen.findByText('stage: frontend');
-    const row = deployText.closest('tr');
+    const table = await screen.findByRole('table', { name: /deploy history/i });
+    const row = within(table).getByText('stage: frontend').closest('tr');
     expect(row?.getAttribute('data-attention-severity')).toBe('attention');
   });
 
@@ -250,9 +253,43 @@ describe('ActivityPage', () => {
 
     renderPage('/activity');
 
-    expect(await screen.findByText('stage: frontend')).toBeTruthy();
-    expect(screen.getByText('wire activity route')).toBeTruthy();
+    const deployTable = await screen.findByRole('table', { name: /deploy history/i });
+    expect(within(deployTable).getByText('stage: frontend')).toBeTruthy();
+    expect(
+      within(screen.getByRole('table', { name: /git commits/i })).getByText('wire activity route'),
+    ).toBeTruthy();
     expect(screen.getAllByText(/event history unavailable/i).length).toBeGreaterThan(0);
+  });
+
+  it('renders a dedicated mobile stacked layout below sm for each activity section', async () => {
+    renderPage('/activity');
+
+    const eventsList = await screen.findByRole('list', { name: /supervisor events/i });
+    expect(eventsList.className).toContain('sm:hidden');
+    expect(within(eventsList).getByText('session.crashed')).toBeTruthy();
+
+    // The desktop table is hidden below sm: and shows from sm: up, so the two
+    // layouts never paint at once.
+    const eventsTable = screen.getByRole('table', { name: /supervisor events/i });
+    expect(eventsTable.parentElement?.className).toContain('hidden');
+    expect(eventsTable.parentElement?.className).toContain('sm:block');
+
+    expect(
+      within(screen.getByRole('list', { name: /deploy history/i })).getByText('stage: frontend'),
+    ).toBeTruthy();
+    expect(
+      within(screen.getByRole('list', { name: /git commits/i })).getByText('wire activity route'),
+    ).toBeTruthy();
+  });
+
+  it('carries attention severity onto the mobile stacked event row', async () => {
+    renderPage('/activity?mode=events', {
+      eventId: 'activity:event:42:session.crashed',
+    });
+
+    const list = await screen.findByRole('list', { name: /supervisor events/i });
+    const item = within(list).getByText('session.crashed').closest('li');
+    expect(item?.getAttribute('data-attention-severity')).toBe('attention');
   });
 });
 

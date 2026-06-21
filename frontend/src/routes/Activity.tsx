@@ -1,10 +1,15 @@
-import type { DeployList, DeployRecord, GitCommit, GitCommitList } from 'gas-city-dashboard-shared';
-import type { ReactNode } from 'react';
+import type { DeployList, DeployRecord, GitCommitList } from 'gas-city-dashboard-shared';
+import { Fragment, type ReactNode } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import { api, formatApiError } from '../api/client';
 import { getActiveCity } from '../api/cityBase';
+import type { BadgeSeverity } from '../attention/compose';
 import { useAttentionModel } from '../attention/context';
-import { attentionRowProps, resourceAttentionSeverity } from '../attention/routeHighlight';
+import {
+  attentionListItemProps,
+  attentionRowProps,
+  resourceAttentionSeverity,
+} from '../attention/routeHighlight';
 import { Button } from '../components/Button';
 import { PageHeader } from '../components/PageHeader';
 import { StatusBadge, type StatusTone } from '../components/StatusBadge';
@@ -383,63 +388,56 @@ function EventsSection({
           Event history incomplete{partialErrors.length > 0 ? `: ${partialErrors.join('; ')}` : '.'}
         </p>
       )}
-      <ActivityTable label="Supervisor events">
-        <thead>
-          <tr className="border-b border-rule text-label uppercase tracking-wider text-fg-muted">
-            <th scope="col" className="pb-3 pr-6 text-left font-medium">
-              Time
-            </th>
-            <th scope="col" className="pb-3 pr-6 text-left font-medium">
-              Signal
-            </th>
-            <th scope="col" className="pb-3 pr-6 text-left font-medium">
-              Type
-            </th>
-            <th scope="col" className="pb-3 pr-6 text-left font-medium">
-              Subject
-            </th>
-            <th scope="col" className="pb-3 pr-6 text-left font-medium">
-              Detail
-            </th>
-          </tr>
-        </thead>
-        <tbody>
-          {items.length === 0 ? (
-            <EmptyRow colSpan={5}>
-              {loading
-                ? 'Reading supervisor events.'
-                : error !== undefined
-                  ? 'Event history unavailable.'
-                  : filterActive
-                    ? 'No supervisor events match these filters.'
-                    : 'No supervisor events in this window.'}
-            </EmptyRow>
-          ) : (
-            items.map((event, index) => (
-              <tr
-                // Audit-forwarded events all arrive at seq 0; index breaks ties.
-                key={`${event.seq}:${event.type}:${index}`}
-                {...attentionRowProps(attentionSeverity(event))}
-                className={`border-b border-rule ${
-                  attentionRowProps(attentionSeverity(event)).className ?? ''
-                }`}
-              >
-                <td className="py-3 pr-6 align-baseline text-fg-muted">
-                  <TimeStamp ts={event.ts} />
-                </td>
-                <td className="py-3 pr-6 align-baseline">
-                  <EventSignalBadge signal={supervisorEventSignal(event)} />
-                </td>
-                <td className="py-3 pr-6 align-baseline font-medium text-fg">{event.type}</td>
-                <td className="py-3 pr-6 align-baseline text-fg-muted">{event.subject ?? '·'}</td>
-                <td className="py-3 pr-6 align-baseline text-fg-muted">
-                  {supervisorEventDetail(event)}
-                </td>
-              </tr>
-            ))
-          )}
-        </tbody>
-      </ActivityTable>
+      <ActivityRecordTable
+        label="Supervisor events"
+        rows={items}
+        // Audit-forwarded events all arrive at seq 0; index breaks ties.
+        rowKey={(event, index) => `${event.seq}:${event.type}:${index}`}
+        attentionSeverity={attentionSeverity}
+        columns={[
+          {
+            key: 'time',
+            label: 'Time',
+            render: (event) => (
+              <span className="text-fg-muted">
+                <TimeStamp ts={event.ts} />
+              </span>
+            ),
+          },
+          {
+            key: 'signal',
+            label: 'Signal',
+            render: (event) => <EventSignalBadge signal={supervisorEventSignal(event)} />,
+          },
+          {
+            key: 'type',
+            label: 'Type',
+            primary: true,
+            render: (event) => <span className="font-medium text-fg">{event.type}</span>,
+          },
+          {
+            key: 'subject',
+            label: 'Subject',
+            render: (event) => <span className="text-fg-muted">{event.subject ?? '·'}</span>,
+          },
+          {
+            key: 'detail',
+            label: 'Detail',
+            render: (event) => (
+              <span className="text-fg-muted">{supervisorEventDetail(event)}</span>
+            ),
+          },
+        ]}
+        empty={
+          loading
+            ? 'Reading supervisor events.'
+            : error !== undefined
+              ? 'Event history unavailable.'
+              : filterActive
+                ? 'No supervisor events match these filters.'
+                : 'No supervisor events in this window.'
+        }
+      />
     </ActivitySection>
   );
 }
@@ -466,46 +464,35 @@ function DeploysSection({
           Deploy history unavailable: {error}.
         </p>
       )}
-      <ActivityTable label="Deploy history">
-        <thead>
-          <tr className="border-b border-rule text-label uppercase tracking-wider text-fg-muted">
-            <th scope="col" className="pb-3 pr-6 text-left font-medium">
-              Time
-            </th>
-            <th scope="col" className="pb-3 pr-6 text-left font-medium">
-              Status
-            </th>
-            <th scope="col" className="pb-3 pr-6 text-left font-medium">
-              Detail
-            </th>
-          </tr>
-        </thead>
-        <tbody>
-          {items.length === 0 ? (
-            <EmptyRow colSpan={3}>
-              {loading ? 'Reading deploy history.' : 'No deploy records in this window.'}
-            </EmptyRow>
-          ) : (
-            items.map((deploy) => (
-              <tr
-                key={`${deploy.at}:${deploy.detail}`}
-                {...attentionRowProps(attentionSeverity(deploy))}
-                className={`border-b border-rule ${
-                  attentionRowProps(attentionSeverity(deploy)).className ?? ''
-                }`}
-              >
-                <td className="py-3 pr-6 align-baseline text-fg-muted">
-                  <TimeStamp ts={deploy.at} />
-                </td>
-                <td className="py-3 pr-6 align-baseline">
-                  <DeployStatusBadge deploy={deploy} />
-                </td>
-                <td className="py-3 pr-6 align-baseline text-fg-muted">{deploy.detail}</td>
-              </tr>
-            ))
-          )}
-        </tbody>
-      </ActivityTable>
+      <ActivityRecordTable
+        label="Deploy history"
+        rows={items}
+        rowKey={(deploy) => `${deploy.at}:${deploy.detail}`}
+        attentionSeverity={attentionSeverity}
+        columns={[
+          {
+            key: 'time',
+            label: 'Time',
+            render: (deploy) => (
+              <span className="text-fg-muted">
+                <TimeStamp ts={deploy.at} />
+              </span>
+            ),
+          },
+          {
+            key: 'status',
+            label: 'Status',
+            render: (deploy) => <DeployStatusBadge deploy={deploy} />,
+          },
+          {
+            key: 'detail',
+            label: 'Detail',
+            primary: true,
+            render: (deploy) => <span className="text-fg-muted">{deploy.detail}</span>,
+          },
+        ]}
+        empty={loading ? 'Reading deploy history.' : 'No deploy records in this window.'}
+      />
     </ActivitySection>
   );
 }
@@ -527,47 +514,40 @@ function CommitsSection({
           Git commits unavailable: {error}.
         </p>
       )}
-      <ActivityTable label="Git commits">
-        <thead>
-          <tr className="border-b border-rule text-label uppercase tracking-wider text-fg-muted">
-            <th scope="col" className="pb-3 pr-6 text-left font-medium">
-              Time
-            </th>
-            <th scope="col" className="pb-3 pr-6 text-left font-medium">
-              Commit
-            </th>
-            <th scope="col" className="pb-3 pr-6 text-left font-medium">
-              Author
-            </th>
-            <th scope="col" className="pb-3 pr-6 text-left font-medium">
-              Subject
-            </th>
-          </tr>
-        </thead>
-        <tbody>
-          {items.length === 0 ? (
-            <EmptyRow colSpan={4}>
-              {loading ? 'Reading git commits.' : 'No commits in this window.'}
-            </EmptyRow>
-          ) : (
-            items.map((commit) => <CommitRow key={commit.sha} commit={commit} />)
-          )}
-        </tbody>
-      </ActivityTable>
+      <ActivityRecordTable
+        label="Git commits"
+        rows={items}
+        rowKey={(commit) => commit.sha}
+        columns={[
+          {
+            key: 'time',
+            label: 'Time',
+            render: (commit) => (
+              <span className="text-fg-muted">
+                <TimeStamp ts={commit.date} />
+              </span>
+            ),
+          },
+          {
+            key: 'commit',
+            label: 'Commit',
+            render: (commit) => <span className="font-medium text-fg">{commit.short_sha}</span>,
+          },
+          {
+            key: 'author',
+            label: 'Author',
+            render: (commit) => <span className="text-fg-muted">{commit.author}</span>,
+          },
+          {
+            key: 'subject',
+            label: 'Subject',
+            primary: true,
+            render: (commit) => <span className="text-fg-muted">{commit.subject}</span>,
+          },
+        ]}
+        empty={loading ? 'Reading git commits.' : 'No commits in this window.'}
+      />
     </ActivitySection>
-  );
-}
-
-function CommitRow({ commit }: { commit: GitCommit }) {
-  return (
-    <tr className="border-b border-rule">
-      <td className="py-3 pr-6 align-baseline text-fg-muted">
-        <TimeStamp ts={commit.date} />
-      </td>
-      <td className="py-3 pr-6 align-baseline font-medium text-fg">{commit.short_sha}</td>
-      <td className="py-3 pr-6 align-baseline text-fg-muted">{commit.author}</td>
-      <td className="py-3 pr-6 align-baseline text-fg-muted">{commit.subject}</td>
-    </tr>
   );
 }
 
@@ -595,23 +575,115 @@ function ActivitySection({
   );
 }
 
-function ActivityTable({ children, label }: { children: ReactNode; label: string }) {
-  return (
-    <div className="overflow-x-auto">
-      <table aria-label={label} className="w-full text-body tnum">
-        {children}
-      </table>
-    </div>
-  );
+// A typeset record list rendered two ways from one column model so the layouts
+// cannot drift: the column grid table from sm: up, and — because that grid
+// cannot fit a ~390px phone without an internal horizontal scroll — a dedicated
+// stacked list below sm: (each record a typographic block separated by a
+// hairline, never a card per DESIGN.md's Flat Page Rule). On mobile, columns
+// marked `primary` lead as the headline; the rest fall to a label·value grid.
+interface ActivityColumn<T> {
+  key: string;
+  label: string;
+  render: (row: T) => ReactNode;
+  primary?: boolean;
 }
 
-function EmptyRow({ children, colSpan }: { children: ReactNode; colSpan: number }) {
+function ActivityRecordTable<T>({
+  attentionSeverity,
+  columns,
+  empty,
+  label,
+  rowKey,
+  rows,
+}: {
+  attentionSeverity?: (row: T) => BadgeSeverity | null;
+  columns: ReadonlyArray<ActivityColumn<T>>;
+  empty: ReactNode;
+  label: string;
+  rowKey: (row: T, index: number) => string;
+  rows: ReadonlyArray<T>;
+}) {
+  const primaryColumns = columns.filter((col) => col.primary === true);
+  const detailColumns = columns.filter((col) => col.primary !== true);
+
   return (
-    <tr>
-      <td colSpan={colSpan} className="py-10 text-center text-fg-muted italic">
-        {children}
-      </td>
-    </tr>
+    <>
+      <ul role="list" aria-label={label} className="divide-y divide-rule sm:hidden">
+        {rows.length === 0 ? (
+          <li className="py-10 text-center text-fg-muted italic">{empty}</li>
+        ) : (
+          rows.map((row, index) => {
+            const { className = '', ...severityProps } = attentionListItemProps(
+              attentionSeverity?.(row) ?? null,
+            );
+            return (
+              <li
+                {...severityProps}
+                key={rowKey(row, index)}
+                className={`space-y-2 py-4 ${className}`}
+              >
+                {primaryColumns.map((col) => (
+                  <div key={col.key}>{col.render(row)}</div>
+                ))}
+                {detailColumns.length > 0 && (
+                  <dl className="grid grid-cols-[auto_1fr] items-baseline gap-x-4 gap-y-1">
+                    {detailColumns.map((col) => (
+                      <Fragment key={col.key}>
+                        <dt className="text-label uppercase tracking-wider text-fg-faint">
+                          {col.label}
+                        </dt>
+                        <dd className="min-w-0">{col.render(row)}</dd>
+                      </Fragment>
+                    ))}
+                  </dl>
+                )}
+              </li>
+            );
+          })
+        )}
+      </ul>
+      <div className="hidden overflow-x-auto sm:block">
+        <table aria-label={label} className="w-full text-body tnum">
+          <thead>
+            <tr className="border-b border-rule text-label uppercase tracking-wider text-fg-muted">
+              {columns.map((col) => (
+                <th key={col.key} scope="col" className="pb-3 pr-6 text-left font-medium">
+                  {col.label}
+                </th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {rows.length === 0 ? (
+              <tr>
+                <td colSpan={columns.length} className="py-10 text-center text-fg-muted italic">
+                  {empty}
+                </td>
+              </tr>
+            ) : (
+              rows.map((row, index) => {
+                const { className = '', ...severityProps } = attentionRowProps(
+                  attentionSeverity?.(row) ?? null,
+                );
+                return (
+                  <tr
+                    {...severityProps}
+                    key={rowKey(row, index)}
+                    className={`border-b border-rule ${className}`}
+                  >
+                    {columns.map((col) => (
+                      <td key={col.key} className="py-3 pr-6 align-baseline">
+                        {col.render(row)}
+                      </td>
+                    ))}
+                  </tr>
+                );
+              })
+            )}
+          </tbody>
+        </table>
+      </div>
+    </>
   );
 }
 
