@@ -222,13 +222,16 @@ describe('AgentsPage (post-ay6 regressions)', () => {
 
     // mayor has no rig (cross-rig orchestration) → the label is just the
     // alias, rendered as a Link.
-    const mayorLink = await screen.findByRole('link', { name: /mayor/i });
+    // The roster renders twice (a phone stacked list + the sm: table, CSS-
+    // toggled but both in the DOM), so scope roster assertions to the table.
+    const roster = within(await screen.findByRole('table'));
+    const mayorLink = await roster.findByRole('link', { name: /mayor/i });
     expect(mayorLink).toBeDefined();
     expect(mayorLink.textContent).toBe('mayor');
     expect(fetchUrls()).toContain('/gc-supervisor/v0/city/test-city/agents');
     expect(fetchUrls()).not.toContain('/api/city/test-city/agents');
     // display_name appears as secondary muted text — present but not the link.
-    expect(screen.getByText('Claude (Account 5)')).toBeDefined();
+    expect(roster.getByText('Claude (Account 5)')).toBeDefined();
   });
 
   it('boots with the running checkbox checked and renders in-rig agents as "rig · agent"', async () => {
@@ -284,15 +287,17 @@ describe('AgentsPage (post-ay6 regressions)', () => {
     expect(runningCheckbox.checked).toBe(true);
 
     // The running agent is shown with the restored 'rig · agent' label.
-    const runningLink = await screen.findByRole('link', { name: /polecat-1/i });
+    // Scope to the table; the phone stacked list duplicates the same rows.
+    const roster = within(await screen.findByRole('table'));
+    const runningLink = await roster.findByRole('link', { name: /polecat-1/i });
     expect(runningLink.textContent).toBe('gascity-packs · polecat-1');
 
     // The asleep agent is hidden by the default-on running filter.
-    expect(screen.queryByRole('link', { name: /polecat-2/i })).toBeNull();
+    expect(roster.queryByRole('link', { name: /polecat-2/i })).toBeNull();
 
     // Unchecking the box reveals the full roster (asleep agent appears).
     fireEvent.click(runningCheckbox);
-    const sleepingLink = await screen.findByRole('link', { name: /polecat-2/i });
+    const sleepingLink = await roster.findByRole('link', { name: /polecat-2/i });
     expect(sleepingLink.textContent).toBe('gascity-packs · polecat-2');
   });
 
@@ -331,10 +336,12 @@ describe('AgentsPage (post-ay6 regressions)', () => {
       </MemoryRouter>,
     );
 
-    // Wait for the row to load.
-    await screen.findByRole('link', { name: /mayor/i });
+    // Wait for the row to load. Scope to the table; the phone stacked list
+    // duplicates the same Peek control.
+    const roster = within(await screen.findByRole('table'));
+    await roster.findByRole('link', { name: /mayor/i });
 
-    const peekButton = await screen.findByRole('button', { name: /peek/i });
+    const peekButton = await roster.findByRole('button', { name: /peek/i });
     fireEvent.click(peekButton);
 
     // The peek modal must hit supervisor transcript for gc-2568 — NOT
@@ -367,12 +374,14 @@ describe('AgentsPage (post-ay6 regressions)', () => {
       </MemoryRouter>,
     );
 
-    expect(await screen.findByText('needs you')).toBeTruthy();
+    // Scope to the table; the phone stacked list duplicates the roster row.
+    const roster = within(await screen.findByRole('table'));
+    expect(await roster.findByText('needs you')).toBeTruthy();
     // The prompt shows in both the "Needs you" section and the roster row.
-    expect(within(screen.getByRole('table')).getByText('Approve deployment?')).toBeTruthy();
+    expect(roster.getByText('Approve deployment?')).toBeTruthy();
     expect(fetchUrls()).toContain('/gc-supervisor/v0/city/test-city/session/gc-2568/pending');
 
-    fireEvent.click(screen.getByRole('button', { name: /copy attach/i }));
+    fireEvent.click(roster.getByRole('button', { name: /copy attach/i }));
 
     await waitFor(() => {
       expect(writeText).toHaveBeenCalledWith('gc agent attach mayor');
@@ -388,9 +397,11 @@ describe('AgentsPage (post-ay6 regressions)', () => {
       </MemoryRouter>,
     );
 
-    expect(await screen.findByText('needs you')).toBeTruthy();
+    // Scope to the table; the phone stacked list duplicates the Deny control.
+    const roster = within(await screen.findByRole('table'));
+    expect(await roster.findByText('needs you')).toBeTruthy();
 
-    fireEvent.click(screen.getByRole('button', { name: /deny/i }));
+    fireEvent.click(roster.getByRole('button', { name: /deny/i }));
 
     await screen.findByText('responded to mayor');
 
@@ -417,16 +428,17 @@ describe('AgentsPage (post-ay6 regressions)', () => {
       </MemoryRouter>,
     );
 
-    const table = await screen.findByRole('table');
-    expect(await within(table).findByText('Approve deployment?')).toBeTruthy();
+    // Scope to the table; the phone stacked list duplicates these controls.
+    const roster = within(await screen.findByRole('table'));
+    expect(await roster.findByText('Approve deployment?')).toBeTruthy();
 
-    const approve = screen.getByRole('button', { name: /approve/i }) as HTMLButtonElement;
-    const deny = screen.getByRole('button', { name: /deny/i }) as HTMLButtonElement;
+    const approve = roster.getByRole('button', { name: /approve/i }) as HTMLButtonElement;
+    const deny = roster.getByRole('button', { name: /deny/i }) as HTMLButtonElement;
     expect(approve.disabled).toBe(true);
     expect(deny.disabled).toBe(true);
     expect(approve.getAttribute('title')).toBe('Read-only mode: mutations are disabled');
     // The affordance carries words, not just a dimmed control (DESIGN.md §States).
-    expect(screen.getByText('Read-only')).toBeTruthy();
+    expect(roster.getByText('Read-only')).toBeTruthy();
 
     // The disabled control must not reach the supervisor respond mutation.
     fireEvent.click(deny);
