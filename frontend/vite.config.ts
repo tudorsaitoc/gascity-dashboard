@@ -53,12 +53,41 @@ export function configureBackendDevProxy(proxy: BackendDevProxy): void {
   });
 }
 
+const DEV_PORT = 5174;
+
+// Optional tailnet exposure for mobile dev/QA over `tailscale serve`. The dev
+// server still binds 127.0.0.1 only — `tailscale serve` bridges the tailnet to
+// loopback — so this never widens the listener. When DEV_TAILNET_HOST is set we
+// (1) add that host to Vite's allowlist (its DNS-rebinding guard otherwise
+// answers a non-loopback Host with "Blocked request") and (2) point the HMR
+// client at the TLS serve endpoint so hot reload survives the proxy. Unset →
+// zero effect on normal loopback dev. While set, HMR targets the tailnet origin,
+// so iterate from the phone (or another serve port) rather than loopback.
+type TailnetDevServer = {
+  // Vite's ServerOptions types allowedHosts as string[] (mutable), so this is a
+  // fresh per-call array, never shared mutable state.
+  allowedHosts: string[];
+  hmr: { protocol: 'wss'; host: string; clientPort: number };
+};
+
+export function resolveTailnetDevServer(): TailnetDevServer | Record<string, never> {
+  const host = process.env.DEV_TAILNET_HOST;
+  if (host === undefined || host.length === 0) return {};
+  const rawPort = process.env.DEV_TAILNET_PORT;
+  const clientPort = rawPort === undefined ? DEV_PORT : Number.parseInt(rawPort, 10);
+  if (!Number.isInteger(clientPort) || clientPort < 1 || clientPort > 65535) {
+    throw new Error(`DEV_TAILNET_PORT must be a valid port; got ${JSON.stringify(rawPort)}`);
+  }
+  return { allowedHosts: [host], hmr: { protocol: 'wss', host, clientPort } };
+}
+
 export default defineConfig({
   plugins: [react()],
   server: {
-    port: 5174,
+    port: DEV_PORT,
     strictPort: true,
     host: '127.0.0.1',
+    ...resolveTailnetDevServer(),
     proxy: {
       '/api': {
         target: BACKEND_TARGET,

@@ -1,7 +1,11 @@
 // @vitest-environment node
 
-import { describe, expect, it, vi } from 'vitest';
-import viteConfig, { BACKEND_TARGET, configureBackendDevProxy } from '../vite.config';
+import { afterEach, describe, expect, it, vi } from 'vitest';
+import viteConfig, {
+  BACKEND_TARGET,
+  configureBackendDevProxy,
+  resolveTailnetDevServer,
+} from '../vite.config';
 
 describe('vite dev proxy config', () => {
   it('rewrites Origin for both dashboard api and supervisor transport writes', () => {
@@ -58,6 +62,50 @@ describe('vite dev proxy config', () => {
     listener(proxyReq);
 
     expect(proxyReq.setHeader).not.toHaveBeenCalled();
+  });
+});
+
+describe('resolveTailnetDevServer', () => {
+  afterEach(() => {
+    delete process.env.DEV_TAILNET_HOST;
+    delete process.env.DEV_TAILNET_PORT;
+  });
+
+  it('returns no overrides when DEV_TAILNET_HOST is unset (default loopback dev)', () => {
+    expect(resolveTailnetDevServer()).toEqual({});
+  });
+
+  it('returns no overrides when DEV_TAILNET_HOST is empty', () => {
+    process.env.DEV_TAILNET_HOST = '';
+    expect(resolveTailnetDevServer()).toEqual({});
+  });
+
+  it('allows the tailnet host and points HMR at the default serve port over wss', () => {
+    process.env.DEV_TAILNET_HOST = 'host.example.ts.net';
+    expect(resolveTailnetDevServer()).toEqual({
+      allowedHosts: ['host.example.ts.net'],
+      hmr: { protocol: 'wss', host: 'host.example.ts.net', clientPort: 5174 },
+    });
+  });
+
+  it('honors an explicit DEV_TAILNET_PORT for the HMR client port', () => {
+    process.env.DEV_TAILNET_HOST = 'host.example.ts.net';
+    process.env.DEV_TAILNET_PORT = '8443';
+    expect(resolveTailnetDevServer()).toMatchObject({
+      hmr: { clientPort: 8443 },
+    });
+  });
+
+  it('throws on a non-numeric DEV_TAILNET_PORT rather than silently defaulting', () => {
+    process.env.DEV_TAILNET_HOST = 'host.example.ts.net';
+    process.env.DEV_TAILNET_PORT = 'not-a-port';
+    expect(() => resolveTailnetDevServer()).toThrow(/DEV_TAILNET_PORT/);
+  });
+
+  it('throws on an out-of-range DEV_TAILNET_PORT', () => {
+    process.env.DEV_TAILNET_HOST = 'host.example.ts.net';
+    process.env.DEV_TAILNET_PORT = '70000';
+    expect(() => resolveTailnetDevServer()).toThrow(/DEV_TAILNET_PORT/);
   });
 });
 
