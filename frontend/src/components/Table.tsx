@@ -29,6 +29,12 @@ interface TableProps<T> {
   rowProps?: (row: T) => HTMLAttributes<HTMLTableRowElement>;
   empty?: ReactNode;
   initialSort?: SortState | null;
+  // A column-grid table cannot fit a ~390px phone without horizontal scroll, so
+  // when this is provided the same rows render as a dedicated stacked list below
+  // sm: (each row a typographic block separated by a hairline, never a card per
+  // DESIGN.md), and the table itself shows from sm: up. The list reuses the same
+  // sorted rows, rowKey, onRowClick, and rowProps as the table.
+  mobileRow?: (row: T) => ReactNode;
 }
 
 export function Table<T>({
@@ -39,6 +45,7 @@ export function Table<T>({
   rowProps,
   empty,
   initialSort,
+  mobileRow,
 }: TableProps<T>) {
   const [sort, setSort] = useState<SortState | null>(initialSort ?? null);
 
@@ -67,8 +74,8 @@ export function Table<T>({
     });
   };
 
-  return (
-    <div className="overflow-x-auto">
+  const tableBlock = (
+    <div className={`overflow-x-auto${mobileRow ? ' hidden sm:block' : ''}`}>
       <table className="w-full text-body tnum">
         <thead>
           <tr className="border-b border-rule text-label uppercase tracking-wider text-fg-muted">
@@ -139,5 +146,34 @@ export function Table<T>({
         </tbody>
       </table>
     </div>
+  );
+
+  if (!mobileRow) return tableBlock;
+
+  return (
+    <>
+      <ul role="list" className="sm:hidden divide-y divide-rule">
+        {sortedRows.length === 0 ? (
+          <li className="py-10 text-center text-fg-muted italic">{empty ?? 'No data'}</li>
+        ) : (
+          sortedRows.map((row) => {
+            const { className: rowClassName = '', ...extraRowProps } = rowProps?.(row) ?? {};
+            return (
+              <li
+                {...(extraRowProps as HTMLAttributes<HTMLLIElement>)}
+                key={rowKey(row)}
+                onClick={onRowClick ? () => onRowClick(row) : undefined}
+                className={`py-4 transition-colors duration-150 ease-out-quart ${
+                  onRowClick ? 'cursor-pointer hover:bg-surface-tint' : ''
+                } ${rowClassName}`}
+              >
+                {mobileRow(row)}
+              </li>
+            );
+          })
+        )}
+      </ul>
+      {tableBlock}
+    </>
   );
 }

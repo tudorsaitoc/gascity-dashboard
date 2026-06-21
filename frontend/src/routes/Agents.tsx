@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { Fragment, useCallback, useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import {
   GC_EVENT_PREFIX,
@@ -552,6 +552,34 @@ export function AgentsPage() {
         rowProps={rowProps}
         empty={emptyMessage}
         initialSort={{ key: 'last_active', dir: 'desc' }}
+        // Phone layout: the six-column roster cannot fit ~390px, so each agent
+        // renders as a stacked typographic block (name, then State/Activity/
+        // Context/Last active as label·value rows, then the actions). Reuses the
+        // column render fns so the two layouts can't drift.
+        mobileRow={(r) => {
+          const cell = (key: string) => columns.find((c) => c.key === key)?.render(r);
+          return (
+            <div className="space-y-2">
+              {cell('name')}
+              <dl className="grid grid-cols-[auto_1fr] items-baseline gap-x-4 gap-y-1">
+                {(
+                  [
+                    ['State', 'state'],
+                    ['Activity', 'activity'],
+                    ['Context', 'context'],
+                    ['Last active', 'last_active'],
+                  ] as const
+                ).map(([label, key]) => (
+                  <Fragment key={key}>
+                    <dt className="text-label uppercase tracking-wider text-fg-faint">{label}</dt>
+                    <dd className="min-w-0 text-right">{cell(key)}</dd>
+                  </Fragment>
+                ))}
+              </dl>
+              {cell('actions')}
+            </div>
+          );
+        }}
       />
 
       <Modal
