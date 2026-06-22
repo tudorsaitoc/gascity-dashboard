@@ -1,5 +1,5 @@
 import { cleanup, fireEvent, render, screen, within } from '@testing-library/react';
-import { MemoryRouter } from 'react-router-dom';
+import { MemoryRouter, useNavigate } from 'react-router-dom';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { AttentionProvider } from '../attention/context';
 import { NowProvider } from '../contexts/NowContext';
@@ -104,6 +104,42 @@ describe('Header mobile nav', () => {
     fireEvent.click(screen.getByRole('button', { name: /menu/i }));
     const dialog = within(screen.getByRole('dialog'));
     fireEvent.click(dialog.getByRole('link', { name: /Agents/ }));
+    expect(screen.queryByRole('dialog')).toBeNull();
+  });
+
+  it('closes the menu on any route change, not just menu-link clicks (e.g. back/forward)', () => {
+    // The Header is outside <Routes>, so a navigation that does not originate
+    // from a menu link (browser back, a link elsewhere) must still dismiss the
+    // open menu rather than strand the scrim over the next page.
+    function Harness() {
+      const navigate = useNavigate();
+      return (
+        <>
+          <button onClick={() => navigate('/agents')}>navigate elsewhere</button>
+          <Header />
+        </>
+      );
+    }
+    render(
+      <ThemeProvider>
+        <ViewingAsProvider>
+          <NowProvider>
+            <AttentionProvider contributors={[]}>
+              <MemoryRouter
+                initialEntries={['/runs']}
+                future={{ v7_relativeSplatPath: true, v7_startTransition: true }}
+              >
+                <Harness />
+              </MemoryRouter>
+            </AttentionProvider>
+          </NowProvider>
+        </ViewingAsProvider>
+      </ThemeProvider>,
+    );
+    fireEvent.click(screen.getByRole('button', { name: /open menu/i }));
+    expect(screen.getByRole('dialog')).toBeTruthy();
+    // Navigate without touching a menu link.
+    fireEvent.click(screen.getByRole('button', { name: /navigate elsewhere/i }));
     expect(screen.queryByRole('dialog')).toBeNull();
   });
 });

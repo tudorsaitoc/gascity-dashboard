@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { NavLink, useLocation } from 'react-router-dom';
 import { Modal } from './Modal';
 import { api } from '../api/client';
@@ -103,6 +103,14 @@ export function Header() {
   // behind a hamburger that opens the routes in the shared Modal. Both layouts
   // render the same routes through navItem so they cannot drift.
   const [menuOpen, setMenuOpen] = useState(false);
+
+  // The Header lives in Layout, outside <Routes>, so its state survives SPA
+  // navigation. Menu-link clicks close the menu themselves, but a back/forward
+  // or any navigation that doesn't originate from a menu link would otherwise
+  // leave the dialog + scrim stranded over the next page. Close on route change.
+  useEffect(() => {
+    setMenuOpen(false);
+  }, [pathname]);
 
   const navItem = (r: NavRoute, sizeClass: string, onClick?: () => void) => {
     const domain = NAV_ATTENTION_DOMAINS[r.to];
