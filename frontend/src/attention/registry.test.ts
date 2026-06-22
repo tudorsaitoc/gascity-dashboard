@@ -451,10 +451,11 @@ describe('createAttentionContributors', () => {
 
     for (const item of model.byDomain.runs.items) {
       expect(item.severity).toBe('unavailable');
-      // Provenance + fetch timestamp ride along so a stale read can be aged.
-      expect(item.provenance).toBe('stale');
-      expect(item.fetchedAt).toBe('2026-06-06T12:00:00.000Z');
     }
+    // Read freshness is aged via the contributor-level fold on the domain
+    // summary (the single source the board liveness line reads), not per item.
+    expect(model.byDomain.runs.provenance).toBe('stale');
+    expect(model.byDomain.runs.fetchedAt).toBe('2026-06-06T12:00:00.000Z');
   });
 
   it('keeps a total runs read failure as a loud attention signal, not the quiet unavailable tier', () => {

@@ -67,8 +67,8 @@ describe('composeAttention', () => {
     const model = composeAttention([
       contributor('runs', [
         item('run-watch', 'runs', 'watch'),
-        item('run-degraded', 'runs', 'unavailable', { provenance: 'stale' }),
-        item('run-down', 'runs', 'unavailable', { provenance: 'error' }),
+        item('run-degraded', 'runs', 'unavailable'),
+        item('run-down', 'runs', 'unavailable'),
       ]),
     ]);
 
@@ -83,8 +83,8 @@ describe('composeAttention', () => {
   it('never sets the badge severity from unavailable items alone', () => {
     const model = composeAttention([
       contributor('runs', [
-        item('feed-partial', 'runs', 'unavailable', { provenance: 'fresh' }),
-        item('detail-down', 'runs', 'unavailable', { provenance: 'error' }),
+        item('feed-partial', 'runs', 'unavailable'),
+        item('detail-down', 'runs', 'unavailable'),
       ]),
     ]);
 

@@ -288,13 +288,9 @@ function maintainerContributor(facts: MaintainerAttentionFacts | undefined): Att
   );
 }
 
-/** The provenance + fetch timestamp carried onto runs `unavailable` items. */
-type ReadFreshness = { provenance: SourceStatus | undefined; fetchedAt: string | undefined };
-
 function deriveRunsAttention(facts: RunsAttentionFacts | undefined): readonly AttentionItem[] {
   const items: AttentionItem[] = [];
   if (facts === undefined) return items;
-  const freshness: ReadFreshness = { provenance: facts.provenance, fetchedAt: facts.fetchedAt };
   if (facts.error !== undefined && facts.error.length > 0) {
     items.push(
       domainAttention('runs', {
@@ -319,30 +315,22 @@ function deriveRunsAttention(facts: RunsAttentionFacts | undefined): readonly At
   // summary-derived degraded reads survive.
   if (summary.lanesPartial === true) {
     items.push(
-      domainUnavailable(
-        'runs',
-        {
-          id: 'runs:partial',
-          title: 'Run list incomplete',
-          href: '/runs',
-        },
-        freshness,
-      ),
+      domainUnavailable('runs', {
+        id: 'runs:partial',
+        title: 'Run list incomplete',
+        href: '/runs',
+      }),
     );
   }
   for (const lane of [...summary.lanes, ...summary.blockedLanes, ...summary.strandedLanes]) {
     if (lane.health.status === 'available') continue;
     items.push(
-      domainUnavailable(
-        'runs',
-        {
-          id: `runs:${lane.id}:health-unavailable`,
-          title: `${lane.title} health unavailable`,
-          summary: lane.health.error,
-          href: runDetailHref(lane.id, lane.scope),
-        },
-        freshness,
-      ),
+      domainUnavailable('runs', {
+        id: `runs:${lane.id}:health-unavailable`,
+        title: `${lane.title} health unavailable`,
+        summary: lane.health.error,
+        href: runDetailHref(lane.id, lane.scope),
+      }),
     );
   }
 
@@ -1072,16 +1060,11 @@ function domainWatch(
 /**
  * A data-unavailability item: a slice of a source could not be read. It reports
  * the degradation WITHOUT inflating or recoloring the domain's nav badge (see
- * AttentionSeverity). `freshness` carries the read's provenance + fetch
- * timestamp so the signal can be aged rather than rendered as current truth.
+ * AttentionSeverity).
  */
 function domainUnavailable(
   domain: AttentionDomain,
-  item: Omit<
-    AttentionItem,
-    'domain' | 'severity' | 'current' | 'actionable' | 'provenance' | 'fetchedAt'
-  >,
-  freshness?: ReadFreshness,
+  item: Omit<AttentionItem, 'domain' | 'severity' | 'current' | 'actionable'>,
 ): AttentionItem {
   return {
     domain,
@@ -1089,8 +1072,6 @@ function domainUnavailable(
     current: true,
     actionable: false,
     ...item,
-    ...(freshness?.provenance === undefined ? {} : { provenance: freshness.provenance }),
-    ...(freshness?.fetchedAt === undefined ? {} : { fetchedAt: freshness.fetchedAt }),
   };
 }
 
