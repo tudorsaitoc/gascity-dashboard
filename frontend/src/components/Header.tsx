@@ -217,7 +217,7 @@ export function Header() {
       </div>
 
       <Modal open={menuOpen} onClose={() => setMenuOpen(false)} title="Menu" widthClass="max-w-xs">
-        <nav id="mobile-nav-menu" aria-label="Primary">
+        <nav id="mobile-nav-menu" aria-label="Mobile navigation">
           <ul className="flex flex-col gap-y-3">
             {ROUTES.map((r) => navItem(r, 'text-headline', () => setMenuOpen(false)))}
           </ul>

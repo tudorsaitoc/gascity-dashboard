@@ -107,6 +107,25 @@ describe('resolveTailnetDevServer', () => {
     process.env.DEV_TAILNET_PORT = '70000';
     expect(() => resolveTailnetDevServer()).toThrow(/DEV_TAILNET_PORT/);
   });
+
+  it('throws on a leading-numeric DEV_TAILNET_PORT instead of partial-parsing it', () => {
+    // Number.parseInt('5174abc') would be 5174; the strict parse must reject it.
+    process.env.DEV_TAILNET_HOST = 'host.example.ts.net';
+    process.env.DEV_TAILNET_PORT = '5174abc';
+    expect(() => resolveTailnetDevServer()).toThrow(/DEV_TAILNET_PORT/);
+  });
+
+  it('throws on a wildcard/sentinel DEV_TAILNET_HOST that would widen the host guard', () => {
+    for (const bad of ['*', 'true', '0.0.0.0', 'localhost']) {
+      process.env.DEV_TAILNET_HOST = bad;
+      expect(() => resolveTailnetDevServer(), bad).toThrow(/DEV_TAILNET_HOST/);
+    }
+  });
+
+  it('trims surrounding whitespace from DEV_TAILNET_HOST', () => {
+    process.env.DEV_TAILNET_HOST = '  host.example.ts.net  ';
+    expect(resolveTailnetDevServer()).toMatchObject({ allowedHosts: ['host.example.ts.net'] });
+  });
 });
 
 interface ProxyRequestDouble {

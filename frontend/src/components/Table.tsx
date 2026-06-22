@@ -160,6 +160,11 @@ export function Table<T>({
             const { className: rowClassName = '', ...extraRowProps } = rowProps?.(row) ?? {};
             return (
               <li
+                // rowProps is typed for <tr>; in practice it carries only data-*
+                // attributes (attentionDataProps), valid on any element, so this
+                // cast is a type concession, not a runtime hazard. A type-safe
+                // fix means narrowing attentionDataProps + GroupedTable across
+                // all callers — out of scope for this PR.
                 {...(extraRowProps as HTMLAttributes<HTMLLIElement>)}
                 key={rowKey(row)}
                 onClick={onRowClick ? () => onRowClick(row) : undefined}

@@ -43,7 +43,11 @@ describe('Table', () => {
     expect(list.className).toContain('sm:hidden');
     const items = within(list).getAllByRole('listitem');
     expect(items).toHaveLength(2);
-    const tableWrapper = screen.getByRole('table').parentElement;
+    // The table sits in the overflow-x-auto wrapper, hidden below sm:. Query the
+    // wrapper by its own class rather than walking parentElement, so the test is
+    // robust to changes in the wrapper's nesting depth.
+    const table = screen.getByRole('table');
+    const tableWrapper = table.closest('div.overflow-x-auto');
     expect(tableWrapper?.className).toContain('hidden');
     expect(tableWrapper?.className).toContain('sm:block');
   });

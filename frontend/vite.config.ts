@@ -71,12 +71,28 @@ type TailnetDevServer = {
 };
 
 export function resolveTailnetDevServer(): TailnetDevServer | Record<string, never> {
-  const host = process.env.DEV_TAILNET_HOST;
+  const host = process.env.DEV_TAILNET_HOST?.trim();
   if (host === undefined || host.length === 0) return {};
-  const rawPort = process.env.DEV_TAILNET_PORT;
-  const clientPort = rawPort === undefined ? DEV_PORT : Number.parseInt(rawPort, 10);
+  // The host becomes the sole entry in Vite's allowedHosts (its DNS-rebinding
+  // guard) and hmr.host. Require a real hostname so an operator typo like `*`,
+  // `true`, or `0.0.0.0` fails loudly here instead of silently widening the
+  // guard from one explicit tailnet name to "any host". A tailnet FQDN always
+  // has a dotted suffix and no wildcard. Mirrors DEV_BACKEND_TARGET's
+  // validate-at-load style above.
+  if (!/^[a-z0-9][a-z0-9.-]*\.[a-z]{2,}$/i.test(host)) {
+    throw new Error(
+      `DEV_TAILNET_HOST must be a hostname (e.g. host.tailnet.ts.net); got ${JSON.stringify(host)}`,
+    );
+  }
+  // Strict port parse: Number.parseInt('5174abc') is 5174, which would silently
+  // accept malformed input; require an all-digits string so bad values throw.
+  const rawPort = process.env.DEV_TAILNET_PORT?.trim();
+  const clientPort =
+    rawPort === undefined ? DEV_PORT : /^\d+$/.test(rawPort) ? Number(rawPort) : NaN;
   if (!Number.isInteger(clientPort) || clientPort < 1 || clientPort > 65535) {
-    throw new Error(`DEV_TAILNET_PORT must be a valid port; got ${JSON.stringify(rawPort)}`);
+    throw new Error(
+      `DEV_TAILNET_PORT must be a valid port; got ${JSON.stringify(process.env.DEV_TAILNET_PORT)}`,
+    );
   }
   return { allowedHosts: [host], hmr: { protocol: 'wss', host, clientPort } };
 }
