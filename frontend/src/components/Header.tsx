@@ -112,6 +112,21 @@ export function Header() {
     setMenuOpen(false);
   }, [pathname]);
 
+  // The hamburger is `sm:hidden`, but `menuOpen` is React state, not CSS — so a
+  // viewport that widens past the sm: breakpoint while the menu is open brings
+  // the desktop nav row back (`hidden sm:flex`) with the Modal + scrim still
+  // stranded over it. Close the menu the moment we cross to >=640px so the
+  // dialog never outlives the phone layout that justifies it. <640px crossings
+  // never reopen it — the operator must tap the hamburger again.
+  useEffect(() => {
+    const mql = window.matchMedia('(min-width: 640px)');
+    const onChange = (e: MediaQueryListEvent) => {
+      if (e.matches) setMenuOpen(false);
+    };
+    mql.addEventListener('change', onChange);
+    return () => mql.removeEventListener('change', onChange);
+  }, []);
+
   const navItem = (r: NavRoute, sizeClass: string, onClick?: () => void) => {
     const domain = NAV_ATTENTION_DOMAINS[r.to];
     return (
