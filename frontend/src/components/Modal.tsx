@@ -1,4 +1,15 @@
-import { useEffect, type ReactNode } from 'react';
+import { useEffect, useId, useRef, type ReactNode } from 'react';
+
+// Controls that can hold keyboard focus inside the dialog. Used for the
+// initial focus move and for the Tab/Shift+Tab wrap-around trap.
+const FOCUSABLE_SELECTOR = [
+  'a[href]',
+  'button:not([disabled])',
+  'input:not([disabled])',
+  'select:not([disabled])',
+  'textarea:not([disabled])',
+  '[tabindex]:not([tabindex="-1"])',
+].join(',');
 
 interface ModalProps {
   open: boolean;
@@ -25,14 +36,62 @@ export function Modal({
   footer,
   widthClass = 'max-w-3xl',
 }: ModalProps) {
+  const panelRef = useRef<HTMLDivElement>(null);
+  const titleId = useId();
+  // Held in a ref so the focus effect keys only on `open` — a changing
+  // onClose identity must not tear down and re-run the trap mid-dialog
+  // (that would restore focus to the opener and snap it back in).
+  const onCloseRef = useRef(onClose);
+  onCloseRef.current = onClose;
+
   useEffect(() => {
     if (!open) return;
-    const handleKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') onClose();
+    const active = document.activeElement;
+    const opener = active instanceof HTMLElement ? active : null;
+
+    // Read the panel fresh each time so a re-mounted node (e.g. a keyed
+    // parent swap) never leaves the trap querying a detached element.
+    const focusables = () => {
+      const panel = panelRef.current;
+      return panel ? Array.from(panel.querySelectorAll<HTMLElement>(FOCUSABLE_SELECTOR)) : [];
     };
+
+    // Move focus into the dialog so keyboard/AT users leave background controls.
+    const initial = focusables();
+    (initial[0] ?? panelRef.current)?.focus();
+
+    const handleKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        onCloseRef.current();
+        return;
+      }
+      const panel = panelRef.current;
+      if (e.key !== 'Tab' || !panel) return;
+      const items = focusables();
+      const first = items[0];
+      const last = items[items.length - 1];
+      if (!first || !last) {
+        e.preventDefault();
+        panel.focus();
+        return;
+      }
+      const active = document.activeElement;
+      if (e.shiftKey && (active === first || !panel.contains(active))) {
+        e.preventDefault();
+        last.focus();
+      } else if (!e.shiftKey && (active === last || !panel.contains(active))) {
+        e.preventDefault();
+        first.focus();
+      }
+    };
+
     document.addEventListener('keydown', handleKey);
-    return () => document.removeEventListener('keydown', handleKey);
-  }, [open, onClose]);
+    return () => {
+      document.removeEventListener('keydown', handleKey);
+      // Restore focus to whatever opened the dialog, if it's still mounted.
+      if (opener && document.contains(opener)) opener.focus();
+    };
+  }, [open]);
 
   if (!open) return null;
 
@@ -40,16 +99,21 @@ export function Modal({
     <div
       role="dialog"
       aria-modal="true"
+      aria-labelledby={titleId}
       className="fixed inset-0 z-50 flex items-start sm:items-center justify-center bg-fg/30 p-3 sm:p-6"
       onClick={onClose}
     >
       <div
-        className={`w-full ${widthClass} bg-surface border border-rule rounded-md flex flex-col max-h-[90vh]`}
+        ref={panelRef}
+        tabIndex={-1}
+        className={`w-full ${widthClass} bg-surface border border-rule rounded-md flex flex-col max-h-[90vh] focus:outline-none`}
         onClick={(e) => e.stopPropagation()}
       >
         <div className="flex items-start justify-between gap-3 px-5 py-4 border-b border-rule">
           <div className="min-w-0">
-            <h2 className="text-title font-semibold text-fg truncate">{title}</h2>
+            <h2 id={titleId} className="text-title font-semibold text-fg truncate">
+              {title}
+            </h2>
             {caption && (
               <p className="text-label uppercase tracking-wider text-fg-muted mt-1 truncate">
                 {caption}
