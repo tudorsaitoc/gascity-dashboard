@@ -1,5 +1,6 @@
-import { useMemo } from 'react';
+import { useMemo, useState } from 'react';
 import { NavLink, useLocation } from 'react-router-dom';
+import { Modal } from './Modal';
 import { api } from '../api/client';
 import { getActiveCity } from '../api/cityBase';
 import { NavAttentionIndicator } from '../attention/NavAttentionIndicator';
@@ -98,6 +99,40 @@ export function Header() {
   // the header indicator only makes sense inside the mail surface.
   const showReadingAs = !viewingAs.isOperator && pathname.startsWith('/mail');
 
+  // On phones the inline route row stacks to several lines, so it collapses
+  // behind a hamburger that opens the routes in the shared Modal. Both layouts
+  // render the same routes through navItem so they cannot drift.
+  const [menuOpen, setMenuOpen] = useState(false);
+
+  const navItem = (r: NavRoute, sizeClass: string, onClick?: () => void) => {
+    const domain = NAV_ATTENTION_DOMAINS[r.to];
+    return (
+      <li key={r.to}>
+        <NavLink
+          to={r.to}
+          end={r.end ?? false}
+          onClick={onClick}
+          className={({ isActive }: { isActive: boolean }) =>
+            [
+              sizeClass,
+              'transition-colors duration-150 ease-out-quart focus-mark',
+              isActive ? 'text-fg font-semibold' : 'text-fg-muted font-medium hover:text-fg',
+            ].join(' ')
+          }
+        >
+          {r.label}
+          {domain !== undefined && (
+            <NavAttentionIndicator
+              label={r.label}
+              summary={attention.byDomain[domain]}
+              suppressAccent={livenessOwnsMark}
+            />
+          )}
+        </NavLink>
+      </li>
+    );
+  };
+
   return (
     <header className="border-b border-rule">
       <div className="max-w-dashboard mx-auto px-4 sm:px-6 lg:px-8 py-5 flex items-baseline gap-x-6 lg:gap-x-8 gap-y-2 flex-wrap">
@@ -141,38 +176,25 @@ export function Header() {
           )}
         </div>
 
-        <nav className="flex-1">
-          <ul className="flex items-baseline gap-x-5 lg:gap-x-7 gap-y-1 flex-wrap">
-            {ROUTES.map((r) => {
-              const domain = NAV_ATTENTION_DOMAINS[r.to];
-              return (
-                <li key={r.to}>
-                  <NavLink
-                    to={r.to}
-                    end={r.end ?? false}
-                    className={({ isActive }: { isActive: boolean }) =>
-                      [
-                        'text-title transition-colors duration-150 ease-out-quart focus-mark',
-                        isActive
-                          ? 'text-fg font-semibold'
-                          : 'text-fg-muted font-medium hover:text-fg',
-                      ].join(' ')
-                    }
-                  >
-                    {r.label}
-                    {domain !== undefined && (
-                      <NavAttentionIndicator
-                        label={r.label}
-                        summary={attention.byDomain[domain]}
-                        suppressAccent={livenessOwnsMark}
-                      />
-                    )}
-                  </NavLink>
-                </li>
-              );
-            })}
+        <nav className="flex-1" aria-label="Primary">
+          {/* Desktop: the route names typeset as a row. Hidden on phones, where
+              the hamburger below opens the same routes in a Modal. */}
+          <ul className="hidden sm:flex items-baseline gap-x-5 lg:gap-x-7 gap-y-1 flex-wrap">
+            {ROUTES.map((r) => navItem(r, 'text-title'))}
           </ul>
         </nav>
+
+        <button
+          type="button"
+          onClick={() => setMenuOpen(true)}
+          aria-label="Open menu"
+          aria-haspopup="dialog"
+          aria-expanded={menuOpen}
+          {...(menuOpen ? { 'aria-controls': 'mobile-nav-menu' } : {})}
+          className="sm:hidden ml-auto text-fg-muted hover:text-fg transition-colors duration-150 ease-out-quart focus-mark text-lg leading-none"
+        >
+          <span aria-hidden="true">☰</span>
+        </button>
 
         <BoardLiveness />
 
@@ -185,6 +207,14 @@ export function Header() {
           {resolved === 'dark' ? 'Light' : 'Dark'}
         </button>
       </div>
+
+      <Modal open={menuOpen} onClose={() => setMenuOpen(false)} title="Menu" widthClass="max-w-xs">
+        <nav id="mobile-nav-menu" aria-label="Primary">
+          <ul className="flex flex-col gap-y-3">
+            {ROUTES.map((r) => navItem(r, 'text-headline', () => setMenuOpen(false)))}
+          </ul>
+        </nav>
+      </Modal>
     </header>
   );
 }
