@@ -1,5 +1,5 @@
 import type { DeployList, DeployRecord, GitCommitList } from 'gas-city-dashboard-shared';
-import { Fragment, type ReactNode } from 'react';
+import { type ReactNode } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import { api, formatApiError } from '../api/client';
 import { getActiveCity } from '../api/cityBase';
@@ -617,25 +617,26 @@ function ActivityRecordTable<T>({
               attentionSeverity?.(row) ?? null,
             );
             return (
-              <li
-                {...severityProps}
-                key={rowKey(row, index)}
-                className={`space-y-2 py-4 ${className}`}
-              >
+              <li {...severityProps} key={rowKey(row, index)} className={`py-3 ${className}`}>
                 {primaryColumns.map((col) => (
-                  <div key={col.key}>{col.render(row)}</div>
+                  <div key={col.key} className="text-body">
+                    {col.render(row)}
+                  </div>
                 ))}
                 {detailColumns.length > 0 && (
-                  <dl className="grid grid-cols-[auto_1fr] items-baseline gap-x-4 gap-y-1">
+                  // Compact meta: the detail columns collapse to one wrapping
+                  // line of values (no per-field labels — a timestamp, badge, or
+                  // subject reads as itself), separated by spacing rather than
+                  // glyphs so a record stays ~2 lines on a phone instead of one
+                  // label·value row per column. Status badges already carry their
+                  // own glyph, so an added separator would double up.
+                  <div className="mt-1 flex flex-wrap items-baseline gap-x-3 gap-y-0.5 text-label text-fg-muted">
                     {detailColumns.map((col) => (
-                      <Fragment key={col.key}>
-                        <dt className="text-label uppercase tracking-wider text-fg-faint">
-                          {col.label}
-                        </dt>
-                        <dd className="min-w-0">{col.render(row)}</dd>
-                      </Fragment>
+                      <span key={col.key} className="min-w-0 break-words">
+                        {col.render(row)}
+                      </span>
                     ))}
-                  </dl>
+                  </div>
                 )}
               </li>
             );
