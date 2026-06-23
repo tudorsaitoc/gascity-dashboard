@@ -933,6 +933,52 @@ describe('createAttentionContributors', () => {
     const ids = model.byDomain.beads.items.map((item) => item.id);
     expect(ids).toContain('beads:decisions-unavailable');
     expect(ids).toContain('beads:B-1:escalated');
+    // gascity-dashboard-m1gi: the failed decision-queue READ rides the
+    // non-counting unavailable tier; only the real escalation inflates the badge.
+    expect(model.byDomain.beads.attention).toBe(1);
+    expect(model.byDomain.beads.unavailable).toBe(1);
+  });
+
+  it('keeps a beads-list read failure in the non-counting unavailable tier — a 503 does not inflate the badge (gascity-dashboard-m1gi)', () => {
+    const model = composeAttention(
+      createAttentionContributors({
+        beads: { decisionLabel: NEEDS_STEPHANIE_LABEL, error: 'bead list unavailable: 503' },
+      }),
+    );
+
+    expect(model.byDomain.beads.attention).toBe(0);
+    expect(model.byDomain.beads.watch).toBe(0);
+    expect(model.byDomain.beads.unavailable).toBe(1);
+    expect(model.byDomain.beads.severity).toBeNull();
+    expect(model.byDomain.beads.items[0]?.id).toBe('beads:unavailable');
+  });
+
+  it('keeps an escalation-queue read failure in the non-counting unavailable tier (gascity-dashboard-m1gi)', () => {
+    const model = composeAttention(
+      createAttentionContributors({
+        beads: {
+          decisionLabel: NEEDS_STEPHANIE_LABEL,
+          escalationsError: 'escalation queue unavailable: ECONNREFUSED',
+        },
+      }),
+    );
+
+    expect(model.byDomain.beads.attention).toBe(0);
+    expect(model.byDomain.beads.unavailable).toBe(1);
+    expect(model.byDomain.beads.severity).toBeNull();
+    expect(model.byDomain.beads.items[0]?.id).toBe('beads:escalations-unavailable');
+  });
+
+  it('keeps a mail read failure in the non-counting unavailable tier — a 503 does not inflate the badge (gascity-dashboard-m1gi)', () => {
+    const model = composeAttention(
+      createAttentionContributors({ mail: { error: 'mail unavailable: 503' } }),
+    );
+
+    expect(model.byDomain.mail.attention).toBe(0);
+    expect(model.byDomain.mail.watch).toBe(0);
+    expect(model.byDomain.mail.unavailable).toBe(1);
+    expect(model.byDomain.mail.severity).toBeNull();
+    expect(model.byDomain.mail.items[0]?.id).toBe('mail:unavailable');
   });
 
   it('derives maintainer attention from needs-you, awaiting-triage, and blocked slung facts', () => {
