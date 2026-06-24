@@ -1,8 +1,7 @@
 import type { DashboardBead, DashboardSession } from 'gas-city-dashboard-shared';
-import { makeNodeKey } from 'gas-city-dashboard-shared';
+import { buildRelationIndex, makeNodeKey } from 'gas-city-dashboard-shared';
 import assert from 'node:assert/strict';
 import { describe, test } from 'node:test';
-import { buildRelationIndex } from '../src/links/relation-index.js';
 
 // R1 + RK1 unit tests for the backend relation index.
 

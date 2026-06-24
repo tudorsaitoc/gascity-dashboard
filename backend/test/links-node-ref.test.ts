@@ -1,6 +1,6 @@
+import { parseRef, sanitiseUrl } from 'gas-city-dashboard-shared';
 import { test, describe } from 'node:test';
 import assert from 'node:assert/strict';
-import { parseRef, sanitiseUrl } from '../src/links/node-ref.js';
 
 describe('parseRef', () => {
   test('parses pr/<n> and issue/<n>', () => {
