@@ -1,4 +1,4 @@
-import { cleanup, fireEvent, render, screen, within } from '@testing-library/react';
+import { act, cleanup, fireEvent, render, screen, within } from '@testing-library/react';
 import { MemoryRouter, useNavigate } from 'react-router-dom';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { AttentionProvider } from '../attention/context';
@@ -140,6 +140,45 @@ describe('Header mobile nav', () => {
     expect(screen.getByRole('dialog')).toBeTruthy();
     // Navigate without touching a menu link.
     fireEvent.click(screen.getByRole('button', { name: /navigate elsewhere/i }));
+    expect(screen.queryByRole('dialog')).toBeNull();
+  });
+
+  it('closes the open menu when the viewport widens past the sm: breakpoint', () => {
+    // The hamburger is sm:hidden in CSS, but the open state is React state. When
+    // a phone-width viewport widens back to >=640px the desktop nav row returns
+    // and the Modal + scrim would otherwise stay stranded over it. Capture the
+    // change handler the Header registers on the (min-width: 640px) query so the
+    // test can drive the crossing directly — scoped to that query so the theme
+    // provider's prefers-color-scheme listener is not also triggered.
+    const widthChangeHandlers: Array<(e: MediaQueryListEvent) => void> = [];
+    Object.defineProperty(window, 'matchMedia', {
+      configurable: true,
+      value: vi.fn().mockImplementation((query: string) => ({
+        addEventListener: (_type: string, handler: (e: MediaQueryListEvent) => void) => {
+          if (query.includes('min-width')) widthChangeHandlers.push(handler);
+        },
+        addListener: vi.fn(),
+        dispatchEvent: vi.fn(),
+        matches: false,
+        media: query,
+        onchange: null,
+        removeEventListener: vi.fn(),
+        removeListener: vi.fn(),
+      })),
+    });
+
+    renderHeader();
+    fireEvent.click(screen.getByRole('button', { name: /open menu/i }));
+    expect(screen.getByRole('dialog')).toBeTruthy();
+
+    // Simulate the viewport crossing to >=640px (the sm: breakpoint), where the
+    // desktop nav row reappears.
+    act(() => {
+      for (const handler of widthChangeHandlers) {
+        handler({ matches: true } as MediaQueryListEvent);
+      }
+    });
+
     expect(screen.queryByRole('dialog')).toBeNull();
   });
 });
