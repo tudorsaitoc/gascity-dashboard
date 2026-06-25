@@ -58,7 +58,6 @@ describe('AttentionSummaryPanel', () => {
             contributor('runs', [
               item('runs:feed-partial', 'runs', 'unavailable', {
                 title: 'Formula run feed incomplete',
-                provenance: 'stale',
               }),
             ]),
           ]}

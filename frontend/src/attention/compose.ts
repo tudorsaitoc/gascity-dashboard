@@ -33,19 +33,6 @@ export interface AttentionItem {
   current?: boolean;
   actionable?: boolean;
   updatedAt?: string;
-  /**
-   * Freshness of the source this item was derived from. Carried on
-   * `unavailable` items so a badge fed from a stale cache read can be marked
-   * stale rather than rendered as live truth.
-   */
-  provenance?: SourceStatus;
-  /**
-   * ISO timestamp of the cache read this item was derived from (the
-   * useCachedData/cache fetch primitive). Pairs with `provenance` so a consumer
-   * can age a degradation signal — "as of <fetchedAt>, this slice was
-   * unavailable" — instead of treating a long-stale read as current.
-   */
-  fetchedAt?: string;
 }
 
 export interface AttentionContributor {
