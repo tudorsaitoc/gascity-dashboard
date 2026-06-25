@@ -37,6 +37,24 @@ const CONNECTING_GRACE_MS = 2_000;
 const DEFAULT_COALESCE_MS = 2_500;
 
 /**
+ * Idle-watchdog window. An EventSource can silently half-open — the TCP socket
+ * stays up, no `onerror` fires, the server just stops emitting — leaving
+ * `sseState` stuck at 'open' while the data behind it freezes (gascity-dashboard-934a).
+ * When no event of any kind (open, named, malformed) arrives within this window
+ * we flip to 'degraded' (the existing ochre tier — One-Mark safe, not a second
+ * primary mark) so liveness stops reading a dead stream as live.
+ *
+ * The window is deliberately conservative. The gc supervisor does not yet emit a
+ * periodic heartbeat (that real-time detector is the deferred, mayor-owned
+ * upstream follow-up), so on a quiet-but-healthy city the only events are real
+ * activity. A short window would false-degrade a normally-idle runs board; this
+ * 5-minute bound trades slower half-open detection for not crying wolf during
+ * ordinary lulls. Once the server heartbeat lands this drops to a small multiple
+ * of the heartbeat interval.
+ */
+export const SSE_IDLE_WATCHDOG_MS = 300_000;
+
+/**
  * Subscribe to gc events. When an event whose type starts with any of
  * `prefixes` arrives, `onMatch` is invoked. Designed for "refresh this
  * panel when its underlying data changed" — pass refresh().
@@ -78,6 +96,7 @@ export function useGcEventRefresh(
     let cancelled = false;
     let retryTimer: ReturnType<typeof setTimeout> | null = null;
     let connectGraceTimer: ReturnType<typeof setTimeout> | null = null;
+    let idleWatchdog: ReturnType<typeof setTimeout> | null = null;
     let retryDelayMs = 1_000;
     let malformedEventReported = false;
 
@@ -85,6 +104,22 @@ export function useGcEventRefresh(
       if (connectGraceTimer === null) return;
       clearTimeout(connectGraceTimer);
       connectGraceTimer = null;
+    };
+    const clearIdleWatchdog = () => {
+      if (idleWatchdog === null) return;
+      clearTimeout(idleWatchdog);
+      idleWatchdog = null;
+    };
+    // Arm (or re-arm) the half-open detector. Called whenever the stream is
+    // proven live — on open and on every received event — so a continuously
+    // active stream never trips it; only true silence past the window does.
+    const armIdleWatchdog = () => {
+      clearIdleWatchdog();
+      idleWatchdog = setTimeout(() => {
+        if (cancelled) return;
+        idleWatchdog = null;
+        setState('degraded');
+      }, SSE_IDLE_WATCHDOG_MS);
     };
     const reportMalformedEventOnce = (reason: string) => {
       if (malformedEventReported) return;
@@ -135,11 +170,13 @@ export function useGcEventRefresh(
       connectGraceTimer = setTimeout(() => {
         if (cancelled || es !== source || source.readyState === EventSourceCtor.CLOSED) return;
         setState('open');
+        armIdleWatchdog();
       }, CONNECTING_GRACE_MS);
       es.onopen = () => {
         if (cancelled) return;
         clearConnectGraceTimer();
         setState('open');
+        armIdleWatchdog();
         retryDelayMs = 1_000;
       };
       // gc supervisor sends events with `event: event` (the event NAME
@@ -150,6 +187,9 @@ export function useGcEventRefresh(
       // names them.
       const handleData = (msg: MessageEvent<string>) => {
         if (cancelled) return;
+        // Any received frame — even a malformed one — proves the socket is
+        // still delivering, so reset the half-open detector before dispatch.
+        armIdleWatchdog();
         let parsed: unknown = null;
         try {
           parsed = JSON.parse(msg.data);
@@ -183,6 +223,7 @@ export function useGcEventRefresh(
       es.onerror = () => {
         if (cancelled) return;
         clearConnectGraceTimer();
+        clearIdleWatchdog();
         setState('closed');
         es?.close();
         es = null;
@@ -200,6 +241,7 @@ export function useGcEventRefresh(
       cancelled = true;
       if (retryTimer) clearTimeout(retryTimer);
       clearConnectGraceTimer();
+      clearIdleWatchdog();
       if (coalesceTimerRef.current) {
         clearTimeout(coalesceTimerRef.current);
         coalesceTimerRef.current = null;

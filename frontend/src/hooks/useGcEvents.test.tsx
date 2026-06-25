@@ -2,7 +2,7 @@ import { act, cleanup, renderHook } from '@testing-library/react';
 import { GC_EVENT_PREFIX } from 'gas-city-dashboard-shared';
 import { afterEach, beforeEach, describe, expect, it, vi, type Mock } from 'vitest';
 import { reportClientError } from '../lib/clientErrorReporting';
-import { useGcEventRefresh } from './useGcEvents';
+import { SSE_IDLE_WATCHDOG_MS, useGcEventRefresh } from './useGcEvents';
 
 const eventSources: FakeEventSource[] = [];
 const mockReportClientError = reportClientError as Mock;
@@ -219,6 +219,89 @@ describe('useGcEventRefresh', () => {
       });
       // No reconnect after teardown.
       expect(eventSources).toHaveLength(1);
+    });
+  });
+
+  describe('idle-watchdog (half-open detection)', () => {
+    beforeEach(() => {
+      vi.useFakeTimers();
+    });
+
+    const emitEvent = () =>
+      act(() => eventSources[0]?.emitNamed('event', JSON.stringify({ type: 'bead.updated' })));
+
+    it('flips an open-but-silent stream to degraded once the idle window elapses', () => {
+      const { result } = renderHook(() => useGcEventRefresh([GC_EVENT_PREFIX.bead], vi.fn()));
+      act(() => eventSources[0]?.open());
+      expect(result.current).toBe('open');
+
+      // Just before the window closes the stream still reads live.
+      act(() => {
+        vi.advanceTimersByTime(SSE_IDLE_WATCHDOG_MS - 1);
+      });
+      expect(result.current).toBe('open');
+
+      // At the window edge a silently half-open socket degrades to ochre.
+      act(() => {
+        vi.advanceTimersByTime(1);
+      });
+      expect(result.current).toBe('degraded');
+    });
+
+    it('keeps a continuously-active stream open — each event re-arms the watchdog', () => {
+      const { result } = renderHook(() => useGcEventRefresh([GC_EVENT_PREFIX.bead], vi.fn()));
+      act(() => eventSources[0]?.open());
+
+      // An event arriving just shy of every window keeps resetting the timer,
+      // so the stream never trips the watchdog across several windows.
+      for (let i = 0; i < 3; i++) {
+        act(() => {
+          vi.advanceTimersByTime(SSE_IDLE_WATCHDOG_MS - 1);
+        });
+        emitEvent();
+        expect(result.current).toBe('open');
+      }
+    });
+
+    it('recovers to open when an event arrives after the watchdog degraded it', () => {
+      const { result } = renderHook(() => useGcEventRefresh([GC_EVENT_PREFIX.bead], vi.fn()));
+      act(() => eventSources[0]?.open());
+
+      act(() => {
+        vi.advanceTimersByTime(SSE_IDLE_WATCHDOG_MS);
+      });
+      expect(result.current).toBe('degraded');
+
+      // A real event proves the socket is alive again: liveness recovers.
+      emitEvent();
+      expect(result.current).toBe('open');
+    });
+
+    it('does not fire the watchdog after the stream errors and closes', () => {
+      const { result } = renderHook(() => useGcEventRefresh([GC_EVENT_PREFIX.bead], vi.fn()));
+      act(() => eventSources[0]?.open());
+      act(() => eventSources[0]?.error());
+      expect(result.current).toBe('closed');
+
+      // The idle timer was cleared on close, so advancing past the window must
+      // not resurrect a stale 'degraded' over the real 'closed'/reconnect state.
+      act(() => {
+        vi.advanceTimersByTime(SSE_IDLE_WATCHDOG_MS);
+      });
+      expect(result.current).not.toBe('degraded');
+    });
+
+    it('cancels the watchdog on unmount so no state update lands after teardown', () => {
+      const { result, unmount } = renderHook(() =>
+        useGcEventRefresh([GC_EVENT_PREFIX.bead], vi.fn()),
+      );
+      act(() => eventSources[0]?.open());
+      unmount();
+      act(() => {
+        vi.advanceTimersByTime(SSE_IDLE_WATCHDOG_MS);
+      });
+      // No throw and the last observed state is the pre-unmount 'open'.
+      expect(result.current).toBe('open');
     });
   });
 
