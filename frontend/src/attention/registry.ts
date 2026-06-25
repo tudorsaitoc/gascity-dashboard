@@ -446,9 +446,14 @@ function deriveAgentsAttention(facts: AgentsAttentionFacts | undefined): readonl
 function deriveBeadsAttention(facts: BeadsAttentionFacts | undefined): readonly AttentionItem[] {
   const items: AttentionItem[] = [];
   if (facts === undefined) return items;
+  // gascity-dashboard-m1gi: a failed bead READ is a data degradation, not
+  // operator-actionable work, so it lands in the non-counting `unavailable`
+  // tier (like agents:unavailable / runs:partial) — the item still renders so
+  // the operator sees the source is down, but a 503 never inflates the nav
+  // badge or spends the One-Mark maroon on a fetch that merely failed.
   if (facts.error !== undefined && facts.error.length > 0) {
     items.push(
-      domainAttention('beads', {
+      domainUnavailable('beads', {
         id: 'beads:unavailable',
         title: 'Bead data unavailable',
         summary: facts.error,
@@ -467,7 +472,7 @@ function deriveBeadsAttention(facts: BeadsAttentionFacts | undefined): readonly 
   }
   if (facts.decisionsError !== undefined && facts.decisionsError.length > 0) {
     items.push(
-      domainAttention('beads', {
+      domainUnavailable('beads', {
         id: 'beads:decisions-unavailable',
         title: 'Decision queue unavailable',
         summary: facts.decisionsError,
@@ -477,7 +482,7 @@ function deriveBeadsAttention(facts: BeadsAttentionFacts | undefined): readonly 
   }
   if (facts.escalationsError !== undefined && facts.escalationsError.length > 0) {
     items.push(
-      domainAttention('beads', {
+      domainUnavailable('beads', {
         id: 'beads:escalations-unavailable',
         title: 'Escalation queue unavailable',
         summary: facts.escalationsError,
@@ -600,9 +605,12 @@ function mayorDecisionAttention(bead: Bead): AttentionItem {
 function deriveMailAttention(facts: MailAttentionFacts | undefined): readonly AttentionItem[] {
   const items: AttentionItem[] = [];
   if (facts === undefined) return items;
+  // gascity-dashboard-m1gi: a failed mail READ is a degradation, not actionable
+  // mail, so it rides the non-counting `unavailable` tier (see beads above) —
+  // visible, but a 503 never inflates the Mail badge.
   if (facts.error !== undefined && facts.error.length > 0) {
     items.push(
-      domainAttention('mail', {
+      domainUnavailable('mail', {
         id: 'mail:unavailable',
         title: 'Mail data unavailable',
         summary: facts.error,
