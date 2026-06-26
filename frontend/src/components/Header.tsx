@@ -53,7 +53,7 @@ const NAV_ATTENTION_DOMAINS: Readonly<Record<string, AttentionDomain>> = {
 };
 
 // The header is page furniture, not chrome. A small wordmark, the
-// five route names typeset as a row, a textual theme toggle. The
+// route names typeset as a row, a textual theme toggle. The
 // route weight contrast IS the active-state affordance; no underline,
 // no background pill.
 export function Header() {

@@ -23,12 +23,19 @@ export function ConvoyIndex() {
   const loading = state.kind === 'loading';
   const refreshing = ready?.refreshing ?? false;
   const roots = ready?.load.roots ?? [];
+  // A truncated scan may have hidden roots, so every count is a LOWER BOUND
+  // (same honesty bar as the convoy detail page's partial state). The synopsis
+  // qualifies the count and the empty state never claims an absolute zero.
+  const partial = ready?.load.partial ?? false;
 
   return (
     <section>
       <PageHeader
         title="Convoys"
-        synopsis={ready ? convoysSynopsis(roots.length) : undefined}
+        // Only carry a synopsis when there is a count to report — at zero the
+        // body's empty notice is the single, coherent message (no "0 active
+        // convoys." echoing "No active convoys.").
+        synopsis={ready && roots.length > 0 ? convoysSynopsis(roots.length, partial) : undefined}
         meta={
           <Button size="sm" onClick={() => void refresh()} disabled={loading || refreshing}>
             {refreshing ? 'Refreshing' : 'Refresh'}
@@ -53,7 +60,7 @@ export function ConvoyIndex() {
           )}
           {roots.length === 0 ? (
             <p className="text-body text-fg-muted" role="status">
-              No active convoys.
+              {partial ? 'No active convoys in the scanned window.' : 'No active convoys.'}
             </p>
           ) : (
             <ol className="space-y-3">
@@ -68,8 +75,10 @@ export function ConvoyIndex() {
   );
 }
 
-function convoysSynopsis(count: number): string {
-  return count === 1 ? '1 active convoy.' : `${count} active convoys.`;
+function convoysSynopsis(count: number, partial: boolean): string {
+  const noun = count === 1 ? 'active convoy' : 'active convoys';
+  // Under a truncated scan the count is a floor, not the whole set.
+  return partial ? `At least ${count} ${noun}.` : `${count} ${noun}.`;
 }
 
 function ConvoyRootRow({ root }: { root: ConvoyRootSummary }) {

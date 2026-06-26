@@ -1,4 +1,4 @@
-import { cleanup, render, screen, within } from '@testing-library/react';
+import { cleanup, fireEvent, render, screen, within } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 import { afterEach, describe, expect, it, vi, type Mock } from 'vitest';
 import type { ConvoyRootsLoad, ConvoyRootSummary } from '../supervisor/convoyReads';
@@ -77,14 +77,29 @@ describe('ConvoyIndex', () => {
     expect(await screen.findByText('name inferred from bead title')).toBeTruthy();
   });
 
-  it('renders the calm empty state when no convoys are active', async () => {
+  it('renders the calm empty state when no convoys are active, with no 0-count synopsis', async () => {
     mockLoad.mockResolvedValue({ partial: false, roots: [] } satisfies ConvoyRootsLoad);
     renderIndex();
 
     expect(await screen.findByText('No active convoys.')).toBeTruthy();
+    // The synopsis is suppressed at zero so it does not echo "0 active convoys."
+    // alongside the body's "No active convoys." (dual-text coherence).
+    expect(screen.queryByText('0 active convoys.')).toBeNull();
   });
 
-  it('shows the partial-truncation notice when the city scan was truncated', async () => {
+  it('qualifies the empty state as bounded when a truncated scan found no roots', async () => {
+    // partial=true means the scan may have hidden roots, so the page must not
+    // claim an absolute zero — it scopes the empty copy to the scanned window
+    // and keeps the truncation notice. (Same lower-bound honesty as the detail.)
+    mockLoad.mockResolvedValue({ partial: true, roots: [] } satisfies ConvoyRootsLoad);
+    renderIndex();
+
+    expect(await screen.findByText('No active convoys in the scanned window.')).toBeTruthy();
+    expect(screen.queryByText('No active convoys.')).toBeNull();
+    expect(screen.getByText(/Partial list: the city bead read was truncated/)).toBeTruthy();
+  });
+
+  it('shows the partial-truncation notice and a lower-bound synopsis when truncated', async () => {
     mockLoad.mockResolvedValue({
       partial: true,
       roots: [root()],
@@ -94,6 +109,34 @@ describe('ConvoyIndex', () => {
     // The row still renders; the notice warns the list may be incomplete.
     expect(await screen.findByRole('link', { name: 'mol-focus-review' })).toBeTruthy();
     expect(screen.getByText(/Partial list: the city bead read was truncated/)).toBeTruthy();
+    // The count is a floor under truncation, not an exact total.
+    expect(screen.getByText('At least 1 active convoy.')).toBeTruthy();
+  });
+
+  it('reloads the root list when Refresh is pressed', async () => {
+    mockLoad
+      .mockResolvedValueOnce({
+        partial: false,
+        roots: [root({ rootBeadId: 'gc-root-1', formulaName: 'mol-focus-review' })],
+      } satisfies ConvoyRootsLoad)
+      .mockResolvedValueOnce({
+        partial: false,
+        roots: [
+          root({ rootBeadId: 'gc-root-1', formulaName: 'mol-focus-review' }),
+          root({ rootBeadId: 'gc-root-2', formulaName: 'mol-pr-iterate' }),
+        ],
+      } satisfies ConvoyRootsLoad);
+    renderIndex();
+
+    await screen.findByRole('link', { name: 'mol-focus-review' });
+    expect(screen.queryByRole('link', { name: 'mol-pr-iterate' })).toBeNull();
+
+    fireEvent.click(screen.getByRole('button', { name: /refresh/i }));
+
+    // The refresh path (load('refresh', isCurrent)) lands the newer set without
+    // a stale earlier resolution clobbering it.
+    expect(await screen.findByRole('link', { name: 'mol-pr-iterate' })).toBeTruthy();
+    expect(mockLoad).toHaveBeenCalledTimes(2);
   });
 
   it('renders an error line when the scan fails', async () => {

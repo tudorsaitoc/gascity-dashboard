@@ -317,4 +317,24 @@ describe('loadActiveConvoyRoots', () => {
 
     expect((await loadActiveConvoyRoots()).partial).toBe(true);
   });
+
+  it('excludes a step CHILD bead from the root list — only the run root is a convoy', async () => {
+    // The city-wide scan can surface a graph.v2 run root's step children. A step
+    // bead carries gc.step_ref and a parent, NOT the root's contract+run-target
+    // dual key, so isGraphV2RunRoot must key on that metadata alone and never
+    // mistake a child for a second convoy root (the open-risk the PL flagged).
+    mockListSupervisorBeads.mockResolvedValue(
+      list([
+        bead('gc-root', { status: 'in_progress', metadata: { ...GRAPH_V2_META } }),
+        bead('gc-step', {
+          status: 'open',
+          parent: 'gc-root',
+          metadata: { 'gc.step_ref': 'review.1' },
+        }),
+      ]),
+    );
+
+    const { roots } = await loadActiveConvoyRoots();
+    expect(roots.map((r) => r.rootBeadId)).toEqual(['gc-root']);
+  });
 });

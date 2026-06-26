@@ -1,7 +1,11 @@
 import { test, describe } from 'node:test';
 import assert from 'node:assert/strict';
 
-import { resolveRunFormulaIdentity, resolveRunFormulaName } from './formula-name.js';
+import {
+  isTerminalRunRootStatus,
+  resolveRunFormulaIdentity,
+  resolveRunFormulaName,
+} from './formula-name.js';
 import type { RunSnapshotBead } from '../run-snapshot.js';
 
 // Audit finding M3 (run ga-wisp-x0tank): the supervisor retired
@@ -130,5 +134,23 @@ describe('resolveRunFormulaName on gc.routed_to roots (M3)', () => {
 
   test('returns null for terminal routed_to roots', () => {
     assert.equal(resolveRunFormulaName(routedToRoot({ status: 'completed' })), null);
+  });
+});
+
+describe('isTerminalRunRootStatus', () => {
+  // The convoy index uses this to keep its listing to ACTIVE convoys, and the
+  // title fallbacks use it to avoid trusting a retitled closed root's title.
+  for (const status of ['closed', 'completed', 'done', 'failed', 'skipped']) {
+    test(`treats "${status}" as terminal`, () => {
+      assert.equal(isTerminalRunRootStatus(status), true);
+    });
+  }
+
+  test('treats an in-flight status as non-terminal', () => {
+    assert.equal(isTerminalRunRootStatus('in_progress'), false);
+  });
+
+  test('normalizes case and surrounding whitespace before matching', () => {
+    assert.equal(isTerminalRunRootStatus(' CLOSED '), true);
   });
 });

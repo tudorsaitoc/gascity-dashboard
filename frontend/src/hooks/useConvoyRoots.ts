@@ -23,35 +23,43 @@ export interface UseConvoyRoots {
 
 export function useConvoyRoots(): UseConvoyRoots {
   const [state, setState] = useState<ConvoyRootsState>({ kind: 'loading' });
-  // A refresh that resolves after the page unmounted must not setState on a
-  // dead component, so each load checks it is still the live one.
-  const mountedRef = useRef(true);
 
-  const load = useCallback(async (mode: 'initial' | 'refresh'): Promise<void> => {
-    setState((prev) =>
-      mode === 'refresh' && prev.kind === 'ready'
-        ? { ...prev, refreshing: true }
-        : { kind: 'loading' },
-    );
-    try {
-      const result = await loadActiveConvoyRoots();
-      if (mountedRef.current) setState({ kind: 'ready', load: result, refreshing: false });
-    } catch (err) {
-      if (mountedRef.current) {
+  const load = useCallback(
+    async (mode: 'initial' | 'refresh', isCurrent: () => boolean): Promise<void> => {
+      setState((prev) =>
+        mode === 'refresh' && prev.kind === 'ready'
+          ? { ...prev, refreshing: true }
+          : { kind: 'loading' },
+      );
+      try {
+        const result = await loadActiveConvoyRoots();
+        if (isCurrent()) setState({ kind: 'ready', load: result, refreshing: false });
+      } catch (err) {
+        if (!isCurrent()) return;
         setState({ kind: 'failed', error: formatApiError(err, 'convoy list load failed') });
       }
-    }
-  }, []);
+    },
+    [],
+  );
+
+  // The live mount's freshness check. The effect rebinds it per run to a fresh
+  // `() => !cancelled`, so a load — initial OR a refresh() resolving after a
+  // StrictMode unmount/remount — never overwrites the current mount's state with
+  // a stale result. Mirrors useConvoyView's per-effect `cancelled` guard (it has
+  // a liveRootRef because its key can change; this hook has no key, so the guard
+  // is purely mount-generation).
+  const isCurrentRef = useRef<() => boolean>(() => true);
 
   useEffect(() => {
-    mountedRef.current = true;
-    void load('initial');
+    let cancelled = false;
+    isCurrentRef.current = () => !cancelled;
+    void load('initial', () => !cancelled);
     return () => {
-      mountedRef.current = false;
+      cancelled = true;
     };
   }, [load]);
 
-  const refresh = useCallback(() => load('refresh'), [load]);
+  const refresh = useCallback(() => load('refresh', () => isCurrentRef.current()), [load]);
 
   return { state, refresh };
 }

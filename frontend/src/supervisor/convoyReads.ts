@@ -1,4 +1,9 @@
-import type { ConvoyView, DashboardBead, RunFormulaSource } from 'gas-city-dashboard-shared';
+import type {
+  BeadStatus,
+  ConvoyView,
+  DashboardBead,
+  RunFormulaSource,
+} from 'gas-city-dashboard-shared';
 import {
   BEAD_ID_RE,
   isGraphV2RunRoot,
@@ -62,7 +67,7 @@ export interface ConvoyLoad {
 export interface ConvoyRootSummary {
   rootBeadId: string;
   title: string;
-  status: string;
+  status: BeadStatus;
   /** Formula driving the convoy, when the root carries (or implies) one. */
   formulaName: string | null;
   /** Provenance of `formulaName` so a title-inferred name can be surfaced honestly. */
