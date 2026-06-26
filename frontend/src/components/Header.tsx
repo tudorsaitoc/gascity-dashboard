@@ -36,6 +36,9 @@ const EXPLICIT_ROUTES: ReadonlyArray<NavRoute> = [
   { to: '/agents', label: 'Agents', order: 20 },
   { to: '/beads', label: 'Beads', order: 30 },
   { to: '/runs', label: 'Runs', order: 40 },
+  // gascity-dashboard-0chv3: Convoy gets a real front door between Runs and Mail
+  // (the /convoy index lists active convoy roots; detail stays at /convoy/:root).
+  { to: '/convoy', label: 'Convoy', order: 45 },
   { to: '/mail', label: 'Mail', order: 50 },
 ];
 
@@ -50,7 +53,7 @@ const NAV_ATTENTION_DOMAINS: Readonly<Record<string, AttentionDomain>> = {
 };
 
 // The header is page furniture, not chrome. A small wordmark, the
-// five route names typeset as a row, a textual theme toggle. The
+// route names typeset as a row, a textual theme toggle. The
 // route weight contrast IS the active-state affordance; no underline,
 // no background pill.
 export function Header() {

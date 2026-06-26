@@ -26,6 +26,9 @@ const AmbientHomePage = lazy(() =>
 );
 const BeadsPage = lazy(() => import('./routes/Beads').then((m) => ({ default: m.BeadsPage })));
 const ConvoyPage = lazy(() => import('./routes/Convoy').then((m) => ({ default: m.ConvoyPage })));
+const ConvoyIndexPage = lazy(() =>
+  import('./routes/ConvoyIndex').then((m) => ({ default: m.ConvoyIndex })),
+);
 const MailPage = lazy(() => import('./routes/Mail').then((m) => ({ default: m.MailPage })));
 const FormulaRunDetailPage = lazy(() =>
   import('./routes/FormulaRunDetail').then((m) => ({ default: m.FormulaRunDetailPage })),
@@ -102,6 +105,7 @@ export function App() {
                       <Route path="/agents" element={<AgentsPage />} />
                       <Route path="/agents/:slug" element={<AgentDetailPage />} />
                       <Route path="/beads" element={<BeadsPage />} />
+                      <Route path="/convoy" element={<ConvoyIndexPage />} />
                       <Route path="/convoy/:rootBead" element={<ConvoyPage />} />
                       <Route path="/runs" element={<RunsPage />} />
                       <Route path="/runs/:runId" element={<FormulaRunDetailPage />} />

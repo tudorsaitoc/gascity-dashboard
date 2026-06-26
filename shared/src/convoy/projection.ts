@@ -104,16 +104,34 @@ export function projectConvoyView(
   };
 }
 
+/**
+ * Whether `root` is a fully-instantiated graph.v2 run root: it carries the
+ * `gc.formula_contract=graph.v2` label AND a run-target key (`gc.run_target` OR
+ * the current `gc.routed_to`, which the supervisor retired `gc.run_target` for
+ * per gascity #2763). This is the dual-key gate the convoy detail page's
+ * `computeExposure` and the formula-name resolver already use to recognise a
+ * runnable root; the /convoy index reuses it to pick out convoy roots from a
+ * bounded city bead scan. Status is intentionally NOT considered here — a
+ * terminal root is still a graph.v2 root; callers that want only in-flight
+ * convoys layer `isTerminalRunRootStatus` on top.
+ */
+export function isGraphV2RunRoot(root: DashboardBead): boolean {
+  return (
+    metaString(root, FORMULA_CONTRACT_KEY) === GRAPH_V2_CONTRACT &&
+    (metaString(root, RUN_TARGET_KEY) !== undefined ||
+      metaString(root, ROUTED_TO_KEY) !== undefined)
+  );
+}
+
 function computeExposure(
   root: DashboardBead,
   children: readonly DashboardBead[],
 ): ConvoyStepExposure {
   if (children.length === 0) {
-    const isGraphV2Run =
-      metaString(root, FORMULA_CONTRACT_KEY) === GRAPH_V2_CONTRACT &&
-      (metaString(root, RUN_TARGET_KEY) !== undefined ||
-        metaString(root, ROUTED_TO_KEY) !== undefined);
-    return { kind: 'collapsed', reason: isGraphV2Run ? 'graph_v2_root_only' : 'no_children' };
+    return {
+      kind: 'collapsed',
+      reason: isGraphV2RunRoot(root) ? 'graph_v2_root_only' : 'no_children',
+    };
   }
   const statusById = new Map<string, string>([[root.id, root.status]]);
   for (const child of children) statusById.set(child.id, child.status);

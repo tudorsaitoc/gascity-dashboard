@@ -1,5 +1,16 @@
-import type { ConvoyView, DashboardBead } from 'gas-city-dashboard-shared';
-import { BEAD_ID_RE, projectConvoyView } from 'gas-city-dashboard-shared';
+import type {
+  BeadStatus,
+  ConvoyView,
+  DashboardBead,
+  RunFormulaSource,
+} from 'gas-city-dashboard-shared';
+import {
+  BEAD_ID_RE,
+  isGraphV2RunRoot,
+  isTerminalRunRootStatus,
+  projectConvoyView,
+  resolveRunFormulaIdentity,
+} from 'gas-city-dashboard-shared';
 import { LOG_COMPONENT, logWarn } from '../lib/logging';
 import { fetchBeadSubtreeIds, fetchSupervisorBead, listSupervisorBeads } from './beadReads';
 import { SupervisorApiError } from './client';
@@ -50,6 +61,66 @@ const CONVOY_FETCH_LIMIT = 1_000;
 export interface ConvoyLoad {
   view: ConvoyView;
   partial: boolean;
+}
+
+/** One row of the /convoy index: an active convoy keyed by its root bead. */
+export interface ConvoyRootSummary {
+  rootBeadId: string;
+  title: string;
+  status: BeadStatus;
+  /** Formula driving the convoy, when the root carries (or implies) one. */
+  formulaName: string | null;
+  /** Provenance of `formulaName` so a title-inferred name can be surfaced honestly. */
+  formulaNameProvenance: RunFormulaSource | null;
+}
+
+export interface ConvoyRootsLoad {
+  roots: readonly ConvoyRootSummary[];
+  /** The bounded city scan was truncated, so a convoy root may be hidden. */
+  partial: boolean;
+}
+
+/**
+ * List the active convoy roots for the /convoy index (gascity-dashboard-0chv3).
+ *
+ * It reuses the SAME bounded city bead scan the detail loader runs, then keeps
+ * only fully-instantiated graph.v2 run roots (`isGraphV2RunRoot`) that are still
+ * in flight (`!isTerminalRunRootStatus`) — so a completed convoy drops off the
+ * front door on its own. `partial` is the raw page-truncation signal: unlike the
+ * detail page (which narrows truncation to a single convoy's subtree), the index
+ * is honestly partial whenever the scan that could surface a NEW root was
+ * truncated. Newest roots sort first.
+ */
+export async function loadActiveConvoyRoots(): Promise<ConvoyRootsLoad> {
+  const list = await listSupervisorBeads({
+    includeClosed: true,
+    includeBookkeeping: true,
+    limit: CONVOY_FETCH_LIMIT,
+  });
+  const roots = normalizeBeads(list.items)
+    .filter((bead) => isGraphV2RunRoot(bead) && !isTerminalRunRootStatus(bead.status))
+    .sort(compareRootsNewestFirst)
+    .map(toRootSummary);
+  return { roots, partial: list.partial };
+}
+
+function toRootSummary(root: DashboardBead): ConvoyRootSummary {
+  const identity = resolveRunFormulaIdentity('route', { root });
+  return {
+    rootBeadId: root.id,
+    title: root.title,
+    status: root.status,
+    formulaName: identity.name,
+    // `formula_detail` is unreachable in route mode (no detail fetch here), so
+    // narrow the source to RunFormulaSource | null without a cast.
+    formulaNameProvenance: identity.source === 'formula_detail' ? null : identity.source,
+  };
+}
+
+/** Newest convoy first; id breaks ties so the order is stable across reads. */
+function compareRootsNewestFirst(a: DashboardBead, b: DashboardBead): number {
+  const byCreated = b.created_at.localeCompare(a.created_at);
+  return byCreated !== 0 ? byCreated : a.id.localeCompare(b.id);
 }
 
 export async function loadConvoyView(rootBeadId: string): Promise<ConvoyLoad> {

@@ -1,7 +1,12 @@
 import { describe, expect, it, vi, beforeEach } from 'vitest';
 import type { Bead } from 'gas-city-dashboard-shared/gc-supervisor';
 import type { SupervisorBeadList } from './beadReads';
-import { loadConvoyView } from './convoyReads';
+import { loadActiveConvoyRoots, loadConvoyView } from './convoyReads';
+
+const GRAPH_V2_META = {
+  'gc.formula_contract': 'graph.v2',
+  'gc.routed_to': 'city/claude-1',
+} as const;
 
 const mockFetchSupervisorBead = vi.hoisted(() => vi.fn());
 const mockListSupervisorBeads = vi.hoisted(() => vi.fn());
@@ -237,5 +242,99 @@ describe('loadConvoyView', () => {
     const load = await loadConvoyView('root');
 
     expect(load.view.exposure).toEqual({ kind: 'collapsed', reason: 'no_children' });
+  });
+});
+
+describe('loadActiveConvoyRoots', () => {
+  it('keeps only in-flight graph.v2 run roots, sorted newest first', async () => {
+    mockListSupervisorBeads.mockResolvedValue(
+      list([
+        bead('gc-old', {
+          status: 'in_progress',
+          metadata: { ...GRAPH_V2_META },
+          created_at: '2026-06-12T00:00:00Z',
+        }),
+        bead('gc-new', {
+          status: 'blocked',
+          metadata: { ...GRAPH_V2_META },
+          created_at: '2026-06-12T05:00:00Z',
+        }),
+        // Excluded: graph.v2 root but terminal (a finished convoy drops off).
+        bead('gc-done', {
+          status: 'closed',
+          metadata: { ...GRAPH_V2_META },
+          created_at: '2026-06-12T06:00:00Z',
+        }),
+        // Excluded: has the contract label but no run target (not a runnable root).
+        bead('gc-no-target', {
+          status: 'open',
+          metadata: { 'gc.formula_contract': 'graph.v2' },
+        }),
+        // Excluded: an ordinary bead with no convoy contract at all.
+        bead('gc-plain', { status: 'open' }),
+      ]),
+    );
+
+    const { roots, partial } = await loadActiveConvoyRoots();
+
+    expect(roots.map((r) => r.rootBeadId)).toEqual(['gc-new', 'gc-old']);
+    expect(partial).toBe(false);
+  });
+
+  it('resolves the formula name + provenance from the root, falling back to the title', async () => {
+    mockListSupervisorBeads.mockResolvedValue(
+      list([
+        bead('gc-explicit', {
+          status: 'in_progress',
+          metadata: { ...GRAPH_V2_META, 'gc.formula': 'mol-pr-iterate' },
+        }),
+        bead('gc-inferred', {
+          title: 'mol-focus-review',
+          status: 'in_progress',
+          metadata: { ...GRAPH_V2_META },
+        }),
+      ]),
+    );
+
+    const { roots } = await loadActiveConvoyRoots();
+    const byId = new Map(roots.map((r) => [r.rootBeadId, r]));
+    expect(byId.get('gc-explicit')).toMatchObject({
+      formulaName: 'mol-pr-iterate',
+      formulaNameProvenance: 'metadata',
+    });
+    expect(byId.get('gc-inferred')).toMatchObject({
+      formulaName: 'mol-focus-review',
+      formulaNameProvenance: 'title_fallback',
+    });
+  });
+
+  it('propagates the bounded-scan truncation flag so the page can warn', async () => {
+    mockListSupervisorBeads.mockResolvedValue(
+      list([bead('gc-1', { status: 'in_progress', metadata: { ...GRAPH_V2_META } })], {
+        partial: true,
+      }),
+    );
+
+    expect((await loadActiveConvoyRoots()).partial).toBe(true);
+  });
+
+  it('excludes a step CHILD bead from the root list — only the run root is a convoy', async () => {
+    // The city-wide scan can surface a graph.v2 run root's step children. A step
+    // bead carries gc.step_ref and a parent, NOT the root's contract+run-target
+    // dual key, so isGraphV2RunRoot must key on that metadata alone and never
+    // mistake a child for a second convoy root (the open-risk the PL flagged).
+    mockListSupervisorBeads.mockResolvedValue(
+      list([
+        bead('gc-root', { status: 'in_progress', metadata: { ...GRAPH_V2_META } }),
+        bead('gc-step', {
+          status: 'open',
+          parent: 'gc-root',
+          metadata: { 'gc.step_ref': 'review.1' },
+        }),
+      ]),
+    );
+
+    const { roots } = await loadActiveConvoyRoots();
+    expect(roots.map((r) => r.rootBeadId)).toEqual(['gc-root']);
   });
 });

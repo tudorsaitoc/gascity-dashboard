@@ -94,9 +94,24 @@ describe('Header mobile nav', () => {
     fireEvent.click(screen.getByRole('button', { name: /menu/i }));
     const dialog = within(screen.getByRole('dialog'));
     // Scope to the dialog: the desktop row keeps its own copy of each link.
-    for (const label of ['Home', 'Agents', 'Beads', 'Runs', 'Mail']) {
+    for (const label of ['Home', 'Agents', 'Beads', 'Runs', 'Convoy', 'Mail']) {
       expect(dialog.getByRole('link', { name: new RegExp(label) })).toBeTruthy();
     }
+  });
+
+  it('gives Convoy a top-level tab pointing at /convoy, ordered between Runs and Mail', () => {
+    // gascity-dashboard-0chv3: the convoy view had no front door — this is it.
+    const { container } = renderHeader();
+    const desktopList = container.querySelector('ul.sm\\:flex') as HTMLElement;
+    expect(desktopList).not.toBeNull();
+    const convoy = within(desktopList).getByRole('link', { name: /Convoy/ });
+    expect(convoy.getAttribute('href')).toBe('/convoy');
+    // Order is explicit (45), so Convoy sits after Runs and before Mail. Assert
+    // the relative order without pinning the full set — registry-driven views may
+    // also be present depending on the async config fetch's timing.
+    const labels = Array.from(desktopList.querySelectorAll('a')).map((a) => a.textContent ?? '');
+    expect(labels.indexOf('Runs')).toBeLessThan(labels.indexOf('Convoy'));
+    expect(labels.indexOf('Convoy')).toBeLessThan(labels.indexOf('Mail'));
   });
 
   it('closes the menu when a route is selected', () => {
