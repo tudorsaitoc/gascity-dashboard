@@ -1,5 +1,5 @@
 import { cleanup, render, screen } from '@testing-library/react';
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { SourceStatus } from 'gas-city-dashboard-shared';
 import { BoardLiveness } from './BoardLiveness';
 import { AttentionProvider } from '../attention/context';
@@ -19,8 +19,20 @@ vi.mock('../runs/runSummarySubscription', () => ({
   useRunSummary: () => ({ sseState: mockSseState }),
 }));
 
+// Pin the wall clock so age vs ATTENTION_READ_STALE_AFTER_MS is deterministic:
+// the now()/secondsAgo()/minutesAgo() helpers below and NowProvider's initial
+// Date.now() all read this fixed instant, so the tight now()->'all live' and
+// secondsAgo(1)->'just now' windows can't drift toward the 90s stale boundary
+// under CI load or clock skew (the repo's known silent-CI-red failure mode).
+const FIXED_NOW = '2026-06-24T12:00:00.000Z';
+
+beforeEach(() => {
+  vi.useFakeTimers().setSystemTime(new Date(FIXED_NOW));
+});
+
 afterEach(() => {
   cleanup();
+  vi.useRealTimers();
   mockSseState = 'open';
 });
 
