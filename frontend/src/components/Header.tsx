@@ -36,6 +36,9 @@ const EXPLICIT_ROUTES: ReadonlyArray<NavRoute> = [
   { to: '/agents', label: 'Agents', order: 20 },
   { to: '/beads', label: 'Beads', order: 30 },
   { to: '/runs', label: 'Runs', order: 40 },
+  // gascity-dashboard-0chv3: Convoy gets a real front door between Runs and Mail
+  // (the /convoy index lists active convoy roots; detail stays at /convoy/:root).
+  { to: '/convoy', label: 'Convoy', order: 45 },
   { to: '/mail', label: 'Mail', order: 50 },
 ];
 

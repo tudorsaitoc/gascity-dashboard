@@ -2,7 +2,7 @@ import { test, describe } from 'node:test';
 import assert from 'node:assert/strict';
 
 import type { DashboardBead } from '../dashboard-beads.js';
-import { projectConvoyView } from './projection.js';
+import { isGraphV2RunRoot, projectConvoyView } from './projection.js';
 
 function bead(id: string, overrides: Partial<DashboardBead> = {}): DashboardBead {
   return {
@@ -15,6 +15,40 @@ function bead(id: string, overrides: Partial<DashboardBead> = {}): DashboardBead
     ...overrides,
   };
 }
+
+describe('isGraphV2RunRoot', () => {
+  test('is true only with the graph.v2 contract AND a run-target key', () => {
+    assert.equal(
+      isGraphV2RunRoot(
+        bead('a', {
+          metadata: { 'gc.formula_contract': 'graph.v2', 'gc.routed_to': 'city/claude-1' },
+        }),
+      ),
+      true,
+    );
+    // The retired gc.run_target key still qualifies a legacy root.
+    assert.equal(
+      isGraphV2RunRoot(
+        bead('b', {
+          metadata: { 'gc.formula_contract': 'graph.v2', 'gc.run_target': 'city/claude-1' },
+        }),
+      ),
+      true,
+    );
+  });
+
+  test('is false without the contract or without a target', () => {
+    assert.equal(isGraphV2RunRoot(bead('c')), false);
+    assert.equal(
+      isGraphV2RunRoot(bead('d', { metadata: { 'gc.routed_to': 'city/claude-1' } })),
+      false,
+    );
+    assert.equal(
+      isGraphV2RunRoot(bead('e', { metadata: { 'gc.formula_contract': 'graph.v2' } })),
+      false,
+    );
+  });
+});
 
 describe('projectConvoyView', () => {
   test('exposes ordered step children with derived progress when the graph is materialized', () => {

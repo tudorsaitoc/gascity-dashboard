@@ -153,7 +153,12 @@ function runFormulaTitleFallback(
   return mode === 'lane' && !title.startsWith('mol-') ? null : title;
 }
 
-function isTerminalRunRootStatus(status: string): boolean {
+/**
+ * Whether a run-root status is terminal (the run is done, not in flight). The
+ * convoy index uses this to keep its listing to ACTIVE convoys; the title
+ * fallbacks here use it to avoid trusting a retitled closed root's title.
+ */
+export function isTerminalRunRootStatus(status: string): boolean {
   switch (status.trim().toLowerCase()) {
     case 'closed':
     case 'completed':

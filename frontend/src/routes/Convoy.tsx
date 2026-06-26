@@ -1,12 +1,8 @@
 import { useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
-import type {
-  ConvoyStep,
-  ConvoyStepExposure,
-  ConvoyView,
-  BeadStatus,
-} from 'gas-city-dashboard-shared';
+import type { ConvoyStep, ConvoyStepExposure, ConvoyView } from 'gas-city-dashboard-shared';
 import { Button } from '../components/Button';
+import { describeBeadStatus } from '../lib/beadStatusGlyph';
 import { PageHeader } from '../components/PageHeader';
 import { PartialDataNotice } from '../components/PartialDataNotice';
 import { RelatedEntities } from '../components/RelatedEntities';
@@ -179,7 +175,7 @@ function ConvoyTimeline({ exposure }: { exposure: ConvoyStepExposure }) {
 }
 
 function StepRow({ step }: { step: ConvoyStep }) {
-  const status = describeStatus(step.bead.status);
+  const status = describeBeadStatus(step.bead.status);
   return (
     <li className="border-b border-rule pb-3 last:border-b-0">
       <div className="flex items-baseline justify-between gap-3">
@@ -200,29 +196,4 @@ function StepRow({ step }: { step: ConvoyStep }) {
       </div>
     </li>
   );
-}
-
-interface StatusDisplay {
-  glyph: string;
-  word: string;
-}
-
-// Bead-status glyph + word, kept greyscale-neutral so the timeline honors the
-// One Mark Rule: a list of many steps must not paint several maroons. Status is
-// carried by the glyph and word, not tone (DESIGN.md "states have words").
-function describeStatus(status: BeadStatus): StatusDisplay {
-  switch (status) {
-    case 'closed':
-      return { glyph: '✓', word: 'closed' };
-    case 'in_progress':
-      return { glyph: '●', word: 'in progress' };
-    case 'blocked':
-      return { glyph: '!', word: 'blocked' };
-    case 'deferred':
-      return { glyph: '∅', word: 'deferred' };
-    case 'open':
-      return { glyph: '·', word: 'open' };
-    default:
-      return { glyph: '·', word: status };
-  }
 }
