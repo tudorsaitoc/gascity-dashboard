@@ -217,6 +217,24 @@ describe('BeadsPage', () => {
     expect(screen.queryByText(/match the current search or filter/i)).toBeNull();
   });
 
+  it('rig-scopes the epic empty copy — both body and synopsis say "No epics on {rig}"', async () => {
+    // A rig with tasks but zero epics must NOT read as "No beads on {rig}." (the
+    // rig has beads) nor as an unscoped "No epics on the queue". Under the epic
+    // filter the empty body and the synopsis both scope to the rig and the epic
+    // object type.
+    boardBeads = [sampleBead()]; // a task on the rig, but no epic
+    renderPage('/beads?type=epic');
+    await screen.findByText('No epics on the queue right now.');
+
+    fireEvent.change(screen.getByLabelText(/rig filter/i), { target: { value: 'east' } });
+
+    // Both the empty-state body and the PageHeader synopsis carry the rig-scoped,
+    // epic-typed copy — no "No beads on east." object-type/false-empty signal.
+    const scoped = await screen.findAllByText('No epics on east.');
+    expect(scoped.length).toBe(2);
+    expect(screen.queryByText('No beads on east.')).toBeNull();
+  });
+
   it('preserves an existing bead param when the Epics entry point turns the filter ON', async () => {
     // The entry point's param-preservation contract: a deep-linked bead
     // selection must survive flipping the epic filter on.

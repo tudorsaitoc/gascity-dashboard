@@ -387,7 +387,12 @@ export function BeadsPage() {
           // server-returned total to flag a truncated fetch. The epic filter is
           // a CLIENT-side narrowing, not a truncation, so under it the total is
           // the epic count — otherwise every epic view reads as "3 of 1000".
-          buildSynopsis(filteredRows, epicOnly ? filteredRows.length : totalShown, rigFilter)
+          buildSynopsis(
+            filteredRows,
+            epicOnly ? filteredRows.length : totalShown,
+            rigFilter,
+            epicOnly,
+          )
         : 'Loading beads.',
     [epicOnly, filteredRows, hasLoadedBoard, totalShown, rigFilter],
   );
@@ -549,7 +554,9 @@ export function BeadsPage() {
               ? 'No epics match the current search or filter.'
               : 'No beads match the current search or filter.'
             : epicOnly
-              ? 'No epics on the queue right now.'
+              ? rigFilter !== RIG_FILTER_ALL
+                ? `No epics on ${rigFilter}.`
+                : 'No epics on the queue right now.'
               : 'Nothing on the queue right now.'}
         </p>
       ) : (
@@ -746,8 +753,14 @@ export function buildSynopsis(
   filtered: ReadonlyArray<SupervisorBead>,
   totalShown: number,
   rigFilter: string,
+  epicOnly = false,
 ): string {
-  if (rigFilter !== RIG_FILTER_ALL && filtered.length === 0) return `No beads on ${rigFilter}.`;
+  if (rigFilter !== RIG_FILTER_ALL && filtered.length === 0) {
+    // Under the epic filter an empty rig means "no epics here" — it does NOT
+    // imply the rig has no beads (it may have many tasks), and the object type
+    // is epics, not beads.
+    return epicOnly ? `No epics on ${rigFilter}.` : `No beads on ${rigFilter}.`;
+  }
   const open = filtered.filter((bead) => isOpenStatus(bead.status)).length;
   const inProgress = filtered.filter((bead) => isInFlightStatus(bead.status)).length;
   const blocked = filtered.filter((bead) => isBlockedStatus(bead.status)).length;
