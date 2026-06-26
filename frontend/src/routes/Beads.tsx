@@ -381,8 +381,15 @@ export function BeadsPage() {
   );
 
   const synopsis = useMemo(
-    () => (hasLoadedBoard ? buildSynopsis(filteredRows, totalShown, rigFilter) : 'Loading beads.'),
-    [filteredRows, hasLoadedBoard, totalShown, rigFilter],
+    () =>
+      hasLoadedBoard
+        ? // The "Showing N of M" clause compares the displayed set against the
+          // server-returned total to flag a truncated fetch. The epic filter is
+          // a CLIENT-side narrowing, not a truncation, so under it the total is
+          // the epic count — otherwise every epic view reads as "3 of 1000".
+          buildSynopsis(filteredRows, epicOnly ? filteredRows.length : totalShown, rigFilter)
+        : 'Loading beads.',
+    [epicOnly, filteredRows, hasLoadedBoard, totalShown, rigFilter],
   );
 
   const isTruncated =
@@ -504,7 +511,9 @@ export function BeadsPage() {
               aria-current={epicOnly ? 'true' : undefined}
               className={[
                 'uppercase tracking-wider focus-mark transition-colors duration-150 ease-out-quart',
-                epicOnly ? 'text-fg font-semibold' : 'text-fg-muted hover:text-fg',
+                epicOnly
+                  ? 'text-fg font-semibold underline decoration-fg underline-offset-4'
+                  : 'text-fg-muted hover:text-fg',
               ].join(' ')}
             >
               Epics
@@ -535,10 +544,12 @@ export function BeadsPage() {
         <p className="text-body text-fg-muted italic">Loading beads.</p>
       ) : matched.length === 0 ? (
         <p className="text-body text-fg-muted italic">
-          {epicOnly
-            ? 'No epics on the queue right now.'
-            : filters.search.length > 0 || filters.activeChipIds.size > 0
-              ? 'No beads match the current search or filter.'
+          {filters.search.length > 0 || filters.activeChipIds.size > 0
+            ? epicOnly
+              ? 'No epics match the current search or filter.'
+              : 'No beads match the current search or filter.'
+            : epicOnly
+              ? 'No epics on the queue right now.'
               : 'Nothing on the queue right now.'}
         </p>
       ) : (

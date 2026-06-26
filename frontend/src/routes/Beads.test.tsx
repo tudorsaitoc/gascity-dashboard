@@ -10,6 +10,9 @@ import type { SupervisorBead } from '../supervisor/beadReads';
 
 const PROJECT = 'gascity';
 const beadQueries: URLSearchParams[] = [];
+// The board payload the GET handler serves; a test may narrow it (e.g. drop the
+// epic) before rendering to exercise the genuinely-empty epic branch.
+let boardBeads: SupervisorBead[] = [];
 const supervisorWrites: Array<{
   method: string;
   path: string;
@@ -20,6 +23,7 @@ beforeEach(() => {
   setActiveCity('test-city');
   beadQueries.length = 0;
   supervisorWrites.length = 0;
+  boardBeads = [sampleBead(), sampleEpic()];
   invalidate('beads:board:');
   invalidate('sessions');
   invalidate('agents');
@@ -31,9 +35,7 @@ beforeEach(() => {
       const method = requestMethod(input, init);
       if (url.pathname === '/gc-supervisor/v0/city/test-city/beads' && method === 'GET') {
         beadQueries.push(url.searchParams);
-        return jsonResponse(
-          beadListPayload(url.searchParams.has('type') ? [] : [sampleBead(), sampleEpic()]),
-        );
+        return jsonResponse(beadListPayload(url.searchParams.has('type') ? [] : boardBeads));
       }
       if (url.pathname === '/gc-supervisor/v0/city/test-city/beads' && method === 'POST') {
         supervisorWrites.push({
@@ -189,17 +191,47 @@ describe('BeadsPage', () => {
     expect(screen.getByText(/showing epics only/i)).toBeTruthy();
     const clear = screen.getByRole('link', { name: /^clear$/i });
     expect(clear.getAttribute('href')).toBe('/beads');
+    // The synopsis must NOT read as a truncated fetch: the epic filter is a
+    // client-side narrowing, so "Showing 1 of 2" would be a false positive.
+    expect(screen.getByText('1 open.')).toBeTruthy();
+    expect(screen.queryByText(/showing 1 of 2/i)).toBeNull();
   });
 
-  it('shows a calm epic-specific empty state when the epic filter matches nothing', async () => {
+  it('names epics in the search/filter empty copy, distinct from the genuinely-empty copy', async () => {
     renderPage('/beads?type=epic');
     await screen.findByText('Sample epic');
-    // Narrow the search so no epic matches: the empty copy names epics, not a
-    // generic "no beads", so the operator knows the filter is the cause.
+    // A search that no epic matches is the search/filter branch, not the
+    // genuinely-empty one — the copy must say so rather than imply no epics exist.
     fireEvent.change(screen.getByLabelText(/search beads/i), {
       target: { value: 'no-such-epic-xyz' },
     });
-    expect(await screen.findByText('No epics on the queue right now.')).toBeTruthy();
+    expect(await screen.findByText('No epics match the current search or filter.')).toBeTruthy();
+  });
+
+  it('shows the genuinely-empty epic copy when the board has no epics at all', async () => {
+    boardBeads = [sampleBead()]; // task only — no epic on the board
+    renderPage('/beads?type=epic');
+
+    await screen.findByText('No epics on the queue right now.');
+    // Not the search/filter copy: no search or chip is active here.
+    expect(screen.queryByText(/match the current search or filter/i)).toBeNull();
+  });
+
+  it('preserves an existing bead param when the Epics entry point turns the filter ON', async () => {
+    // The entry point's param-preservation contract: a deep-linked bead
+    // selection must survive flipping the epic filter on.
+    renderPage('/beads?bead=gascity-0001');
+
+    const epicsLink = await screen.findByRole('link', { name: /^epics$/i });
+    expect(epicsLink.getAttribute('href')).toBe('/beads?bead=gascity-0001&type=epic');
+  });
+
+  it('preserves an existing bead param when the Clear control turns the filter OFF', async () => {
+    renderPage('/beads?bead=gascity-0001&type=epic');
+
+    await screen.findByText('Sample epic');
+    const clear = screen.getByRole('link', { name: /^clear$/i });
+    expect(clear.getAttribute('href')).toBe('/beads?bead=gascity-0001');
   });
 
   it('requests direct supervisor current engineering beads without type fan-out or closed history', async () => {
