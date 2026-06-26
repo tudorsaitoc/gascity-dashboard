@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { useSearchParams } from 'react-router-dom';
+import { Link, useSearchParams } from 'react-router-dom';
 import {
   GC_EVENT_PREFIX,
   isBlockedStatus,
@@ -56,6 +56,9 @@ interface ActionMessage {
   text: string;
 }
 
+// The bead issue_type the /beads?type=epic entry point filters to.
+const EPIC_ISSUE_TYPE = 'epic';
+
 export const BEAD_CHIPS: ReadonlyArray<FilterChip<SupervisorBead>> = [
   { id: 'open', label: 'open', match: (b) => isOpenStatus(b.status) },
   { id: 'in_progress', label: 'in progress', match: (b) => isInFlightStatus(b.status) },
@@ -77,6 +80,21 @@ export function BeadsPage() {
   const cityCacheKey = cityName ?? 'no-city';
   const [searchParams] = useSearchParams();
   const selectedBeadParam = normalizeSelectedBeadParam(searchParams.get('bead'));
+  // gascity-dashboard-a0vak: the visible Epic entry point. Epics are ordinary
+  // beads (issue_type='epic') folded into the board, so an operator who never
+  // thinks to scan for them can't find them. A deep-linkable `?type=epic`
+  // narrows the board to epics — same client-side filter register as the rig
+  // and status controls, not a new top-level nav tab (the minimal-nav set is a
+  // DESIGN.md rule). `buildBeadsHref` preserves any other params (e.g. an open
+  // bead modal) while flipping the epic filter.
+  const epicOnly = searchParams.get('type') === EPIC_ISSUE_TYPE;
+  const buildBeadsHref = (toEpics: boolean): string => {
+    const next = new URLSearchParams(searchParams);
+    if (toEpics) next.set('type', EPIC_ISSUE_TYPE);
+    else next.delete('type');
+    const query = next.toString();
+    return query.length > 0 ? `/beads?${query}` : '/beads';
+  };
   const [rigFilter, setRigFilter] = useState<string>(RIG_FILTER_ALL);
   // Closed beads dwarf the open queue (~199.7K closed vs ~1K open on this
   // city), so scanning them on every load makes the `task` query spike and
@@ -165,7 +183,10 @@ export function BeadsPage() {
     }
   }, [dispatchRigOptions, rigFilter]);
 
-  const filteredRows = rows;
+  const filteredRows = useMemo(
+    () => (epicOnly ? rows.filter((bead) => bead.issue_type === EPIC_ISSUE_TYPE) : rows),
+    [epicOnly, rows],
+  );
 
   const filters = useListFilters<SupervisorBead>({
     viewKey: 'beads',
@@ -360,8 +381,20 @@ export function BeadsPage() {
   );
 
   const synopsis = useMemo(
-    () => (hasLoadedBoard ? buildSynopsis(filteredRows, totalShown, rigFilter) : 'Loading beads.'),
-    [filteredRows, hasLoadedBoard, totalShown, rigFilter],
+    () =>
+      hasLoadedBoard
+        ? // The "Showing N of M" clause compares the displayed set against the
+          // server-returned total to flag a truncated fetch. The epic filter is
+          // a CLIENT-side narrowing, not a truncation, so under it the total is
+          // the epic count — otherwise every epic view reads as "3 of 1000".
+          buildSynopsis(
+            filteredRows,
+            epicOnly ? filteredRows.length : totalShown,
+            rigFilter,
+            epicOnly,
+          )
+        : 'Loading beads.',
+    [epicOnly, filteredRows, hasLoadedBoard, totalShown, rigFilter],
   );
 
   const isTruncated =
@@ -437,6 +470,17 @@ export function BeadsPage() {
             </button>
           </p>
         )}
+        {epicOnly && (
+          <p role="status">
+            Showing epics only.{' '}
+            <Link
+              to={buildBeadsHref(false)}
+              className="text-fg-muted hover:text-fg focus-mark underline decoration-dotted underline-offset-2 rounded-sm"
+            >
+              Clear
+            </Link>
+          </p>
+        )}
         {actionMessage && (
           <p
             className={actionMessage.tone === 'error' ? 'text-accent' : 'text-fg-muted'}
@@ -465,6 +509,21 @@ export function BeadsPage() {
             onToggle={toggleStatusChip}
             legend="Status"
           />
+          <span className="flex items-baseline gap-2 text-label">
+            <span className="uppercase tracking-wider text-fg-muted">Type</span>
+            <Link
+              to={buildBeadsHref(!epicOnly)}
+              aria-current={epicOnly ? 'true' : undefined}
+              className={[
+                'uppercase tracking-wider focus-mark transition-colors duration-150 ease-out-quart',
+                epicOnly
+                  ? 'text-fg font-semibold underline decoration-fg underline-offset-4'
+                  : 'text-fg-muted hover:text-fg',
+              ].join(' ')}
+            >
+              Epics
+            </Link>
+          </span>
           {dispatchRigOptions.length > 1 && (
             <label className="flex items-baseline gap-2 text-label">
               <span className="uppercase tracking-wider text-fg-muted">Rig</span>
@@ -491,8 +550,14 @@ export function BeadsPage() {
       ) : matched.length === 0 ? (
         <p className="text-body text-fg-muted italic">
           {filters.search.length > 0 || filters.activeChipIds.size > 0
-            ? 'No beads match the current search or filter.'
-            : 'Nothing on the queue right now.'}
+            ? epicOnly
+              ? 'No epics match the current search or filter.'
+              : 'No beads match the current search or filter.'
+            : epicOnly
+              ? rigFilter !== RIG_FILTER_ALL
+                ? `No epics on ${rigFilter}.`
+                : 'No epics on the queue right now.'
+              : 'Nothing on the queue right now.'}
         </p>
       ) : (
         <div className="space-y-12">
@@ -688,8 +753,14 @@ export function buildSynopsis(
   filtered: ReadonlyArray<SupervisorBead>,
   totalShown: number,
   rigFilter: string,
+  epicOnly = false,
 ): string {
-  if (rigFilter !== RIG_FILTER_ALL && filtered.length === 0) return `No beads on ${rigFilter}.`;
+  if (rigFilter !== RIG_FILTER_ALL && filtered.length === 0) {
+    // Under the epic filter an empty rig means "no epics here" — it does NOT
+    // imply the rig has no beads (it may have many tasks), and the object type
+    // is epics, not beads.
+    return epicOnly ? `No epics on ${rigFilter}.` : `No beads on ${rigFilter}.`;
+  }
   const open = filtered.filter((bead) => isOpenStatus(bead.status)).length;
   const inProgress = filtered.filter((bead) => isInFlightStatus(bead.status)).length;
   const blocked = filtered.filter((bead) => isBlockedStatus(bead.status)).length;
