@@ -31,7 +31,9 @@ beforeEach(() => {
       const method = requestMethod(input, init);
       if (url.pathname === '/gc-supervisor/v0/city/test-city/beads' && method === 'GET') {
         beadQueries.push(url.searchParams);
-        return jsonResponse(beadListPayload(url.searchParams.has('type') ? [] : [sampleBead()]));
+        return jsonResponse(
+          beadListPayload(url.searchParams.has('type') ? [] : [sampleBead(), sampleEpic()]),
+        );
       }
       if (url.pathname === '/gc-supervisor/v0/city/test-city/beads' && method === 'POST') {
         supervisorWrites.push({
@@ -156,6 +158,48 @@ describe('BeadsPage', () => {
     expect(screen.queryByRole('table')).toBeNull();
     expect(screen.queryByRole('radiogroup', { name: /view/i })).toBeNull();
     expect(screen.getByRole('button', { name: /new bead/i })).toBeTruthy();
+  });
+
+  it('exposes a visible Epics entry point that deep-links to the epic-filtered board', async () => {
+    // gascity-dashboard-a0vak: epics are otherwise only findable by scanning the
+    // board, so the Beads surface carries an Epics affordance that deep-links to
+    // /beads?type=epic — no second top-level nav tab.
+    renderPage();
+
+    await screen.findByText('Sample bead');
+    const epicsLink = screen.getByRole('link', { name: /^epics$/i });
+    expect(epicsLink.getAttribute('href')).toBe('/beads?type=epic');
+    // Not active on the unfiltered board.
+    expect(epicsLink.getAttribute('aria-current')).toBeNull();
+    expect(screen.queryByText(/showing epics only/i)).toBeNull();
+    // Both the task and the epic are on the unfiltered board.
+    expect(screen.getByText('Sample epic')).toBeTruthy();
+  });
+
+  it('filters the board to epics on the ?type=epic deep link, with a clear control', async () => {
+    renderPage('/beads?type=epic');
+
+    // Only the epic renders; the task bead is filtered out.
+    expect(await screen.findByText('Sample epic')).toBeTruthy();
+    expect(screen.queryByText('Sample bead')).toBeNull();
+    // The entry point reads active and a textual notice + Clear are present.
+    const epicsLink = screen.getByRole('link', { name: /^epics$/i });
+    expect(epicsLink.getAttribute('aria-current')).toBe('true');
+    expect(epicsLink.getAttribute('href')).toBe('/beads');
+    expect(screen.getByText(/showing epics only/i)).toBeTruthy();
+    const clear = screen.getByRole('link', { name: /^clear$/i });
+    expect(clear.getAttribute('href')).toBe('/beads');
+  });
+
+  it('shows a calm epic-specific empty state when the epic filter matches nothing', async () => {
+    renderPage('/beads?type=epic');
+    await screen.findByText('Sample epic');
+    // Narrow the search so no epic matches: the empty copy names epics, not a
+    // generic "no beads", so the operator knows the filter is the cause.
+    fireEvent.change(screen.getByLabelText(/search beads/i), {
+      target: { value: 'no-such-epic-xyz' },
+    });
+    expect(await screen.findByText('No epics on the queue right now.')).toBeTruthy();
   });
 
   it('requests direct supervisor current engineering beads without type fan-out or closed history', async () => {
@@ -370,6 +414,20 @@ function sampleBead(): SupervisorBead {
     status: 'open',
     priority: 0,
     issue_type: 'task',
+    assignee: 'mayor',
+    labels: [],
+    created_at: '2026-01-01T00:00:00Z',
+  };
+}
+
+function sampleEpic(): SupervisorBead {
+  return {
+    id: `${PROJECT}-0007`,
+    title: 'Sample epic',
+    description: 'A tracking epic.',
+    status: 'open',
+    priority: 0,
+    issue_type: 'epic',
     assignee: 'mayor',
     labels: [],
     created_at: '2026-01-01T00:00:00Z',
