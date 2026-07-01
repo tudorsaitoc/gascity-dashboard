@@ -1,9 +1,10 @@
 import { Suspense, lazy, useMemo, type ReactNode } from 'react';
-import { Routes, Route, Navigate } from 'react-router-dom';
+import { Routes, Route, Navigate, useParams } from 'react-router-dom';
 import { api } from './api/client';
 import { AttentionProvider } from './attention/context';
 import { useLiveAttentionContributors } from './attention/liveContributors';
 import { Layout } from './components/Layout';
+import { ViewErrorBoundary } from './components/ViewErrorBoundary';
 import { NowProvider } from './contexts/NowContext';
 import {
   OperatorConfigProvider,
@@ -34,6 +35,21 @@ const FormulaRunDetailPage = lazy(() =>
   import('./routes/FormulaRunDetail').then((m) => ({ default: m.FormulaRunDetailPage })),
 );
 const RunsPage = lazy(() => import('./routes/Runs').then((m) => ({ default: m.RunsPage })));
+
+// The convoy detail boundary is keyed by the :rootBead param. React Router
+// reuses a route's element across param-only navigations, so a single boundary
+// instance would keep its tripped "unavailable" latch when the operator follows
+// a step-row link from a throwing convoy root A to a healthy root B, masking B's
+// good data until manual Retry. Keying by rootBead gives each root its own
+// boundary instance, so the latch resets on navigation.
+function ConvoyDetailRoute(): ReactNode {
+  const { rootBead } = useParams<{ rootBead: string }>();
+  return (
+    <ViewErrorBoundary key={rootBead ?? ''} view="convoy detail">
+      <ConvoyPage />
+    </ViewErrorBoundary>
+  );
+}
 
 export function App() {
   // NowProvider lives at the App root because useFaviconSignal (R8) is
@@ -105,8 +121,21 @@ export function App() {
                       <Route path="/agents" element={<AgentsPage />} />
                       <Route path="/agents/:slug" element={<AgentDetailPage />} />
                       <Route path="/beads" element={<BeadsPage />} />
-                      <Route path="/convoy" element={<ConvoyIndexPage />} />
-                      <Route path="/convoy/:rootBead" element={<ConvoyPage />} />
+                      {/* The convoy views compose a city-wide bead scan and a
+                  client-side graph projection (gascity-dashboard-sw1w). Their
+                  data layer already degrades a failing/slow fetch to an honest
+                  state, but a per-view boundary keeps an unanticipated
+                  render throw under supervisor store slowness from bubbling to
+                  the app-root crash page and taking down the whole dashboard. */}
+                      <Route
+                        path="/convoy"
+                        element={
+                          <ViewErrorBoundary view="convoy index">
+                            <ConvoyIndexPage />
+                          </ViewErrorBoundary>
+                        }
+                      />
+                      <Route path="/convoy/:rootBead" element={<ConvoyDetailRoute />} />
                       <Route path="/runs" element={<RunsPage />} />
                       <Route path="/runs/:runId" element={<FormulaRunDetailPage />} />
                       <Route path="/mail" element={<MailPage />} />
