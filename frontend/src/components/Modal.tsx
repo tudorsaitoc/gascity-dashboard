@@ -11,6 +11,13 @@ const FOCUSABLE_SELECTOR = [
   '[tabindex]:not([tabindex="-1"])',
 ].join(',');
 
+// Stack of open Modal instances, most-recently-opened last. Every Modal binds a
+// document-level Tab/Escape handler, so nested modals (bead detail -> live-run,
+// bead detail -> close confirm) would otherwise all fire on one keypress. The
+// handler consults this stack and no-ops unless it belongs to the topmost modal.
+const modalStack: number[] = [];
+let nextModalId = 0;
+
 interface ModalProps {
   open: boolean;
   onClose: () => void;
@@ -46,8 +53,19 @@ export function Modal({
 
   useEffect(() => {
     if (!open) return;
-    const active = document.activeElement;
-    const opener = active instanceof HTMLElement ? active : null;
+    const id = ++nextModalId;
+    modalStack.push(id);
+    const isTopmost = () => modalStack[modalStack.length - 1] === id;
+
+    // A descendant may claim focus deliberately (e.g. ComposeModal autoFocuses
+    // its "To" field). When it already holds focus, honor it: don't yank focus
+    // to the first focusable, and don't treat that descendant as the opener to
+    // restore to on close.
+    const preFocused = document.activeElement;
+    const descendantHasFocus =
+      preFocused instanceof HTMLElement && !!panelRef.current?.contains(preFocused);
+    const opener =
+      !descendantHasFocus && preFocused instanceof HTMLElement ? preFocused : null;
 
     // Read the panel fresh each time so a re-mounted node (e.g. a keyed
     // parent swap) never leaves the trap querying a detached element.
@@ -56,11 +74,16 @@ export function Modal({
       return panel ? Array.from(panel.querySelectorAll<HTMLElement>(FOCUSABLE_SELECTOR)) : [];
     };
 
-    // Move focus into the dialog so keyboard/AT users leave background controls.
-    const initial = focusables();
-    (initial[0] ?? panelRef.current)?.focus();
+    // Move focus into the dialog so keyboard/AT users leave background controls,
+    // unless a descendant already claimed it.
+    if (!descendantHasFocus) {
+      const initial = focusables();
+      (initial[0] ?? panelRef.current)?.focus();
+    }
 
     const handleKey = (e: KeyboardEvent) => {
+      // Only the topmost modal traps Tab/Escape; background modals stay inert.
+      if (!isTopmost()) return;
       if (e.key === 'Escape') {
         onCloseRef.current();
         return;
@@ -88,6 +111,8 @@ export function Modal({
     document.addEventListener('keydown', handleKey);
     return () => {
       document.removeEventListener('keydown', handleKey);
+      const idx = modalStack.indexOf(id);
+      if (idx !== -1) modalStack.splice(idx, 1);
       // Restore focus to whatever opened the dialog, if it's still mounted.
       if (opener && document.contains(opener)) opener.focus();
     };
@@ -106,7 +131,7 @@ export function Modal({
       <div
         ref={panelRef}
         tabIndex={-1}
-        className={`w-full ${widthClass} bg-surface border border-rule rounded-md flex flex-col max-h-[90vh] focus:outline-none`}
+        className={`w-full ${widthClass} bg-surface border border-rule rounded-md flex flex-col max-h-[90vh] focus-mark`}
         onClick={(e) => e.stopPropagation()}
       >
         <div className="flex items-start justify-between gap-3 px-5 py-4 border-b border-rule">
