@@ -64,8 +64,7 @@ export function Modal({
     const preFocused = document.activeElement;
     const descendantHasFocus =
       preFocused instanceof HTMLElement && !!panelRef.current?.contains(preFocused);
-    const opener =
-      !descendantHasFocus && preFocused instanceof HTMLElement ? preFocused : null;
+    const opener = !descendantHasFocus && preFocused instanceof HTMLElement ? preFocused : null;
 
     // Read the panel fresh each time so a re-mounted node (e.g. a keyed
     // parent swap) never leaves the trap querying a detached element.
