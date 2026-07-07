@@ -6,6 +6,7 @@ import {
   issueCountFromChecks,
   parseDoctorChecks,
   probeRigStore,
+  resolveBeadsPath,
   rollupFor,
   storeProblems,
   type RigStoreProbeDeps,
@@ -182,6 +183,36 @@ function depsFor(overrides: Partial<RigStoreProbeDeps> = {}): RigStoreProbeDeps 
 
 const RIG: SupervisorRigDescriptor = { name: 'codeprobe', path: '/home/ds/projects/codeprobe' };
 
+describe('resolveBeadsPath', () => {
+  test('appends .beads to a rig root', () => {
+    assert.equal(
+      resolveBeadsPath('/home/ds/projects/codeprobe'),
+      '/home/ds/projects/codeprobe/.beads',
+    );
+  });
+
+  test('accepts a path that already points at the store', () => {
+    assert.equal(
+      resolveBeadsPath('/home/ds/projects/codeprobe/.beads'),
+      '/home/ds/projects/codeprobe/.beads',
+    );
+  });
+
+  test('strips a trailing separator on a direct-store path (no permanent downgrade)', () => {
+    assert.equal(
+      resolveBeadsPath('/home/ds/projects/codeprobe/.beads/'),
+      '/home/ds/projects/codeprobe/.beads',
+    );
+  });
+
+  test('strips a trailing separator on a rig root before appending', () => {
+    assert.equal(
+      resolveBeadsPath('/home/ds/projects/codeprobe/'),
+      '/home/ds/projects/codeprobe/.beads',
+    );
+  });
+});
+
 describe('probeRigStore', () => {
   test('healthy server-mode store rolls up ok with endpoint + issue count', async () => {
     const health = await probeRigStore(RIG, depsFor());
@@ -193,6 +224,19 @@ describe('probeRigStore', () => {
     assert.equal(health.doltConnected, true);
     assert.equal(health.issueCount, 129);
     assert.deepEqual(health.problems, []);
+  });
+
+  test('accepts a rig path that already points at the bead store', async () => {
+    const health = await probeRigStore(
+      { name: 'codeprobe', path: '/home/ds/projects/codeprobe/.beads' },
+      depsFor({
+        statBeads: async (beadsPath) => {
+          assert.equal(beadsPath, '/home/ds/projects/codeprobe/.beads');
+          return true;
+        },
+      }),
+    );
+    assert.equal(health.beadsPath, '/home/ds/projects/codeprobe/.beads');
   });
 
   test('missing .beads is down + unreachable without probing further', async () => {
@@ -292,6 +336,47 @@ describe('createRigStoreHealthSampler', () => {
     assert.equal(report.available, true);
     assert.equal(report.rigs.length, 2);
     if (report.available) assert.equal(report.sampledAt, '2026-06-06T00:00:00.000Z');
+  });
+
+  test('samples a rig that already reports the bead-store path', async () => {
+    const sampler = createRigStoreHealthSampler({
+      listRigs: async () => [{ name: 'codeprobe', path: '/home/ds/projects/codeprobe/.beads' }],
+      probe: async (rig) => ({
+        rig: rig.name,
+        beadsPath: rig.path,
+        rollup: 'ok',
+        reachable: true,
+        doltEndpoint: '127.0.0.1:29620',
+        doltConnected: true,
+        issueCount: 1,
+        problems: [],
+      }),
+      now: () => '2026-06-06T00:00:00.000Z',
+    });
+    await sampler.sampleOnce();
+    const report = sampler.report();
+    assert.equal(report.available, true);
+    if (report.available) {
+      assert.equal(report.rigs[0]?.beadsPath, '/home/ds/projects/codeprobe/.beads');
+    }
+  });
+
+  test('safeProbe error-path resolves the store path for a direct-store rig (no .beads/.beads)', async () => {
+    const sampler = createRigStoreHealthSampler({
+      listRigs: async () => [{ name: 'codeprobe', path: '/home/ds/projects/codeprobe/.beads' }],
+      probe: async () => {
+        throw new Error('injected dep blew up');
+      },
+      now: () => '2026-06-06T00:00:00.000Z',
+    });
+    await sampler.sampleOnce();
+    const report = sampler.report();
+    assert.equal(report.available, true);
+    const rig = report.rigs[0];
+    assert.equal(rig?.beadsPath, '/home/ds/projects/codeprobe/.beads');
+    assert.equal(rig?.rollup, 'down');
+    assert.equal(rig?.reachable, false);
+    assert.match(rig?.note ?? '', /probe failed: injected dep blew up/);
   });
 
   test('rig_list failure keeps the prior snapshot but flips available=false', async () => {
