@@ -167,13 +167,17 @@ function buildSortedRunLanes(
   return { laneIssues, sortedLanes };
 }
 
-// gascity-dashboard-9w3k: a group is a run when its root bead carries a run
-// marker — the graph.v2 `gc.formula_contract`, or a v1 / wisp signal (a
-// molecule bead, an explicit `gc.kind=run` marker, or a `gc.formula`
-// attribution). The v1 arms are the flood guard: a lone engineering bead
-// (root = itself with none of these markers) must NOT be promoted to a lane,
-// or every task/bug/feature in the store would render as a phantom run.
-// Convoys are already excluded upstream by runBeadFilter (ENGINEERING_TYPES
+// gascity-dashboard-9w3k / -18eg: a group is a run only when its root bead
+// carries a genuine workflow/formula marker — the graph.v2 `gc.formula_contract`,
+// an explicit `gc.kind=run` marker, or a `gc.formula` attribution.
+// gascity-dashboard-18eg dropped the bare `issue_type === 'molecule'` arm: a
+// molecule is bd's generic grouping primitive (bd-mol dispatch groups like
+// signal — none of them register a supervisor workflow, so promoting them
+// surfaced ordinary non-run beads as lanes that 404 at /v0/city/{cityName}/workflow/{workflow_id}. A real
+// genuinely a formula run still passes on its own `gc.formula`. A lone
+// engineering bead (root = itself with none of these markers) is likewise never
+// promoted, so every task/bug/feature in the store cannot render as a phantom
+// run. Convoys are already excluded upstream by runBeadFilter (ENGINEERING_TYPES
 // has no 'convoy'); dangling roots are dropped separately by the caller.
 function isRunGroup(rootId: string, issues: RunIssue[]): boolean {
   const root = issues.find((issue) => issue.id === rootId);
@@ -181,7 +185,6 @@ function isRunGroup(rootId: string, issues: RunIssue[]): boolean {
   const metadata = root.metadata;
   return (
     stringValue(metadata?.['gc.formula_contract']) === 'graph.v2' ||
-    root.issue_type === 'molecule' ||
     stringValue(metadata?.['gc.kind']) === 'run' ||
     stringValue(metadata?.['gc.formula']) !== ''
   );

@@ -197,25 +197,30 @@ function runIssue(overrides: Partial<RunIssue> & Pick<RunIssue, 'id'>): RunIssue
   };
 }
 
-// gascity-dashboard-9w3k: v1 / wisp (non-graph.v2) runs are surfaced as lanes
-// using the same lane/stage primitives as graph.v2. The drop used to be at the
-// graph.v2-only keep-filter, which silently swallowed the entire v1 history.
-// These tests pin (a) a genuine v1 wisp run becomes exactly one lane, (b) a
-// lone engineering bead is NOT promoted into a lane (flood guard), and that
-// graph.v2 lanes are unchanged.
-describe('buildRunSummary — v1 / wisp runs surface as lanes (gascity-dashboard-9w3k)', () => {
-  // A real wisp run: a `molecule` root carrying gc.var.* template inputs but no
-  // gc.formula_contract, plus a child `task` whose metadata.molecule_id points
-  // back at the root. runRootId groups the child under the molecule root.
-  function wispRun(id: string): RunIssue[] {
+// gascity-dashboard-9w3k / -18eg: a group is promoted to a run lane only when
+// its root carries a genuine workflow/formula marker. gascity-dashboard-18eg
+// removed the bare `issue_type === 'molecule'` arm: a molecule is bd's generic
+// grouping primitive (bd-mol dispatch groups, plain issue-tracking molecules)
+// that never registers a supervisor workflow, so promoting it surfaced ordinary
+// non-run beads as lanes that 404 at /workflow/{id} and rendered the ambiguous
+// "detail snapshot was not found" copy. These tests pin (a) a bare molecule with
+// no run marker is NOT promoted (the flood guard), (b) a molecule that IS a real
+// formula run (carries gc.formula) still promotes, (c) a lone engineering bead
+// is never promoted, and that graph.v2 lanes are unchanged.
+describe('buildRunSummary — only workflow/formula-marked roots become lanes (gascity-dashboard-18eg)', () => {
+  // A bd-mol / issue-tracking molecule: an issue_type='molecule' root with
+  // grouping members and gc.var.* inputs but NO gc.formula_contract, gc.kind=run,
+  // or gc.formula. It never registered a supervisor workflow, so it must not
+  // become a clickable lane — clicking it 404s at /workflow/{id}.
+  function bareMolecule(id: string): RunIssue[] {
     return [
       runIssue({
         id,
-        title: 'mol-do-work',
+        title: 'mol-pr-review',
         status: 'open',
         issue_type: 'molecule',
         updated_at: '2026-06-02T00:00:00Z',
-        metadata: { 'gc.var.target': 'demo-app', 'gc.var.prompt': 'fix the thing' },
+        metadata: { 'gc.var.target': 'demo-app', 'gc.var.prompt': 'review the PR' },
       }),
       runIssue({
         id: `${id}-child-1`,
@@ -226,21 +231,77 @@ describe('buildRunSummary — v1 / wisp runs surface as lanes (gascity-dashboard
     ];
   }
 
-  test('a v1 wisp molecule run emits exactly one lane with a phase', () => {
-    const summary = buildRunSummary(wispRun('wisp-1'));
+  test('a bare molecule (bd-mol / issue-tracking) is NOT promoted to a lane', () => {
+    const summary = buildRunSummary(bareMolecule('mol-1'));
+
+    assert.deepEqual(summary.lanes, []);
+    assert.deepEqual(summary.blockedLanes, []);
+    assert.deepEqual(summary.strandedLanes, []);
+    assert.equal(summary.totalActive, 0);
+  });
+
+  // A molecule that IS a formula run carries a gc.formula attribution, so it
+  // still promotes on the gc.formula arm (the v1 path the flood guard keeps).
+  test('a molecule carrying a gc.formula attribution still becomes one lane', () => {
+    const summary = buildRunSummary([
+      runIssue({
+        id: 'v1-run',
+        title: 'mol-do-work',
+        status: 'open',
+        issue_type: 'molecule',
+        updated_at: '2026-06-02T00:00:00Z',
+        metadata: { 'gc.formula': 'mol-do-work' },
+      }),
+      runIssue({
+        id: 'v1-run-child-1',
+        title: 'Implementation work',
+        updated_at: '2026-06-02T00:05:00Z',
+        metadata: { molecule_id: 'v1-run', 'gc.step_id': 'do-work' },
+      }),
+    ]);
 
     assert.deepEqual(
       summary.lanes.map((lane) => lane.id),
-      ['wisp-1'],
+      ['v1-run'],
     );
     assert.equal(summary.totalActive, 1);
     const lane = summary.lanes[0];
     assert.ok(lane !== undefined);
-    assert.equal(lane.id, 'wisp-1');
     // mapRunPhase is generic: 'work'/'implementation' text yields a real phase.
     assert.equal(lane.phase, 'implementation');
-    // No graph.v2 formula metadata, so the formula resolves to unavailable but
-    // the generic run stages still render.
+    assert.ok(lane.stages.length > 0);
+  });
+
+  // A root carrying only gc.kind=run (no gc.formula, no gc.formula_contract) is
+  // still a promoting arm: it becomes a lane, but with no formula attribution its
+  // formula resolves to 'unavailable' while the generic run stages still render.
+  // Keeps the third isRunGroup arm integration-tested end to end (the rewrite of
+  // the 9w3k fixtures above dropped the only promoted-lane 'unavailable' case).
+  test('a gc.kind=run root with no formula attribution promotes with an unavailable formula', () => {
+    const summary = buildRunSummary([
+      runIssue({
+        id: 'kind-run',
+        title: 'do the work',
+        status: 'open',
+        issue_type: 'task',
+        updated_at: '2026-06-02T00:00:00Z',
+        metadata: { 'gc.kind': 'run' },
+      }),
+      runIssue({
+        id: 'kind-run-child-1',
+        title: 'Implementation work',
+        updated_at: '2026-06-02T00:05:00Z',
+        metadata: { molecule_id: 'kind-run', 'gc.step_id': 'do-work' },
+      }),
+    ]);
+
+    assert.deepEqual(
+      summary.lanes.map((lane) => lane.id),
+      ['kind-run'],
+    );
+    assert.equal(summary.totalActive, 1);
+    const lane = summary.lanes[0];
+    assert.ok(lane !== undefined);
     assert.equal(lane.formula.status, 'unavailable');
     assert.ok(lane.stages.length > 0);
   });
@@ -255,34 +316,36 @@ describe('buildRunSummary — v1 / wisp runs surface as lanes (gascity-dashboard
     assert.equal(summary.totalActive, 1);
   });
 
-  // gascity-dashboard-9w3k: a wisp run's gc.var.* free-text template inputs must
-  // NOT drive phase classification. Here gc.var.prompt contains 'review',
-  // 'blocked', and 'merge' — phase needles that would mis-bucket the run as
+  // gascity-dashboard-9w3k: a run's gc.var.* free-text template inputs must NOT
+  // drive phase classification. Here gc.var.prompt contains 'review', 'blocked',
+  // and 'merge' — phase needles that would mis-bucket the run as
   // blocked/approval/finalization — but the run's actual work (a 'do-work' step)
-  // keeps it in implementation/active.
-  test('gc.var.* free-text does not mis-classify a wisp run as blocked/approval', () => {
+  // keeps it in implementation/active. The root carries gc.formula so it is a
+  // real (promoted) formula run.
+  test('gc.var.* free-text does not mis-classify a promoted run as blocked/approval', () => {
     const summary = buildRunSummary([
       runIssue({
-        id: 'wisp-var',
+        id: 'v1-var',
         title: 'mol-do-work',
         status: 'open',
         issue_type: 'molecule',
         updated_at: '2026-06-02T00:00:00Z',
         metadata: {
+          'gc.formula': 'mol-do-work',
           'gc.var.prompt': 'review the blocked PR and merge it after approval, then finalize',
         },
       }),
       runIssue({
-        id: 'wisp-var-child-1',
+        id: 'v1-var-child-1',
         title: 'Do the work',
         updated_at: '2026-06-02T00:05:00Z',
-        metadata: { molecule_id: 'wisp-var', 'gc.step_id': 'do-work' },
+        metadata: { molecule_id: 'v1-var', 'gc.step_id': 'do-work' },
       }),
     ]);
 
     const lane = summary.lanes[0];
     assert.ok(lane !== undefined);
-    assert.equal(lane.id, 'wisp-var');
+    assert.equal(lane.id, 'v1-var');
     assert.notEqual(lane.phase, 'blocked');
     assert.notEqual(lane.phase, 'approval');
     assert.equal(summary.blockedLanes.length, 0);
@@ -290,9 +353,9 @@ describe('buildRunSummary — v1 / wisp runs surface as lanes (gascity-dashboard
     assert.equal(lane.phase, 'implementation');
   });
 
-  // Flood guard: a lone task/bug/feature bead (root = itself, no molecule /
-  // gc.kind=run / gc.formula) must NOT become a run lane — otherwise every
-  // engineering bead in the store would render as a phantom run.
+  // Flood guard: a lone task/bug/feature bead (root = itself, no run marker)
+  // must NOT become a run lane — otherwise every engineering bead in the store
+  // would render as a phantom run.
   test('a lone engineering bead does not become a lane', () => {
     const loneTask: RunIssue = {
       id: 'task-99',
@@ -378,7 +441,8 @@ describe('buildRunHistory — completed lanes only, recency-bounded (gascity-das
     const issues: RunIssue[] = [];
     // Distinct, monotonically increasing updated_at so newest-first order is
     // unambiguous. id-N has updated_at = base + N minutes; higher N = newer.
-    // A closed molecule root is a complete v1 run (one lane each).
+    // A closed gc.formula-attributed molecule root is a complete v1 run (one
+    // lane each) — the gc.formula marker is what promotes it (gascity-dashboard-18eg).
     const base = Date.parse('2026-01-01T00:00:00Z');
     for (let n = 0; n < total; n += 1) {
       const at = new Date(base + n * 60_000).toISOString();
@@ -388,6 +452,7 @@ describe('buildRunHistory — completed lanes only, recency-bounded (gascity-das
           issue_type: 'molecule',
           status: 'closed',
           updated_at: at,
+          metadata: { 'gc.formula': 'mol-do-work' },
         }),
       );
     }
