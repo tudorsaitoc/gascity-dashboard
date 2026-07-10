@@ -172,10 +172,8 @@ function buildSortedRunLanes(
 // an explicit `gc.kind=run` marker, or a `gc.formula` attribution.
 // gascity-dashboard-18eg dropped the bare `issue_type === 'molecule'` arm: a
 // molecule is bd's generic grouping primitive (bd-mol dispatch groups like
-// mol-pr-review/mol-pr-triage, and plain issue-tracking molecules), NOT a run
 // signal — none of them register a supervisor workflow, so promoting them
-// surfaced ordinary non-run beads as lanes that 404 at /workflow/{id}. A real
-// graph.v2 run root passes on its `gc.formula_contract`; a molecule that is
+// surfaced ordinary non-run beads as lanes that 404 at /v0/city/{cityName}/workflow/{workflow_id}. A real
 // genuinely a formula run still passes on its own `gc.formula`. A lone
 // engineering bead (root = itself with none of these markers) is likewise never
 // promoted, so every task/bug/feature in the store cannot render as a phantom
