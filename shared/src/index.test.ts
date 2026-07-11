@@ -11,14 +11,19 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import {
+  buildRelationIndex,
   CITY_NAME_RE,
   effectiveContextPct,
   errorMessage,
   GC_EVENT_PREFIX,
   makeNodeKey,
+  parseRef,
+  ResolutionRollup,
+  sanitiseUrl,
   SCOPE_REF_RE,
   TRUE_CONTEXT_WINDOWS,
 } from './index.js';
+import * as barrel from './index.js';
 import { CITY_NAME_RE as leafCityNameRe } from './city.js';
 import {
   effectiveContextPct as leafEffectiveContextPct,
@@ -233,6 +238,25 @@ test('shared barrel does not expose dashboard mirror DTOs for direct supervisor 
   assert.doesNotMatch(healthSource, /\bBeadsUsage\b/);
   assert.doesNotMatch(healthSource, /\bConfigComparisonRow\b/);
   assert.equal(exists(new URL('./formula-runs.ts', import.meta.url)), false);
+});
+
+test('shared barrel narrows to only externally-consumed session/link symbols (gascity-dashboard-ox06)', () => {
+  // Runtime reachability is the real contract a consumer sees — source-text
+  // regex on the barrel file is brittle to reformatting and doesn't catch a
+  // symbol re-exported under different syntax, so assert on the barrel's
+  // actual exports rather than how index.ts happens to be written.
+  assert.equal(typeof ResolutionRollup, 'function');
+  assert.equal(typeof buildRelationIndex, 'function');
+  assert.equal(typeof parseRef, 'function');
+  assert.equal(typeof sanitiseUrl, 'function');
+
+  // Assert the key is absent from the module namespace, not merely `=== undefined`:
+  // a symbol accidentally exported with the value `undefined` would pass the
+  // latter but is still a barrel leak.
+  const isExported = (name: string): boolean => Object.prototype.hasOwnProperty.call(barrel, name);
+  assert.equal(isExported('recordResolution'), false);
+  assert.equal(isExported('nodeKey'), false);
+  assert.equal(isExported('matchesSessionTarget'), false);
 });
 
 test('errorMessage normalizes unknown error values for shared client/server reporting', () => {
