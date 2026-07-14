@@ -56,7 +56,7 @@ function Stat({ label, value }: { label: string; value: string }) {
   );
 }
 
-function poolColumns(nowMs: number): TableColumn<RefineryPoolItem>[] {
+function poolColumns(nowMs: number, suppressAccent: boolean): TableColumn<RefineryPoolItem>[] {
   return [
     {
       key: 'bead',
@@ -64,7 +64,10 @@ function poolColumns(nowMs: number): TableColumn<RefineryPoolItem>[] {
       render: (row) => (
         <span className="whitespace-nowrap">
           {row.stuck && (
-            <span aria-hidden="true" className="text-accent text-[0.85em] leading-none">
+            <span
+              aria-hidden="true"
+              className={`${suppressAccent ? 'text-fg' : 'text-accent'} text-[0.85em] leading-none`}
+            >
               ●{' '}
             </span>
           )}
@@ -207,7 +210,7 @@ export function RefineryPage() {
                 last patrol {formatAgo(nowMs, data.lastPatrolAt)} ago
               </span>
             )}
-            {error !== null && data === undefined && (
+            {error !== null && (
               <span className="normal-case text-body text-accent" role="alert">
                 Refinery data unavailable — {error}
               </span>
@@ -241,7 +244,7 @@ export function RefineryPage() {
             </div>
             {data.poolSource.status === 'ok' && (
               <Table
-                columns={poolColumns(nowMs)}
+                columns={poolColumns(nowMs, error !== null)}
                 rows={data.pool}
                 rowKey={(row) => row.beadId}
                 initialSort={{ key: 'age', dir: 'asc' }}
