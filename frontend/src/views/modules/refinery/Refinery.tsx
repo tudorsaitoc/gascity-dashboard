@@ -56,18 +56,18 @@ function Stat({ label, value }: { label: string; value: string }) {
   );
 }
 
-function poolColumns(nowMs: number, suppressAccent: boolean): TableColumn<RefineryPoolItem>[] {
+function poolColumns(nowMs: number): TableColumn<RefineryPoolItem>[] {
   return [
     {
       key: 'bead',
       label: 'Bead',
       render: (row) => (
+        // Stuck rows carry glyph + word in NEUTRAL ink — with a whole pool
+        // stuck, per-row maroon would flood the page. The viewport's single
+        // maroon mark is the section-level stuck count.
         <span className="whitespace-nowrap">
           {row.stuck && (
-            <span
-              aria-hidden="true"
-              className={`${suppressAccent ? 'text-fg' : 'text-accent'} text-[0.85em] leading-none`}
-            >
+            <span aria-hidden="true" className="text-fg-muted text-[0.85em] leading-none">
               ●{' '}
             </span>
           )}
@@ -230,7 +230,11 @@ export function RefineryPage() {
               </h2>
               <span className="flex items-baseline gap-4">
                 {stuckCount > 0 && (
-                  <span className="text-label uppercase tracking-wider text-fg tnum">
+                  <span
+                    className={`text-label uppercase tracking-wider tnum ${
+                      error !== null ? 'text-fg' : 'text-accent'
+                    }`}
+                  >
                     {stuckCount} stuck &gt;{data.stuckThresholdHours}h
                   </span>
                 )}
@@ -244,7 +248,7 @@ export function RefineryPage() {
             </div>
             {data.poolSource.status === 'ok' && (
               <Table
-                columns={poolColumns(nowMs, error !== null)}
+                columns={poolColumns(nowMs)}
                 rows={data.pool}
                 rowKey={(row) => row.beadId}
                 initialSort={{ key: 'age', dir: 'asc' }}
