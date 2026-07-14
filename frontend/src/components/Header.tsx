@@ -42,6 +42,13 @@ const EXPLICIT_ROUTES: ReadonlyArray<NavRoute> = [
   { to: '/mail', label: 'Mail', order: 50 },
 ];
 
+// saitoc fork extension: modules that are lined up but not yet built render
+// as faint, non-interactive margin notes after the live routes — Faint Margin
+// tone, lowercase, no route, no hover affordance. Each entry is deleted the
+// release its module ships. Static list on purpose: this is a pencilled
+// reminder, not part of the ViewDescriptor contract.
+const PLANNED_VIEWS: ReadonlyArray<string> = ['refinery', 'cost', 'clients', 'attention'];
+
 const NAV_ATTENTION_DOMAINS: Readonly<Record<string, AttentionDomain>> = {
   '/agents': 'agents',
   '/beads': 'beads',
@@ -159,6 +166,17 @@ export function Header() {
     );
   };
 
+  // Planned-module margin notes. aria-hidden: they carry no action and no
+  // destination, so announcing them to a screen reader would read as broken
+  // nav — visually they are a pencilled note, semantically they are nothing.
+  const plannedItem = (label: string, sizeClass: string) => (
+    <li key={label} aria-hidden="true">
+      <span className={`${sizeClass} font-normal lowercase text-fg-faint select-none`}>
+        {label}
+      </span>
+    </li>
+  );
+
   return (
     <header className="border-b border-rule">
       <div className="max-w-dashboard mx-auto px-4 sm:px-6 lg:px-8 py-5 flex items-baseline gap-x-6 lg:gap-x-8 gap-y-2 flex-wrap">
@@ -207,6 +225,7 @@ export function Header() {
               the hamburger below opens the same routes in a Modal. */}
           <ul className="hidden sm:flex items-baseline gap-x-5 lg:gap-x-7 gap-y-1 flex-wrap">
             {ROUTES.map((r) => navItem(r, 'text-title'))}
+            {PLANNED_VIEWS.map((label) => plannedItem(label, 'text-title'))}
           </ul>
         </nav>
 
@@ -238,6 +257,7 @@ export function Header() {
         <nav id="mobile-nav-menu" aria-label="Mobile navigation">
           <ul className="flex flex-col gap-y-3">
             {ROUTES.map((r) => navItem(r, 'text-headline', () => setMenuOpen(false)))}
+            {PLANNED_VIEWS.map((label) => plannedItem(label, 'text-headline'))}
           </ul>
         </nav>
       </Modal>
