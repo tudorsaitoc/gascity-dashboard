@@ -118,6 +118,25 @@ describe('Header mobile nav', () => {
     expect(labels.indexOf('Convoy')).toBeLessThan(labels.indexOf('Mail'));
   });
 
+  it('renders planned modules as faint non-interactive margin notes, never links', () => {
+    // saitoc fork extension: unbuilt-but-lined-up modules appear after the live
+    // routes as pencilled margin notes — Faint Margin tone, no route, hidden
+    // from AT (a nav entry that goes nowhere reads as broken to a screen reader).
+    renderHeader();
+    const nav = screen.getByRole('navigation', { name: 'Primary' });
+    for (const label of ['refinery', 'cost', 'clients', 'attention']) {
+      const note = within(nav).getByText(label);
+      expect(note.closest('a')).toBeNull();
+      expect(note.className).toContain('text-fg-faint');
+      expect(note.closest('li')?.getAttribute('aria-hidden')).toBe('true');
+    }
+    // The notes sit after every live route in the row.
+    const items = Array.from(nav.querySelectorAll('li'));
+    const lastLink = items.reduce((acc, li, i) => (li.querySelector('a') !== null ? i : acc), -1);
+    const firstPlanned = items.findIndex((li) => li.textContent === 'refinery');
+    expect(firstPlanned).toBeGreaterThan(lastLink);
+  });
+
   it('closes the menu when a route is selected', () => {
     renderHeader();
     fireEvent.click(screen.getByRole('button', { name: /menu/i }));
