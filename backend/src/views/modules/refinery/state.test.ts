@@ -160,7 +160,12 @@ describe('RefinerySummaryState', () => {
         merged_at: '2026-07-14T11:30:00Z',
       }) + '\n',
     );
-    t = NOW + 31_000; // past the summary TTL → re-stat, tail from offset
+    t = NOW + 31_000; // past the summary TTL → stale served, refresh kicked
+    const stale = await ticking.summary();
+    assert.equal(stale.merges.length, 3, 'expired TTL serves the stale summary immediately');
+    // Let the background refresh (coalesced single flight) complete, then
+    // the next read serves the re-tailed result.
+    await new Promise((resolve) => setTimeout(resolve, 50));
     const after = await ticking.summary();
     assert.equal(after.merges.length, 4);
     assert.ok(after.merges.some((m) => m.beadId === 'x-fff'));

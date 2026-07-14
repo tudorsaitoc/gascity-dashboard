@@ -102,10 +102,27 @@ export class RefinerySummaryState {
     private readonly poolExec: typeof execBdRefineryPool = execBdRefineryPool,
   ) {}
 
-  /** Serve the cached summary within TTL; coalesce concurrent refreshes. */
+  /**
+   * Serve-stale-while-revalidate. Within TTL: the cache. Past TTL with a
+   * cache present: the STALE summary immediately, with a coalesced refresh
+   * kicked in the background — a rebuild (bd read + today's river delta)
+   * can take seconds, and this page is an ambient lens whose data moves on
+   * refinery-patrol cadence; blocking a route paint on it buys nothing.
+   * The DTO's per-source asOf keeps the staleness honest. Only the very
+   * first read (no cache yet) awaits the build.
+   */
   async summary(): Promise<RefinerySummary> {
-    if (this.cached !== null && this.now() - this.cachedAt < SUMMARY_TTL_MS) {
-      return this.cached;
+    const cached = this.cached;
+    if (cached !== null) {
+      if (this.now() - this.cachedAt >= SUMMARY_TTL_MS) {
+        this.inFlight ??= this.build().finally(() => {
+          this.inFlight = null;
+        });
+        // Background refresh: swallow here; build() records its result and
+        // per-source failures degrade inside the DTO, not as a rejection.
+        void this.inFlight.catch(() => undefined);
+      }
+      return cached;
     }
     this.inFlight ??= this.build().finally(() => {
       this.inFlight = null;
