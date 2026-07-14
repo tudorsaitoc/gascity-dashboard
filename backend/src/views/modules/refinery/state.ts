@@ -277,13 +277,30 @@ export class RefinerySummaryState {
     const firstSeen = new Map<string, number>();
     const merges = new Map<string, RefineryMergeItem>();
 
+    // Pool-entry evidence: a bead is "in the refinery" when a patrol SIGHTS
+    // it (a score event or a publish-batch result row). Merge events must
+    // not seed first-seen — pr.merged covers every repo PR, and letting a
+    // merge sight its own bead fabricates a ~0 lead time that drags the
+    // median down. A merge without a prior sighting reports lead time null.
+    const sight = (beadId: string | null, ts: string): void => {
+      if (beadId === null) return;
+      const t = Date.parse(ts);
+      if (!Number.isFinite(t)) return;
+      const prev = firstSeen.get(beadId);
+      if (prev === undefined || t < prev) firstSeen.set(beadId, t);
+    };
+
     for (const event of events) {
-      const beadId = str(event.data.bead_id) ?? str(event.data.bead);
-      if (beadId !== null) {
-        const t = Date.parse(event.ts);
-        if (Number.isFinite(t)) {
-          const prev = firstSeen.get(beadId);
-          if (prev === undefined || t < prev) firstSeen.set(beadId, t);
+      if (event.kind === KIND_SCORE) {
+        sight(str(event.data.bead_id), event.ts);
+      } else if (event.kind === KIND_PUBLISH) {
+        const results = event.data.results;
+        if (Array.isArray(results)) {
+          for (const row of results) {
+            if (typeof row === 'object' && row !== null) {
+              sight(str((row as Record<string, unknown>).bead_id), event.ts);
+            }
+          }
         }
       }
       if (event.kind === KIND_SCORE || event.kind === KIND_PUBLISH) {

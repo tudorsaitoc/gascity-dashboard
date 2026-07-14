@@ -112,9 +112,9 @@ describe('RefinerySummaryState', () => {
     assert.equal(summary.merges[0]?.beadId, 'x-bbb');
     assert.equal(summary.merges[1]?.beadId, 'x-aaa');
     assert.equal(summary.merges[1]?.leadTimeMs, Date.parse('2026-07-14T09:00:00Z') - T0);
-    // x-bbb never appeared before its merge event → lead time from its own
-    // first sighting (the merge event itself) = 0.
-    assert.equal(summary.merges[0]?.leadTimeMs, 0);
+    // x-bbb was never sighted by a patrol before its merge — merge events
+    // must not fabricate a first-seen, so its lead time is honestly unknown.
+    assert.equal(summary.merges[0]?.leadTimeMs, null);
 
     // Pool: x-ccc last moved 2.5 days ago → stuck; x-ddd fresh → not.
     const stuck = summary.pool.find((p) => p.beadId === 'x-ccc');
