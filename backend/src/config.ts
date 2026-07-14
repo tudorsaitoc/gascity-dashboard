@@ -29,8 +29,26 @@ export interface MaintainerModuleConfig {
   cachePath?: string;
 }
 
+export interface RefineryModuleConfig {
+  /**
+   * Repo checkout whose `.beads` store holds the publish pool. The bd read
+   * runs embedded + readonly against `<repoPath>/.beads` (mirrors
+   * execBdDoctor); empty = pool source degrades with an explicit reason.
+   */
+  repoPath: string;
+  /** Directory of nerve-river `events-YYYY-MM-DD.jsonl` logs. Empty = degraded. */
+  riverLogDir: string;
+  /** gc.routed_to label selecting the publish pool (e.g. "saitoc/refinery"). */
+  routedTo: string;
+  /** Aggregation window over river events, in days. */
+  windowDays: number;
+  /** Pool rows without bd movement past this age render as stuck. */
+  stuckHours: number;
+}
+
 export interface ModulesConfig {
   maintainer: MaintainerModuleConfig;
+  refinery: RefineryModuleConfig;
 }
 
 export interface AdminConfig {
@@ -254,6 +272,7 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): AdminConfig {
   // names it.
   const enabledModules = parseModulesEnabled(env.MODULES_ENABLED);
   const maintainerEnabled = enabledModules?.has('maintainer') ?? false;
+  const refineryEnabled = enabledModules?.has('refinery') ?? false;
   // Operator identity (gascity-dashboard-bhvn / zero-hardcoded-roles). Neutral,
   // non-identifying defaults so an unconfigured install never assumes a
   // specific human; our deployment supplies the real values via env. The
@@ -280,6 +299,9 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): AdminConfig {
       maintainer: maintainerEnabled
         ? loadMaintainerModuleConfig(env)
         : defaultMaintainerModuleConfig(),
+      refinery: refineryEnabled
+        ? loadRefineryModuleConfig(env)
+        : defaultRefineryModuleConfig(),
     },
     useFixtures: env.SNAPSHOT_USE_FIXTURES === '1',
     enabledModules,
@@ -321,6 +343,38 @@ const DEFAULT_MAINTAINER_REFRESH_MS = 6 * 60 * 60 * 1_000;
  * `AdminConfig.modules.maintainer` keeps its non-optional type, but it is
  * never consumed because the module isn't bound.
  */
+const DEFAULT_REFINERY_WINDOW_DAYS = 7;
+const DEFAULT_REFINERY_STUCK_HOURS = 24;
+
+function defaultRefineryModuleConfig(): RefineryModuleConfig {
+  return {
+    repoPath: '',
+    riverLogDir: '',
+    routedTo: '',
+    windowDays: DEFAULT_REFINERY_WINDOW_DAYS,
+    stuckHours: DEFAULT_REFINERY_STUCK_HOURS,
+  };
+}
+
+// Both paths are host-side deployment facts (where the rig checkout and the
+// nerve river live). Empty defaults are deliberate: an unconfigured source
+// renders as an explicit unavailable state, never a guessed path.
+function loadRefineryModuleConfig(env: NodeJS.ProcessEnv): RefineryModuleConfig {
+  return {
+    repoPath: env.REFINERY_REPO_PATH ?? '',
+    riverLogDir: env.REFINERY_RIVER_LOG_DIR ?? '',
+    routedTo: env.REFINERY_ROUTED_TO ?? '',
+    windowDays: parsePositiveInt(env.REFINERY_WINDOW_DAYS, DEFAULT_REFINERY_WINDOW_DAYS),
+    stuckHours: parsePositiveInt(env.REFINERY_STUCK_HOURS, DEFAULT_REFINERY_STUCK_HOURS),
+  };
+}
+
+function parsePositiveInt(raw: string | undefined, fallback: number): number {
+  if (raw === undefined || raw.length === 0) return fallback;
+  const n = Number.parseInt(raw, 10);
+  return Number.isFinite(n) && n > 0 ? n : fallback;
+}
+
 function defaultMaintainerModuleConfig(): MaintainerModuleConfig {
   return {
     githubRepo: DEFAULT_MAINTAINER_REPO,

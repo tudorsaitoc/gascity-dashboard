@@ -35,6 +35,13 @@ function makeConfig(overrides: Partial<AdminConfig> = {}): AdminConfig {
         triageTarget: 'mayor',
         refreshIntervalMs: 0,
       },
+      refinery: {
+        repoPath: '',
+        riverLogDir: '',
+        routedTo: '',
+        windowDays: 7,
+        stuckHours: 24,
+      },
     },
     useFixtures: false,
     enabledModules: null,
@@ -75,6 +82,12 @@ describe('views/registry', () => {
   test('ALL_MODULES includes the maintainer module', () => {
     const ids = ALL_MODULES.map((m) => m.id);
     assert.ok(ids.includes('maintainer'), `expected 'maintainer' in ${JSON.stringify(ids)}`);
+  });
+
+  test('ALL_MODULES includes the refinery module (firstParty, opt-in)', () => {
+    const refinery = ALL_MODULES.find((m) => m.id === 'refinery');
+    assert.ok(refinery !== undefined, 'expected refinery in ALL_MODULES');
+    assert.equal(refinery.kind, 'firstParty');
   });
 
   test('ALL_MODULES has no duplicate ids', () => {

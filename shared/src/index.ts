@@ -58,5 +58,6 @@ export type * from './rig-store-health.js';
 export type * from './supervisor-status.js';
 export type * from './api-error.js';
 export type * from './maintainer-triage.js';
+export type * from './refinery-summary.js';
 export type * from './views.js';
 export type * from './dashboard-sessions.js';

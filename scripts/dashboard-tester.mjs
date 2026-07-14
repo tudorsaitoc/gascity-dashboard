@@ -365,6 +365,43 @@ async function checkBeads(browser, cityBase) {
   return result;
 }
 
+// Refinery is an opt-in first-party module (MODULES_ENABLED=refinery), so
+// its flow only runs when the live server advertises it — a vanilla deploy
+// without the module must not fail this gate.
+async function refineryEnabled(cityBase) {
+  const configUrl = cityBase.replace('/city/', '/api/city/') + '/config';
+  try {
+    const res = await fetch(configUrl);
+    if (!res.ok) return false;
+    const config = await res.json();
+    return Array.isArray(config.enabledModules) && config.enabledModules.includes('refinery');
+  } catch {
+    return false;
+  }
+}
+
+async function checkRefinery(browser, cityBase) {
+  const result = makeResult('refinery');
+  await withPage(browser, async (page) => {
+    const drain = collectErrors(page, result);
+    await page.goto(`${cityBase}/refinery`, { waitUntil: 'domcontentloaded', timeout: 15_000 });
+    await page.waitForTimeout(SETTLE_MS);
+    await assertH1(page, result, 'Refinery', 'refinery');
+    // Ledger sections render either live rows or explicit calm/unavailable
+    // copy — a blank section is the false all-clear this gate exists to catch.
+    await assertContentOrEmpty(
+      page,
+      result,
+      'refinery',
+      'table tbody tr',
+      /pool is empty|unavailable|nothing merged/i,
+    );
+    drain();
+    await snap(page, 'refinery');
+  });
+  return result;
+}
+
 async function checkMail(browser, cityBase) {
   const result = makeResult('mail');
   await withPage(browser, async (page) => {
@@ -455,7 +492,12 @@ try {
     results.push(await checkRuns(browser, cityBase));
     results.push(await checkBeads(browser, cityBase));
     results.push(await checkMail(browser, cityBase));
-    for (const [route, label] of ROUTES) {
+    const routes = [...ROUTES];
+    if (await refineryEnabled(cityBase)) {
+      results.push(await checkRefinery(browser, cityBase));
+      routes.push(['/refinery', 'refinery']);
+    }
+    for (const [route, label] of routes) {
       results.push(await checkFailSafe(browser, cityBase, route, label));
     }
   }

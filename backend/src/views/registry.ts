@@ -11,6 +11,7 @@
 
 import type { BackendModule } from './types.js';
 import { maintainerBackend } from './modules/maintainer/maintainer.module.js';
+import { refineryBackend } from './modules/refinery/refinery.module.js';
 
 /** Erases a module's concrete Deps to `unknown` so heterogeneous modules
  *  share a single array type. Safe because `bind<D>()` re-closes over the
@@ -20,4 +21,7 @@ function register<D>(mod: BackendModule<D>): BackendModule<unknown> {
   return mod as BackendModule<unknown>;
 }
 
-export const ALL_MODULES: ReadonlyArray<BackendModule<unknown>> = [register(maintainerBackend)];
+export const ALL_MODULES: ReadonlyArray<BackendModule<unknown>> = [
+  register(maintainerBackend),
+  register(refineryBackend),
+];

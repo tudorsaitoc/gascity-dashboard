@@ -124,7 +124,7 @@ describe('Header mobile nav', () => {
     // from AT (a nav entry that goes nowhere reads as broken to a screen reader).
     renderHeader();
     const nav = screen.getByRole('navigation', { name: 'Primary' });
-    for (const label of ['refinery', 'cost', 'clients', 'attention']) {
+    for (const label of ['cost', 'clients', 'attention']) {
       const note = within(nav).getByText(label);
       expect(note.closest('a')).toBeNull();
       expect(note.className).toContain('text-fg-faint');
@@ -133,7 +133,7 @@ describe('Header mobile nav', () => {
     // The notes sit after every live route in the row.
     const items = Array.from(nav.querySelectorAll('li'));
     const lastLink = items.reduce((acc, li, i) => (li.querySelector('a') !== null ? i : acc), -1);
-    const firstPlanned = items.findIndex((li) => li.textContent === 'refinery');
+    const firstPlanned = items.findIndex((li) => li.textContent === 'cost');
     expect(firstPlanned).toBeGreaterThan(lastLink);
   });
 

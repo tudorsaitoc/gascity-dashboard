@@ -9,6 +9,7 @@ import type {
   SupervisorStatusReport,
   MaintainerTriage,
   MaintainerSlingRecordRequest,
+  RefinerySummary,
   ContributorStat,
   ApiError,
   DashboardRuntimeConfig,
@@ -341,6 +342,13 @@ const decodeMaintainerTriage = objectDecoder<MaintainerTriage>(
 const decodeContributor = objectDecoder<ContributorStat>('contributor', (record, url) => {
   requireStringField(record, url, 'contributor', 'login');
 });
+const decodeRefinerySummary = objectDecoder<RefinerySummary>('refinery summary', (record, url) => {
+  requireArrayField(record, url, 'refinery summary', 'pool');
+  requireObjectField(record, url, 'refinery summary', 'poolSource');
+  requireObjectField(record, url, 'refinery summary', 'gate');
+  requireArrayField(record, url, 'refinery summary', 'merges');
+  requireObjectField(record, url, 'refinery summary', 'riverSource');
+});
 const decodeMaintainerSlingRecord = objectDecoder<{ ok: true; bead_id?: string }>(
   'maintainer sling record',
   (record, url) => {
@@ -416,6 +424,9 @@ export const api = {
   },
   maintainerTriage(): Promise<MaintainerTriage> {
     return request('GET', cityPath('/maintainer/triage'), decodeMaintainerTriage);
+  },
+  refinerySummary(): Promise<RefinerySummary> {
+    return request('GET', cityPath('/refinery/summary'), decodeRefinerySummary);
   },
   maintainerRefresh(): Promise<MaintainerTriage> {
     return request('POST', cityPath('/maintainer/refresh'), decodeMaintainerTriage, {});

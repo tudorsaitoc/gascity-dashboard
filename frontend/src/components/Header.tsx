@@ -47,7 +47,7 @@ const EXPLICIT_ROUTES: ReadonlyArray<NavRoute> = [
 // tone, lowercase, no route, no hover affordance. Each entry is deleted the
 // release its module ships. Static list on purpose: this is a pencilled
 // reminder, not part of the ViewDescriptor contract.
-const PLANNED_VIEWS: ReadonlyArray<string> = ['refinery', 'cost', 'clients', 'attention'];
+const PLANNED_VIEWS: ReadonlyArray<string> = ['cost', 'clients', 'attention'];
 
 const NAV_ATTENTION_DOMAINS: Readonly<Record<string, AttentionDomain>> = {
   '/agents': 'agents',
