@@ -423,10 +423,20 @@ async function checkMail(browser, cityBase) {
 // asserted; only the degraded-signal contract is.
 // ---------------------------------------------------------------------------
 
-async function checkFailSafe(browser, cityBase, route, label) {
+// `allowConfig` lets the app-chrome /config read through the fault. Needed
+// for firstParty module routes: with config unreachable the view resolver is
+// deliberately core-only (frontend/src/views/resolve.ts), so the module's
+// route does not exist and the page renders the router's not-found view —
+// which proves nothing about the MODULE's degraded state. Letting config
+// through mounts the route; every module/data call still 503s.
+async function checkFailSafe(browser, cityBase, route, label, { allowConfig = false } = {}) {
   const result = makeResult(`failsafe:${label}`);
   await withPage(browser, async (page) => {
     await page.route('**/*', (r) => {
+      const url = new URL(r.request().url());
+      if (allowConfig && /^\/api\/city\/[^/]+\/config$/.test(url.pathname)) {
+        return r.continue();
+      }
       if (isDataCall(r.request().url())) {
         return r.fulfill({
           status: 503,
@@ -492,13 +502,14 @@ try {
     results.push(await checkRuns(browser, cityBase));
     results.push(await checkBeads(browser, cityBase));
     results.push(await checkMail(browser, cityBase));
-    const routes = [...ROUTES];
+    for (const [route, label] of ROUTES) {
+      results.push(await checkFailSafe(browser, cityBase, route, label));
+    }
     if (await refineryEnabled(cityBase)) {
       results.push(await checkRefinery(browser, cityBase));
-      routes.push(['/refinery', 'refinery']);
-    }
-    for (const [route, label] of routes) {
-      results.push(await checkFailSafe(browser, cityBase, route, label));
+      results.push(
+        await checkFailSafe(browser, cityBase, '/refinery', 'refinery', { allowConfig: true }),
+      );
     }
   }
 } finally {
