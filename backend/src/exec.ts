@@ -445,4 +445,44 @@ export async function execBdDoctor(beadsPath: string): Promise<ExecResult> {
   return runExec('bd', ['doctor', '--readonly', '--db', beadsPath, '--json'], BD_DOCTOR_TIMEOUT_MS);
 }
 
+// ── Refinery publish pool: `bd list` (saitoc refinery module) ────────────
+//
+// Read-only embedded read of the rig store's refinery-routed beads, same
+// path posture as execBdDoctor: the store path comes from host-side module
+// config (REFINERY_REPO_PATH + '/.beads'), never from a browser parameter,
+// and is validated at this boundary anyway. `--readonly` + no mutating
+// subcommand; the metadata filter value is a fixed enum below, not caller
+// input. Full bead JSON (descriptions included) for a rig-sized pool blows
+// past the 100KB default cap, so this uses MAX_BYTES_LARGE like the gh
+// list reads.
+const BD_LIST_TIMEOUT_MS = 15_000;
+const REFINERY_POOL_LIMIT = '200';
+
+export async function execBdRefineryPool(beadsPath: string, routedTo: string): Promise<ExecResult> {
+  if (!isValidHostPath(beadsPath) || !beadsPath.endsWith('/.beads')) {
+    throw new ExecError('invalid beads store path', 'validation');
+  }
+  // rig/agent routing labels: conservative charset, no shell metacharacters
+  // reach the argv anyway (shell:false), this guards log/JSON injection.
+  if (!/^[a-zA-Z0-9._/-]{1,64}$/.test(routedTo)) {
+    throw new ExecError('invalid routed_to value', 'validation');
+  }
+  return runExec(
+    'bd',
+    [
+      'list',
+      '--metadata-field',
+      `gc.routed_to=${routedTo}`,
+      '--limit',
+      REFINERY_POOL_LIMIT,
+      '--json',
+      '--readonly',
+      '--db',
+      beadsPath,
+    ],
+    BD_LIST_TIMEOUT_MS,
+    MAX_BYTES_LARGE,
+  );
+}
+
 export { sanitiseTerminalOutput };

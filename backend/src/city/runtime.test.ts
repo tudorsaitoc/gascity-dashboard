@@ -26,6 +26,13 @@ function makeConfig(overrides: Partial<AdminConfig> = {}): AdminConfig {
         refreshIntervalMs: 0,
         cachePath: '.gascity-dashboard/maintainer-cache.json',
       },
+      refinery: {
+        repoPath: '',
+        riverLogDir: '',
+        routedTo: '',
+        windowDays: 7,
+        stuckHours: 24,
+      },
     },
     useFixtures: false,
     enabledModules: null,

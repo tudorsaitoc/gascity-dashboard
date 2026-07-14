@@ -44,6 +44,15 @@ describe('views/registry', () => {
     expect(maintainer?.nav?.label).toBe('Triage');
   });
 
+  it('refineryView is firstParty, mounts at /refinery, and has a Refinery nav entry', () => {
+    const refinery = ALL_VIEWS.find((v) => v.id === 'refinery');
+    expect(refinery).toBeDefined();
+    expect(refinery?.kind).toBe('firstParty');
+    expect(refinery?.path).toBe('/refinery');
+    expect(refinery?.nav).not.toBeNull();
+    expect(refinery?.nav?.label).toBe('Refinery');
+  });
+
   it('every view exposes a renderable element (React.lazy result)', () => {
     for (const v of ALL_VIEWS) {
       // React.lazy returns an exotic object with a $$typeof symbol and a
